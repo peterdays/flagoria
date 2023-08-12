@@ -1,0 +1,24 @@
+[gd_scene load_steps=4 format=3 uid="uid://4h3b7gksl7a1"]
+
+[ext_resource type="Script" path="res://player.gd" id="1_yrrsj"]
+[ext_resource type="Texture2D" uid="uid://r2bouldhkmet" path="res://Sprites/Solaria Demo Pack Update 03/16x16/Sprites/Hero 01.png" id="2_lfruk"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_5iwvh"]
+size = Vector2(16, 16)
+
+[node name="Player" type="CharacterBody2D"]
+y_sort_enabled = true
+texture_filter = 1
+script = ExtResource("1_yrrsj")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_5iwvh")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+zoom = Vector2(0.3, 0.3)
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture_filter = 1
+texture = ExtResource("2_lfruk")
+hframes = 8
+vframes = 16
