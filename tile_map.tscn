@@ -1,8 +1,9 @@
-[gd_scene load_steps=6 format=3 uid="uid://cxtnu53ko1bon"]
+[gd_scene load_steps=7 format=3 uid="uid://cxtnu53ko1bon"]
 
 [ext_resource type="Texture2D" uid="uid://b7hssjy0jtk8c" path="res://Sprites/Solaria Demo Pack Update 03/16x16/Tilesets/Solaria Demo Update 01.png" id="1_fyhia"]
 [ext_resource type="Script" path="res://TileMap.gd" id="2_nqexn"]
 [ext_resource type="PackedScene" uid="uid://4h3b7gksl7a1" path="res://character_body_2d.tscn" id="3_ii6sq"]
+[ext_resource type="Script" path="res://MainMenu.gd" id="4_yd6oj"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_xxsyq"]
 texture = ExtResource("1_fyhia")
@@ -447,6 +448,7 @@ texture = ExtResource("1_fyhia")
 5:6/0 = 0
 5:6/0/physics_layer_0/linear_velocity = Vector2(0, 0)
 5:6/0/physics_layer_0/angular_velocity = 0.0
+5:6/0/physics_layer_0/polygon_0/points = PackedVector2Array(-8, -8, -8, 8, 8, 8, 8, -8)
 6:6/0 = 0
 6:6/0/physics_layer_0/linear_velocity = Vector2(0, 0)
 6:6/0/physics_layer_0/angular_velocity = 0.0
@@ -1092,7 +1094,7 @@ texture = ExtResource("1_fyhia")
 physics_layer_0/collision_layer = 1
 sources/0 = SubResource("TileSetAtlasSource_xxsyq")
 
-[node name="Node2D" type="Node2D"]
+[node name="World" type="Node2D"]
 
 [node name="worldMap" type="TileMap" parent="."]
 tile_set = SubResource("TileSet_nbw7d")
@@ -1110,3 +1112,50 @@ script = ExtResource("2_nqexn")
 
 [node name="Player" parent="." instance=ExtResource("3_ii6sq")]
 position = Vector2(160, 88)
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="MainMenu" type="PanelContainer" parent="CanvasLayer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 111.0
+offset_top = 46.0
+offset_right = -111.0
+offset_bottom = -45.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("4_yd6oj")
+
+[node name="MarginContainer" type="MarginContainer" parent="CanvasLayer/MainMenu"]
+layout_mode = 2
+theme_override_constants/margin_left = 15
+theme_override_constants/margin_top = 15
+theme_override_constants/margin_right = 15
+theme_override_constants/margin_bottom = 15
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/MainMenu/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Label" type="Label" parent="CanvasLayer/MainMenu/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Main Menu"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="HostButton" type="Button" parent="CanvasLayer/MainMenu/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Host"
+
+[node name="JoinButton" type="Button" parent="CanvasLayer/MainMenu/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Join"
+
+[node name="AddressEntry" type="LineEdit" parent="CanvasLayer/MainMenu/MarginContainer/VBoxContainer"]
+layout_mode = 2
+placeholder_text = "Enter address to join here"
+alignment = 1
+
+[connection signal="pressed" from="CanvasLayer/MainMenu/MarginContainer/VBoxContainer/HostButton" to="CanvasLayer/MainMenu" method="_on_host_button_pressed"]
+[connection signal="pressed" from="CanvasLayer/MainMenu/MarginContainer/VBoxContainer/JoinButton" to="CanvasLayer/MainMenu" method="_on_join_button_pressed"]
