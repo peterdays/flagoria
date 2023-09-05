@@ -13,10 +13,6 @@ const CHUNK_HEIGHT = 32
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	moisture.seed = randi()
-	temperature.seed = randi()
-	altitude.seed = randi()
-	items_chance.seed = randi()
 	items_chance.frequency = 1
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
@@ -77,3 +73,11 @@ func set_tile_type_z1(pos_vec, alt, moist, temp, chance):
 		set_cell(1, pos_vec, 0, tile_vec)
 	elif moist > 0 and alt > 0.4 and chance > 0.3:
 		set_cell(1, pos_vec, 0, Vector2i(7, 0), )
+
+func update_world_seeds(seeds: WorldSeeder):
+	moisture.seed = seeds.moist_seed
+	temperature.seed = seeds.temp_seed
+	altitude.seed = seeds.alt_seed
+	items_chance.seed = seeds.items_chance
+
+	print("updated seeds")

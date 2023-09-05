@@ -3,7 +3,7 @@
 [ext_resource type="Texture2D" uid="uid://b7hssjy0jtk8c" path="res://Sprites/Solaria Demo Pack Update 03/16x16/Tilesets/Solaria Demo Update 01.png" id="1_fyhia"]
 [ext_resource type="Script" path="res://TileMap.gd" id="2_nqexn"]
 [ext_resource type="PackedScene" uid="uid://4h3b7gksl7a1" path="res://character_body_2d.tscn" id="3_ii6sq"]
-[ext_resource type="Script" path="res://MainMenu.gd" id="4_yd6oj"]
+[ext_resource type="Script" path="res://Scripts/MainMenu.gd" id="4_gds65"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_xxsyq"]
 texture = ExtResource("1_fyhia")
@@ -1125,7 +1125,7 @@ offset_right = -111.0
 offset_bottom = -45.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("4_yd6oj")
+script = ExtResource("4_gds65")
 
 [node name="MarginContainer" type="MarginContainer" parent="CanvasLayer/MainMenu"]
 layout_mode = 2
