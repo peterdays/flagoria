@@ -1,8 +1,8 @@
 [gd_scene load_steps=7 format=3 uid="uid://cxtnu53ko1bon"]
 
+[ext_resource type="Script" path="res://flagoria_main.gd" id="1_diuix"]
 [ext_resource type="Texture2D" uid="uid://b7hssjy0jtk8c" path="res://Sprites/Solaria Demo Pack Update 03/16x16/Tilesets/Solaria Demo Update 01.png" id="1_fyhia"]
 [ext_resource type="Script" path="res://TileMap.gd" id="2_nqexn"]
-[ext_resource type="PackedScene" uid="uid://4h3b7gksl7a1" path="res://character_body_2d.tscn" id="3_ii6sq"]
 [ext_resource type="Script" path="res://Scripts/MainMenu.gd" id="4_gds65"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_xxsyq"]
@@ -448,7 +448,7 @@ texture = ExtResource("1_fyhia")
 5:6/0 = 0
 5:6/0/physics_layer_0/linear_velocity = Vector2(0, 0)
 5:6/0/physics_layer_0/angular_velocity = 0.0
-5:6/0/physics_layer_0/polygon_0/points = PackedVector2Array(-8, -8, -8, 8, 8, 8, 8, -8)
+5:6/0/physics_layer_0/polygon_0/points = PackedVector2Array(5.125, -8, 5.75, -5.25, 8, -4.875, 8, -8)
 6:6/0 = 0
 6:6/0/physics_layer_0/linear_velocity = Vector2(0, 0)
 6:6/0/physics_layer_0/angular_velocity = 0.0
@@ -1094,9 +1094,12 @@ texture = ExtResource("1_fyhia")
 physics_layer_0/collision_layer = 1
 sources/0 = SubResource("TileSetAtlasSource_xxsyq")
 
-[node name="World" type="Node2D"]
+[node name="Flagoria" type="Node2D"]
+script = ExtResource("1_diuix")
 
-[node name="worldMap" type="TileMap" parent="."]
+[node name="World" type="Node2D" parent="."]
+
+[node name="worldMap" type="TileMap" parent="World"]
 tile_set = SubResource("TileSet_nbw7d")
 format = 2
 layer_0/name = "ground"
@@ -1110,8 +1113,8 @@ layer_1/z_index = 1
 layer_1/tile_data = PackedInt32Array()
 script = ExtResource("2_nqexn")
 
-[node name="Player" parent="." instance=ExtResource("3_ii6sq")]
-position = Vector2(160, 88)
+[node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="World"]
+_spawnable_scenes = PackedStringArray("res://character_body_2d.tscn")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 

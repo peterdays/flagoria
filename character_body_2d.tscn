@@ -4,7 +4,7 @@
 [ext_resource type="Texture2D" uid="uid://r2bouldhkmet" path="res://Sprites/Solaria Demo Pack Update 03/16x16/Sprites/Hero 01.png" id="2_lfruk"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_5iwvh"]
-size = Vector2(16, 9)
+size = Vector2(8, 10)
 
 [node name="Player" type="CharacterBody2D"]
 y_sort_enabled = true
@@ -13,7 +13,7 @@ script = ExtResource("1_npi18")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 z_index = 10
-position = Vector2(0, 3.5)
+position = Vector2(0, 3)
 shape = SubResource("RectangleShape2D_5iwvh")
 
 [node name="Camera2D" type="Camera2D" parent="."]

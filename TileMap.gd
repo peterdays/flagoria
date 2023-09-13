@@ -8,8 +8,10 @@ var altitude = FastNoiseLite.new()
 var items_chance = FastNoiseLite.new()
 const CHUNK_WIDTH = 32
 const CHUNK_HEIGHT = 32
+var world_created = false
 # advised against in production; the positions of nodes may change
-@onready var player = get_parent().get_child(1)
+# @onready var player = get_parent().get_child(1)
+
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
@@ -18,9 +20,12 @@ func _ready():
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
 	count += 1
-	if (count % 15) == 0:
+	if (count % 15) == 0 and world_created:
 		count = 0
+		var player = get_parent().get_child(2)
 		generate_chunk(player.position)
+	else:
+		generate_chunk(Vector2(250, 250))
 
 func generate_chunk(position):
 	var tile_pos = local_to_map(position)
@@ -72,12 +77,4 @@ func set_tile_type_z1(pos_vec, alt, moist, temp, chance):
 		var tile_vec = Vector2i(7, 3)
 		set_cell(1, pos_vec, 0, tile_vec)
 	elif moist > 0 and alt > 0.4 and chance > 0.3:
-		set_cell(1, pos_vec, 0, Vector2i(7, 0), )
-
-func update_world_seeds(seeds: WorldSeeder):
-	moisture.seed = seeds.moist_seed
-	temperature.seed = seeds.temp_seed
-	altitude.seed = seeds.alt_seed
-	items_chance.seed = seeds.items_chance
-
-	print("updated seeds")
+		set_cell(1, pos_vec, 0, Vector2i(7, 0))

@@ -6,9 +6,16 @@ const FRICTION = 600
 
 var input = Vector2.ZERO
 
+func _ready():
+	if not is_multiplayer_authority(): return
+
+
 func _physics_process(delta):
+	if not is_multiplayer_authority(): return
 	player_movement(delta)
 
+func _enter_tree():
+	set_multiplayer_authority(str(name).to_int())
 
 func get_input_axis():
 	input.x = int(Input.is_action_pressed("ui_right")) - int(Input.is_action_pressed("ui_left"))
