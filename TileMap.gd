@@ -8,25 +8,33 @@ var altitude = FastNoiseLite.new()
 var items_chance = FastNoiseLite.new()
 const CHUNK_WIDTH = 32
 const CHUNK_HEIGHT = 32
-var world_created = false
-# advised against in production; the positions of nodes may change
-# @onready var player = get_parent().get_child(1)
+var player_spawned = false
 
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
 	items_chance.frequency = 1
 
+
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
-	count += 1
-	if (count % 15) == 0 and world_created:
-		count = 0
-		var player = get_parent().get_child(2)
-		generate_chunk(player.position)
-	else:
-		generate_chunk(Vector2(250, 250))
+#	if not is_multiplayer_authority(): return
 
+	count += 1
+	if (count % 15) == 0 and player_spawned:
+		var current_player_id = str(multiplayer.get_unique_id())
+#		print(current_player_id, "AAAAAAAAAAAAAAAAAAAAAAAAAAs")
+
+		count = 0
+		var host_player = get_parent().get_child(2)
+		var joinned_player = get_parent().get_child(3)
+
+		generate_chunk(host_player.position)
+		if joinned_player != null:
+			generate_chunk.rpc(joinned_player.position)
+
+
+@rpc("call_remote")
 func generate_chunk(position):
 	var tile_pos = local_to_map(position)
 	for x in range(CHUNK_WIDTH):

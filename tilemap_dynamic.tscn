@@ -1,12 +1,9 @@
-[gd_scene load_steps=7 format=3 uid="uid://cxtnu53ko1bon"]
+[gd_scene load_steps=5 format=3 uid="uid://dam7u6cvo4vtc"]
 
-[ext_resource type="Script" path="res://flagoria_main.gd" id="1_diuix"]
-[ext_resource type="Texture2D" uid="uid://b7hssjy0jtk8c" path="res://Sprites/Solaria Demo Pack Update 03/16x16/Tilesets/Solaria Demo Update 01.png" id="1_fyhia"]
-[ext_resource type="Script" path="res://TileMap.gd" id="2_nqexn"]
-[ext_resource type="Script" path="res://Scripts/MainMenu.gd" id="4_gds65"]
+[ext_resource type="Texture2D" uid="uid://b7hssjy0jtk8c" path="res://Sprites/Solaria Demo Pack Update 03/16x16/Tilesets/Solaria Demo Update 01.png" id="2_cgtj3"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_xxsyq"]
-texture = ExtResource("1_fyhia")
+texture = ExtResource("2_cgtj3")
 0:0/0 = 0
 0:0/0/physics_layer_0/linear_velocity = Vector2(0, 0)
 0:0/0/physics_layer_0/angular_velocity = 0.0
@@ -1094,12 +1091,99 @@ texture = ExtResource("1_fyhia")
 physics_layer_0/collision_layer = 1
 sources/0 = SubResource("TileSetAtlasSource_xxsyq")
 
-[node name="Flagoria" type="Node2D"]
-script = ExtResource("1_diuix")
+[sub_resource type="GDScript" id="GDScript_g08kw"]
+script/source = "extends TileMap
 
-[node name="World" type="Node2D" parent="."]
+var rng = RandomNumberGenerator.new()
+var count = 0
+var moisture = FastNoiseLite.new()
+var temperature = FastNoiseLite.new()
+var altitude = FastNoiseLite.new()
+var items_chance = FastNoiseLite.new()
+const CHUNK_WIDTH = 32
+const CHUNK_HEIGHT = 32
+var player_spawned = false
 
-[node name="worldMap" type="TileMap" parent="World"]
+
+# Called when the node enters the scene tree for the first time.
+func _ready():
+	items_chance.frequency = 1
+
+
+# Called every frame. 'delta' is the elapsed time since the previous frame.
+func _process(delta):
+#	if not is_multiplayer_authority(): return
+
+	count += 1
+	if (count % 15) == 0 and player_spawned:
+
+		count = 0
+		var curr_player
+		curr_player = get_parent().get_child(2)
+
+#		var curr_player = get_parent().get_child(2)
+		generate_chunk.rpc(curr_player.position)
+#	else:
+#		var current_player_id = str(multiplayer.get_unique_id())
+#		generate_chunk(Vector2(250, 250))
+
+@rpc(\"any_peer\", \"call_local\")
+func generate_chunk(position):
+	var tile_pos = local_to_map(position)
+	for x in range(CHUNK_WIDTH):
+		for y in range(CHUNK_HEIGHT):
+			var new_x = tile_pos.x - CHUNK_WIDTH/2 + x
+			var new_y = tile_pos.y - CHUNK_HEIGHT/2 + y
+			var moist = moisture.get_noise_2d(new_x, new_y)
+			var temp = temperature.get_noise_2d(new_x, new_y)
+			var alt = altitude.get_noise_2d(new_x, new_y)
+			var chance = items_chance.get_noise_2d(new_x, new_y)
+			
+			set_tile_type_z0(Vector2i(new_x, new_y), alt, moist, temp, chance)
+			set_tile_type_z1(Vector2i(new_x, new_y), alt, moist, temp, chance)
+
+			# set_cell(0, Vector2i(new_x, new_y), 0, Vector2i(5, 1))
+
+func set_tile_type_z0(pos_vec, alt, moist, temp, chance):
+	var tile_vec = get_random_ground_vec(chance)
+	if alt <= 0.2:  # water
+		tile_vec = Vector2i(5, 6)
+	elif alt > 0.2 and alt < 0.25: # sand
+		tile_vec = Vector2i(5, 4)
+	elif alt > 0.25 and moist < 0:  # swamp
+		if alt < 0.26 and chance < 0:
+			tile_vec = Vector2i(27, 7)
+		else:
+			tile_vec = Vector2i(14, 7)
+
+	set_cell(0, pos_vec, 0, tile_vec)
+
+func get_random_ground_vec(chance):
+	# the ground tiles are a matrix from (5,0) to (6,1) of 4 tiles
+	var vec = Vector2i(5, 0)
+	if chance < -0.25:
+		vec = Vector2i(5, 0)
+	elif chance < 0.25:
+		vec = Vector2i(5, 1)
+	elif chance < 0.75:
+		vec = Vector2i(6, 0)
+	else:
+		vec = Vector2i(6, 1)
+		
+	return vec
+
+func set_tile_type_z1(pos_vec, alt, moist, temp, chance):
+	
+	if moist > 0 and alt > 0.3 and alt <= 0.4 and chance > 0:
+		var tile_vec = Vector2i(7, 3)
+		set_cell(1, pos_vec, 0, tile_vec)
+	elif moist > 0 and alt > 0.4 and chance > 0.3:
+		set_cell(1, pos_vec, 0, Vector2i(7, 0))
+"
+
+[node name="World" type="Node2D"]
+
+[node name="worldMap" type="TileMap" parent="."]
 tile_set = SubResource("TileSet_nbw7d")
 format = 2
 layer_0/name = "ground"
@@ -1111,55 +1195,8 @@ layer_1/y_sort_enabled = false
 layer_1/y_sort_origin = 0
 layer_1/z_index = 1
 layer_1/tile_data = PackedInt32Array()
-script = ExtResource("2_nqexn")
+script = SubResource("GDScript_g08kw")
 
-[node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="World"]
+[node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="."]
 _spawnable_scenes = PackedStringArray("res://character_body_2d.tscn")
 spawn_path = NodePath("..")
-
-[node name="CanvasLayer" type="CanvasLayer" parent="."]
-
-[node name="MainMenu" type="PanelContainer" parent="CanvasLayer"]
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 111.0
-offset_top = 46.0
-offset_right = -111.0
-offset_bottom = -45.0
-grow_horizontal = 2
-grow_vertical = 2
-script = ExtResource("4_gds65")
-
-[node name="MarginContainer" type="MarginContainer" parent="CanvasLayer/MainMenu"]
-layout_mode = 2
-theme_override_constants/margin_left = 15
-theme_override_constants/margin_top = 15
-theme_override_constants/margin_right = 15
-theme_override_constants/margin_bottom = 15
-
-[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/MainMenu/MarginContainer"]
-layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="Label" type="Label" parent="CanvasLayer/MainMenu/MarginContainer/VBoxContainer"]
-layout_mode = 2
-text = "Main Menu"
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="HostButton" type="Button" parent="CanvasLayer/MainMenu/MarginContainer/VBoxContainer"]
-layout_mode = 2
-text = "Host"
-
-[node name="JoinButton" type="Button" parent="CanvasLayer/MainMenu/MarginContainer/VBoxContainer"]
-layout_mode = 2
-text = "Join"
-
-[node name="AddressEntry" type="LineEdit" parent="CanvasLayer/MainMenu/MarginContainer/VBoxContainer"]
-layout_mode = 2
-placeholder_text = "Enter address to join here"
-alignment = 1
-
-[connection signal="pressed" from="CanvasLayer/MainMenu/MarginContainer/VBoxContainer/HostButton" to="CanvasLayer/MainMenu" method="_on_host_button_pressed"]
-[connection signal="pressed" from="CanvasLayer/MainMenu/MarginContainer/VBoxContainer/JoinButton" to="CanvasLayer/MainMenu" method="_on_join_button_pressed"]
