@@ -8,9 +8,9 @@ var worldSeeds
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	get_node("CanvasLayer/MainMenu").connect("new_server_created", setup_server)
-	get_node("CanvasLayer/MainMenu").connect("new_player_added", add_player)
-	get_node("CanvasLayer/MainMenu").connect("new_player_joined", add_player_joined)
+	get_node("CanvasLayer2/MainMenu").connect("new_server_created", setup_server)
+	get_node("CanvasLayer2/MainMenu").connect("new_player_added", add_player)
+	get_node("CanvasLayer2/MainMenu").connect("new_player_joined", add_player_joined)
 
 
 func setup_server(seeds: WorldSeeder):
@@ -45,7 +45,6 @@ func add_player(peer_id):
 
 	if peer_id > 1:
 		var player1 = get_node("World").get_child(3)
-		print(player1.name, "AAAAAA")
 	var world = get_node("World/worldMap")
 	world.player_spawned = true
 
@@ -60,9 +59,14 @@ func add_player_joined():
 	# creating the server
 	enet_peer.create_client("localhost", PORT)
 	multiplayer.multiplayer_peer = enet_peer
+	var world = get_node("World/worldMap")
+	world.player_spawned = true
 
 func remove_player(peer_id):
-	var player = get_node_or_null(str(peer_id))
+
+	var player = get_node_or_null("/root/Flagoria/World/" + str(peer_id))
+
 	if player:
 		player.queue_free()
-	
+
+

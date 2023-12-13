@@ -23,6 +23,14 @@ window/size/window_width_override=1280
 window/size/window_height_override=720
 window/stretch/mode="canvas_items"
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/virtual_joystick/plugin.cfg")
+
+[input_devices]
+
+pointing/emulate_touch_from_mouse=true
+
 [physics]
 
 common/physics_ticks_per_second=45
@@ -31,3 +39,4 @@ common/physics_ticks_per_second=45
 
 textures/canvas_textures/default_texture_filter=0
 renderer/rendering_method="mobile"
+textures/vram_compression/import_etc2_astc=true

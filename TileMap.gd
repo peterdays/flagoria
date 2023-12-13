@@ -9,6 +9,7 @@ var items_chance = FastNoiseLite.new()
 const CHUNK_WIDTH = 32
 const CHUNK_HEIGHT = 32
 var player_spawned = false
+var spawn_point = Vector2i(0, 0)
 
 
 # Called when the node enters the scene tree for the first time.
@@ -23,18 +24,13 @@ func _process(delta):
 	count += 1
 	if (count % 15) == 0 and player_spawned:
 		var current_player_id = str(multiplayer.get_unique_id())
-#		print(current_player_id, "AAAAAAAAAAAAAAAAAAAAAAAAAAs")
-
 		count = 0
-		var host_player = get_parent().get_child(2)
-		var joinned_player = get_parent().get_child(3)
 
-		generate_chunk(host_player.position)
-		if joinned_player != null:
-			generate_chunk.rpc(joinned_player.position)
+		var curr_player = get_node_or_null("/root/Flagoria/World/" + str(current_player_id))
+		if curr_player:
+			generate_chunk(curr_player.position)
 
 
-@rpc("call_remote")
 func generate_chunk(position):
 	var tile_pos = local_to_map(position)
 	for x in range(CHUNK_WIDTH):
@@ -52,6 +48,7 @@ func generate_chunk(position):
 			# set_cell(0, Vector2i(new_x, new_y), 0, Vector2i(5, 1))
 
 func set_tile_type_z0(pos_vec, alt, moist, temp, chance):
+
 	var tile_vec = get_random_ground_vec(chance)
 	if alt <= 0.2:  # water
 		tile_vec = Vector2i(5, 6)
@@ -62,6 +59,10 @@ func set_tile_type_z0(pos_vec, alt, moist, temp, chance):
 			tile_vec = Vector2i(27, 7)
 		else:
 			tile_vec = Vector2i(14, 7)
+	else:
+		# no change made and the tile_vec is ground
+		if spawn_point == Vector2i(0, 0):  # only the first time to change
+			spawn_point = pos_vec
 
 	set_cell(0, pos_vec, 0, tile_vec)
 
