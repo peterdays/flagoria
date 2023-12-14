@@ -2,8 +2,8 @@ extends Node2D
 
 const PORT = 9786
 var enet_peer = ENetMultiplayerPeer.new()
-const world = preload("res://tile_map.tscn")
 const Player = preload("res://character_body_2d.tscn")
+@onready var address_entry = $CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/AddressEntry
 var worldSeeds
 
 # Called when the node enters the scene tree for the first time.
@@ -38,6 +38,7 @@ func setup_server(seeds: WorldSeeder):
 #	print("player added in add_player")
 
 func add_player(peer_id):
+	# host
 	var player = Player.instantiate()
 	player.name = str(peer_id)
 	print("player added")
@@ -47,6 +48,8 @@ func add_player(peer_id):
 		var player1 = get_node("World").get_child(3)
 	var world = get_node("World/worldMap")
 	world.player_spawned = true
+	
+	unpn_setup()
 
 func add_player_joined():
 #	var world = get_node("World/worldMap")
@@ -57,7 +60,11 @@ func add_player_joined():
 
 	print("player_joined")
 	# creating the server
-	enet_peer.create_client("localhost", PORT)
+	var server_ip = "localhost"
+	if address_entry.text:
+		server_ip = address_entry.text
+
+	enet_peer.create_client(server_ip, PORT)
 	multiplayer.multiplayer_peer = enet_peer
 	var world = get_node("World/worldMap")
 	world.player_spawned = true
@@ -69,4 +76,20 @@ func remove_player(peer_id):
 	if player:
 		player.queue_free()
 
+
+func unpn_setup():
+	var upnp = UPNP.new()
+
+	var discover_result = upnp.discover()
+	assert(discover_result == UPNP.UPNP_RESULT_SUCCESS, \
+		"UPNP Discovery failed! Error %s" % discover_result)
+
+	assert(upnp.get_gateway() and upnp.get_gateway().is_valid_gateway(), \
+		"UPNP Invalid gateway")
+
+	var map_result = upnp.add_port_mapping(PORT)
+	assert(map_result == UPNP.UPNP_RESULT_SUCCESS, \
+		"UPNP Port mapping failed! Error %s" % map_result)
+	
+	print("SUCCESS!! Join address: %s" % upnp.query_external_address())
 
