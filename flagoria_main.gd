@@ -2,7 +2,7 @@ extends Node2D
 
 const PORT = 9786
 var enet_peer = ENetMultiplayerPeer.new()
-const Player = preload("res://character_body_2d.tscn")
+const Player = preload("res://Player/character_body_2d.tscn")
 @onready var address_entry = $CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/AddressEntry
 var worldSeeds
 
@@ -48,7 +48,7 @@ func add_player(peer_id):
 		var player1 = get_node("World").get_child(3)
 	var world = get_node("World/worldMap")
 	world.player_spawned = true
-	
+
 	unpn_setup()
 
 func add_player_joined():
@@ -90,6 +90,6 @@ func unpn_setup():
 	var map_result = upnp.add_port_mapping(PORT)
 	assert(map_result == UPNP.UPNP_RESULT_SUCCESS, \
 		"UPNP Port mapping failed! Error %s" % map_result)
-	
+
 	print("SUCCESS!! Join address: %s" % upnp.query_external_address())
 

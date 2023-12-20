@@ -1,6 +1,6 @@
 extends CharacterBody2D
 
-const MAX_SPEED = 150
+const MAX_SPEED = 130
 const ACCEL = 120
 const FRICTION = 95
 
@@ -8,6 +8,12 @@ var input = Vector2.ZERO
 
 @onready var camera = $Camera2D
 @onready var joystick = $/root/Flagoria/CanvasLayer1/player_joystick
+@export var maxHealth = 30
+@onready var currentHealth: int = maxHealth
+@onready var animations = $AnimationPlayer
+
+signal healthChanged
+
 
 func _ready():
 	if not is_multiplayer_authority(): return
@@ -17,6 +23,7 @@ func _ready():
 func _physics_process(delta):
 	if not is_multiplayer_authority(): return
 	player_movement(delta)
+	updateAnimation()
 	
 
 func _unhandled_input(event):
@@ -46,5 +53,13 @@ func player_movement(delta):
 	move_and_slide()
 	
 func _on_player_joystick_analogic_change(move: Vector2) -> void:
-	velocity = move * ACCEL
+	velocity = move * ACCEL * 0.8
 	velocity = velocity.limit_length(MAX_SPEED)
+	
+func updateAnimation():
+	var direction = "Down"
+	if velocity.x < 0: direction = "Left"
+	elif velocity.x > 0: direction = "Right"
+	elif velocity.y < 0: direction = "Up"
+	
+	animations.play("walk" + direction)
