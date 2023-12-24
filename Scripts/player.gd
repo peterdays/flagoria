@@ -11,8 +11,11 @@ var input = Vector2.ZERO
 @export var maxHealth = 30
 @onready var currentHealth: int = maxHealth
 @onready var animations = $AnimationPlayer
+@onready var weapon = $weapon
 
 signal healthChanged
+var lastAnimDirection: String = "Down"
+var isAttacking: bool = false
 
 
 func _ready():
@@ -28,6 +31,17 @@ func _physics_process(delta):
 
 func _unhandled_input(event):
 	if not is_multiplayer_authority(): return
+	
+	if Input.is_action_just_pressed("attack"):
+		attack_animation()
+
+func attack_animation():
+	animations.play("attack" + lastAnimDirection)
+	isAttacking = true
+	weapon.visible = true
+	await animations.animation_finished
+	weapon.visible = false
+	isAttacking = false
 
 func _enter_tree():
 	set_multiplayer_authority(str(name).to_int())
@@ -57,9 +71,18 @@ func _on_player_joystick_analogic_change(move: Vector2) -> void:
 	velocity = velocity.limit_length(MAX_SPEED)
 	
 func updateAnimation():
+	if isAttacking: return 
+
 	var direction = "Down"
 	if velocity.x < 0: direction = "Left"
 	elif velocity.x > 0: direction = "Right"
 	elif velocity.y < 0: direction = "Up"
-	
+
+	lastAnimDirection = direction
 	animations.play("walk" + direction)
+
+
+func _on_hurt_box_area_entered(area):
+	emit_signal("healthChanged")
+	print("healthChanged")
+	pass # Replace with function body.

@@ -41,11 +41,9 @@ func add_player(peer_id):
 	# host
 	var player = Player.instantiate()
 	player.name = str(peer_id)
-	print("player added")
+	print("player added", player.name)
 	get_node("/root/Flagoria/World").add_child(player)
 
-	if peer_id > 1:
-		var player1 = get_node("World").get_child(3)
 	var world = get_node("World/worldMap")
 	world.player_spawned = true
 

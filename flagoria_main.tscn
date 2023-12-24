@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3 uid="uid://cxtnu53ko1bon"]
+[gd_scene load_steps=14 format=3 uid="uid://cxtnu53ko1bon"]
 
 [ext_resource type="Script" path="res://flagoria_main.gd" id="1_p55uv"]
 [ext_resource type="Script" path="res://addons/virtual_joystick/scripts/virtual_joystick.gd" id="2_54anv"]
@@ -7,7 +7,12 @@
 [ext_resource type="Script" path="res://Player/healthbar.gd" id="5_1m074"]
 [ext_resource type="Script" path="res://Scripts/MainMenu.gd" id="5_u0yu1"]
 [ext_resource type="Texture2D" uid="uid://c0q2mii7de5b6" path="res://art/progressbar/healthbarProgress.png" id="5_yu2tb"]
+[ext_resource type="Texture2D" uid="uid://b43x5d10e5s44" path="res://addons/virtual_joystick/sprites/stick.png" id="6_6kt1l"]
 [ext_resource type="Script" path="res://Scripts/TileMap.gd" id="7_n5hto"]
+[ext_resource type="Script" path="res://TouchScreenButton.gd" id="7_vw8yj"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_bm55c"]
+radius = 50.0
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_xxsyq"]
 texture = ExtResource("4_sccgn")
@@ -1104,14 +1109,12 @@ script = ExtResource("1_p55uv")
 [node name="CanvasLayer1" type="CanvasLayer" parent="."]
 
 [node name="player_joystick" type="Node2D" parent="CanvasLayer1"]
-visible = false
 z_index = 4
 position = Vector2(77, 201)
 scale = Vector2(0.4, 0.4)
 script = ExtResource("2_54anv")
 
 [node name="TextureProgressBar" type="TextureProgressBar" parent="CanvasLayer1"]
-visible = false
 offset_left = 198.0
 offset_top = 6.0
 offset_right = 287.0
@@ -1120,6 +1123,13 @@ nine_patch_stretch = true
 texture_under = ExtResource("4_y50e3")
 texture_progress = ExtResource("5_yu2tb")
 script = ExtResource("5_1m074")
+
+[node name="TouchScreenButton" type="TouchScreenButton" parent="CanvasLayer1"]
+position = Vector2(404, 206)
+scale = Vector2(0.296875, 0.28125)
+texture_normal = ExtResource("6_6kt1l")
+shape = SubResource("CircleShape2D_bm55c")
+script = ExtResource("7_vw8yj")
 
 [node name="World" type="Node2D" parent="."]
 
@@ -1138,6 +1148,7 @@ layer_1/tile_data = PackedInt32Array()
 script = ExtResource("7_n5hto")
 
 [node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="World"]
+_spawnable_scenes = PackedStringArray("res://Player/character_body_2d.tscn")
 spawn_path = NodePath("..")
 
 [node name="CanvasLayer2" type="CanvasLayer" parent="."]
@@ -1184,5 +1195,6 @@ layout_mode = 2
 placeholder_text = "Enter address to join here"
 alignment = 1
 
+[connection signal="pressed" from="CanvasLayer1/TouchScreenButton" to="CanvasLayer1/TouchScreenButton" method="_on_pressed"]
 [connection signal="pressed" from="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/HostButton" to="CanvasLayer2/MainMenu" method="_on_host_button_pressed"]
 [connection signal="pressed" from="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/JoinButton" to="CanvasLayer2/MainMenu" method="_on_join_button_pressed"]
