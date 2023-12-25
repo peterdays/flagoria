@@ -26,16 +26,18 @@ func _ready():
 func _physics_process(delta):
 	if not is_multiplayer_authority(): return
 	player_movement(delta)
-	updateAnimation()
+	updateAnimation.rpc()
 	
 
 func _unhandled_input(event):
 	if not is_multiplayer_authority(): return
 	
 	if Input.is_action_just_pressed("attack"):
-		attack_animation()
+		attack_animation.rpc()
 
+@rpc("call_local")  # the call local calls in all remotes and the local too
 func attack_animation():
+	animations.stop()
 	animations.play("attack" + lastAnimDirection)
 	isAttacking = true
 	weapon.visible = true
@@ -67,9 +69,14 @@ func player_movement(delta):
 	move_and_slide()
 	
 func _on_player_joystick_analogic_change(move: Vector2) -> void:
-	velocity = move * ACCEL * 0.8
+	updateVelocityFromJoystick.rpc(move)
+
+@rpc("call_local")
+func updateVelocityFromJoystick(move: Vector2):
+	velocity = move * ACCEL * 0.5
 	velocity = velocity.limit_length(MAX_SPEED)
-	
+
+@rpc("call_local")
 func updateAnimation():
 	if isAttacking: return 
 
@@ -86,3 +93,7 @@ func _on_hurt_box_area_entered(area):
 	emit_signal("healthChanged")
 	print("healthChanged")
 	pass # Replace with function body.
+
+
+func _on_animation_player_animation_finished(anim_name):
+	animations.play("walkDown")
