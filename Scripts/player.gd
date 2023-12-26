@@ -90,10 +90,21 @@ func updateAnimation():
 
 
 func _on_hurt_box_area_entered(area):
+	var collision_player = area.get_parent().get_parent()
+	if collision_player.name == str(multiplayer.get_unique_id()): return
+
+	receiveDamage.rpc_id(collision_player.get_multiplayer_authority())
+	print(collision_player.get_multiplayer_authority())
 	emit_signal("healthChanged")
 	print("healthChanged")
 	pass # Replace with function body.
 
+@rpc("any_peer")
+func receiveDamage():
+	currentHealth -= 1
+	if currentHealth <= 0:
+		currentHealth = 0
+	print(currentHealth)
 
 func _on_animation_player_animation_finished(anim_name):
 	animations.play("walkDown")

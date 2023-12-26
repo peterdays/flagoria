@@ -323,10 +323,10 @@ libraries = {
 }
 
 [node name="weapon" type="Node2D" parent="."]
-visible = false
 position = Vector2(0, 2)
 
 [node name="sword" parent="weapon" instance=ExtResource("3_yc3si")]
+position = Vector2(-0.262194, -0.965015)
 
 [node name="hurtBox" type="Area2D" parent="."]
 collision_layer = 0
