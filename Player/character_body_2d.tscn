@@ -336,5 +336,20 @@ collision_mask = 4
 position = Vector2(1, -8)
 shape = SubResource("RectangleShape2D_7612m")
 
+[node name="healthbar" type="ProgressBar" parent="."]
+modulate = Color(0.717647, 0.968627, 0.447059, 1)
+offset_left = -7.0
+offset_top = -21.0
+offset_right = 100.0
+offset_bottom = 6.0
+scale = Vector2(0.14, 0.14)
+max_value = 30.0
+step = 1.0
+
+[node name="regen_timer" type="Timer" parent="."]
+wait_time = 5.0
+autostart = true
+
 [connection signal="animation_finished" from="AnimationPlayer" to="." method="_on_animation_player_animation_finished"]
 [connection signal="area_entered" from="hurtBox" to="." method="_on_hurt_box_area_entered"]
+[connection signal="timeout" from="regen_timer" to="." method="_on_regen_timer_timeout"]

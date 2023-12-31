@@ -1,12 +1,9 @@
-[gd_scene load_steps=14 format=3 uid="uid://cxtnu53ko1bon"]
+[gd_scene load_steps=11 format=3 uid="uid://cxtnu53ko1bon"]
 
 [ext_resource type="Script" path="res://flagoria_main.gd" id="1_p55uv"]
 [ext_resource type="Script" path="res://addons/virtual_joystick/scripts/virtual_joystick.gd" id="2_54anv"]
 [ext_resource type="Texture2D" uid="uid://b7hssjy0jtk8c" path="res://art/Sprites/Solaria Demo Pack Update 03/16x16/Tilesets/Solaria Demo Update 01.png" id="4_sccgn"]
-[ext_resource type="Texture2D" uid="uid://dgwisu0aad4vc" path="res://art/progressbar/healthbarUnder.png" id="4_y50e3"]
-[ext_resource type="Script" path="res://Player/healthbar.gd" id="5_1m074"]
 [ext_resource type="Script" path="res://Scripts/MainMenu.gd" id="5_u0yu1"]
-[ext_resource type="Texture2D" uid="uid://c0q2mii7de5b6" path="res://art/progressbar/healthbarProgress.png" id="5_yu2tb"]
 [ext_resource type="Texture2D" uid="uid://b43x5d10e5s44" path="res://addons/virtual_joystick/sprites/stick.png" id="6_6kt1l"]
 [ext_resource type="Script" path="res://Scripts/TileMap.gd" id="7_n5hto"]
 [ext_resource type="Script" path="res://TouchScreenButton.gd" id="7_vw8yj"]
@@ -1113,16 +1110,6 @@ z_index = 4
 position = Vector2(77, 201)
 scale = Vector2(0.4, 0.4)
 script = ExtResource("2_54anv")
-
-[node name="TextureProgressBar" type="TextureProgressBar" parent="CanvasLayer1"]
-offset_left = 198.0
-offset_top = 6.0
-offset_right = 287.0
-offset_bottom = 17.0
-nine_patch_stretch = true
-texture_under = ExtResource("4_y50e3")
-texture_progress = ExtResource("5_yu2tb")
-script = ExtResource("5_1m074")
 
 [node name="TouchScreenButton" type="TouchScreenButton" parent="CanvasLayer1"]
 position = Vector2(404, 206)

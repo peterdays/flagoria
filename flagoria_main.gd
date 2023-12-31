@@ -47,7 +47,7 @@ func add_player(peer_id):
 	var world = get_node("World/worldMap")
 	world.player_spawned = true
 
-	unpn_setup()
+#	unpn_setup()
 
 func add_player_joined():
 #	var world = get_node("World/worldMap")

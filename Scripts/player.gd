@@ -8,6 +8,7 @@ var input = Vector2.ZERO
 
 @onready var camera = $Camera2D
 @onready var joystick = $/root/Flagoria/CanvasLayer1/player_joystick
+@onready var healthBar = $/root/Flagoria/CanvasLayer1/player_healthbar
 @export var maxHealth = 30
 @onready var currentHealth: int = maxHealth
 @onready var animations = $AnimationPlayer
@@ -89,22 +90,35 @@ func updateAnimation():
 	animations.play("walk" + direction)
 
 
-func _on_hurt_box_area_entered(area):
-	var collision_player = area.get_parent().get_parent()
-	if collision_player.name == str(multiplayer.get_unique_id()): return
-
-	receiveDamage.rpc_id(collision_player.get_multiplayer_authority())
-	print(collision_player.get_multiplayer_authority())
-	emit_signal("healthChanged")
-	print("healthChanged")
-	pass # Replace with function body.
-
-@rpc("any_peer")
+@rpc("call_remote")
 func receiveDamage():
 	currentHealth -= 1
 	if currentHealth <= 0:
 		currentHealth = 0
 	print(currentHealth)
 
+	var healthbar = $healthbar
+	# changing the healthbar
+	if healthbar:
+		healthbar.value = currentHealth
+
+	print("healthChanged")
+
+
 func _on_animation_player_animation_finished(anim_name):
 	animations.play("walkDown")
+
+
+func _on_regen_timer_timeout():
+	pass # Replace with function body.
+
+
+func _on_hurt_box_area_entered(area):
+	print_debug(area)
+	if area == $hurtBox: return
+
+	var collision_player = area.get_parent().get_parent()
+
+#	receiveDamage.rpc_id(int(str(collision_player.name)))
+	receiveDamage.rpc()
+	print(collision_player.name)
