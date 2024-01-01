@@ -90,35 +90,44 @@ func updateAnimation():
 	animations.play("walk" + direction)
 
 
-@rpc("call_remote")
 func receiveDamage():
 	currentHealth -= 1
 	if currentHealth <= 0:
 		currentHealth = 0
-	print(currentHealth)
 
 	var healthbar = $healthbar
 	# changing the healthbar
 	if healthbar:
 		healthbar.value = currentHealth
 
-	print("healthChanged")
+	print_debug("healthChanged", " ", currentHealth, " ", name)
 
+func regen_heatlh():
+	if currentHealth == 0:
+		return
+
+	currentHealth += 5
+	if currentHealth >= maxHealth:
+		currentHealth = maxHealth
+
+	var healthbar = $healthbar
+	# changing the healthbar
+	if healthbar:
+		healthbar.value = currentHealth
+
+	print_debug("healthRegened", " ", currentHealth, " ", name)
 
 func _on_animation_player_animation_finished(anim_name):
 	animations.play("walkDown")
 
 
 func _on_regen_timer_timeout():
-	pass # Replace with function body.
+	regen_heatlh()
 
 
 func _on_hurt_box_area_entered(area):
-	print_debug(area)
 	if area == $hurtBox: return
 
 	var collision_player = area.get_parent().get_parent()
-
-#	receiveDamage.rpc_id(int(str(collision_player.name)))
-	receiveDamage.rpc()
-	print(collision_player.name)
+	if collision_player.name != name:
+		receiveDamage()  # a different player is attacking

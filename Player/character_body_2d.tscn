@@ -323,6 +323,7 @@ libraries = {
 }
 
 [node name="weapon" type="Node2D" parent="."]
+visible = false
 position = Vector2(0, 2)
 
 [node name="sword" parent="weapon" instance=ExtResource("3_yc3si")]
@@ -345,6 +346,7 @@ offset_bottom = 6.0
 scale = Vector2(0.14, 0.14)
 max_value = 30.0
 step = 1.0
+value = 30.0
 
 [node name="regen_timer" type="Timer" parent="."]
 wait_time = 5.0

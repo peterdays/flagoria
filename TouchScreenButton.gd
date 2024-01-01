@@ -16,4 +16,4 @@ func _on_pressed():
 
 	var curr_player = get_node_or_null("/root/Flagoria/World/" + str(current_player_id))
 	if curr_player:		
-		curr_player.attack_animation()
+		curr_player.attack_animation.rpc()

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dn30sebxkl52m"
-path="res://.godot/imported/circle_button.jpg-71aa511dc5c918dcad6ad1664be95883.ctex"
+uid="uid://drpctfgancv7x"
+path="res://.godot/imported/banner-flag-icon.png-e93469e377889f95c460733dc1d7e285.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/circle_button.jpg"
-dest_files=["res://.godot/imported/circle_button.jpg-71aa511dc5c918dcad6ad1664be95883.ctex"]
+source_file="res://art/items/banner-flag-icon.png"
+dest_files=["res://.godot/imported/banner-flag-icon.png-e93469e377889f95c460733dc1d7e285.ctex"]
 
 [params]
 
