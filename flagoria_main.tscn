@@ -2,14 +2,14 @@
 
 [ext_resource type="Script" path="res://flagoria_main.gd" id="1_p55uv"]
 [ext_resource type="Script" path="res://addons/virtual_joystick/scripts/virtual_joystick.gd" id="2_54anv"]
+[ext_resource type="Texture2D" uid="uid://ch2ofsrmxbvo6" path="res://art/kenney_particle-pack/PNG (Transparent)/magic_03.png" id="3_rrhbk"]
 [ext_resource type="Texture2D" uid="uid://b7hssjy0jtk8c" path="res://art/Sprites/Solaria Demo Pack Update 03/16x16/Tilesets/Solaria Demo Update 01.png" id="4_sccgn"]
 [ext_resource type="Script" path="res://Scripts/MainMenu.gd" id="5_u0yu1"]
-[ext_resource type="Texture2D" uid="uid://b43x5d10e5s44" path="res://addons/virtual_joystick/sprites/stick.png" id="6_6kt1l"]
 [ext_resource type="Script" path="res://Scripts/TileMap.gd" id="7_n5hto"]
 [ext_resource type="Script" path="res://TouchScreenButton.gd" id="7_vw8yj"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_bm55c"]
-radius = 50.0
+radius = 250.0
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_xxsyq"]
 texture = ExtResource("4_sccgn")
@@ -1104,6 +1104,7 @@ sources/0 = SubResource("TileSetAtlasSource_xxsyq")
 script = ExtResource("1_p55uv")
 
 [node name="CanvasLayer1" type="CanvasLayer" parent="."]
+visible = false
 
 [node name="player_joystick" type="Node2D" parent="CanvasLayer1"]
 z_index = 4
@@ -1112,9 +1113,9 @@ scale = Vector2(0.4, 0.4)
 script = ExtResource("2_54anv")
 
 [node name="TouchScreenButton" type="TouchScreenButton" parent="CanvasLayer1"]
-position = Vector2(404, 206)
-scale = Vector2(0.296875, 0.28125)
-texture_normal = ExtResource("6_6kt1l")
+position = Vector2(373, 177)
+scale = Vector2(0.1, 0.1)
+texture_normal = ExtResource("3_rrhbk")
 shape = SubResource("CircleShape2D_bm55c")
 script = ExtResource("7_vw8yj")
 
