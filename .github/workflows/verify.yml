@@ -1,0 +1,26 @@
+name: verify
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  godot:
+    name: Load project and parse scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Godot 4.1.4
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/godot.zip \
+            https://github.com/godotengine/godot/releases/download/4.1.4-stable/Godot_v4.1.4-stable_linux.x86_64.zip
+          unzip -q -o /tmp/godot.zip -d /tmp/godot
+          sudo install -m 755 /tmp/godot/Godot_v4.1.4-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version
+
+      - name: Verify
+        run: ./tools/verify.sh
