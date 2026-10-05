@@ -106,7 +106,7 @@ After a successful verify drive, write a short summary:
 ./.cursor/skills/verify-flagoria/bin/evidence-summarize.sh
 ```
 
-Artifacts live in `.cursor/skills/verify-flagoria/artifacts/` (for example `verify.log`, `e2e-summary.txt`, `out/map_settings.png`). **Cleanup must not delete this directory's proof files.**
+Artifacts live in `.cursor/skills/verify-flagoria/artifacts/` (for example `verify.log`, `out/e2e-summary.txt`, `out/map_settings.png`). **Cleanup must not delete this directory's proof files.** `evidence-summarize.sh` writes to the gitignored `artifacts/out/`. The committed `artifacts/e2e-summary.txt` is a reference example of the format and changes only on purpose.
 
 ## Cleanup
 
@@ -125,7 +125,7 @@ All under `.cursor/skills/verify-flagoria/bin/` (executable):
 | `doctor.sh` | Read-only health |
 | `drive-verify.sh` | Run `tools/verify.sh`, copy log to artifacts |
 | `drive-map-settings-screenshot.sh` | xvfb Map Settings PNG in `artifacts/out/` |
-| `evidence-summarize.sh` | Append/write `e2e-summary.txt` from latest logs |
+| `evidence-summarize.sh` | Write `artifacts/out/e2e-summary.txt` from latest logs |
 | `cleanup.sh` | Tear down recorded PIDs + `.run/` |
 
 ## Feature map

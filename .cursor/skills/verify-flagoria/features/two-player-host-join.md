@@ -23,7 +23,7 @@ Preconditions:
 - **Automated today.** Limited: headless verify loads the main scene and map code paths but does **not** click Host/Join or spawn two peers. Do not mark `mp-host` / `mp-join` verified from verify.sh alone.
 - **Manual.** Run two instances; complete the README checklist (host, join, move, attack, regen).
 - **Placeholder #45.** When an automated two-player smoke exists, drive it from CI and record peer connect logs here.
-- **Proof.** For manual runs: short note in `artifacts/e2e-summary.txt` that checklist steps passed. For #45: attach the smoke log path.
+- **Proof.** For manual runs: short note in `artifacts/out/e2e-summary.txt` that checklist steps passed. For #45: attach the smoke log path.
 
 ## Gotchas
 
