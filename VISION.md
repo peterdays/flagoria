@@ -55,6 +55,10 @@ There is no public release planned for now, but the multiplayer experience shoul
 2. Add a Linux dedicated-server export preset (and optionally a `.pck` + headless binary layout suitable for a container).
 3. Document UDP `9786` publishing for compose/VPN join; keep two-player PvP working throughout.
 
+## Inspectable without playing
+
+Every system should be runnable and reviewable headless, without booting the full game: render a map to ASCII or PNG, print map stats as JSON, snapshot UI scenes, and run individual systems in isolation. That way bots and CI can review visuals and catch regressions as easily as a person play-testing a build.
+
 ## Roadmap
 
 **First step:** an in-game admin menu to set every map generation parameter before a new match (no hardcoding, no recompile).
