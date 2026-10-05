@@ -22,3 +22,13 @@ The only personal identity allowed anywhere is the git commit author metadata, u
 - Nothing is merged, released, or tagged without the owner's approval.
 - Run `tools/verify.sh` before opening a pull request; CI runs the same check.
 - For scripted verification recipes (launch, doctor, drive, evidence), use `.cursor/skills/verify-flagoria/` when that skill is present.
+
+## Human in the loop
+
+Agents do not take irreversible project actions on their own. The maintainer approves merges and other high-impact steps.
+
+- Never merge, deploy, change secrets or permissions, or run destructive git commands (force-push to shared branches, history rewrites, branch deletion, hard resets of others' work) without the maintainer's approval.
+- Opening pull requests, filing issues, and commenting are fine.
+- Merges happen only through the maintainer's pipeline: CI green, Play Sentinel PASS (the project's gameplay and usability review), and review threads resolved.
+
+Related: the privacy rule above, and the small-PR and verify notes under Other house rules.
