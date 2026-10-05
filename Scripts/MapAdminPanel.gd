@@ -12,11 +12,16 @@ signal start_host_requested
 @onready var seed_items: LineEdit = $Margin/VBox/Scroll/Form/SeedRow4/ItemsSeed
 @onready var noise_type_opt: OptionButton = $Margin/VBox/Scroll/Form/NoiseTypeRow/NoiseType
 
+## Fields with their own controls in map_admin_panel.tscn.
+const HAND_WIRED := ["altitude_seed", "moisture_seed", "temperature_seed", "items_seed", "noise_type"]
+## Abbreviations in property names, spelled out in row labels.
+const LABEL_WORDS := {"alt": "altitude"}
+
 var _spin_boxes: Dictionary = {}
 
 
 func _ready() -> void:
-	_build_extra_controls()
+	_build_extra_controls(get_node("/root/MapGen").params)
 	_populate_noise_types()
 	load_from_params(get_node("/root/MapGen").params)
 
@@ -31,29 +36,32 @@ func _populate_noise_types() -> void:
 	noise_type_opt.add_item("Simplex Smooth", FastNoiseLite.TYPE_SIMPLEX_SMOOTH)
 
 
-func _build_extra_controls() -> void:
-	## Add numeric spinboxes for every float/int tunable under the seed section.
-	_add_float("altitude_frequency", "Altitude frequency", 0.001, 1.0, 0.001, 0.01)
-	_add_float("moisture_frequency", "Moisture frequency", 0.001, 1.0, 0.001, 0.01)
-	_add_float("temperature_frequency", "Temperature frequency", 0.001, 1.0, 0.001, 0.01)
-	_add_float("items_frequency", "Items frequency", 0.01, 4.0, 0.01, 1.0)
-	_add_int("fractal_octaves", "Fractal octaves", 1, 10, 5)
-	_add_float("fractal_lacunarity", "Fractal lacunarity", 0.1, 4.0, 0.1, 2.0)
-	_add_float("fractal_gain", "Fractal gain", 0.0, 2.0, 0.05, 0.5)
-	_add_int("chunk_width", "Chunk width", 8, 128, 32)
-	_add_int("chunk_height", "Chunk height", 8, 128, 32)
-	_add_int("chunk_refresh_frames", "Chunk refresh frames", 1, 120, 15)
-	_add_float("water_max_alt", "Water max altitude", -1.0, 1.0, 0.01, 0.2)
-	_add_float("sand_max_alt", "Sand max altitude", -1.0, 1.0, 0.01, 0.25)
-	_add_float("swamp_special_alt", "Swamp special altitude", -1.0, 1.0, 0.01, 0.26)
-	_add_float("ground_chance_a", "Ground chance A", -1.0, 1.0, 0.05, -0.25)
-	_add_float("ground_chance_b", "Ground chance B", -1.0, 1.0, 0.05, 0.25)
-	_add_float("ground_chance_c", "Ground chance C", -1.0, 1.0, 0.05, 0.75)
-	_add_float("bush_min_alt", "Bush min altitude", -1.0, 1.0, 0.01, 0.3)
-	_add_float("bush_max_alt", "Bush max altitude", -1.0, 1.0, 0.01, 0.4)
-	_add_float("bush_min_chance", "Bush min chance", -1.0, 1.0, 0.05, 0.0)
-	_add_float("tree_min_alt", "Tree min altitude", -1.0, 1.0, 0.01, 0.4)
-	_add_float("tree_min_chance", "Tree min chance", -1.0, 1.0, 0.05, 0.3)
+func _build_extra_controls(params: MapGenParams) -> void:
+	## One spinbox row per exported int/float property outside HAND_WIRED, in
+	## declaration order, with min/max/step from its @export_range hint.
+	for prop in params.exported_properties():
+		var key: String = prop["name"]
+		if HAND_WIRED.has(key):
+			continue
+		if prop["hint"] != PROPERTY_HINT_RANGE:
+			push_warning("MapGenParams.%s has no @export_range; no Map Settings row" % key)
+			continue
+		var bounds: PackedStringArray = prop["hint_string"].split(",")
+		if prop["type"] == TYPE_INT:
+			_add_int(key, _label_for(key), bounds[0].to_int(), bounds[1].to_int(), params.get(key))
+		elif prop["type"] == TYPE_FLOAT:
+			var step := bounds[2].to_float() if bounds.size() > 2 else 0.0
+			_add_float(key, _label_for(key), bounds[0].to_float(), bounds[1].to_float(), step, params.get(key))
+
+
+func _label_for(key: String) -> String:
+	## "water_max_alt" -> "Water max altitude", "ground_chance_a" -> "Ground chance A".
+	var words := PackedStringArray()
+	for word in key.split("_"):
+		word = LABEL_WORDS.get(word, word)
+		words.append(word.to_upper() if word.length() == 1 else word)
+	var text := " ".join(words)
+	return text[0].to_upper() + text.substr(1)
 
 
 func _add_float(key: String, label_text: String, min_v: float, max_v: float, step: float, default_v: float) -> void:

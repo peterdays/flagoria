@@ -10,36 +10,36 @@ extends Resource
 
 # FastNoiseLite — engine defaults except items frequency which was hardcoded to 1
 @export var noise_type: int = 1  # FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-@export var altitude_frequency: float = 0.01
-@export var moisture_frequency: float = 0.01
-@export var temperature_frequency: float = 0.01
-@export var items_frequency: float = 1.0
-@export var fractal_octaves: int = 5
-@export var fractal_lacunarity: float = 2.0
-@export var fractal_gain: float = 0.5
+@export_range(0.001, 1.0, 0.001) var altitude_frequency: float = 0.01
+@export_range(0.001, 1.0, 0.001) var moisture_frequency: float = 0.01
+@export_range(0.001, 1.0, 0.001) var temperature_frequency: float = 0.01
+@export_range(0.01, 4.0, 0.01) var items_frequency: float = 1.0
+@export_range(1, 10) var fractal_octaves: int = 5
+@export_range(0.1, 4.0, 0.1) var fractal_lacunarity: float = 2.0
+@export_range(0.0, 2.0, 0.05) var fractal_gain: float = 0.5
 
 # Chunk generation size around the player
-@export var chunk_width: int = 32
-@export var chunk_height: int = 32
+@export_range(8, 128) var chunk_width: int = 32
+@export_range(8, 128) var chunk_height: int = 32
 # Frames between chunk regenerations around the local player
-@export var chunk_refresh_frames: int = 15
+@export_range(1, 120) var chunk_refresh_frames: int = 15
 
 # Terrain altitude thresholds (layer 0)
-@export var water_max_alt: float = 0.2
-@export var sand_max_alt: float = 0.25
-@export var swamp_special_alt: float = 0.26
+@export_range(-1.0, 1.0, 0.01) var water_max_alt: float = 0.2
+@export_range(-1.0, 1.0, 0.01) var sand_max_alt: float = 0.25
+@export_range(-1.0, 1.0, 0.01) var swamp_special_alt: float = 0.26
 
 # Ground tile variation breakpoints on the items-chance noise
-@export var ground_chance_a: float = -0.25
-@export var ground_chance_b: float = 0.25
-@export var ground_chance_c: float = 0.75
+@export_range(-1.0, 1.0, 0.05) var ground_chance_a: float = -0.25
+@export_range(-1.0, 1.0, 0.05) var ground_chance_b: float = 0.25
+@export_range(-1.0, 1.0, 0.05) var ground_chance_c: float = 0.75
 
 # Foliage (layer 1)
-@export var bush_min_alt: float = 0.3
-@export var bush_max_alt: float = 0.4
-@export var bush_min_chance: float = 0.0
-@export var tree_min_alt: float = 0.4
-@export var tree_min_chance: float = 0.3
+@export_range(-1.0, 1.0, 0.01) var bush_min_alt: float = 0.3
+@export_range(-1.0, 1.0, 0.01) var bush_max_alt: float = 0.4
+@export_range(-1.0, 1.0, 0.05) var bush_min_chance: float = 0.0
+@export_range(-1.0, 1.0, 0.01) var tree_min_alt: float = 0.4
+@export_range(-1.0, 1.0, 0.05) var tree_min_chance: float = 0.3
 
 
 static func make_defaults() -> MapGenParams:
@@ -71,35 +71,20 @@ func ensure_seeds() -> void:
 		items_seed = randi()
 
 
+func exported_properties() -> Array[Dictionary]:
+	## Property-list entries for every @export variable, in declaration order.
+	var props: Array[Dictionary] = []
+	for prop in get_property_list():
+		if prop["usage"] & PROPERTY_USAGE_SCRIPT_VARIABLE and prop["usage"] & PROPERTY_USAGE_EDITOR:
+			props.append(prop)
+	return props
+
+
 func to_dict() -> Dictionary:
-	return {
-		"altitude_seed": altitude_seed,
-		"moisture_seed": moisture_seed,
-		"temperature_seed": temperature_seed,
-		"items_seed": items_seed,
-		"noise_type": noise_type,
-		"altitude_frequency": altitude_frequency,
-		"moisture_frequency": moisture_frequency,
-		"temperature_frequency": temperature_frequency,
-		"items_frequency": items_frequency,
-		"fractal_octaves": fractal_octaves,
-		"fractal_lacunarity": fractal_lacunarity,
-		"fractal_gain": fractal_gain,
-		"chunk_width": chunk_width,
-		"chunk_height": chunk_height,
-		"chunk_refresh_frames": chunk_refresh_frames,
-		"water_max_alt": water_max_alt,
-		"sand_max_alt": sand_max_alt,
-		"swamp_special_alt": swamp_special_alt,
-		"ground_chance_a": ground_chance_a,
-		"ground_chance_b": ground_chance_b,
-		"ground_chance_c": ground_chance_c,
-		"bush_min_alt": bush_min_alt,
-		"bush_max_alt": bush_max_alt,
-		"bush_min_chance": bush_min_chance,
-		"tree_min_alt": tree_min_alt,
-		"tree_min_chance": tree_min_chance,
-	}
+	var data := {}
+	for prop in exported_properties():
+		data[prop["name"]] = get(prop["name"])
+	return data
 
 
 func from_dict(data: Dictionary) -> void:
