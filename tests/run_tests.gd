@@ -17,6 +17,7 @@ func _run() -> void:
 	failures += await _test_water_blocks_player()
 	failures += _test_map_settings_covers_params()
 	failures += _test_map_settings_rows_from_hints()
+	failures += _test_new_param_needs_no_ui_code()
 	failures += await _test_chunk_refresh_frames()
 	if failures == 0:
 		print("All tests passed.")
@@ -368,6 +369,67 @@ func _test_map_settings_rows_from_hints() -> int:
 	panel.queue_free()
 	if fail == 0:
 		print("PASS test_map_settings_rows_from_hints (%s rows)" % expected.size())
+	return fail
+
+func _test_new_param_needs_no_ui_code() -> int:
+	## A field added to MapGenParams reaches to_dict() and gets a Map Settings
+	## row with no other edits. A runtime subclass stands in for that edit.
+	print("-- test_new_param_needs_no_ui_code")
+	var script := GDScript.new()
+	script.source_code = (
+		"extends MapGenParams\n"
+		+ "@export_range(0, 9) var dummy_count: int = 3\n"
+		+ "@export_range(-2.0, 2.0, 0.25) var dummy_ratio: float = 0.5\n"
+	)
+	if script.reload() != OK:
+		printerr("FAIL new_param_needs_no_ui_code: dummy subclass does not compile")
+		return 1
+	var params = script.new()
+	var expected := {
+		"dummy_count": ["Dummy count", 0, 9, 1, 3],
+		"dummy_ratio": ["Dummy ratio", -2.0, 2.0, 0.25, 0.5],
+	}
+	var fail := 0
+	var data: Dictionary = params.to_dict()
+	for key in expected.keys():
+		if not data.has(key) or data[key] != expected[key][4]:
+			printerr("FAIL new_param_needs_no_ui_code to_dict() %s=%s want %s" % [key, data.get(key), expected[key][4]])
+			fail += 1
+
+	var map_gen = root.get_node("MapGen")
+	var saved_params = map_gen.params
+	map_gen.params = params
+	var panel = load("res://map_admin_panel.tscn").instantiate()
+	root.add_child(panel)
+	map_gen.params = saved_params
+	for key in expected.keys():
+		var want: Array = expected[key]
+		if not panel._spin_boxes.has(key):
+			printerr("FAIL new_param_needs_no_ui_code %s has no Map Settings row" % key)
+			fail += 1
+			continue
+		var spin: SpinBox = panel._spin_boxes[key]
+		var got := [spin.get_parent().get_child(0).text, spin.min_value, spin.max_value, spin.step, spin.value]
+		if got[0] != want[0] or not is_equal_approx(got[1], want[1]) or not is_equal_approx(got[2], want[2]) \
+				or not is_equal_approx(got[3], want[3]) or not is_equal_approx(got[4], want[4]):
+			printerr("FAIL new_param_needs_no_ui_code %s row %s want %s" % [key, got, want])
+			fail += 1
+
+	if fail == 0:
+		panel._spin_boxes["dummy_count"].value = 7
+		panel._spin_boxes["dummy_ratio"].value = -1.25
+		panel.apply_to_params(params)
+		var copy = script.new()
+		copy.from_dict(params.to_dict())
+		if copy.dummy_count != 7 or not is_equal_approx(copy.dummy_ratio, -1.25):
+			printerr(
+				"FAIL new_param_needs_no_ui_code round-trip dummy_count=%s dummy_ratio=%s"
+				% [copy.dummy_count, copy.dummy_ratio]
+			)
+			fail += 1
+	panel.queue_free()
+	if fail == 0:
+		print("PASS test_new_param_needs_no_ui_code")
 	return fail
 
 func _test_chunk_refresh_frames() -> int:
