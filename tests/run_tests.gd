@@ -16,6 +16,7 @@ func _run() -> void:
 	failures += _test_no_decorations_on_water()
 	failures += await _test_water_blocks_player()
 	failures += _test_map_settings_covers_params()
+	failures += _test_map_settings_rows_from_hints()
 	failures += await _test_chunk_refresh_frames()
 	if failures == 0:
 		print("All tests passed.")
@@ -313,6 +314,60 @@ func _test_map_settings_covers_params() -> int:
 	panel.queue_free()
 	if fail == 0:
 		print("PASS test_map_settings_covers_params (%s properties)" % exported)
+	return fail
+
+func _test_map_settings_rows_from_hints() -> int:
+	## Map Settings rows come from MapGenParams @export_range hints. Pins the
+	## label, range and order of the rows that existed before that change;
+	## rows for new parameters are allowed.
+	print("-- test_map_settings_rows_from_hints")
+	var expected := {
+		"altitude_frequency": ["Altitude frequency", 0.001, 1.0, 0.001],
+		"moisture_frequency": ["Moisture frequency", 0.001, 1.0, 0.001],
+		"temperature_frequency": ["Temperature frequency", 0.001, 1.0, 0.001],
+		"items_frequency": ["Items frequency", 0.01, 4.0, 0.01],
+		"fractal_octaves": ["Fractal octaves", 1, 10, 1],
+		"fractal_lacunarity": ["Fractal lacunarity", 0.1, 4.0, 0.1],
+		"fractal_gain": ["Fractal gain", 0.0, 2.0, 0.05],
+		"chunk_width": ["Chunk width", 8, 128, 1],
+		"chunk_height": ["Chunk height", 8, 128, 1],
+		"chunk_refresh_frames": ["Chunk refresh frames", 1, 120, 1],
+		"water_max_alt": ["Water max altitude", -1.0, 1.0, 0.01],
+		"sand_max_alt": ["Sand max altitude", -1.0, 1.0, 0.01],
+		"swamp_special_alt": ["Swamp special altitude", -1.0, 1.0, 0.01],
+		"ground_chance_a": ["Ground chance A", -1.0, 1.0, 0.05],
+		"ground_chance_b": ["Ground chance B", -1.0, 1.0, 0.05],
+		"ground_chance_c": ["Ground chance C", -1.0, 1.0, 0.05],
+		"bush_min_alt": ["Bush min altitude", -1.0, 1.0, 0.01],
+		"bush_max_alt": ["Bush max altitude", -1.0, 1.0, 0.01],
+		"bush_min_chance": ["Bush min chance", -1.0, 1.0, 0.05],
+		"tree_min_alt": ["Tree min altitude", -1.0, 1.0, 0.01],
+		"tree_min_chance": ["Tree min chance", -1.0, 1.0, 0.05],
+	}
+	var panel = load("res://map_admin_panel.tscn").instantiate()
+	root.add_child(panel)
+	var fail := 0
+	var pinned_order: Array = panel._spin_boxes.keys().filter(func(k): return expected.has(k))
+	if pinned_order != expected.keys():
+		printerr(
+			"FAIL map_settings_rows_from_hints row order=%s want %s"
+			% [pinned_order, expected.keys()]
+		)
+		fail += 1
+	for key in expected.keys():
+		if not panel._spin_boxes.has(key):
+			continue
+		var want: Array = expected[key]
+		var spin: SpinBox = panel._spin_boxes[key]
+		var label: String = spin.get_parent().get_child(0).text
+		var got := [label, spin.min_value, spin.max_value, spin.step]
+		if label != want[0] or not is_equal_approx(spin.min_value, want[1]) \
+				or not is_equal_approx(spin.max_value, want[2]) or not is_equal_approx(spin.step, want[3]):
+			printerr("FAIL map_settings_rows_from_hints %s got %s want %s" % [key, got, want])
+			fail += 1
+	panel.queue_free()
+	if fail == 0:
+		print("PASS test_map_settings_rows_from_hints (%s rows)" % expected.size())
 	return fail
 
 func _test_chunk_refresh_frames() -> int:
