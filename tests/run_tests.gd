@@ -22,6 +22,8 @@ func _run() -> void:
 	failures += _test_map_save_round_trip()
 	failures += _test_map_save_rejects_bad_files()
 	failures += _test_player_spawn_no_missing_nodes()
+	failures += _test_server_port_from_args()
+	failures += await _test_dedicated_server_join()
 	if failures == 0:
 		print("All tests passed.")
 		quit(0)
@@ -609,3 +611,83 @@ func _test_player_spawn_no_missing_nodes() -> int:
 		print("PASS test_player_spawn_no_missing_nodes")
 	return fail
 
+
+func _test_server_port_from_args() -> int:
+	## `-- --server [--port N]` picks the dedicated-server port; 0 means GUI launch.
+	print("-- test_server_port_from_args")
+	var main_script = load("res://flagoria_main.gd")
+	var cases := [
+		[[], 0],
+		[["--port", "9799"], 0],
+		[["--server"], 9786],
+		[["--server", "--port", "9799"], 9799],
+		[["--server", "--port=9799"], 9799],
+		[["--server", "--port", "abc"], -1],
+		[["--server", "--port"], -1],
+		[["--server", "--port=0"], -1],
+		[["--server", "--port", "65536"], -1],
+	]
+	var fail := 0
+	for case in cases:
+		var got: int = main_script.server_port_from_args(PackedStringArray(case[0]))
+		if got != case[1]:
+			printerr("FAIL server_port_from_args %s = %s, want %s" % [case[0], got, case[1]])
+			fail += 1
+	if fail == 0:
+		print("PASS test_server_port_from_args (%s cases)" % cases.size())
+	return fail
+
+
+func _test_dedicated_server_join() -> int:
+	## Boot `-- --server` as a second headless process, join it through the
+	## main scene's normal Join path, and check that the client gets the map
+	## params and its own player, and that the host spawned no local player.
+	print("-- test_dedicated_server_join")
+	var timeout_ms := 30000
+	await process_frame
+	var pid := OS.create_process(
+		OS.get_executable_path(),
+		["--headless", "--path", ProjectSettings.globalize_path("res://"), "--", "--server"]
+	)
+	if pid <= 0:
+		printerr("FAIL dedicated_server_join could not start the server process")
+		return 1
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var fail := 0
+	var client_id := 0
+	var world: Node = scene.get_node("World")
+	if scene.get_path() != NodePath("/root/Flagoria"):
+		printerr("FAIL dedicated_server_join scene at %s, not /root/Flagoria" % scene.get_path())
+		fail += 1
+	else:
+		# ENet retries the handshake, so joining before the server binds is fine.
+		scene.add_player_joined()
+		var deadline := Time.get_ticks_msec() + timeout_ms
+		while Time.get_ticks_msec() < deadline and OS.is_process_running(pid):
+			client_id = scene.multiplayer.get_unique_id()
+			var params_ok: bool = scene.world_params != null and scene.world_params.altitude_seed != 0
+			if params_ok and world.has_node(str(client_id)):
+				break
+			await process_frame
+		var params: MapGenParams = scene.world_params
+		if not OS.is_process_running(pid):
+			printerr("FAIL dedicated_server_join server process exited early")
+			fail += 1
+		elif params == null or params.altitude_seed == 0 or params.items_seed == 0:
+			printerr("FAIL dedicated_server_join no map params from server within %s ms" % timeout_ms)
+			fail += 1
+		elif not world.has_node(str(client_id)):
+			printerr("FAIL dedicated_server_join server did not spawn player %s" % client_id)
+			fail += 1
+		elif world.has_node("1"):
+			printerr("FAIL dedicated_server_join server spawned a local player")
+			fail += 1
+
+	OS.kill(pid)
+	scene.enet_peer.close()
+	scene.multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	scene.queue_free()
+	if fail == 0:
+		print("PASS test_dedicated_server_join (client %s)" % client_id)
+	return fail
