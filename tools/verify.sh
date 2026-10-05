@@ -110,4 +110,29 @@ if [[ "${fail}" -ne 0 ]]; then
 fi
 
 echo "Script parse: ok"
+
+# ---------------------------------------------------------------------------
+# Tests (headless GDScript)
+# Separate step so later verify.sh additions merge cleanly.
+# ---------------------------------------------------------------------------
+echo "== Tests (godot --headless --script res://tests/run_tests.gd) =="
+test_log="$(mktemp)"
+set +e
+"$GODOT" --headless --path "$ROOT" --script res://tests/run_tests.gd >"${test_log}" 2>&1
+test_status=$?
+set -e
+cat "${test_log}"
+if [[ "${test_status}" -ne 0 ]] || log_has_project_error "${test_log}"; then
+  echo "error: tests failed (exit ${test_status})" >&2
+  rm -f "${test_log}"
+  exit 1
+fi
+if ! grep -q 'All tests passed.' "${test_log}"; then
+  echo "error: tests did not report success" >&2
+  rm -f "${test_log}"
+  exit 1
+fi
+rm -f "${test_log}"
+echo "Tests: ok"
+
 echo "Verification passed."
