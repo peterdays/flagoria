@@ -18,5 +18,6 @@ The only personal identity allowed anywhere is the git commit author metadata, u
 ## Other house rules
 
 - Two-player multiplayer must keep working after every change.
+- Small, self-contained pull requests, one concern each. Pull requests double as documentation: focused commits and a short why/what description should let a reader understand exactly what changed and why. Never bundle several issues or features into one pull request; stack dependent pull requests instead, and reference the related issue numbers.
 - Nothing is merged, released, or tagged without the owner's approval.
 - Run `tools/verify.sh` before opening a pull request; CI runs the same check.
