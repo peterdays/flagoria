@@ -39,6 +39,20 @@ func load_from_disk() -> void:
 		params.from_dict(data)
 
 
+func save_map_inputs(save_name: String) -> String:
+	## Saves the active params to MapSave.path_for(save_name); returns "" or an error.
+	## After hosting, the active params hold the resolved seeds.
+	return MapSave.save_map(params, save_name)["error"]
+
+
+func load_map_inputs(path: String) -> String:
+	## Makes a saved world the active params for the next host; returns "" or an error.
+	var result := MapSave.load_map(path)
+	if result["error"] == "":
+		params = result["params"]
+	return result["error"]
+
+
 func apply_to_world_map(world_map: Node) -> void:
 	if world_map and world_map.has_method("apply_map_params"):
 		world_map.apply_map_params(params)
