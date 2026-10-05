@@ -1,0 +1,19 @@
+Flagoria verification evidence summary
+generated_utc=2026-10-05T19:12:53Z
+
+## tools/verify.sh
+result=pass
+  -- test_smoke_true
+  PASS test_smoke_true
+  -- test_map_characterization
+  PASS test_map_characterization (11 cells)
+  All tests passed.
+  Tests: ok
+  Verification passed.
+
+## Map Settings screenshot
+result=present file=map_settings.png
+
+## Notes
+- Two-player Host/Join is not proven by verify.sh alone (see features/two-player-host-join.md).
+- Issue #45 (automated two-player smoke) and #48 (CLI map renders) are placeholders.

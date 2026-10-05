@@ -1,0 +1,5 @@
+*
+!.gitignore
+!.gitkeep
+!e2e-summary.txt
+!*.png
