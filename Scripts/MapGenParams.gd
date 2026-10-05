@@ -21,6 +21,8 @@ extends Resource
 # Chunk generation size around the player
 @export var chunk_width: int = 32
 @export var chunk_height: int = 32
+# Frames between chunk regenerations around the local player
+@export var chunk_refresh_frames: int = 15
 
 # Terrain altitude thresholds (layer 0)
 @export var water_max_alt: float = 0.2
@@ -85,6 +87,7 @@ func to_dict() -> Dictionary:
 		"fractal_gain": fractal_gain,
 		"chunk_width": chunk_width,
 		"chunk_height": chunk_height,
+		"chunk_refresh_frames": chunk_refresh_frames,
 		"water_max_alt": water_max_alt,
 		"sand_max_alt": sand_max_alt,
 		"swamp_special_alt": swamp_special_alt,
