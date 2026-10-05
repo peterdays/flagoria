@@ -12,6 +12,7 @@ func _run() -> void:
 	failures += _test_smoke_true()
 	failures += _test_map_characterization()
 	failures += _test_spawn_on_land()
+	failures += _test_map_settings_water_reopen()
 	if failures == 0:
 		print("All tests passed.")
 		quit(0)
@@ -133,4 +134,28 @@ func _test_spawn_on_land() -> int:
 
 	scene.queue_free()
 	return fail
+
+func _test_map_settings_water_reopen() -> int:
+	## Map Settings must show the in-use water value on reopen, even when a
+	## SpinBox LineEdit still holds a dirty string for the same numeric value.
+	print("-- test_map_settings_water_reopen")
+	var panel = load("res://map_admin_panel.tscn").instantiate()
+	root.add_child(panel)
+	var spin: SpinBox = panel._spin_boxes["water_max_alt"]
+	var in_use := 0.45
+	spin.value = in_use
+	spin.get_line_edit().text = "0.2"
+	var params = MapGenParams.make_defaults()
+	params.water_max_alt = in_use
+	panel.load_from_params(params)
+	var shown := float(spin.get_line_edit().text)
+	panel.queue_free()
+	if abs(shown - in_use) > 0.001:
+		printerr(
+			"FAIL map_settings_water_reopen shown=%s want in-use=%s"
+			% [shown, in_use]
+		)
+		return 1
+	print("PASS test_map_settings_water_reopen shown=%s" % shown)
+	return 0
 
