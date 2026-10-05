@@ -11,6 +11,7 @@ func _run() -> void:
 	var failures := 0
 	failures += _test_smoke_true()
 	failures += _test_map_characterization()
+	failures += _test_spawn_on_land()
 	if failures == 0:
 		print("All tests passed.")
 		quit(0)
@@ -80,3 +81,56 @@ func _test_map_characterization() -> int:
 		print("PASS test_map_characterization (%s cells)" % expected.size())
 	scene.queue_free()
 	return fail
+
+func _test_spawn_on_land() -> int:
+	print("-- test_spawn_on_land")
+	var cases = [
+		{"name": "default_seeds", "alt": 2, "moist": 7, "temp": 12, "items": 17, "water": 0.2, "sand": 0.25},
+		{"name": "high_water", "alt": 2, "moist": 7, "temp": 12, "items": 17, "water": 0.45, "sand": 0.5},
+		{"name": "seed_set_b", "alt": 99, "moist": 101, "temp": 103, "items": 107, "water": 0.2, "sand": 0.25},
+		{"name": "seed_set_c_high_water", "alt": 4242, "moist": 5252, "temp": 6262, "items": 7272, "water": 0.4, "sand": 0.48},
+	]
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	if world == null:
+		printerr("FAIL: World/worldMap missing")
+		return 1
+
+	for case in cases:
+		var params = MapGenParams.make_defaults()
+		params.altitude_seed = case["alt"]
+		params.moisture_seed = case["moist"]
+		params.temperature_seed = case["temp"]
+		params.items_seed = case["items"]
+		params.water_max_alt = case["water"]
+		params.sand_max_alt = case["sand"]
+		world.apply_map_params(params)
+		var cell: Vector2i = world.resolve_player_spawn()
+		if not world.is_walkable_land(cell):
+			printerr("FAIL spawn_on_land case=%s cell=%s not walkable land" % [case["name"], cell])
+			fail += 1
+			continue
+		var neighbors: int = world.count_walkable_neighbors(cell)
+		if neighbors < 1:
+			printerr(
+				"FAIL spawn_on_land case=%s cell=%s has zero walkable neighbors"
+				% [case["name"], cell]
+			)
+			fail += 1
+			continue
+		world.apply_map_params(params)
+		var again: Vector2i = world.resolve_player_spawn()
+		if again != cell:
+			printerr(
+				"FAIL spawn_on_land case=%s nondeterministic first=%s second=%s"
+				% [case["name"], cell, again]
+			)
+			fail += 1
+			continue
+		print("PASS spawn_on_land case=%s cell=%s neighbors=%s" % [case["name"], cell, neighbors])
+
+	scene.queue_free()
+	return fail
+

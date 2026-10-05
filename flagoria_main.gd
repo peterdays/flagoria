@@ -33,6 +33,20 @@ func _apply_params_to_world(params: MapGenParams) -> void:
 		world.apply_map_params(params)
 
 
+func _land_spawn_position() -> Vector2:
+	var world = get_node("World/worldMap")
+	var cell = world.resolve_player_spawn()
+	return world.map_to_local(cell)
+
+
+func _place_players_on_land() -> void:
+	var pos = _land_spawn_position()
+	var world_root = get_node("/root/Flagoria/World")
+	for child in world_root.get_children():
+		if child is CharacterBody2D:
+			child.position = pos
+
+
 func _sync_map_params_to_peer(peer_id: int) -> void:
 	## Send the full parameter dictionary (not just seeds) so both players share one map.
 	if world_params == null:
@@ -47,6 +61,9 @@ func receive_map_params(data: Dictionary) -> void:
 	world_params = params
 	get_node("/root/MapGen").params = params.duplicate_params()
 	_apply_params_to_world(params)
+	_place_players_on_land()
+	var world = get_node("World/worldMap")
+	world.player_spawned = true
 
 
 func add_player(peer_id):
@@ -54,6 +71,7 @@ func add_player(peer_id):
 	var player = Player.instantiate()
 	player.name = str(peer_id)
 	print("player added", player.name)
+	player.position = _land_spawn_position()
 	get_node("/root/Flagoria/World").add_child(player)
 
 	var world = get_node("World/worldMap")
@@ -68,8 +86,6 @@ func add_player_joined():
 
 	enet_peer.create_client(server_ip, PORT)
 	multiplayer.multiplayer_peer = enet_peer
-	# Chunk generation waits until map params arrive from the host (see receive_map_params),
-	# except we still mark spawned so movement works; params RPC clears and regenerates.
 	var world = get_node("World/worldMap")
 	world.player_spawned = true
 
