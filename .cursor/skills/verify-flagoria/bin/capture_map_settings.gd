@@ -1,5 +1,5 @@
 extends SceneTree
-## Opens Map Settings and writes a PNG into the skill artifacts folder.
+## Opens Map Settings and writes a PNG to the skill's ignored artifacts/out/ folder.
 ## Invoked by drive-map-settings-screenshot.sh (not by tools/verify.sh).
 
 func _initialize() -> void:
@@ -37,9 +37,10 @@ func _run() -> void:
 		quit(1)
 		return
 
-	# Repo-relative artifacts path (ProjectSettings.globalize_path for res://)
-	var out_res := "res://.cursor/skills/verify-flagoria/artifacts/map_settings.png"
+	# Not artifacts/map_settings.png: that file is the committed reference.
+	var out_res := "res://.cursor/skills/verify-flagoria/artifacts/out/map_settings.png"
 	var abs_out := ProjectSettings.globalize_path(out_res)
+	DirAccess.make_dir_recursive_absolute(abs_out.get_base_dir())
 	var save_err = img.save_png(abs_out)
 	print("capture_map_settings: save_err=", save_err, " path=", out_res)
 	if save_err != OK:

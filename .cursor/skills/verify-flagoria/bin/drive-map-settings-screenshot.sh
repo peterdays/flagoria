@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Drive: open Map Settings under xvfb and save a PNG under artifacts/.
+# Drive: open Map Settings under xvfb and save a PNG under artifacts/out/ (ignored).
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 cd "$ROOT"
 ART=".cursor/skills/verify-flagoria/artifacts"
 RUN=".cursor/skills/verify-flagoria/.run"
-mkdir -p "$ART" "$RUN"
+OUT="${ART}/out"
+mkdir -p "$OUT" "$RUN"
 
 if [[ -z "${GODOT:-}" ]]; then
   echo "drive-map-settings: set GODOT" >&2
@@ -17,7 +18,7 @@ if ! command -v xvfb-run >/dev/null 2>&1; then
 fi
 
 SCRIPT_RES="res://.cursor/skills/verify-flagoria/bin/capture_map_settings.gd"
-out_png="${ART}/map_settings.png"
+out_png="${OUT}/map_settings.png"
 
 set +e
 xvfb-run -a -s "-screen 0 1280x720x24" \

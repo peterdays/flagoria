@@ -81,7 +81,7 @@ Map characterization: when `tests/run_tests.gd` defines `test_map_characterizati
 ./.cursor/skills/verify-flagoria/bin/drive-map-settings-screenshot.sh
 ```
 
-Uses `xvfb-run` + `opengl3` and a short SceneTree script to open **Map Settings** and write a PNG under `artifacts/`. If xvfb/GL is unavailable, the script exits non-zero with a clear message — treat as skipped visual proof, not as a product regression, unless the change was UI-only.
+Uses `xvfb-run` + `opengl3` and a short SceneTree script to open **Map Settings** and write `artifacts/out/map_settings.png`. `artifacts/out/` is gitignored, so the run leaves `git status` clean. The committed `artifacts/map_settings.png` is the reference image; replace it only on purpose, by copying the new capture over it. If xvfb/GL is unavailable, the script exits non-zero with a clear message — treat as skipped visual proof, not as a product regression, unless the change was UI-only.
 
 ### Two-player Host/Join
 
@@ -106,7 +106,7 @@ After a successful verify drive, write a short summary:
 ./.cursor/skills/verify-flagoria/bin/evidence-summarize.sh
 ```
 
-Artifacts live in `.cursor/skills/verify-flagoria/artifacts/` (for example `verify.log`, `e2e-summary.txt`, `map_settings.png`). **Cleanup must not delete this directory's proof files.**
+Artifacts live in `.cursor/skills/verify-flagoria/artifacts/` (for example `verify.log`, `e2e-summary.txt`, `out/map_settings.png`). **Cleanup must not delete this directory's proof files.**
 
 ## Cleanup
 
@@ -124,7 +124,7 @@ All under `.cursor/skills/verify-flagoria/bin/` (executable):
 |---|---|
 | `doctor.sh` | Read-only health |
 | `drive-verify.sh` | Run `tools/verify.sh`, copy log to artifacts |
-| `drive-map-settings-screenshot.sh` | xvfb Map Settings PNG |
+| `drive-map-settings-screenshot.sh` | xvfb Map Settings PNG in `artifacts/out/` |
 | `evidence-summarize.sh` | Append/write `e2e-summary.txt` from latest logs |
 | `cleanup.sh` | Tear down recorded PIDs + `.run/` |
 
