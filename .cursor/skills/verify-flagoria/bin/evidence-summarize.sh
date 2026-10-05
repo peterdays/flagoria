@@ -24,8 +24,8 @@ sum="${ART}/e2e-summary.txt"
   fi
   echo
   echo "## Map Settings screenshot"
-  if [[ -f "${ART}/map_settings.png" ]]; then
-    echo "result=present file=map_settings.png"
+  if [[ -f "${ART}/out/map_settings.png" ]]; then
+    echo "result=present file=out/map_settings.png"
   else
     echo "result=absent"
   fi

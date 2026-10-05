@@ -3,3 +3,5 @@
 !.gitkeep
 !e2e-summary.txt
 !*.png
+# Verify-run output; the committed map_settings.png is the reference.
+out/
