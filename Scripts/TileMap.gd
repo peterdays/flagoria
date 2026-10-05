@@ -131,6 +131,8 @@ func get_random_ground_vec(chance):
 
 
 func set_tile_type_z1(pos_vec, alt, moist, _temp, chance):
+	if not is_walkable_land(pos_vec):
+		return
 	if moist > 0 and alt > bush_min_alt and alt <= bush_max_alt and chance > bush_min_chance:
 		set_cell(1, pos_vec, 0, Vector2i(7, 3))
 	elif moist > 0 and alt > tree_min_alt and chance > tree_min_chance:
