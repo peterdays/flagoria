@@ -30,9 +30,7 @@ if [[ "${status}" -ne 0 ]]; then
   echo "drive-map-settings: capture failed (exit ${status})" >&2
   exit "${status}"
 fi
-# Script writes via user:// or res path — prefer copying from artifacts target the gd script uses
 if [[ ! -f "${out_png}" ]]; then
-  # Fallback: look for capture next to project user dir is unreliable; require script to write ART path via OS
   echo "drive-map-settings: missing ${out_png}" >&2
   exit 1
 fi
