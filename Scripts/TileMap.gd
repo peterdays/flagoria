@@ -24,6 +24,11 @@ var bush_min_chance: float = 0.0
 var tree_min_alt: float = 0.4
 var tree_min_chance: float = 0.3
 
+const SPAWN_NEIGHBORS := [
+	Vector2i(0, -1), Vector2i(1, -1), Vector2i(1, 0), Vector2i(1, 1),
+	Vector2i(0, 1), Vector2i(-1, 1), Vector2i(-1, 0), Vector2i(-1, -1),
+]
+
 
 func _ready():
 	apply_map_params(get_node("/root/MapGen").params)
@@ -130,3 +135,53 @@ func set_tile_type_z1(pos_vec, alt, moist, _temp, chance):
 		set_cell(1, pos_vec, 0, Vector2i(7, 3))
 	elif moist > 0 and alt > tree_min_alt and chance > tree_min_chance:
 		set_cell(1, pos_vec, 0, Vector2i(7, 0))
+
+
+func is_walkable_land(cell: Vector2i) -> bool:
+	if get_cell_source_id(0, cell) == -1:
+		return false
+	var td = get_cell_tile_data(0, cell)
+	if td == null:
+		return false
+	return td.get_collision_polygons_count(0) == 0
+
+
+func count_walkable_neighbors(cell: Vector2i) -> int:
+	var n := 0
+	for d in SPAWN_NEIGHBORS:
+		if is_walkable_land(cell + d):
+			n += 1
+	return n
+
+
+func resolve_player_spawn(origin_cell: Vector2i = Vector2i(0, 0), max_radius: int = 96) -> Vector2i:
+	generate_chunk(map_to_local(origin_cell))
+	if is_walkable_land(origin_cell):
+		spawn_point = origin_cell
+		return origin_cell
+
+	var visited := {}
+	var queue: Array[Vector2i] = [origin_cell]
+	visited[origin_cell] = true
+	var head := 0
+	while head < queue.size():
+		var current: Vector2i = queue[head]
+		head += 1
+		for d in SPAWN_NEIGHBORS:
+			var next: Vector2i = current + d
+			if visited.has(next):
+				continue
+			var dx: int = absi(next.x - origin_cell.x)
+			var dy: int = absi(next.y - origin_cell.y)
+			if dx > max_radius or dy > max_radius:
+				continue
+			visited[next] = true
+			if get_cell_source_id(0, next) == -1:
+				generate_chunk(map_to_local(next))
+			if is_walkable_land(next):
+				spawn_point = next
+				return next
+			queue.append(next)
+
+	spawn_point = origin_cell
+	return origin_cell
