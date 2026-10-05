@@ -1,10 +1,12 @@
 Flagoria verification evidence summary
-generated_utc=2026-10-05T19:10:31Z
+generated_utc=2026-10-05T19:12:53Z
 
 ## tools/verify.sh
 result=pass
   -- test_smoke_true
   PASS test_smoke_true
+  -- test_map_characterization
+  PASS test_map_characterization (11 cells)
   All tests passed.
   Tests: ok
   Verification passed.
