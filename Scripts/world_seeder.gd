@@ -1,4 +1,5 @@
 class_name WorldSeeder
+## Legacy seed bag. Prefer MapGenParams; kept so older call sites still parse.
 
 var alt_seed: int
 var moist_seed: int

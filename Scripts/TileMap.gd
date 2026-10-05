@@ -6,21 +6,67 @@ var moisture = FastNoiseLite.new()
 var temperature = FastNoiseLite.new()
 var altitude = FastNoiseLite.new()
 var items_chance = FastNoiseLite.new()
-const CHUNK_WIDTH = 32
-const CHUNK_HEIGHT = 32
+var chunk_width: int = 32
+var chunk_height: int = 32
 var player_spawned = false
 var spawn_point = Vector2i(0, 0)
 
+# Cached thresholds from MapGenParams (defaults match prior hardcoded values)
+var water_max_alt: float = 0.2
+var sand_max_alt: float = 0.25
+var swamp_special_alt: float = 0.26
+var ground_chance_a: float = -0.25
+var ground_chance_b: float = 0.25
+var ground_chance_c: float = 0.75
+var bush_min_alt: float = 0.3
+var bush_max_alt: float = 0.4
+var bush_min_chance: float = 0.0
+var tree_min_alt: float = 0.4
+var tree_min_chance: float = 0.3
 
-# Called when the node enters the scene tree for the first time.
+
 func _ready():
-	items_chance.frequency = 1
+	apply_map_params(get_node("/root/MapGen").params)
 
 
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta):
-#	if not is_multiplayer_authority(): return
+func apply_map_params(p: MapGenParams) -> void:
+	## Apply the full parameter set and clear existing tiles so the next chunk regen is clean.
+	var working = p.duplicate_params()
+	working.ensure_seeds()
 
+	_configure_noise(altitude, working.altitude_seed, working.altitude_frequency, working)
+	_configure_noise(moisture, working.moisture_seed, working.moisture_frequency, working)
+	_configure_noise(temperature, working.temperature_seed, working.temperature_frequency, working)
+	_configure_noise(items_chance, working.items_seed, working.items_frequency, working)
+
+	chunk_width = working.chunk_width
+	chunk_height = working.chunk_height
+	water_max_alt = working.water_max_alt
+	sand_max_alt = working.sand_max_alt
+	swamp_special_alt = working.swamp_special_alt
+	ground_chance_a = working.ground_chance_a
+	ground_chance_b = working.ground_chance_b
+	ground_chance_c = working.ground_chance_c
+	bush_min_alt = working.bush_min_alt
+	bush_max_alt = working.bush_max_alt
+	bush_min_chance = working.bush_min_chance
+	tree_min_alt = working.tree_min_alt
+	tree_min_chance = working.tree_min_chance
+
+	clear()
+	spawn_point = Vector2i(0, 0)
+
+
+func _configure_noise(noise: FastNoiseLite, seed_value: int, frequency: float, p: MapGenParams) -> void:
+	noise.seed = seed_value
+	noise.noise_type = p.noise_type
+	noise.frequency = frequency
+	noise.fractal_octaves = p.fractal_octaves
+	noise.fractal_lacunarity = p.fractal_lacunarity
+	noise.fractal_gain = p.fractal_gain
+
+
+func _process(_delta):
 	count += 1
 	if (count % 15) == 0 and player_spawned:
 		var current_player_id = str(multiplayer.get_unique_id())
@@ -33,57 +79,54 @@ func _process(delta):
 
 func generate_chunk(position):
 	var tile_pos = local_to_map(position)
-	for x in range(CHUNK_WIDTH):
-		for y in range(CHUNK_HEIGHT):
-			var new_x = tile_pos.x - CHUNK_WIDTH/2 + x
-			var new_y = tile_pos.y - CHUNK_HEIGHT/2 + y
+	for x in range(chunk_width):
+		for y in range(chunk_height):
+			var new_x = tile_pos.x - chunk_width / 2 + x
+			var new_y = tile_pos.y - chunk_height / 2 + y
 			var moist = moisture.get_noise_2d(new_x, new_y)
 			var temp = temperature.get_noise_2d(new_x, new_y)
 			var alt = altitude.get_noise_2d(new_x, new_y)
 			var chance = items_chance.get_noise_2d(new_x, new_y)
-			
+
 			set_tile_type_z0(Vector2i(new_x, new_y), alt, moist, temp, chance)
 			set_tile_type_z1(Vector2i(new_x, new_y), alt, moist, temp, chance)
 
-			# set_cell(0, Vector2i(new_x, new_y), 0, Vector2i(5, 1))
 
-func set_tile_type_z0(pos_vec, alt, moist, temp, chance):
-
+func set_tile_type_z0(pos_vec, alt, moist, _temp, chance):
 	var tile_vec = get_random_ground_vec(chance)
-	if alt <= 0.2:  # water
+	if alt <= water_max_alt:  # water
 		tile_vec = Vector2i(5, 6)
-	elif alt > 0.2 and alt < 0.25: # sand
+	elif alt > water_max_alt and alt < sand_max_alt:  # sand
 		tile_vec = Vector2i(5, 4)
-	elif alt > 0.25 and moist < 0:  # swamp
-		if alt < 0.26 and chance < 0:
+	elif alt > sand_max_alt and moist < 0:  # swamp
+		if alt < swamp_special_alt and chance < 0:
 			tile_vec = Vector2i(27, 7)
 		else:
 			tile_vec = Vector2i(14, 7)
 	else:
-		# no change made and the tile_vec is ground
-		if spawn_point == Vector2i(0, 0):  # only the first time to change
+		# ground — record first land tile as spawn hint
+		if spawn_point == Vector2i(0, 0):
 			spawn_point = pos_vec
 
 	set_cell(0, pos_vec, 0, tile_vec)
 
+
 func get_random_ground_vec(chance):
 	# the ground tiles are a matrix from (5,0) to (6,1) of 4 tiles
 	var vec = Vector2i(5, 0)
-	if chance < -0.25:
+	if chance < ground_chance_a:
 		vec = Vector2i(5, 0)
-	elif chance < 0.25:
+	elif chance < ground_chance_b:
 		vec = Vector2i(5, 1)
-	elif chance < 0.75:
+	elif chance < ground_chance_c:
 		vec = Vector2i(6, 0)
 	else:
 		vec = Vector2i(6, 1)
-		
 	return vec
 
-func set_tile_type_z1(pos_vec, alt, moist, temp, chance):
-	
-	if moist > 0 and alt > 0.3 and alt <= 0.4 and chance > 0:
-		var tile_vec = Vector2i(7, 3)
-		set_cell(1, pos_vec, 0, tile_vec)
-	elif moist > 0 and alt > 0.4 and chance > 0.3:
+
+func set_tile_type_z1(pos_vec, alt, moist, _temp, chance):
+	if moist > 0 and alt > bush_min_alt and alt <= bush_max_alt and chance > bush_min_chance:
+		set_cell(1, pos_vec, 0, Vector2i(7, 3))
+	elif moist > 0 and alt > tree_min_alt and chance > tree_min_chance:
 		set_cell(1, pos_vec, 0, Vector2i(7, 0))

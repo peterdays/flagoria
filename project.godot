@@ -15,6 +15,10 @@ run/main_scene="res://flagoria_main.tscn"
 config/features=PackedStringArray("4.1", "Mobile")
 config/icon="res://icon.svg"
 
+[autoload]
+
+MapGen="*res://Scripts/map_gen.gd"
+
 [display]
 
 window/size/viewport_width=480
