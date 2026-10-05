@@ -8,6 +8,7 @@ var altitude = FastNoiseLite.new()
 var items_chance = FastNoiseLite.new()
 var chunk_width: int = 32
 var chunk_height: int = 32
+var chunk_refresh_frames: int = 15
 var player_spawned = false
 var spawn_point = Vector2i(0, 0)
 
@@ -46,6 +47,7 @@ func apply_map_params(p: MapGenParams) -> void:
 
 	chunk_width = working.chunk_width
 	chunk_height = working.chunk_height
+	chunk_refresh_frames = maxi(1, working.chunk_refresh_frames)
 	water_max_alt = working.water_max_alt
 	sand_max_alt = working.sand_max_alt
 	swamp_special_alt = working.swamp_special_alt
@@ -73,7 +75,7 @@ func _configure_noise(noise: FastNoiseLite, seed_value: int, frequency: float, p
 
 func _process(_delta):
 	count += 1
-	if (count % 15) == 0 and player_spawned:
+	if (count % chunk_refresh_frames) == 0 and player_spawned:
 		var current_player_id = str(multiplayer.get_unique_id())
 		count = 0
 

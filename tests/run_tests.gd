@@ -15,6 +15,8 @@ func _run() -> void:
 	failures += _test_map_settings_water_reopen()
 	failures += _test_no_decorations_on_water()
 	failures += await _test_water_blocks_player()
+	failures += _test_map_settings_covers_params()
+	failures += await _test_chunk_refresh_frames()
 	if failures == 0:
 		print("All tests passed.")
 		quit(0)
@@ -271,6 +273,87 @@ func _test_water_blocks_player() -> int:
 			fail += 1
 		else:
 			print("PASS water_blocks_player case=%s checked=%s" % [case["name"], checked])
+
+	scene.queue_free()
+	return fail
+
+func _test_map_settings_covers_params() -> int:
+	## Every exported MapGenParams property must reach clients (to_dict) and
+	## have a Map Settings control.
+	print("-- test_map_settings_covers_params")
+	var hand_wired := ["altitude_seed", "moisture_seed", "temperature_seed", "items_seed", "noise_type"]
+	var params = MapGenParams.make_defaults()
+	var keys: Dictionary = params.to_dict()
+	var panel = load("res://map_admin_panel.tscn").instantiate()
+	root.add_child(panel)
+	var fail := 0
+	var exported := 0
+	for prop in params.get_property_list():
+		if not (prop["usage"] & PROPERTY_USAGE_SCRIPT_VARIABLE):
+			continue
+		exported += 1
+		var key: String = prop["name"]
+		if not keys.has(key):
+			printerr("FAIL map_settings_covers_params %s missing from to_dict()" % key)
+			fail += 1
+		if not panel._spin_boxes.has(key) and not hand_wired.has(key):
+			printerr("FAIL map_settings_covers_params %s has no panel control" % key)
+			fail += 1
+
+	params.chunk_refresh_frames = 7
+	panel.load_from_params(params)
+	panel._spin_boxes["chunk_refresh_frames"].value = 9
+	panel.apply_to_params(params)
+	if params.chunk_refresh_frames != 9:
+		printerr(
+			"FAIL map_settings_covers_params panel round-trip chunk_refresh_frames=%s want 9"
+			% params.chunk_refresh_frames
+		)
+		fail += 1
+	panel.queue_free()
+	if fail == 0:
+		print("PASS test_map_settings_covers_params (%s properties)" % exported)
+	return fail
+
+func _test_chunk_refresh_frames() -> int:
+	## chunk_refresh_frames sets how many _process calls pass before the chunk
+	## under the local player is generated.
+	print("-- test_chunk_refresh_frames")
+	# Let earlier tests' queue_free() run so this instance is /root/Flagoria,
+	# the path TileMap._process uses to find the player.
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	if scene.get_path() != NodePath("/root/Flagoria"):
+		printerr("FAIL chunk_refresh_frames scene at %s, not /root/Flagoria" % scene.get_path())
+		scene.queue_free()
+		return 1
+	var world = scene.get_node("World/worldMap")
+	var far_cell := Vector2i(500, 500)
+	var player := Node2D.new()
+	player.name = str(world.multiplayer.get_unique_id())
+	player.position = world.map_to_local(far_cell)
+	scene.get_node("World").add_child(player)
+	world.player_spawned = true
+
+	var fail := 0
+	for frames in [15, 4]:
+		var params = MapGenParams.make_defaults()
+		params.chunk_refresh_frames = frames
+		world.apply_map_params(params)
+		world.count = 0
+		for i in range(frames - 1):
+			world._process(0.0)
+		if world.get_cell_source_id(0, far_cell) != -1:
+			printerr("FAIL chunk_refresh_frames=%s generated before frame %s" % [frames, frames])
+			fail += 1
+			continue
+		world._process(0.0)
+		if world.get_cell_source_id(0, far_cell) == -1:
+			printerr("FAIL chunk_refresh_frames=%s not generated on frame %s" % [frames, frames])
+			fail += 1
+			continue
+		print("PASS chunk_refresh_frames=%s" % frames)
 
 	scene.queue_free()
 	return fail

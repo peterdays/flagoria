@@ -42,6 +42,7 @@ func _build_extra_controls() -> void:
 	_add_float("fractal_gain", "Fractal gain", 0.0, 2.0, 0.05, 0.5)
 	_add_int("chunk_width", "Chunk width", 8, 128, 32)
 	_add_int("chunk_height", "Chunk height", 8, 128, 32)
+	_add_int("chunk_refresh_frames", "Chunk refresh frames", 1, 120, 15)
 	_add_float("water_max_alt", "Water max altitude", -1.0, 1.0, 0.01, 0.2)
 	_add_float("sand_max_alt", "Sand max altitude", -1.0, 1.0, 0.01, 0.25)
 	_add_float("swamp_special_alt", "Swamp special altitude", -1.0, 1.0, 0.01, 0.26)
