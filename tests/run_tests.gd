@@ -17,6 +17,8 @@ func _run() -> void:
 	failures += await _test_water_blocks_player()
 	failures += _test_map_settings_covers_params()
 	failures += await _test_chunk_refresh_frames()
+	failures += _test_map_save_round_trip()
+	failures += _test_map_save_rejects_bad_files()
 	if failures == 0:
 		print("All tests passed.")
 		quit(0)
@@ -356,5 +358,107 @@ func _test_chunk_refresh_frames() -> int:
 		print("PASS chunk_refresh_frames=%s" % frames)
 
 	scene.queue_free()
+	return fail
+
+func _test_map_save_round_trip() -> int:
+	## Every MapGenParams value survives save + load exactly, and the loaded
+	## inputs regenerate the same origin chunk on layers 0 and 1. Float inputs
+	## use all 17 significant digits.
+	print("-- test_map_save_round_trip")
+	var fail := 0
+	var params = MapGenParams.make_defaults()
+	var defaults: Dictionary = params.to_dict()
+	for key in defaults.keys():
+		if typeof(defaults[key]) == TYPE_INT:
+			params.set(key, defaults[key] + 3)
+		else:
+			params.set(key, defaults[key] + 1.0 / 3.0)
+	var saved = MapSave.save_map(params, "test_round_trip")
+	var loaded = MapSave.load_map(saved["path"])
+	if saved["error"] != "" or loaded["error"] != "":
+		printerr("FAIL map_save_round_trip save=%s load=%s" % [saved["error"], loaded["error"]])
+		return 1
+	var want: Dictionary = params.to_dict()
+	var got: Dictionary = loaded["params"].to_dict()
+	for key in want.keys():
+		if typeof(got[key]) != typeof(want[key]) or got[key] != want[key]:
+			printerr("FAIL map_save_round_trip %s saved=%s loaded=%s" % [key, want[key], got[key]])
+			fail += 1
+	DirAccess.remove_absolute(saved["path"])
+
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var map_gen = root.get_node("MapGen")
+	var active_params = map_gen.params
+	var original = MapGenParams.make_defaults()
+	original.altitude_seed = 4242
+	original.moisture_seed = 5252
+	original.temperature_seed = 6262
+	original.items_seed = 7272
+	original.water_max_alt = 0.4
+	original.sand_max_alt = 0.48
+	map_gen.params = original
+	var save_error: String = map_gen.save_map_inputs("test_same_map")
+	map_gen.params = MapGenParams.make_defaults()
+	var load_error: String = map_gen.load_map_inputs(MapSave.path_for("test_same_map"))
+	var reloaded: MapGenParams = map_gen.params
+	map_gen.params = active_params
+	DirAccess.remove_absolute(MapSave.path_for("test_same_map"))
+	if save_error != "" or load_error != "":
+		printerr("FAIL map_save_round_trip save=%s load=%s" % [save_error, load_error])
+		scene.queue_free()
+		return fail + 1
+
+	var cells := {}
+	world.apply_map_params(original)
+	world.generate_chunk(Vector2(0, 0))
+	for cell in world.get_used_cells(0):
+		cells[cell] = [world.get_cell_atlas_coords(0, cell), world.get_cell_atlas_coords(1, cell)]
+	world.apply_map_params(reloaded)
+	world.generate_chunk(Vector2(0, 0))
+	var mismatched := 0
+	for cell in cells.keys():
+		if cells[cell] != [world.get_cell_atlas_coords(0, cell), world.get_cell_atlas_coords(1, cell)]:
+			mismatched += 1
+	if cells.size() == 0 or mismatched > 0 or world.get_used_cells(0).size() != cells.size():
+		printerr("FAIL map_save_round_trip regenerated chunk: %s of %s cells differ" % [mismatched, cells.size()])
+		fail += 1
+	scene.queue_free()
+	if fail == 0:
+		print("PASS test_map_save_round_trip (%s values, %s cells)" % [want.size(), cells.size()])
+	return fail
+
+func _test_map_save_rejects_bad_files() -> int:
+	## Unknown versions, malformed files and unresolved seeds give clear errors.
+	print("-- test_map_save_rejects_bad_files")
+	var fail := 0
+	var unresolved = MapSave.save_map(MapGenParams.make_defaults(), "test_unresolved")
+	if not "unresolved" in unresolved["error"] or FileAccess.file_exists(MapSave.path_for("test_unresolved")):
+		printerr("FAIL map_save_rejects_bad_files unresolved seeds: %s" % unresolved["error"])
+		fail += 1
+
+	var cases := {
+		"test_future_version": ['{"format_version": 99, "params": {}}', "version 99"],
+		"test_no_version": ['{"params": {}}', "no format_version"],
+		"test_not_json": ["not json", "invalid JSON"],
+		"test_no_params": ['{"format_version": 1}', "no params"],
+	}
+	DirAccess.make_dir_recursive_absolute(MapSave.SAVE_DIR)
+	for save_name in cases.keys():
+		var path := MapSave.path_for(save_name)
+		var file := FileAccess.open(path, FileAccess.WRITE)
+		file.store_string(cases[save_name][0])
+		file.close()
+		var result = MapSave.load_map(path)
+		DirAccess.remove_absolute(path)
+		if result["params"] != null or not cases[save_name][1] in result["error"]:
+			printerr(
+				"FAIL map_save_rejects_bad_files %s error=%s want it to mention %s"
+				% [save_name, result["error"], cases[save_name][1]]
+			)
+			fail += 1
+	if fail == 0:
+		print("PASS test_map_save_rejects_bad_files")
 	return fail
 
