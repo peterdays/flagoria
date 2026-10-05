@@ -1170,6 +1170,10 @@ text = "Main Menu"
 horizontal_alignment = 1
 vertical_alignment = 1
 
+[node name="MapSettingsButton" type="Button" parent="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Map Settings"
+
 [node name="HostButton" type="Button" parent="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer"]
 layout_mode = 2
 text = "Host"
@@ -1184,5 +1188,6 @@ placeholder_text = "Enter address to join here"
 alignment = 1
 
 [connection signal="pressed" from="CanvasLayer1/TouchScreenButton" to="CanvasLayer1/TouchScreenButton" method="_on_pressed"]
+[connection signal="pressed" from="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/MapSettingsButton" to="CanvasLayer2/MainMenu" method="_on_map_settings_pressed"]
 [connection signal="pressed" from="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/HostButton" to="CanvasLayer2/MainMenu" method="_on_host_button_pressed"]
 [connection signal="pressed" from="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/JoinButton" to="CanvasLayer2/MainMenu" method="_on_join_button_pressed"]

@@ -1,0 +1,147 @@
+[gd_scene load_steps=2 format=3 uid="uid://mapadminpanel01"]
+
+[ext_resource type="Script" path="res://Scripts/MapAdminPanel.gd" id="1_admin"]
+
+[node name="MapAdminPanel" type="PanelContainer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_admin")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 4
+
+[node name="VBox" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Title" type="Label" parent="Margin/VBox"]
+layout_mode = 2
+text = "Map Generation"
+horizontal_alignment = 1
+
+[node name="Scroll" type="ScrollContainer" parent="Margin/VBox"]
+custom_minimum_size = Vector2(0, 180)
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Form" type="VBoxContainer" parent="Margin/VBox/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 3
+
+[node name="SeedRow" type="HBoxContainer" parent="Margin/VBox/Scroll/Form"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Margin/VBox/Scroll/Form/SeedRow"]
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Altitude seed"
+
+[node name="AltitudeSeed" type="LineEdit" parent="Margin/VBox/Scroll/Form/SeedRow"]
+custom_minimum_size = Vector2(100, 22)
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "0 = random"
+
+[node name="SeedRow2" type="HBoxContainer" parent="Margin/VBox/Scroll/Form"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Margin/VBox/Scroll/Form/SeedRow2"]
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Moisture seed"
+
+[node name="MoistureSeed" type="LineEdit" parent="Margin/VBox/Scroll/Form/SeedRow2"]
+custom_minimum_size = Vector2(100, 22)
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "0 = random"
+
+[node name="SeedRow3" type="HBoxContainer" parent="Margin/VBox/Scroll/Form"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Margin/VBox/Scroll/Form/SeedRow3"]
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Temperature seed"
+
+[node name="TemperatureSeed" type="LineEdit" parent="Margin/VBox/Scroll/Form/SeedRow3"]
+custom_minimum_size = Vector2(100, 22)
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "0 = random"
+
+[node name="SeedRow4" type="HBoxContainer" parent="Margin/VBox/Scroll/Form"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Margin/VBox/Scroll/Form/SeedRow4"]
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Items seed"
+
+[node name="ItemsSeed" type="LineEdit" parent="Margin/VBox/Scroll/Form/SeedRow4"]
+custom_minimum_size = Vector2(100, 22)
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "0 = random"
+
+[node name="NoiseTypeRow" type="HBoxContainer" parent="Margin/VBox/Scroll/Form"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Margin/VBox/Scroll/Form/NoiseTypeRow"]
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Noise type"
+
+[node name="NoiseType" type="OptionButton" parent="Margin/VBox/Scroll/Form/NoiseTypeRow"]
+custom_minimum_size = Vector2(100, 22)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Buttons" type="HBoxContainer" parent="Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="RandomSeed" type="Button" parent="Margin/VBox/Buttons"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Random seeds"
+
+[node name="Reset" type="Button" parent="Margin/VBox/Buttons"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Defaults"
+
+[node name="Buttons2" type="HBoxContainer" parent="Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="Back" type="Button" parent="Margin/VBox/Buttons2"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Back"
+
+[node name="Start" type="Button" parent="Margin/VBox/Buttons2"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Host with these"
+
+[connection signal="pressed" from="Margin/VBox/Buttons/RandomSeed" to="." method="_on_random_seed_pressed"]
+[connection signal="pressed" from="Margin/VBox/Buttons/Reset" to="." method="_on_reset_pressed"]
+[connection signal="pressed" from="Margin/VBox/Buttons2/Back" to="." method="_on_back_pressed"]
+[connection signal="pressed" from="Margin/VBox/Buttons2/Start" to="." method="_on_start_pressed"]
