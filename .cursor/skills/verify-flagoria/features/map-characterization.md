@@ -23,7 +23,7 @@ Preconditions:
 - **Run verify.** `./.cursor/skills/verify-flagoria/bin/drive-verify.sh`.
 - **Observe.** Log line `PASS test_map_characterization` (and cell count) when the test is present; otherwise only `PASS test_smoke_true`.
 - **Mutation proof (optional, revert after).** Temporarily change a terrain threshold default (for example `water_max_alt` on `MapGenParams`), re-run the test script, expect a `FAIL cell=...` line and non-zero exit, then revert the edit and confirm verify passes again.
-- **Proof.** Excerpt of PASS/FAIL lines in `artifacts/verify.log` or `artifacts/e2e-summary.txt`.
+- **Proof.** Excerpt of PASS/FAIL lines in `artifacts/verify.log` or `artifacts/out/e2e-summary.txt`.
 
 ## Gotchas
 

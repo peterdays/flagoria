@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Write artifacts/e2e-summary.txt from the latest verify (and optional screenshot) logs.
+# Write artifacts/out/e2e-summary.txt (ignored) from the latest verify (and optional screenshot) logs.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 cd "$ROOT"
 ART=".cursor/skills/verify-flagoria/artifacts"
-mkdir -p "$ART"
-sum="${ART}/e2e-summary.txt"
+mkdir -p "${ART}/out"
+sum="${ART}/out/e2e-summary.txt"
 {
   echo "Flagoria verification evidence summary"
   echo "generated_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
