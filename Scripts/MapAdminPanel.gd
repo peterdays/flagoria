@@ -107,7 +107,11 @@ func load_from_params(p: MapGenParams) -> void:
 	if idx >= 0:
 		noise_type_opt.select(idx)
 	for key in _spin_boxes.keys():
-		_spin_boxes[key].value = p.get(key)
+		var spin: SpinBox = _spin_boxes[key]
+		spin.value = p.get(key)
+		# SpinBox leaves LineEdit text unchanged when the numeric value is
+		# already equal, so a typed-but-uncommitted string can survive a reopen.
+		spin.get_line_edit().text = str(spin.value)
 
 
 func apply_to_params(p: MapGenParams) -> void:
