@@ -24,7 +24,6 @@ var bush_min_chance: float = 0.0
 var tree_min_alt: float = 0.4
 var tree_min_chance: float = 0.3
 
-# Deterministic neighbor order for spawn search (N, NE, E, SE, S, SW, W, NW).
 const SPAWN_NEIGHBORS := [
 	Vector2i(0, -1), Vector2i(1, -1), Vector2i(1, 0), Vector2i(1, 1),
 	Vector2i(0, 1), Vector2i(-1, 1), Vector2i(-1, 0), Vector2i(-1, -1),
