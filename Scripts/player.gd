@@ -8,7 +8,6 @@ var input = Vector2.ZERO
 
 @onready var camera = $Camera2D
 @onready var joystick = $/root/Flagoria/CanvasLayer1/player_joystick
-@onready var healthBar = $/root/Flagoria/CanvasLayer1/player_healthbar
 @export var maxHealth = 30
 @onready var currentHealth: int = maxHealth
 @onready var animations = $AnimationPlayer
