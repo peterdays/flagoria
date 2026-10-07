@@ -1,12 +1,12 @@
 # Dedicated-server spike (Godot 4.1.4)
 
-Time-boxed findings for a headless dedicated server. No game code was changed. Implementation belongs in a follow-up issue.
+Time-boxed findings for a headless dedicated server, plus the dedicated-server boot path that followed the spike (`-- --server`, see [Dedicated server boot](#dedicated-server-boot)).
 
 ## Go / no-go
 
 **Conditional go** on the engine. **No-go** on shipping a dedicated server from product code alone.
 
-Godot 4.1.4 can run headless, bind ENet on UDP, and accept peers. Flagoria today is a listen-server: Main Menu Host always spawns a local player. There is no headless auto-host path, no `export_presets.cfg`, and no export templates on the verification host. Getting two Flagoria clients onto a headless host so they see each other move needs dedicated-server boot work, not an engine upgrade.
+Godot 4.1.4 can run headless, bind ENet on UDP, and accept peers. At spike time Flagoria was a listen-server only: Main Menu Host always spawns a local player. The `-- --server` boot path now hosts headless without a local player. There is still no `export_presets.cfg` and no export templates on the verification host, and two GUI clients moving on a headless host have not been proven.
 
 ## Environment
 
@@ -24,9 +24,9 @@ After import (`./tools/verify.sh` or `$GODOT --headless --path . --editor --quit
 timeout 15 "$GODOT" --headless --path .
 ```
 
-Result: exit `0`. Engine banner only. The main scene loads (main menu). No window or GPU (`--headless` uses the headless display driver and dummy audio).
+Result: exit `124`. The project does not quit on its own, so `timeout` stops it after 15 seconds and reports 124. Output is the engine banner only. The main scene loads (main menu). No window or GPU (`--headless` uses the headless display driver and dummy audio).
 
-Product gap: headless launch does not call `create_server`. Hosting still goes through Main Menu Host (`setup_server` then `enet_peer.create_server(PORT)`), which adds the host as a player. There is no `--server` (or similar) boot flag in game code.
+Without `-- --server`, a headless launch does not call `create_server`. GUI hosting goes through Main Menu Host (`setup_server`, then `enet_peer.create_server(PORT)`), which adds the host as a player.
 
 Without a prior import, the first headless open can fail to load `flagoria_main.tscn` until resources are imported. That matches the CI import step.
 
@@ -71,7 +71,7 @@ Observed from a throwaway script (not in the repo):
 USER_ARGS=["--server", "--port=9786"]
 ```
 
-Follow-up: parse user args such as `--server` in a boot path that calls `create_server` without the menu and without a local player. Not implemented here.
+`flagoria_main.gd` reads these arguments for the dedicated-server boot below.
 
 ## 4. ENet UDP 9786 under headless (throwaway)
 
@@ -86,6 +86,36 @@ A minimal throwaway project outside the game repo showed:
 Headless ENet listen and peer connect work on 4.1.4 without a GPU.
 
 Not shown: two Flagoria game clients moving on a headless dedicated host. That needs product boot and RPC work. In-game Host/Join on two GUI instances remains the supported play path (README two-player checklist).
+
+## Dedicated server boot
+
+After import, start a dedicated server from the repo root:
+
+```bash
+"$GODOT" --headless --path . -- --server
+"$GODOT" --headless --path . -- --server --port 9799
+```
+
+`--port N` and `--port=N` are accepted. The default is UDP `9786`. On success the log shows:
+
+```text
+Dedicated server listening on UDP port 9786
+```
+
+What the boot does (`start_dedicated_server` in `flagoria_main.gd`):
+
+- Hides the main menu and spawns no local player (no node `1` under `World`).
+- Calls `setup_server` with the current `MapGen.params`, the same path as Main Menu Host. Seeds left at 0 are randomized.
+- Generates the origin chunk.
+- Joining clients get a player and the full map params through the existing Join path (`receive_map_params`).
+
+A port outside 1 to 65535, or a port that cannot be bound, logs an error and exits `1`. A launch without `--server` behaves as before.
+
+The server runs until it is stopped. SIGTERM ends the process without a graceful shutdown (exit `143`). There is no quit command yet.
+
+Clients join with Main Menu Join. Join always uses port `9786`, so a server on another port cannot be reached from the GUI yet.
+
+`test_dedicated_server_join` in `tests/run_tests.gd` starts a `-- --server` process, joins it through the main scene's Join path, and checks that the client gets map params and its own player and that the host has no node `1`. Waits are bounded at 30 seconds, and the server process is killed at the end.
 
 ## 5. CPU and memory (rough)
 
@@ -103,7 +133,7 @@ Idle dedicated hosting should be close to headless editor plus project. Two real
 `docker` was not available (`docker: command not found`). Feasibility note only:
 
 - Likely image layout: Linux Godot 4.1.4 headless or editor binary, or a dedicated-server export plus `.pck`, run `--headless --path` or the exported binary, publish UDP `9786`.
-- Blocked here by: no dedicated boot path in game code, no export preset or templates, no Docker CLI to prove a build.
+- Blocked here by: no export preset or templates, and no Docker CLI to prove a build.
 
 ## 7. Engine upgrade blockers
 
@@ -111,10 +141,10 @@ None found for headless ENet on 4.1.4. `--headless`, `ENetMultiplayerPeer`, and 
 
 Blockers are product and process, not engine version:
 
-1. Listen-server-only flow (Host equals local player).
-2. No server-mode CLI flag wired up.
-3. No export preset or templates for a slim dedicated binary.
-4. No automated two-player smoke yet (tracked elsewhere).
+1. No export preset or templates for a slim dedicated binary.
+2. No automated two-player smoke yet (tracked elsewhere).
+
+The listen-server-only flow and the missing server-mode flag were blockers at spike time. `-- --server` addresses both.
 
 ## Verification
 
@@ -123,16 +153,17 @@ Blockers are product and process, not engine version:
 
 ## Suggested next steps
 
-1. Add a headless `-- --server` boot that calls `create_server` and does not spawn a local player.
-2. Add a Linux dedicated-server export preset once templates are installed; document UDP `9786`.
-3. Prove two GUI clients against that headless host, then automate as two-player smoke.
+1. Prove two GUI clients moving and fighting on a `-- --server` host.
+2. Add a clean quit for the server (signal or command), and a way for Join to use a non-default port.
+3. Add a Linux dedicated-server export preset once templates are installed; document UDP `9786`.
+4. Automate the two-player smoke against the headless host.
 
 ## Acceptance vs this doc
 
 | Criterion | Status |
 | --- | --- |
 | Commands and logs for headless and ENet | Documented above |
-| Headless process accepts two game clients that see each other move | Not met without game changes |
-| In-game Host/Join unchanged | Yes (no game code touched) |
-
-This PR records the spike. It does not fully meet the playable acceptance line on the issue.
+| Headless process boots as a server without a local player | Yes (`-- --server`, automated test) |
+| Headless process accepts a game client that gets map params | Yes (automated test, one client) |
+| Headless process accepts two game clients that see each other move | Not proven (manual GUI check pending) |
+| In-game Host/Join unchanged | Yes (GUI launch takes no new path without `--server`) |

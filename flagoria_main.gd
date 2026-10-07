@@ -12,19 +12,55 @@ func _ready():
 	get_node("CanvasLayer2/MainMenu").connect("new_player_added", add_player)
 	get_node("CanvasLayer2/MainMenu").connect("new_player_joined", add_player_joined)
 
+	var server_port := server_port_from_args(OS.get_cmdline_user_args())
+	if server_port == -1:
+		push_error("dedicated server: --port must be a number from 1 to 65535")
+		get_tree().quit(1)
+	elif server_port > 0 and start_dedicated_server(server_port) != OK:
+		get_tree().quit(1)
 
-func setup_server(params: MapGenParams):
+
+static func server_port_from_args(args: PackedStringArray) -> int:
+	## Port for `-- --server [--port N]`, 0 without --server, -1 for a bad port.
+	if not args.has("--server"):
+		return 0
+	var port_text := str(PORT)
+	for i in args.size():
+		if args[i] == "--port":
+			port_text = args[i + 1] if i + 1 < args.size() else ""
+		elif args[i].begins_with("--port="):
+			port_text = args[i].trim_prefix("--port=")
+	if not port_text.is_valid_int() or port_text.to_int() < 1 or port_text.to_int() > 65535:
+		return -1
+	return port_text.to_int()
+
+
+func start_dedicated_server(port: int) -> Error:
+	## Host with the active MapGen params and no local player or menu. Remote
+	## clients join and receive the params through the normal Join path.
+	get_node("CanvasLayer2/MainMenu").hide()
+	var err := setup_server(get_node("/root/MapGen").params, port)
+	if err != OK:
+		push_error("dedicated server: cannot listen on UDP port %s (error %s)" % [port, err])
+		return err
+	get_node("World/worldMap").resolve_player_spawn()
+	print("Dedicated server listening on UDP port %s" % port)
+	return OK
+
+
+func setup_server(params: MapGenParams, port: int = PORT) -> Error:
 	## Host applies the chosen map params locally, then syncs the full set to joining peers.
 	world_params = params.duplicate_params()
 	world_params.ensure_seeds()
 	get_node("/root/MapGen").params = world_params.duplicate_params()
 	_apply_params_to_world(world_params)
 
-	enet_peer.create_server(PORT)
+	var err := enet_peer.create_server(port)
 	multiplayer.multiplayer_peer = enet_peer
 	multiplayer.peer_connected.connect(add_player)
 	multiplayer.peer_connected.connect(_sync_map_params_to_peer)
 	multiplayer.peer_disconnected.connect(remove_player)
+	return err
 
 
 func _apply_params_to_world(params: MapGenParams) -> void:
