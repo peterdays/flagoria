@@ -14,6 +14,7 @@ func _run() -> void:
 	failures += _test_spawn_on_land()
 	failures += _test_map_settings_water_reopen()
 	failures += _test_no_decorations_on_water()
+	failures += _test_island_falloff()
 	failures += await _test_water_blocks_player()
 	failures += _test_map_settings_covers_params()
 	failures += _test_map_settings_rows_from_hints()
@@ -220,6 +221,56 @@ func _test_no_decorations_on_water() -> int:
 
 	scene.queue_free()
 	return fail
+
+func _test_island_falloff() -> int:
+	## island_radius 0 leaves altitude alone; a set radius raises the origin,
+	## keeps the radius unchanged, and sinks cells past 1.5 radii to water.
+	print("-- test_island_falloff")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+
+	var params = MapGenParams.make_defaults()
+	params.altitude_seed = 2
+	params.moisture_seed = 7
+	params.temperature_seed = 12
+	params.items_seed = 17
+	params.chunk_width = 64
+	params.chunk_height = 64
+	world.apply_map_params(params)
+	if world.island_altitude(Vector2i(40, -25), 0.7) != 0.7:
+		printerr("FAIL island_falloff: radius 0 changed altitude")
+		fail += 1
+
+	params.island_radius = 20
+	params.island_falloff = 2.0
+	world.apply_map_params(params)
+	if not is_equal_approx(world.island_altitude(Vector2i(0, 0), 0.1), 2.1):
+		printerr("FAIL island_falloff: origin not raised by island_falloff")
+		fail += 1
+	if not is_equal_approx(world.island_altitude(Vector2i(20, 0), 0.7), 0.7):
+		printerr("FAIL island_falloff: altitude at the radius changed")
+		fail += 1
+	world.generate_chunk(Vector2(0, 0))
+	var land := 0
+	for x in range(-32, 32):
+		for y in range(-32, 32):
+			var cell := Vector2i(x, y)
+			var water: bool = world.get_cell_atlas_coords(0, cell) == Vector2i(5, 6)
+			if Vector2(cell).length() >= 30.0 and not water:
+				printerr("FAIL island_falloff: land at %s beyond 1.5 radii" % cell)
+				fail += 1
+			elif not water:
+				land += 1
+	if land == 0:
+		printerr("FAIL island_falloff: no land inside the island")
+		fail += 1
+	if fail == 0:
+		print("PASS test_island_falloff land_cells=%s" % land)
+	scene.queue_free()
+	return 1 if fail > 0 else 0
+
 
 func _test_water_blocks_player() -> int:
 	## A player body centred on any cell that is_walkable_land rejects must

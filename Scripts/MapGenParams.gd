@@ -28,6 +28,10 @@ extends Resource
 @export_range(-1.0, 1.0, 0.01) var water_max_alt: float = 0.2
 @export_range(-1.0, 1.0, 0.01) var sand_max_alt: float = 0.25
 @export_range(-1.0, 1.0, 0.01) var swamp_special_alt: float = 0.26
+# Island shape: altitude is raised near the world origin and lowered past
+# island_radius tiles, so land fades into sea. 0 radius turns it off.
+@export_range(0, 512) var island_radius: int = 0
+@export_range(0.0, 4.0, 0.05) var island_falloff: float = 1.0
 
 # Ground tile variation breakpoints on the items-chance noise
 @export_range(-1.0, 1.0, 0.05) var ground_chance_a: float = -0.25
