@@ -11,6 +11,10 @@ Features:
 ![Alt Text](./demo.gif)
 
 
+## Android test builds
+
+Debug APKs are published as pre-releases on the Releases page. See [docs/android-apk.md](docs/android-apk.md) for download and install steps.
+
 ## Two-player play-test checklist
 
 Use two instances on one machine. Empty join address means localhost.
