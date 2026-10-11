@@ -37,7 +37,7 @@ jobs:
       - name: Install Android SDK packages
         run: |
           set -euo pipefail
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
             "platform-tools" "build-tools;${ANDROID_BUILD_TOOLS}" "platforms;android-33"
 
