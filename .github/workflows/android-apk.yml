@@ -1,0 +1,116 @@
+name: android-apk
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - .github/workflows/android-apk.yml
+      - export_presets.cfg
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: 4.1.4
+  ANDROID_BUILD_TOOLS: 33.0.2
+
+jobs:
+  apk:
+    name: Export Android debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android SDK packages
+        run: |
+          set -euo pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" "build-tools;${ANDROID_BUILD_TOOLS}" "platforms;android-33"
+
+      - name: Install Godot and export templates
+        run: |
+          set -euo pipefail
+          base=https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable
+          curl -fsSL -o /tmp/godot.zip "$base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q -o /tmp/godot.zip -d /tmp/godot
+          sudo install -m 755 "/tmp/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" /usr/local/bin/godot
+          curl -fsSL -o /tmp/templates.tpz "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          dest="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$dest"
+          unzip -q -j /tmp/templates.tpz 'templates/android_*' 'templates/version.txt' -d "$dest"
+          ls "$dest"
+
+      - name: Generate debug keystore and editor settings
+        run: |
+          set -euo pipefail
+          keystore="$RUNNER_TEMP/debug.keystore"
+          keytool -genkeypair -v -keystore "$keystore" -storepass android \
+            -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
+            -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          mkdir -p "$HOME/.config/godot"
+          cat > "$HOME/.config/godot/editor_settings-4.tres" <<TRES
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/java_sdk_path = "$JAVA_HOME"
+          export/android/debug_keystore = "$keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          TRES
+
+      - name: Export APK
+        run: |
+          set -euo pipefail
+          mkdir -p Builds/android
+          godot --headless --editor --quit-after 200 --path . || true
+          godot --headless --path . --export-debug "Android" Builds/android/flagoria-debug.apk
+          test -s Builds/android/flagoria-debug.apk
+          ls -l Builds/android
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flagoria-debug-apk
+          path: Builds/android/flagoria-debug.apk
+          if-no-files-found: error
+
+      - name: Publish pre-release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          short="${GITHUB_SHA::7}"
+          apk="Builds/android/flagoria-${short}-debug.apk"
+          cp Builds/android/flagoria-debug.apk "$apk"
+          repo_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+          pr=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq '.[0].number // empty' || true)
+          {
+            echo "Android debug build of commit [\`$short\`]($repo_url/commit/$GITHUB_SHA)."
+            if [ -n "$pr" ]; then
+              echo
+              echo "Source pull request: #$pr"
+            fi
+            echo
+            echo "Debug-signed test build. Install instructions: [docs/android-apk.md]($repo_url/blob/$GITHUB_SHA/docs/android-apk.md)."
+          } > "$RUNNER_TEMP/notes.md"
+          gh release create "$short" "$apk" \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "$short" \
+            --notes-file "$RUNNER_TEMP/notes.md"
