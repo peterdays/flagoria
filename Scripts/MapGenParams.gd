@@ -32,6 +32,13 @@ extends Resource
 # island_radius tiles, so land fades into sea. 0 radius turns it off.
 @export_range(0, 512) var island_radius: int = 0
 @export_range(0.0, 4.0, 0.05) var island_falloff: float = 1.0
+# Archipelago: one island per square of archipelago_spacing tiles, its centre
+# moved by up to archipelago_jitter of half a square. Altitude is shaped
+# around the nearest centre like island_radius, using
+# archipelago_island_radius and island_falloff. 0 spacing turns it off.
+@export_range(0, 1024) var archipelago_spacing: int = 0
+@export_range(1, 512) var archipelago_island_radius: int = 24
+@export_range(0.0, 1.0, 0.05) var archipelago_jitter: float = 0.5
 
 # Ground tile variation breakpoints on the items-chance noise
 @export_range(-1.0, 1.0, 0.05) var ground_chance_a: float = -0.25
