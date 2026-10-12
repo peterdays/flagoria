@@ -1,6 +1,6 @@
 # Android test builds
 
-Every push to `main` (and every manual run of the `android-apk` workflow) exports a debug-signed Android APK and publishes it as a GitHub pre-release named after the commit's short SHA. The release notes link the commit and, when there is one, the pull request it came from.
+A manual run of the `android-apk` workflow on `main` exports a debug-signed Android APK and publishes it as a GitHub pre-release named after the commit's short SHA. The release notes link the commit and, when there is one, the pull request it came from. Pushes to `main` do not publish a release.
 
 These are test builds. They are signed with a throwaway debug key generated inside the CI job, so they are not suitable for distribution through a store.
 
