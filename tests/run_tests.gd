@@ -15,6 +15,7 @@ func _run() -> void:
 	failures += _test_map_settings_water_reopen()
 	failures += _test_no_decorations_on_water()
 	failures += _test_island_falloff()
+	failures += _test_archipelago()
 	failures += await _test_water_blocks_player()
 	failures += _test_map_settings_covers_params()
 	failures += _test_map_settings_rows_from_hints()
@@ -268,6 +269,59 @@ func _test_island_falloff() -> int:
 		fail += 1
 	if fail == 0:
 		print("PASS test_island_falloff land_cells=%s" % land)
+	scene.queue_free()
+	return 1 if fail > 0 else 0
+
+
+func _test_archipelago() -> int:
+	## archipelago_spacing 0 leaves altitude alone; with a spacing, each grid
+	## square's centre is raised, the sea between neighbouring centres sinks,
+	## and jittered centres stay inside their square and repeat for a seed.
+	print("-- test_archipelago")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+
+	var params = MapGenParams.make_defaults()
+	params.altitude_seed = 2
+	params.moisture_seed = 7
+	params.temperature_seed = 12
+	params.items_seed = 17
+	world.apply_map_params(params)
+	if world.archipelago_altitude(Vector2i(40, -25), 0.7) != 0.7:
+		printerr("FAIL archipelago: spacing 0 changed altitude")
+		fail += 1
+
+	params.archipelago_spacing = 64
+	params.archipelago_island_radius = 16
+	params.archipelago_jitter = 0.0
+	params.island_falloff = 2.0
+	world.apply_map_params(params)
+	for centre in [Vector2i(32, 32), Vector2i(96, 32), Vector2i(-32, -32)]:
+		if not is_equal_approx(world.archipelago_altitude(centre, 0.1), 2.1):
+			printerr("FAIL archipelago: centre %s not raised by island_falloff" % centre)
+			fail += 1
+	if world.archipelago_altitude(Vector2i(64, 32), 0.9) > params.water_max_alt:
+		printerr("FAIL archipelago: cell between two centres is not sea")
+		fail += 1
+
+	params.archipelago_jitter = 1.0
+	world.apply_map_params(params)
+	var first: Vector2 = world.archipelago_centre(Vector2i(3, -2))
+	world.apply_map_params(params)
+	if world.archipelago_centre(Vector2i(3, -2)) != first:
+		printerr("FAIL archipelago: centre changed for the same seed")
+		fail += 1
+	for sx in range(-3, 3):
+		for sy in range(-3, 3):
+			var c: Vector2 = world.archipelago_centre(Vector2i(sx, sy))
+			var lo := Vector2(sx, sy) * 64.0
+			if c.x < lo.x or c.y < lo.y or c.x > lo.x + 64.0 or c.y > lo.y + 64.0:
+				printerr("FAIL archipelago: centre %s left square %s" % [c, Vector2i(sx, sy)])
+				fail += 1
+	if fail == 0:
+		print("PASS test_archipelago")
 	scene.queue_free()
 	return 1 if fail > 0 else 0
 

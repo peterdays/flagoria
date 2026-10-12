@@ -18,6 +18,10 @@ var sand_max_alt: float = 0.25
 var swamp_special_alt: float = 0.26
 var island_radius: int = 0
 var island_falloff: float = 1.0
+var archipelago_spacing: int = 0
+var archipelago_island_radius: int = 24
+var archipelago_jitter: float = 0.5
+var archipelago_seed: int = 0
 var ground_chance_a: float = -0.25
 var ground_chance_b: float = 0.25
 var ground_chance_c: float = 0.75
@@ -55,6 +59,10 @@ func apply_map_params(p: MapGenParams) -> void:
 	swamp_special_alt = working.swamp_special_alt
 	island_radius = working.island_radius
 	island_falloff = working.island_falloff
+	archipelago_spacing = working.archipelago_spacing
+	archipelago_island_radius = maxi(1, working.archipelago_island_radius)
+	archipelago_jitter = working.archipelago_jitter
+	archipelago_seed = working.altitude_seed
 	ground_chance_a = working.ground_chance_a
 	ground_chance_b = working.ground_chance_b
 	ground_chance_c = working.ground_chance_c
@@ -96,7 +104,8 @@ func generate_chunk(position):
 			var new_y = tile_pos.y - chunk_height / 2 + y
 			var moist = moisture.get_noise_2d(new_x, new_y)
 			var temp = temperature.get_noise_2d(new_x, new_y)
-			var alt = island_altitude(Vector2i(new_x, new_y), altitude.get_noise_2d(new_x, new_y))
+			var cell := Vector2i(new_x, new_y)
+			var alt = archipelago_altitude(cell, island_altitude(cell, altitude.get_noise_2d(new_x, new_y)))
 			var chance = items_chance.get_noise_2d(new_x, new_y)
 
 			set_tile_type_z0(Vector2i(new_x, new_y), alt, moist, temp, chance)
@@ -110,6 +119,31 @@ func island_altitude(cell: Vector2i, alt: float) -> float:
 		return alt
 	var d := Vector2(cell).length() / float(island_radius)
 	return alt + island_falloff * (1.0 - d * d)
+
+
+func archipelago_altitude(cell: Vector2i, alt: float) -> float:
+	## Add island_falloff * (1 - (distance / archipelago_island_radius)^2), where
+	## distance is to the nearest archipelago centre, so every square of
+	## archipelago_spacing tiles gets its own island with sea between them.
+	if archipelago_spacing <= 0:
+		return alt
+	var square := Vector2i(floori(float(cell.x) / archipelago_spacing), floori(float(cell.y) / archipelago_spacing))
+	var nearest := INF
+	for dx in range(-1, 2):
+		for dy in range(-1, 2):
+			var centre := archipelago_centre(square + Vector2i(dx, dy))
+			nearest = minf(nearest, Vector2(cell).distance_to(centre))
+	var d := nearest / float(archipelago_island_radius)
+	return alt + island_falloff * (1.0 - d * d)
+
+
+func archipelago_centre(square: Vector2i) -> Vector2:
+	## Centre of the island in grid square `square`: the square's middle, moved
+	## by a per-square offset that depends only on the square and the altitude seed.
+	var h: int = hash(Vector3i(square.x, square.y, archipelago_seed))
+	var offset := Vector2(float(h & 0xFFFF) / 65535.0, float((h >> 16) & 0xFFFF) / 65535.0) * 2.0 - Vector2.ONE
+	var half := archipelago_spacing * 0.5
+	return (Vector2(square) + Vector2(0.5, 0.5)) * archipelago_spacing + offset * archipelago_jitter * half
 
 
 func set_tile_type_z0(pos_vec, alt, moist, _temp, chance):
