@@ -24,8 +24,7 @@ var archipelago_jitter: float = 0.5
 var archipelago_seed: int = 0
 var archipelago_world_extent: int = 0
 var archipelago_island_count: int = 0
-# When extent>0 and count>0: set of active Vector2i squares. Empty means
-# "all squares that pass the extent filter" (count==0) or "unbounded".
+# Kept Vector2i squares when archipelago_island_count > 0.
 var _archipelago_active_squares: Dictionary = {}
 var _archipelago_count_limited: bool = false
 var ground_chance_a: float = -0.25
@@ -134,9 +133,18 @@ func archipelago_altitude(cell: Vector2i, alt: float) -> float:
 	## Add island_falloff * (1 - (distance / archipelago_island_radius)^2), where
 	## distance is to the nearest active archipelago centre, so every active
 	## square of archipelago_spacing tiles gets its own island with sea between.
+	## With archipelago_island_count set, each kept square only uses its own
+	## centre and its first row and column are sea, so islands never merge;
+	## dropped squares are all sea.
 	if archipelago_spacing <= 0:
 		return alt
 	var square := Vector2i(floori(float(cell.x) / archipelago_spacing), floori(float(cell.y) / archipelago_spacing))
+	if _archipelago_count_limited:
+		var local := cell - square * archipelago_spacing
+		if not _archipelago_active_squares.has(square) or local.x == 0 or local.y == 0:
+			return water_max_alt - 1.0
+		var own := Vector2(cell).distance_to(archipelago_centre(square)) / float(archipelago_island_radius)
+		return alt + island_falloff * (1.0 - own * own)
 	var nearest := INF
 	for dx in range(-1, 2):
 		for dy in range(-1, 2):
@@ -164,10 +172,10 @@ func archipelago_square_active(square: Vector2i) -> bool:
 	## True when this spacing square contributes an island centre.
 	if archipelago_spacing <= 0:
 		return false
-	if archipelago_world_extent <= 0:
-		return true
 	if _archipelago_count_limited:
 		return _archipelago_active_squares.has(square)
+	if archipelago_world_extent <= 0:
+		return true
 	return _archipelago_square_intersects_extent(square)
 
 
@@ -183,36 +191,41 @@ func _archipelago_square_intersects_extent(square: Vector2i) -> bool:
 
 
 func _rebuild_archipelago_active_squares() -> void:
-	## Cache the limited island set when both extent and count are set.
+	## Cache the kept squares when archipelago_island_count is set. Candidates
+	## are the squares inside archipelago_world_extent, or a box around the
+	## origin big enough for the count when the extent is 0. The spawn square
+	## (0, 0) is always kept; the rest are taken nearest-first.
 	_archipelago_active_squares.clear()
 	_archipelago_count_limited = false
-	if archipelago_spacing <= 0 or archipelago_world_extent <= 0 or archipelago_island_count <= 0:
+	if archipelago_spacing <= 0 or archipelago_island_count <= 0:
 		return
 	_archipelago_count_limited = true
-	var s := archipelago_spacing
-	var e := archipelago_world_extent
-	var sx0 := int(floor(float(-e) / float(s))) - 1
-	var sx1 := int(floor(float(e) / float(s))) + 1
-	var sy0 := int(floor(float(-e) / float(s))) - 1
-	var sy1 := int(floor(float(e) / float(s))) + 1
+	var lo: int
+	var hi: int
+	if archipelago_world_extent > 0:
+		lo = floori(float(-archipelago_world_extent) / archipelago_spacing) - 1
+		hi = floori(float(archipelago_world_extent) / archipelago_spacing) + 1
+	else:
+		hi = ceili(sqrt(float(archipelago_island_count))) + 1
+		lo = -hi
 	var candidates: Array[Vector2i] = []
-	for sx in range(sx0, sx1 + 1):
-		for sy in range(sy0, sy1 + 1):
+	for sx in range(lo, hi + 1):
+		for sy in range(lo, hi + 1):
 			var sq := Vector2i(sx, sy)
-			if _archipelago_square_intersects_extent(sq):
+			if sq == Vector2i.ZERO:
+				continue
+			if archipelago_world_extent <= 0 or _archipelago_square_intersects_extent(sq):
 				candidates.append(sq)
 	candidates.sort_custom(_archipelago_square_closer)
-	var take := mini(archipelago_island_count, candidates.size())
-	for i in range(take):
+	_archipelago_active_squares[Vector2i.ZERO] = true
+	for i in range(mini(archipelago_island_count - 1, candidates.size())):
 		_archipelago_active_squares[candidates[i]] = true
 
 
 func _archipelago_square_closer(a: Vector2i, b: Vector2i) -> bool:
-	## Sort key: geometric square centre distance to origin, then hash for ties.
-	var ca := (Vector2(a) + Vector2(0.5, 0.5)) * float(archipelago_spacing)
-	var cb := (Vector2(b) + Vector2(0.5, 0.5)) * float(archipelago_spacing)
-	var da := ca.length_squared()
-	var db := cb.length_squared()
+	## Sort key: square centre distance to origin, then hash for ties.
+	var da := ((Vector2(a) + Vector2(0.5, 0.5)) * float(archipelago_spacing)).length_squared()
+	var db := ((Vector2(b) + Vector2(0.5, 0.5)) * float(archipelago_spacing)).length_squared()
 	if da != db:
 		return da < db
 	var ha: int = hash(Vector3i(a.x, a.y, archipelago_seed))

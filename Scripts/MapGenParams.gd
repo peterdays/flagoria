@@ -37,10 +37,10 @@ extends Resource
 # around the nearest centre like island_radius, using
 # archipelago_island_radius and island_falloff. 0 spacing turns it off.
 # Optional world bound: archipelago_world_extent is half-width in tiles of the
-# square around the origin that may hold islands (0 = unbounded grid). When
-# extent > 0 and archipelago_island_count > 0, only that many squares inside
-# the extent stay active (nearest to origin, hash ties); count 0 keeps one
-# island per intersecting spacing square.
+# square around the origin that may hold islands (0 = unbounded grid).
+# archipelago_island_count > 0 keeps that many squares, with or without an
+# extent: the spawn square (0, 0) first, then the nearest to the origin. The
+# other squares are sea. Count 0 keeps one island per square in the extent.
 @export_range(0, 1024) var archipelago_spacing: int = 0
 @export_range(1, 512) var archipelago_island_radius: int = 24
 @export_range(0.0, 1.0, 0.05) var archipelago_jitter: float = 0.5

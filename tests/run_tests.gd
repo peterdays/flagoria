@@ -17,6 +17,7 @@ func _run() -> void:
 	failures += _test_island_falloff()
 	failures += _test_archipelago()
 	failures += _test_archipelago_count()
+	failures += _test_archipelago_count_land_masses()
 	failures += await _test_water_blocks_player()
 	failures += _test_map_settings_covers_params()
 	failures += _test_map_settings_rows_from_hints()
@@ -433,6 +434,96 @@ func _test_archipelago_count() -> int:
 
 	if fail == 0:
 		print("PASS test_archipelago_count")
+	scene.queue_free()
+	return 1 if fail > 0 else 0
+
+
+func _archipelago_land_masses(world, half: int) -> int:
+	## 4-connected land components in [-half, half)^2 using the chunk altitude.
+	var land := {}
+	for x in range(-half, half):
+		for y in range(-half, half):
+			var cell := Vector2i(x, y)
+			var alt: float = world.archipelago_altitude(cell, world.island_altitude(cell, world.altitude.get_noise_2d(x, y)))
+			if alt > world.water_max_alt:
+				land[cell] = true
+	var masses := 0
+	var seen := {}
+	for start in land.keys():
+		if seen.has(start):
+			continue
+		masses += 1
+		var stack: Array[Vector2i] = [start]
+		seen[start] = true
+		while not stack.is_empty():
+			var c: Vector2i = stack.pop_back()
+			for step in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var n: Vector2i = c + step
+				if land.has(n) and not seen.has(n):
+					seen[n] = true
+					stack.append(n)
+	return masses
+
+
+func _test_archipelago_count_land_masses() -> int:
+	## archipelago_island_count works without archipelago_world_extent, the
+	## spawn square is always kept, dropped squares are sea, and the number of
+	## land masses grows with the count.
+	print("-- test_archipelago_count_land_masses")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var params = MapGenParams.make_defaults()
+	params.altitude_seed = 42
+	params.moisture_seed = 7
+	params.temperature_seed = 12
+	params.items_seed = 17
+	params.archipelago_spacing = 40
+	params.archipelago_island_radius = 14
+	params.island_falloff = 2.0
+	var half := 120
+	var previous := -1
+	for count in [1, 2, 3, 4, 5, 6]:
+		params.archipelago_island_count = count
+		world.apply_map_params(params)
+		var kept := 0
+		for sx in range(-half / 40, half / 40):
+			for sy in range(-half / 40, half / 40):
+				var sq := Vector2i(sx, sy)
+				if world.archipelago_square_active(sq):
+					kept += 1
+					continue
+				for x in range(sx * 40, sx * 40 + 40, 3):
+					for y in range(sy * 40, sy * 40 + 40, 3):
+						var cell := Vector2i(x, y)
+						if world.archipelago_altitude(cell, 1.0) > world.water_max_alt:
+							printerr("FAIL archipelago_count_land_masses count=%s dropped square %s has land" % [count, sq])
+							fail += 1
+							break
+					if fail > 0:
+						break
+		if kept != count:
+			printerr("FAIL archipelago_count_land_masses count=%s kept %s squares" % [count, kept])
+			fail += 1
+		if not world.archipelago_square_active(Vector2i.ZERO):
+			printerr("FAIL archipelago_count_land_masses count=%s dropped the spawn square" % count)
+			fail += 1
+		var centre := Vector2i(world.archipelago_centre(Vector2i.ZERO).round())
+		if world.archipelago_altitude(centre, 0.0) <= world.water_max_alt:
+			printerr("FAIL archipelago_count_land_masses count=%s spawn island is sea" % count)
+			fail += 1
+		var masses := _archipelago_land_masses(world, half)
+		if masses < previous:
+			printerr("FAIL archipelago_count_land_masses count=%s gave %s land masses, fewer than %s" % [count, masses, previous])
+			fail += 1
+		print("archipelago_count_land_masses count=%s masses=%s" % [count, masses])
+		previous = masses
+	if previous <= 1:
+		printerr("FAIL archipelago_count_land_masses count=6 gave %s land masses" % previous)
+		fail += 1
+	if fail == 0:
+		print("PASS test_archipelago_count_land_masses")
 	scene.queue_free()
 	return 1 if fail > 0 else 0
 
