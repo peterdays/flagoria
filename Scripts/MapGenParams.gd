@@ -36,9 +36,16 @@ extends Resource
 # moved by up to archipelago_jitter of half a square. Altitude is shaped
 # around the nearest centre like island_radius, using
 # archipelago_island_radius and island_falloff. 0 spacing turns it off.
+# Optional world bound: archipelago_world_extent is half-width in tiles of the
+# square around the origin that may hold islands (0 = unbounded grid). When
+# extent > 0 and archipelago_island_count > 0, only that many squares inside
+# the extent stay active (nearest to origin, hash ties); count 0 keeps one
+# island per intersecting spacing square.
 @export_range(0, 1024) var archipelago_spacing: int = 0
 @export_range(1, 512) var archipelago_island_radius: int = 24
 @export_range(0.0, 1.0, 0.05) var archipelago_jitter: float = 0.5
+@export_range(0, 4096) var archipelago_world_extent: int = 0
+@export_range(0, 256) var archipelago_island_count: int = 0
 
 # Ground tile variation breakpoints on the items-chance noise
 @export_range(-1.0, 1.0, 0.05) var ground_chance_a: float = -0.25

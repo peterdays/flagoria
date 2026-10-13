@@ -16,6 +16,7 @@ func _run() -> void:
 	failures += _test_no_decorations_on_water()
 	failures += _test_island_falloff()
 	failures += _test_archipelago()
+	failures += _test_archipelago_count()
 	failures += await _test_water_blocks_player()
 	failures += _test_map_settings_covers_params()
 	failures += _test_map_settings_rows_from_hints()
@@ -322,6 +323,116 @@ func _test_archipelago() -> int:
 				fail += 1
 	if fail == 0:
 		print("PASS test_archipelago")
+	scene.queue_free()
+	return 1 if fail > 0 else 0
+
+
+func _test_archipelago_count() -> int:
+	## count/extent 0 keep prior archipelago behaviour; with both set, exactly
+	## N centres are active, selection is seed-stable, and spacing 0 stays a no-op.
+	print("-- test_archipelago_count")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+
+	var params = MapGenParams.make_defaults()
+	params.altitude_seed = 2
+	params.moisture_seed = 7
+	params.temperature_seed = 12
+	params.items_seed = 17
+	params.archipelago_spacing = 64
+	params.archipelago_island_radius = 16
+	params.archipelago_jitter = 0.0
+	params.island_falloff = 2.0
+	world.apply_map_params(params)
+	# Prior behaviour: distant centre still raised when extent/count are 0.
+	if not is_equal_approx(world.archipelago_altitude(Vector2i(96, 32), 0.1), 2.1):
+		printerr("FAIL archipelago_count: extent/count 0 changed prior centre boost")
+		fail += 1
+	if not world.archipelago_square_active(Vector2i(5, 5)):
+		printerr("FAIL archipelago_count: unbounded square should be active")
+		fail += 1
+
+	params.archipelago_world_extent = 200
+	params.archipelago_island_count = 0
+	world.apply_map_params(params)
+	if not world.archipelago_square_active(Vector2i(0, 0)):
+		printerr("FAIL archipelago_count: origin square should stay active with extent only")
+		fail += 1
+	if world.archipelago_square_active(Vector2i(20, 20)):
+		printerr("FAIL archipelago_count: far square should be inactive with extent set")
+		fail += 1
+
+	params.archipelago_island_count = 5
+	world.apply_map_params(params)
+	var active: Array[Vector2i] = []
+	var s: int = params.archipelago_spacing
+	var e: int = params.archipelago_world_extent
+	var sx0: int = int(floor(float(-e) / float(s))) - 1
+	var sx1: int = int(floor(float(e) / float(s))) + 1
+	for sx in range(sx0, sx1 + 1):
+		for sy in range(sx0, sx1 + 1):
+			var sq := Vector2i(sx, sy)
+			if world.archipelago_square_active(sq):
+				active.append(sq)
+	if active.size() != 5:
+		printerr("FAIL archipelago_count: expected 5 active centres, got %s" % active.size())
+		fail += 1
+	for sq in active:
+		var centre_cell := Vector2i(
+			int(floor((float(sq.x) + 0.5) * float(s))),
+			int(floor((float(sq.y) + 0.5) * float(s)))
+		)
+		if not is_equal_approx(world.archipelago_altitude(centre_cell, 0.1), 2.1):
+			printerr("FAIL archipelago_count: active centre %s not raised" % sq)
+			fail += 1
+	# A candidate square inside the extent that was not selected must not raise.
+	var skipped: Variant = null
+	for sx in range(sx0, sx1 + 1):
+		for sy in range(sx0, sx1 + 1):
+			var sq2 := Vector2i(sx, sy)
+			var min_x: int = sq2.x * s
+			var max_x: int = (sq2.x + 1) * s - 1
+			var min_y: int = sq2.y * s
+			var max_y: int = (sq2.y + 1) * s - 1
+			if min_x <= e and max_x >= -e and min_y <= e and max_y >= -e:
+				if not world.archipelago_square_active(sq2):
+					skipped = sq2
+					break
+		if skipped != null:
+			break
+	if skipped == null:
+		printerr("FAIL archipelago_count: no unselected candidate inside extent")
+		fail += 1
+	else:
+		var skipped_cell := Vector2i(
+			int(floor((float(skipped.x) + 0.5) * float(s))),
+			int(floor((float(skipped.y) + 0.5) * float(s)))
+		)
+		if is_equal_approx(world.archipelago_altitude(skipped_cell, 0.1), 2.1):
+			printerr("FAIL archipelago_count: unselected centre %s still fully raised" % skipped)
+			fail += 1
+
+	var first_active: Array = active.duplicate()
+	world.apply_map_params(params)
+	for sq3 in first_active:
+		if not world.archipelago_square_active(sq3):
+			printerr("FAIL archipelago_count: active set changed for the same seed")
+			fail += 1
+			break
+
+	params.archipelago_spacing = 0
+	world.apply_map_params(params)
+	if world.archipelago_altitude(Vector2i(40, -25), 0.7) != 0.7:
+		printerr("FAIL archipelago_count: spacing 0 changed altitude")
+		fail += 1
+	if world.archipelago_square_active(Vector2i(0, 0)):
+		printerr("FAIL archipelago_count: spacing 0 should activate no squares")
+		fail += 1
+
+	if fail == 0:
+		print("PASS test_archipelago_count")
 	scene.queue_free()
 	return 1 if fail > 0 else 0
 
