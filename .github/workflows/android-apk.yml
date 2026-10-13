@@ -2,9 +2,6 @@ name: android-apk
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
   pull_request:
     paths:
       - .github/workflows/android-apk.yml
