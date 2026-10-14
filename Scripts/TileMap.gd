@@ -35,6 +35,13 @@ var bush_max_alt: float = 0.4
 var bush_min_chance: float = 0.0
 var tree_min_alt: float = 0.4
 var tree_min_chance: float = 0.3
+var flower_min_alt: float = 0.25
+var flower_max_alt: float = 0.3
+var flower_min_chance: float = 0.3
+
+# Walkable ground decorations (flowers) sit on their own layer at the ground's
+# z_index so the player always draws over them; layer 1 (bushes, trees) is z 1.
+const GROUND_DECOR_LAYER := 2
 
 const SPAWN_NEIGHBORS := [
 	Vector2i(0, -1), Vector2i(1, -1), Vector2i(1, 0), Vector2i(1, 1),
@@ -79,6 +86,9 @@ func apply_map_params(p: MapGenParams) -> void:
 	bush_min_chance = working.bush_min_chance
 	tree_min_alt = working.tree_min_alt
 	tree_min_chance = working.tree_min_chance
+	flower_min_alt = working.flower_min_alt
+	flower_max_alt = working.flower_max_alt
+	flower_min_chance = working.flower_min_chance
 
 	clear()
 	spawn_point = Vector2i(0, 0)
@@ -273,6 +283,8 @@ func set_tile_type_z1(pos_vec, alt, moist, _temp, chance):
 		set_cell(1, pos_vec, 0, Vector2i(7, 3))
 	elif moist > 0 and alt > tree_min_alt and chance > tree_min_chance:
 		set_cell(1, pos_vec, 0, Vector2i(7, 0))
+	elif moist > 0 and alt > flower_min_alt and alt <= flower_max_alt and chance > flower_min_chance:
+		set_cell(GROUND_DECOR_LAYER, pos_vec, 0, Vector2i(9, 3))
 
 
 func is_walkable_land(cell: Vector2i) -> bool:

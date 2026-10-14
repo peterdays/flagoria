@@ -14,6 +14,7 @@ func _run() -> void:
 	failures += _test_spawn_on_land()
 	failures += _test_map_settings_water_reopen()
 	failures += _test_no_decorations_on_water()
+	failures += _test_flowers()
 	failures += _test_island_falloff()
 	failures += _test_archipelago()
 	failures += _test_archipelago_count()
@@ -224,6 +225,93 @@ func _test_no_decorations_on_water() -> int:
 
 	scene.queue_free()
 	return fail
+
+func _test_flowers() -> int:
+	## Flowers (atlas 9,3) need walkable land, moisture above 0, altitude in
+	## (flower_min_alt, flower_max_alt] and chance above flower_min_chance.
+	## Bushes and trees win where bands overlap, and turning flowers off
+	## leaves every bush and tree where it was.
+	print("-- test_flowers")
+	const FLOWER := Vector2i(9, 3)
+	const BUSH := Vector2i(7, 3)
+	const NONE := Vector2i(-1, -1)
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+
+	var params = MapGenParams.make_defaults()
+	params.altitude_seed = 2
+	params.moisture_seed = 7
+	params.temperature_seed = 12
+	params.items_seed = 17
+	world.apply_map_params(params)
+	var ground := Vector2i(500, 500)
+	var water := Vector2i(501, 500)
+	world.set_cell(0, ground, 0, Vector2i(5, 0))
+	world.set_cell(0, water, 0, Vector2i(5, 6))
+	# Flowers are walkable, so they must draw below the player (sprite z 0).
+	if world.get_layer_z_index(world.GROUND_DECOR_LAYER) >= 0 or world.GROUND_DECOR_LAYER == 1:
+		printerr("FAIL flowers: ground decor layer %s z=%s must be < 0 and not layer 1" % [world.GROUND_DECOR_LAYER, world.get_layer_z_index(world.GROUND_DECOR_LAYER)])
+		fail += 1
+	var L := 2
+	# [name, cell, alt, moist, chance, expected layer-1 atlas, expected layer-2 atlas]
+	var cases := [
+		["in_band", ground, 0.28, 0.5, 0.9, NONE, FLOWER],
+		["low_chance", ground, 0.28, 0.5, 0.1, NONE, NONE],
+		["dry", ground, 0.28, -0.1, 0.9, NONE, NONE],
+		["below_band", ground, 0.25, 0.5, 0.9, NONE, NONE],
+		["bush_band", ground, 0.35, 0.5, 0.9, BUSH, NONE],
+		["water", water, 0.28, 0.5, 0.9, NONE, NONE],
+	]
+	for c in cases:
+		world.erase_cell(1, c[1])
+		world.erase_cell(L, c[1])
+		world.set_tile_type_z1(c[1], c[2], c[3], 0.0, c[4])
+		var got1: Vector2i = world.get_cell_atlas_coords(1, c[1])
+		var got2: Vector2i = world.get_cell_atlas_coords(L, c[1])
+		if got1 != c[5] or got2 != c[6]:
+			printerr("FAIL flowers case=%s got l1=%s l2=%s want %s %s" % [c[0], got1, got2, c[5], c[6]])
+			fail += 1
+
+	params.chunk_width = 64
+	params.chunk_height = 64
+	world.apply_map_params(params)
+	world.generate_chunk(Vector2(0, 0))
+	var with_flowers := {}
+	var flowers := 0
+	for x in range(-32, 32):
+		for y in range(-32, 32):
+			var cell := Vector2i(x, y)
+			var a1: Vector2i = world.get_cell_atlas_coords(1, cell)
+			var a2: Vector2i = world.get_cell_atlas_coords(L, cell)
+			if a1 == FLOWER:
+				printerr("FAIL flowers: flower on foliage layer 1 at %s" % cell)
+				fail += 1
+			with_flowers[cell] = [a1, a2]
+			if a2 == FLOWER:
+				flowers += 1
+				if not world.is_walkable_land(cell):
+					printerr("FAIL flowers: flower on non-walkable cell %s" % cell)
+					fail += 1
+	if flowers == 0:
+		printerr("FAIL flowers: default params placed no flowers in a 64x64 chunk")
+		fail += 1
+
+	params.flower_min_chance = 1.0
+	world.apply_map_params(params)
+	world.generate_chunk(Vector2(0, 0))
+	for cell in with_flowers.keys():
+		var a1: Vector2i = world.get_cell_atlas_coords(1, cell)
+		var a2: Vector2i = world.get_cell_atlas_coords(L, cell)
+		if a1 != with_flowers[cell][0] or a2 != NONE:
+			printerr("FAIL flowers: without flowers cell %s l1=%s l2=%s want %s %s" % [cell, a1, a2, with_flowers[cell][0], NONE])
+			fail += 1
+	if fail == 0:
+		print("PASS test_flowers flowers=%s" % flowers)
+	scene.queue_free()
+	return 1 if fail > 0 else 0
+
 
 func _test_island_falloff() -> int:
 	## island_radius 0 leaves altitude alone; a set radius raises the origin,
