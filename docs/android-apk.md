@@ -4,6 +4,8 @@ A manual run of the `android-apk` workflow on `main` exports a debug-signed Andr
 
 These are test builds. They are signed with a throwaway debug key generated inside the CI job, so they are not suitable for distribution through a store.
 
+Builds use the Godot 4.7.2 prebuilt Android template (target SDK 35, Android 15) and run on Android 7.0 (API 24) and newer.
+
 ## Install on a phone
 
 1. On the phone, open the repository's **Releases** page and pick the newest pre-release.
