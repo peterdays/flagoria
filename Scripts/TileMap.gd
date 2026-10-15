@@ -246,33 +246,32 @@ func _archipelago_square_closer(a: Vector2i, b: Vector2i) -> bool:
 func set_tile_type_z0(pos_vec, alt, moist, _temp, chance):
 	var tile_vec = get_random_ground_vec(chance)
 	if alt <= water_max_alt:  # water
-		tile_vec = Vector2i(5, 6)
+		tile_vec = TileCatalog.WATER
 	elif alt > water_max_alt and alt < sand_max_alt:  # sand
-		tile_vec = Vector2i(5, 4)
+		tile_vec = TileCatalog.SAND
 	elif alt > sand_max_alt and moist < 0:  # swamp
 		if alt < swamp_special_alt and chance < 0:
-			tile_vec = Vector2i(27, 7)
+			tile_vec = TileCatalog.SWAMP_SPECIAL
 		else:
-			tile_vec = Vector2i(14, 7)
+			tile_vec = TileCatalog.SWAMP
 	else:
 		# ground — record first land tile as spawn hint
 		if spawn_point == Vector2i(0, 0):
 			spawn_point = pos_vec
 
-	set_cell(0, pos_vec, 0, tile_vec)
+	set_cell(0, pos_vec, TileCatalog.SOURCE_ID, tile_vec)
 
 
 func get_random_ground_vec(chance):
-	# the ground tiles are a matrix from (5,0) to (6,1) of 4 tiles
-	var vec = Vector2i(5, 0)
+	var vec = TileCatalog.GRASS_A
 	if chance < ground_chance_a:
-		vec = Vector2i(5, 0)
+		vec = TileCatalog.GRASS_A
 	elif chance < ground_chance_b:
-		vec = Vector2i(5, 1)
+		vec = TileCatalog.GRASS_B
 	elif chance < ground_chance_c:
-		vec = Vector2i(6, 0)
+		vec = TileCatalog.GRASS_C
 	else:
-		vec = Vector2i(6, 1)
+		vec = TileCatalog.GRASS_D
 	return vec
 
 
@@ -280,11 +279,11 @@ func set_tile_type_z1(pos_vec, alt, moist, _temp, chance):
 	if not is_walkable_land(pos_vec):
 		return
 	if moist > 0 and alt > bush_min_alt and alt <= bush_max_alt and chance > bush_min_chance:
-		set_cell(1, pos_vec, 0, Vector2i(7, 3))
+		set_cell(1, pos_vec, TileCatalog.SOURCE_ID, TileCatalog.BUSH)
 	elif moist > 0 and alt > tree_min_alt and chance > tree_min_chance:
-		set_cell(1, pos_vec, 0, Vector2i(7, 0))
+		set_cell(1, pos_vec, TileCatalog.SOURCE_ID, TileCatalog.TREE)
 	elif moist > 0 and alt > flower_min_alt and alt <= flower_max_alt and chance > flower_min_chance:
-		set_cell(GROUND_DECOR_LAYER, pos_vec, 0, Vector2i(9, 3))
+		set_cell(GROUND_DECOR_LAYER, pos_vec, TileCatalog.SOURCE_ID, TileCatalog.FLOWER)
 
 
 func is_walkable_land(cell: Vector2i) -> bool:

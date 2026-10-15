@@ -15,6 +15,7 @@ func _run() -> void:
 	failures += _test_map_settings_water_reopen()
 	failures += _test_no_decorations_on_water()
 	failures += _test_flowers()
+	failures += _test_tile_catalog()
 	failures += _test_island_falloff()
 	failures += _test_archipelago()
 	failures += _test_archipelago_count()
@@ -225,6 +226,47 @@ func _test_no_decorations_on_water() -> int:
 
 	scene.queue_free()
 	return fail
+
+func _test_tile_catalog() -> int:
+	## Every TileCatalog.<NAME> used in Scripts/ is in TileCatalog.TILES, every
+	## entry exists in the world TileSet, and map scripts pass no raw atlas
+	## coords to set_cell.
+	print("-- test_tile_catalog")
+	var fail := 0
+	var used := {}
+	var name_re := RegEx.create_from_string("TileCatalog\\.([A-Z][A-Z0-9_]*)")
+	var raw_re := RegEx.create_from_string("set_cell\\([^\\n]*Vector2i\\(")
+	for file in DirAccess.get_files_at("res://Scripts"):
+		if not file.ends_with(".gd") or file == "tile_catalog.gd":
+			continue
+		var text := FileAccess.get_file_as_string("res://Scripts/" + file)
+		for m in name_re.search_all(text):
+			used[m.get_string(1)] = file
+		if raw_re.search(text) != null:
+			printerr("FAIL tile_catalog: raw atlas coords in set_cell in %s" % file)
+			fail += 1
+	if used.is_empty():
+		printerr("FAIL tile_catalog: no TileCatalog names found in Scripts/")
+		fail += 1
+	for n in used:
+		if n == "SOURCE_ID" or n == "TILES":
+			continue
+		if not TileCatalog.TILES.has(n):
+			printerr("FAIL tile_catalog: %s used in %s is missing from TILES" % [n, used[n]])
+			fail += 1
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	var tile_set: TileSet = scene.get_node("World/worldMap").tile_set
+	for n in TileCatalog.TILES:
+		var entry: Dictionary = TileCatalog.TILES[n]
+		var src = tile_set.get_source(entry["source_id"]) if tile_set.has_source(entry["source_id"]) else null
+		if not src is TileSetAtlasSource or not src.has_tile(entry["atlas"]):
+			printerr("FAIL tile_catalog: %s %s not in TileSet source %s" % [n, entry["atlas"], entry["source_id"]])
+			fail += 1
+	scene.free()
+	if fail == 0:
+		print("PASS test_tile_catalog")
+	return fail
+
 
 func _test_flowers() -> int:
 	## Flowers (atlas 9,3) need walkable land, moisture above 0, altitude in

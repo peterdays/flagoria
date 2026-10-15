@@ -58,7 +58,7 @@ extends Resource
 @export_range(-1.0, 1.0, 0.05) var bush_min_chance: float = 0.0
 @export_range(-1.0, 1.0, 0.01) var tree_min_alt: float = 0.4
 @export_range(-1.0, 1.0, 0.05) var tree_min_chance: float = 0.3
-# Flowers (atlas 9,3) on moist land in an altitude band just above the sand,
+# Flowers (TileCatalog.FLOWER) on moist land in an altitude band just above the sand,
 # below the bushes. Bushes and trees take precedence where bands overlap.
 @export_range(-1.0, 1.0, 0.01) var flower_min_alt: float = 0.25
 @export_range(-1.0, 1.0, 0.01) var flower_max_alt: float = 0.3
