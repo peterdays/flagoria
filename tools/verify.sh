@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
-# Headless check: this Godot 4.1 project imports, opens, and every GDScript parses.
+# Headless check: this Godot 4.7 project imports, opens, and every GDScript parses.
 #
-# Confirmed against Godot 4.1.4 --help:
-#   --headless, --editor, --quit, and --check-only (only with --script) exist.
-#   --import does not (that flag arrived in a later 4.x release).
+# Uses --headless, --editor, --quit, and --check-only (only with --script),
+# all present in Godot 4.7.2 --help.
 # --editor --quit exits 0 even when a script fails to parse, and shutdown prints
 # benign RID-leak ERROR lines. This script treats those leaks as non-fatal and
 # fails on parse/load errors instead.
 #
 # Usage:
 #   ./tools/verify.sh
-#   GODOT=/path/to/Godot_v4.1.x_linux.x86_64 ./tools/verify.sh
+#   GODOT=/path/to/Godot_v4.7.x_linux.x86_64 ./tools/verify.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -19,16 +18,16 @@ cd "$ROOT"
 GODOT="${GODOT:-godot}"
 
 if [[ ! -x "$GODOT" ]] && ! command -v "$GODOT" >/dev/null 2>&1; then
-  echo "error: Godot 4.1 editor binary not found (set GODOT to the binary path)" >&2
+  echo "error: Godot 4.7 editor binary not found (set GODOT to the binary path)" >&2
   exit 127
 fi
 
 version="$("$GODOT" --version)"
 echo "Godot version: ${version}"
 case "${version}" in
-  4.1.*) ;;
+  4.7.*) ;;
   *)
-    echo "error: project.godot targets Godot 4.1. Refusing to run ${version}; a newer editor can migrate the project." >&2
+    echo "error: project.godot targets Godot 4.7. Refusing to run ${version}." >&2
     exit 1
     ;;
 esac
@@ -49,7 +48,7 @@ run_editor() {
   return "${status}"
 }
 
-echo "== Import project (Godot 4.1: --headless --editor --quit) =="
+echo "== Import project (--headless --editor --quit) =="
 import_log="$(mktemp)"
 if ! run_editor "${import_log}"; then
   echo "error: Godot editor exited non-zero during import" >&2

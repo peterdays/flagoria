@@ -617,8 +617,8 @@ func _test_archipelago_count_land_masses() -> int:
 
 
 func _test_water_blocks_player() -> int:
-	## A player body centred on any cell that is_walkable_land rejects must
-	## overlap that cell's own collision. TileMap bodies join the physics
+	## Any cell that is_walkable_land rejects must have its own collision under
+	## the player's mask. TileMap bodies join the physics
 	## space on the next physics frame, hence the await.
 	print("-- test_water_blocks_player")
 	var cases = [
@@ -627,11 +627,8 @@ func _test_water_blocks_player() -> int:
 		{"name": "seed_set_c_high_water", "alt": 4242, "moist": 5252, "temp": 6262, "items": 7272, "water": 0.4, "sand": 0.48},
 	]
 	var player = load("res://Player/character_body_2d.tscn").instantiate()
-	var player_shape: CollisionShape2D = player.get_node("CollisionShape2D")
-	var query := PhysicsShapeQueryParameters2D.new()
-	query.shape = player_shape.shape
-	query.collision_mask = player.collision_mask
-	var shape_offset: Vector2 = player_shape.position
+	var point := PhysicsPointQueryParameters2D.new()
+	point.collision_mask = player.collision_mask
 	player.free()
 
 	var fail := 0
@@ -657,10 +654,13 @@ func _test_water_blocks_player() -> int:
 			if world.is_walkable_land(cell):
 				continue
 			checked += 1
-			query.transform = Transform2D(0.0, world.map_to_local(cell) + shape_offset)
+			# Godot 4.5+ merges tile collision into one body per physics quadrant,
+			# so get_coords_for_body_rid no longer names a single cell. Probe this
+			# cell's centre instead: a TileMap hit there is this cell's own shape.
+			point.position = world.to_global(world.map_to_local(cell))
 			var blocked := false
-			for hit in space.intersect_shape(query, 32):
-				if hit["collider"] == world and world.get_coords_for_body_rid(hit["rid"]) == cell:
+			for hit in space.intersect_point(point, 8):
+				if hit["collider"] == world:
 					blocked = true
 					break
 			if not blocked:
