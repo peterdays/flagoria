@@ -19,6 +19,11 @@ The only personal identity allowed anywhere is the git commit author metadata, u
 
 - Two-player multiplayer must keep working after every change.
 - Small, self-contained pull requests, one concern each. Pull requests double as documentation: focused commits and a short why/what description should let a reader understand exactly what changed and why. Never bundle several issues or features into one pull request; stack dependent pull requests instead, and reference the related issue numbers.
+- Pull request size:
+  - One concern per pull request.
+  - Cap: about 1,000 changed lines of hand-written code. There is no cap on the number of files.
+  - Not counted: generated files, `.import` files, art and sound assets, lockfiles, and docs.
+  - A pull request over the cap is split, or its description explains why in a "Size justification" section. The reviewer judges that reason.
 - Nothing is merged, released, or tagged without the owner's approval.
 - Run `tools/verify.sh` before opening a pull request; CI runs the same check.
 - For scripted verification recipes (launch, doctor, drive, evidence), use `.cursor/skills/verify-flagoria/` when that skill is present.
