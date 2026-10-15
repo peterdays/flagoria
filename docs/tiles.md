@@ -10,7 +10,8 @@ All tiles are 16×16 px. Atlas coordinates are `(column, row)` in 16 px cells. "
 |---|---|
 | `flagoria_main.tscn` | `TileSet` with one `TileSetAtlasSource` (source id `0`) over `art/Sprites/Solaria Demo Pack Update 03/16x16/Tilesets/Solaria Demo Update 01.png` (448×240 px, 28×15 cells). Holds the collision polygons used below. |
 | `tilemap_dynamic.tscn` | A copy of the same `TileSet`. No scene or script loads this file. |
-| `Scripts/TileMap.gd` | Places tiles with `set_cell(layer, cell, 0, Vector2i(x, y))` in `set_tile_type_z0`, `get_random_ground_vec` and `set_tile_type_z1`. |
+| `Scripts/TileMap.gd` | Places tiles in `set_tile_type_z0`, `get_random_ground_vec` and `set_tile_type_z1` by name, e.g. `set_cell(layer, cell, TileCatalog.SOURCE_ID, TileCatalog.WATER)`. |
+| `Scripts/tile_catalog.gd` | `TileCatalog`: the only place that maps the names below to source id and Solaria atlas coords. |
 | `Player/character_body_2d.tscn` | Player sprite sheet `art/Sprites/Solaria Demo Pack Update 03/16x16/Sprites/Hero 01.png` (`hframes = 8`, `vframes = 16`). |
 | `tests/run_tests.gd` | Pinned characterization data and the flower layer test compare against the raw coordinates below. |
 
