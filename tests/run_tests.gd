@@ -25,6 +25,7 @@ func _run() -> void:
 	failures += _test_map_settings_covers_params()
 	failures += _test_map_settings_rows_from_hints()
 	failures += _test_new_param_needs_no_ui_code()
+	failures += _test_biome_seed_panel_round_trip()
 	failures += await _test_chunk_refresh_frames()
 	failures += _test_map_save_round_trip()
 	failures += _test_map_save_rejects_bad_files()
@@ -816,7 +817,7 @@ func _test_map_settings_covers_params() -> int:
 	## Every exported MapGenParams property must reach clients (to_dict) and
 	## have a Map Settings control.
 	print("-- test_map_settings_covers_params")
-	var hand_wired := ["altitude_seed", "moisture_seed", "temperature_seed", "items_seed", "noise_type"]
+	var hand_wired := ["altitude_seed", "moisture_seed", "temperature_seed", "items_seed", "biome_seed", "noise_type"]
 	var params = MapGenParams.make_defaults()
 	var keys: Dictionary = params.to_dict()
 	var panel = load("res://map_admin_panel.tscn").instantiate()
@@ -964,6 +965,38 @@ func _test_new_param_needs_no_ui_code() -> int:
 	if fail == 0:
 		print("PASS test_new_param_needs_no_ui_code")
 	return fail
+
+func _test_biome_seed_panel_round_trip() -> int:
+	## A biome_seed above 2^31 - 1 (randi() returns up to 2^32 - 1) survives the
+	## Map Settings panel unchanged and has its own seed row, not a SpinBox.
+	print("-- test_biome_seed_panel_round_trip")
+	var fail := 0
+	var big := 4000000000
+	var params = MapGenParams.make_defaults()
+	params.biome_seed = big
+	var map_gen = root.get_node("MapGen")
+	var saved_params = map_gen.params
+	map_gen.params = params
+	var panel = load("res://map_admin_panel.tscn").instantiate()
+	root.add_child(panel)
+	map_gen.params = saved_params
+	panel.load_from_params(params)
+	if panel._spin_boxes.has("biome_seed"):
+		printerr("FAIL biome_seed_panel: biome_seed has a SpinBox row")
+		fail += 1
+	if panel.seed_biome.text != str(big):
+		printerr("FAIL biome_seed_panel: row shows %s want %s" % [panel.seed_biome.text, big])
+		fail += 1
+	var out = MapGenParams.make_defaults()
+	panel.apply_to_params(out)
+	if out.biome_seed != big:
+		printerr("FAIL biome_seed_panel: round-trip %s want %s" % [out.biome_seed, big])
+		fail += 1
+	panel.queue_free()
+	if fail == 0:
+		print("PASS test_biome_seed_panel_round_trip")
+	return fail
+
 
 func _test_chunk_refresh_frames() -> int:
 	## chunk_refresh_frames sets how many _process calls pass before the chunk

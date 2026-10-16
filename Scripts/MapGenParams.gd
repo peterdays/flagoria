@@ -7,7 +7,7 @@ extends Resource
 @export var moisture_seed: int = 0
 @export var temperature_seed: int = 0
 @export var items_seed: int = 0
-@export_range(0, 2147483647) var biome_seed: int = 0
+@export var biome_seed: int = 0
 
 # FastNoiseLite — engine defaults except items frequency which was hardcoded to 1
 @export var noise_type: int = 1  # FastNoiseLite.TYPE_SIMPLEX_SMOOTH
