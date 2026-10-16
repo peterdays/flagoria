@@ -114,13 +114,13 @@ func add_player(peer_id):
 	world.player_spawned = true
 
 
-func add_player_joined():
+func add_player_joined(port: int = PORT):
 	print("player_joined")
 	var server_ip = "localhost"
 	if address_entry.text:
 		server_ip = address_entry.text
 
-	enet_peer.create_client(server_ip, PORT)
+	enet_peer.create_client(server_ip, port)
 	multiplayer.multiplayer_peer = enet_peer
 	var world = get_node("World/worldMap")
 	world.player_spawned = true
