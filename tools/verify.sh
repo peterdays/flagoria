@@ -134,4 +134,20 @@ fi
 rm -f "${test_log}"
 echo "Tests: ok"
 
+echo "== Biome coverage (res://tools/render_biomes.gd) =="
+biome_log="$(mktemp)"
+set +e
+"$GODOT" --headless --path "$ROOT" --script res://tools/render_biomes.gd -- --seed=42 --size=4096 --step=16 \
+  --out=res://artifacts/out/verify_biomes >"${biome_log}" 2>&1
+biome_status=$?
+set -e
+cat "${biome_log}"
+if [[ "${biome_status}" -ne 0 ]] || log_has_project_error "${biome_log}" || ! grep -q 'BIOME_COVERAGE_OK' "${biome_log}"; then
+  echo "error: biome render is missing a biome (exit ${biome_status})" >&2
+  rm -f "${biome_log}"
+  exit 1
+fi
+rm -f "${biome_log}"
+echo "Biome coverage: ok"
+
 echo "Verification passed."
