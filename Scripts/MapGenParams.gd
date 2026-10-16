@@ -7,6 +7,7 @@ extends Resource
 @export var moisture_seed: int = 0
 @export var temperature_seed: int = 0
 @export var items_seed: int = 0
+@export_range(0, 2147483647) var biome_seed: int = 0
 
 # FastNoiseLite — engine defaults except items frequency which was hardcoded to 1
 @export var noise_type: int = 1  # FastNoiseLite.TYPE_SIMPLEX_SMOOTH
@@ -14,6 +15,8 @@ extends Resource
 @export_range(0.001, 1.0, 0.001) var moisture_frequency: float = 0.01
 @export_range(0.001, 1.0, 0.001) var temperature_frequency: float = 0.01
 @export_range(0.01, 4.0, 0.01) var items_frequency: float = 1.0
+# Large-scale biome regions. 0 frequency turns biomes off (no density modulation).
+@export_range(0.0, 0.05, 0.0001) var biome_frequency: float = 0.0
 @export_range(1, 10) var fractal_octaves: int = 5
 @export_range(0.1, 4.0, 0.1) var fractal_lacunarity: float = 2.0
 @export_range(0.0, 2.0, 0.05) var fractal_gain: float = 0.5
@@ -80,6 +83,7 @@ func randomize_seeds() -> void:
 	moisture_seed = randi()
 	temperature_seed = randi()
 	items_seed = randi()
+	biome_seed = randi()
 
 
 func ensure_seeds() -> void:
@@ -92,6 +96,8 @@ func ensure_seeds() -> void:
 		temperature_seed = randi()
 	if items_seed == 0:
 		items_seed = randi()
+	if biome_seed == 0:
+		biome_seed = randi()
 
 
 func exported_properties() -> Array[Dictionary]:
