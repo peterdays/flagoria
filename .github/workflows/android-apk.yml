@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - .github/workflows/android-apk.yml
+      - tools/next_test_tag.sh
       - export_presets.cfg
 
 permissions:
@@ -93,13 +94,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          git fetch --force --tags origin
+          tag="$(git tag -l | ./tools/next_test_tag.sh)"
           short="${GITHUB_SHA::7}"
-          apk="Builds/android/flagoria-${short}-debug.apk"
+          apk="Builds/android/flagoria-${tag}-${short}.apk"
           cp Builds/android/flagoria-debug.apk "$apk"
           repo_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
           pr=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq '.[0].number // empty' || true)
           {
-            echo "Android debug build of commit [\`$short\`]($repo_url/commit/$GITHUB_SHA)."
+            echo "Android debug build \`$tag\` of commit [\`$short\`]($repo_url/commit/$GITHUB_SHA)."
             if [ -n "$pr" ]; then
               echo
               echo "Source pull request: #$pr"
@@ -107,8 +110,8 @@ jobs:
             echo
             echo "Debug-signed test build. Install instructions: [docs/android-apk.md]($repo_url/blob/$GITHUB_SHA/docs/android-apk.md)."
           } > "$RUNNER_TEMP/notes.md"
-          gh release create "$short" "$apk" \
+          gh release create "$tag" "$apk" \
             --prerelease \
             --target "$GITHUB_SHA" \
-            --title "$short" \
+            --title "$tag" \
             --notes-file "$RUNNER_TEMP/notes.md"
