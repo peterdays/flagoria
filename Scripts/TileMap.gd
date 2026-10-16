@@ -6,6 +6,7 @@ var moisture = FastNoiseLite.new()
 var temperature = FastNoiseLite.new()
 var altitude = FastNoiseLite.new()
 var items_chance = FastNoiseLite.new()
+var biome = FastNoiseLite.new()
 var chunk_width: int = 32
 var chunk_height: int = 32
 var chunk_refresh_frames: int = 15
@@ -38,6 +39,8 @@ var tree_min_chance: float = 0.3
 var flower_min_alt: float = 0.25
 var flower_max_alt: float = 0.3
 var flower_min_chance: float = 0.3
+var biome_frequency: float = 0.0
+var biome_seed: int = 0
 
 # Walkable ground decorations (flowers) sit on their own layer at the ground's
 # z_index so the player always draws over them; layer 1 (bushes, trees) is z 1.
@@ -62,6 +65,11 @@ func apply_map_params(p: MapGenParams) -> void:
 	_configure_noise(moisture, working.moisture_seed, working.moisture_frequency, working)
 	_configure_noise(temperature, working.temperature_seed, working.temperature_frequency, working)
 	_configure_noise(items_chance, working.items_seed, working.items_frequency, working)
+
+	biome_frequency = working.biome_frequency
+	biome_seed = working.biome_seed
+	if biome_frequency > 0.0:
+		_configure_noise(biome, working.biome_seed, working.biome_frequency, working)
 
 	chunk_width = working.chunk_width
 	chunk_height = working.chunk_height
@@ -123,7 +131,10 @@ func generate_chunk(position):
 			var moist = moisture.get_noise_2d(new_x, new_y)
 			var temp = temperature.get_noise_2d(new_x, new_y)
 			var cell := Vector2i(new_x, new_y)
-			var alt = archipelago_altitude(cell, island_altitude(cell, altitude.get_noise_2d(new_x, new_y)))
+			var alt = altitude.get_noise_2d(new_x, new_y)
+			if biome_frequency > 0.0:
+				alt += BiomeCatalog.altitude_bias(biome_at(cell))
+			alt = archipelago_altitude(cell, island_altitude(cell, alt))
 			var chance = items_chance.get_noise_2d(new_x, new_y)
 
 			set_tile_type_z0(Vector2i(new_x, new_y), alt, moist, temp, chance)
@@ -184,9 +195,33 @@ func archipelago_square_active(square: Vector2i) -> bool:
 		return false
 	if _archipelago_count_limited:
 		return _archipelago_active_squares.has(square)
-	if archipelago_world_extent <= 0:
+	if archipelago_world_extent > 0 and not _archipelago_square_intersects_extent(square):
+		return false
+	# Spawn square always stays active.
+	if square == Vector2i.ZERO:
 		return true
-	return _archipelago_square_intersects_extent(square)
+	if biome_frequency > 0.0:
+		return _archipelago_square_kept_by_biome(square)
+	return true
+
+
+func _archipelago_square_kept_by_biome(square: Vector2i) -> bool:
+	## Keep the square when a deterministic hash falls under that biome's density.
+	var half := int(archipelago_spacing / 2)
+	var centre_cell := square * archipelago_spacing + Vector2i(half, half)
+	var dens := BiomeCatalog.density(biome_at(centre_cell))
+	if dens >= 1.0:
+		return true
+	var h: int = hash(Vector3i(square.x, square.y, biome_seed))
+	var frac := float(h & 0xFFFF) / 65535.0
+	return frac < dens
+
+
+func biome_at(cell: Vector2i) -> int:
+	## Biome id at a cell. Frequency 0 keeps everything temperate (biomes off).
+	if biome_frequency <= 0.0:
+		return BiomeCatalog.TEMPERATE
+	return BiomeCatalog.from_noise(biome.get_noise_2d(cell.x, cell.y))
 
 
 func _archipelago_square_intersects_extent(square: Vector2i) -> bool:

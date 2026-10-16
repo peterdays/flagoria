@@ -10,10 +10,11 @@ signal start_host_requested
 @onready var seed_moist: LineEdit = $Margin/VBox/Scroll/Form/SeedRow2/MoistureSeed
 @onready var seed_temp: LineEdit = $Margin/VBox/Scroll/Form/SeedRow3/TemperatureSeed
 @onready var seed_items: LineEdit = $Margin/VBox/Scroll/Form/SeedRow4/ItemsSeed
+@onready var seed_biome: LineEdit = $Margin/VBox/Scroll/Form/SeedRow5/BiomeSeed
 @onready var noise_type_opt: OptionButton = $Margin/VBox/Scroll/Form/NoiseTypeRow/NoiseType
 
 ## Fields with their own controls in map_admin_panel.tscn.
-const HAND_WIRED := ["altitude_seed", "moisture_seed", "temperature_seed", "items_seed", "noise_type"]
+const HAND_WIRED := ["altitude_seed", "moisture_seed", "temperature_seed", "items_seed", "biome_seed", "noise_type"]
 ## Abbreviations in property names, spelled out in row labels.
 const LABEL_WORDS := {"alt": "altitude"}
 
@@ -112,6 +113,7 @@ func load_from_params(p: MapGenParams) -> void:
 	seed_moist.text = str(p.moisture_seed)
 	seed_temp.text = str(p.temperature_seed)
 	seed_items.text = str(p.items_seed)
+	seed_biome.text = str(p.biome_seed)
 	var idx = noise_type_opt.get_item_index(p.noise_type)
 	if idx >= 0:
 		noise_type_opt.select(idx)
@@ -128,6 +130,7 @@ func apply_to_params(p: MapGenParams) -> void:
 	p.moisture_seed = int(seed_moist.text) if seed_moist.text.is_valid_int() else 0
 	p.temperature_seed = int(seed_temp.text) if seed_temp.text.is_valid_int() else 0
 	p.items_seed = int(seed_items.text) if seed_items.text.is_valid_int() else 0
+	p.biome_seed = int(seed_biome.text) if seed_biome.text.is_valid_int() else 0
 	p.noise_type = noise_type_opt.get_selected_id()
 	for key in _spin_boxes.keys():
 		p.set(key, _spin_boxes[key].value)

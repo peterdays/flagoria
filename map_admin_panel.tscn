@@ -97,6 +97,21 @@ layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "0 = random"
 
+[node name="SeedRow5" type="HBoxContainer" parent="Margin/VBox/Scroll/Form"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Margin/VBox/Scroll/Form/SeedRow5"]
+custom_minimum_size = Vector2(140, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Biome seed"
+
+[node name="BiomeSeed" type="LineEdit" parent="Margin/VBox/Scroll/Form/SeedRow5"]
+custom_minimum_size = Vector2(100, 22)
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "0 = random"
+
 [node name="NoiseTypeRow" type="HBoxContainer" parent="Margin/VBox/Scroll/Form"]
 layout_mode = 2
 

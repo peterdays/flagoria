@@ -20,10 +20,12 @@ func _run() -> void:
 	failures += _test_archipelago()
 	failures += _test_archipelago_count()
 	failures += _test_archipelago_count_land_masses()
+	failures += _test_biomes()
 	failures += await _test_water_blocks_player()
 	failures += _test_map_settings_covers_params()
 	failures += _test_map_settings_rows_from_hints()
 	failures += _test_new_param_needs_no_ui_code()
+	failures += _test_biome_seed_panel_round_trip()
 	failures += await _test_chunk_refresh_frames()
 	failures += _test_map_save_round_trip()
 	failures += _test_map_save_rejects_bad_files()
@@ -658,6 +660,96 @@ func _test_archipelago_count_land_masses() -> int:
 	return 1 if fail > 0 else 0
 
 
+func _test_biomes() -> int:
+	## biome_frequency 0 keeps TEMPERATE and prior archipelago squares; frequency
+	## > 0 yields multiple biomes and thins OCEANIC archipelago squares vs dense.
+	print("-- test_biomes")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+
+	var params = MapGenParams.make_defaults()
+	params.altitude_seed = 2
+	params.moisture_seed = 7
+	params.temperature_seed = 12
+	params.items_seed = 17
+	params.biome_seed = 31
+	params.biome_frequency = 0.0
+	params.archipelago_spacing = 64
+	params.archipelago_island_radius = 16
+	params.archipelago_jitter = 0.0
+	params.island_falloff = 2.0
+	world.apply_map_params(params)
+
+	for cell in [Vector2i(0, 0), Vector2i(100, -50), Vector2i(-200, 300), Vector2i(40, 40)]:
+		if world.biome_at(cell) != BiomeCatalog.TEMPERATE:
+			printerr("FAIL biomes: frequency 0 should stay TEMPERATE at %s" % cell)
+			fail += 1
+	# Prior unbounded archipelago: distant squares stay active when biomes off.
+	for sq in [Vector2i(0, 0), Vector2i(5, 5), Vector2i(-3, 2)]:
+		if not world.archipelago_square_active(sq):
+			printerr("FAIL biomes: frequency 0 dropped square %s" % sq)
+			fail += 1
+
+	params.biome_frequency = 0.003
+	world.apply_map_params(params)
+	var seen := {}
+	for x in range(-400, 401, 40):
+		for y in range(-400, 401, 40):
+			seen[world.biome_at(Vector2i(x, y))] = true
+	if seen.size() < 2:
+		printerr("FAIL biomes: expected at least two biome ids, got %s" % seen.keys())
+		fail += 1
+
+	# Density: over many squares, OCEANIC keeps fewer than TEMPERATE/DENSE.
+	var oceanic_active := 0
+	var oceanic_total := 0
+	var dense_active := 0
+	var dense_total := 0
+	for sx in range(-40, 41):
+		for sy in range(-40, 41):
+			var sq := Vector2i(sx, sy)
+			var half: int = int(params.archipelago_spacing / 2)
+			var centre_cell: Vector2i = sq * params.archipelago_spacing + Vector2i(half, half)
+			var bid: int = world.biome_at(centre_cell)
+			var active: bool = world.archipelago_square_active(sq)
+			if bid == BiomeCatalog.OCEANIC:
+				oceanic_total += 1
+				if active:
+					oceanic_active += 1
+			elif bid == BiomeCatalog.ARCHIPELAGO_DENSE or bid == BiomeCatalog.TEMPERATE:
+				dense_total += 1
+				if active:
+					dense_active += 1
+	if oceanic_total < 5 or dense_total < 5:
+		printerr(
+			"FAIL biomes: not enough squares to compare density (oceanic=%s dense=%s)"
+			% [oceanic_total, dense_total]
+		)
+		fail += 1
+	else:
+		var oceanic_rate := float(oceanic_active) / float(oceanic_total)
+		var dense_rate := float(dense_active) / float(dense_total)
+		if oceanic_rate >= dense_rate:
+			printerr(
+				"FAIL biomes: oceanic keep rate %s should be below dense/temperate %s"
+				% [oceanic_rate, dense_rate]
+			)
+			fail += 1
+	if not world.archipelago_square_active(Vector2i.ZERO):
+		printerr("FAIL biomes: spawn square (0,0) must stay active")
+		fail += 1
+
+	if fail == 0:
+		print(
+			"PASS test_biomes biomes=%s oceanic=%s/%s dense=%s/%s"
+			% [seen.keys(), oceanic_active, oceanic_total, dense_active, dense_total]
+		)
+	scene.queue_free()
+	return 1 if fail > 0 else 0
+
+
 func _test_water_blocks_player() -> int:
 	## Any cell that is_walkable_land rejects must have its own collision under
 	## the player's mask. TileMap bodies join the physics
@@ -725,7 +817,7 @@ func _test_map_settings_covers_params() -> int:
 	## Every exported MapGenParams property must reach clients (to_dict) and
 	## have a Map Settings control.
 	print("-- test_map_settings_covers_params")
-	var hand_wired := ["altitude_seed", "moisture_seed", "temperature_seed", "items_seed", "noise_type"]
+	var hand_wired := ["altitude_seed", "moisture_seed", "temperature_seed", "items_seed", "biome_seed", "noise_type"]
 	var params = MapGenParams.make_defaults()
 	var keys: Dictionary = params.to_dict()
 	var panel = load("res://map_admin_panel.tscn").instantiate()
@@ -873,6 +965,38 @@ func _test_new_param_needs_no_ui_code() -> int:
 	if fail == 0:
 		print("PASS test_new_param_needs_no_ui_code")
 	return fail
+
+func _test_biome_seed_panel_round_trip() -> int:
+	## A biome_seed above 2^31 - 1 (randi() returns up to 2^32 - 1) survives the
+	## Map Settings panel unchanged and has its own seed row, not a SpinBox.
+	print("-- test_biome_seed_panel_round_trip")
+	var fail := 0
+	var big := 4000000000
+	var params = MapGenParams.make_defaults()
+	params.biome_seed = big
+	var map_gen = root.get_node("MapGen")
+	var saved_params = map_gen.params
+	map_gen.params = params
+	var panel = load("res://map_admin_panel.tscn").instantiate()
+	root.add_child(panel)
+	map_gen.params = saved_params
+	panel.load_from_params(params)
+	if panel._spin_boxes.has("biome_seed"):
+		printerr("FAIL biome_seed_panel: biome_seed has a SpinBox row")
+		fail += 1
+	if panel.seed_biome.text != str(big):
+		printerr("FAIL biome_seed_panel: row shows %s want %s" % [panel.seed_biome.text, big])
+		fail += 1
+	var out = MapGenParams.make_defaults()
+	panel.apply_to_params(out)
+	if out.biome_seed != big:
+		printerr("FAIL biome_seed_panel: round-trip %s want %s" % [out.biome_seed, big])
+		fail += 1
+	panel.queue_free()
+	if fail == 0:
+		print("PASS test_biome_seed_panel_round_trip")
+	return fail
+
 
 func _test_chunk_refresh_frames() -> int:
 	## chunk_refresh_frames sets how many _process calls pass before the chunk
