@@ -1199,6 +1199,19 @@ func _test_server_port_from_args() -> int:
 	return fail
 
 
+func _free_udp_port() -> int:
+	## A random UDP port in 20000-59999 that ENet can bind right now, or 0.
+	## Fixed ports fail when another run or service holds them.
+	for attempt in range(50):
+		var port := randi_range(20000, 59999)
+		var probe := ENetMultiplayerPeer.new()
+		var err := probe.create_server(port)
+		probe.close()
+		if err == OK:
+			return port
+	return 0
+
+
 func _test_dedicated_server_join() -> int:
 	## Boot `-- --server` as a second headless process, join it through the
 	## main scene's normal Join path, and check that the client gets the map
@@ -1206,9 +1219,13 @@ func _test_dedicated_server_join() -> int:
 	print("-- test_dedicated_server_join")
 	var timeout_ms := 30000
 	await process_frame
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL dedicated_server_join found no free UDP port")
+		return 1
 	var pid := OS.create_process(
 		OS.get_executable_path(),
-		["--headless", "--path", ProjectSettings.globalize_path("res://"), "--", "--server"]
+		["--headless", "--path", ProjectSettings.globalize_path("res://"), "--", "--server", "--port=%d" % port]
 	)
 	if pid <= 0:
 		printerr("FAIL dedicated_server_join could not start the server process")
@@ -1223,7 +1240,7 @@ func _test_dedicated_server_join() -> int:
 		fail += 1
 	else:
 		# ENet retries the handshake, so joining before the server binds is fine.
-		scene.add_player_joined()
+		scene.add_player_joined(port)
 		var deadline := Time.get_ticks_msec() + timeout_ms
 		while Time.get_ticks_msec() < deadline and OS.is_process_running(pid):
 			client_id = scene.multiplayer.get_unique_id()
