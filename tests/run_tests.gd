@@ -271,6 +271,12 @@ func _test_combat_sfx() -> int:
 	if c.plays["hit"] != 1 or c.plays["hurt"] != 2 or c.plays["sting"] != 1:
 		printerr("FAIL combat_sfx: kill hit plays %s" % c.plays)
 		fail += 1
+	# Damage at 0 HP loses nothing: no hurt and no second sting.
+	c._last_ms.clear()
+	player.receiveDamage()
+	if player.currentHealth != 0 or c.plays["hurt"] != 2 or c.plays["sting"] != 1:
+		printerr("FAIL combat_sfx: damage at 0 HP plays %s" % c.plays)
+		fail += 1
 	scene.queue_free()
 	await process_frame
 	if fail == 0:
