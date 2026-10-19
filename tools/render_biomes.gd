@@ -1,5 +1,6 @@
 extends SceneTree
-## Headless biome render: a wide biome map next to a terrain map, plus a legend.
+## Headless biome render: a wide biome map next to a terrain map, plus a legend
+## with each biome's coverage and land mix (sand / swamp / grass).
 ##
 ## Samples one cell every `step` tiles over a `size` x `size` tile square
 ## centred on the origin, so the area spans several biome noise wavelengths.
@@ -24,9 +25,12 @@ const BIOME_COLORS := {
 }
 const WATER := Color("2f6fb5")
 const SAND := Color("e3d08a")
+const SWAMP := Color("7b4f2a")
 const GRASS := Color("58a64a")
 const HILL := Color("2f6b33")
 const LEGEND_W := 24
+## Side, in tiles, of each per-biome close-up (drawn at 1 tile per pixel).
+const CLOSE_UP := 256
 const PAD := 4
 
 
@@ -76,32 +80,54 @@ func _run() -> void:
 	var biome_img := Image.create(n, n, false, Image.FORMAT_RGB8)
 	var terrain_img := Image.create(n, n, false, Image.FORMAT_RGB8)
 	var counts := {}
+	# Per biome: land samples and how many are sand / swamp (rest is grass).
+	var land := {}
 	for b in BIOME_NAMES:
 		counts[b] = 0
+		land[b] = {"land": 0, "sand": 0, "swamp": 0}
 	for ix in range(n):
 		for iy in range(n):
 			var cell := Vector2i(ix * step - size / 2, iy * step - size / 2)
 			var b: int = world.biome_at(cell)
 			counts[b] += 1
 			biome_img.set_pixel(ix, iy, BIOME_COLORS[b])
-			# Same altitude chain as generate_chunk, without filling the TileMap.
-			var alt: float = world.altitude.get_noise_2d(cell.x, cell.y) + BiomeCatalog.altitude_bias(b)
-			alt = world.archipelago_altitude(cell, world.island_altitude(cell, alt))
-			var c := GRASS
-			if alt < p.water_max_alt:
-				c = WATER
-			elif alt < p.sand_max_alt:
-				c = SAND
-			elif alt >= p.tree_min_alt:
-				c = HILL
+			var c := _terrain_color(world, p, cell, b)
+			if c != WATER:
+				land[b]["land"] += 1
+				if c == SAND:
+					land[b]["sand"] += 1
+				elif c == SWAMP:
+					land[b]["swamp"] += 1
 			terrain_img.set_pixel(ix, iy, c)
+	var close_centre := _close_up_centres(biome_img, terrain_img, CLOSE_UP / 2 / step, n, step, size)
 
-	# Side by side: biome map | terrain | legend swatches (top to bottom in id order).
+	# Close-ups: one CLOSE_UP-tile window per biome at 1 tile per pixel, cells of
+	# other biomes dimmed, so the per-biome ground mix is readable on islands.
+	var row_w := BIOME_NAMES.size() * (CLOSE_UP + PAD)
+	var close_img := Image.create(row_w, CLOSE_UP, false, Image.FORMAT_RGB8)
+	close_img.fill(Color.BLACK)
+	var k := 0
+	for b in BIOME_NAMES:
+		var origin: Vector2i = close_centre.get(b, Vector2i.ZERO) - Vector2i(CLOSE_UP / 2, CLOSE_UP / 2)
+		for x in range(CLOSE_UP):
+			for y in range(CLOSE_UP):
+				var cell := origin + Vector2i(x, y)
+				var cb: int = world.biome_at(cell)
+				var c := _terrain_color(world, p, cell, cb)
+				if cb != b:
+					c = c.lerp(Color.BLACK, 0.65)
+				close_img.set_pixel(k * (CLOSE_UP + PAD) + x, y, c)
+		k += 1
+
+	# Biome map | terrain | legend swatches (top to bottom in id order), and the
+	# close-up row below in the same order.
 	var legend_h := BIOME_NAMES.size() * (LEGEND_W + PAD)
-	var combo := Image.create(n * 2 + PAD * 2 + LEGEND_W, maxi(n, legend_h), false, Image.FORMAT_RGB8)
+	var top_h := maxi(n, legend_h)
+	var combo := Image.create(maxi(n * 2 + PAD * 2 + LEGEND_W, row_w), top_h + PAD + CLOSE_UP, false, Image.FORMAT_RGB8)
 	combo.fill(Color.BLACK)
 	combo.blit_rect(biome_img, Rect2i(0, 0, n, n), Vector2i(0, 0))
 	combo.blit_rect(terrain_img, Rect2i(0, 0, n, n), Vector2i(n + PAD, 0))
+	combo.blit_rect(close_img, Rect2i(0, 0, row_w, CLOSE_UP), Vector2i(0, top_h + PAD))
 	var i := 0
 	for b in BIOME_NAMES:
 		combo.fill_rect(Rect2i(n * 2 + PAD * 2, i * (LEGEND_W + PAD), LEGEND_W, LEGEND_W), BIOME_COLORS[b])
@@ -114,13 +140,22 @@ func _run() -> void:
 
 	var total := n * n
 	var legend := "seed=%d biome_frequency=%s area=%dx%d tiles step=%d\n" % [seed_v, str(freq), size, size, step]
-	legend += "left: biome map, middle: terrain (water/sand/grass/hills), right: swatches top to bottom\n"
+	legend += "left: biome map, middle: terrain (water/sand/swamp/grass/hills), right: swatches top to bottom\n"
+	legend += "bottom row: %d-tile close-up per biome, left to right in swatch order (other biomes dimmed)\n" % CLOSE_UP
 	var missing: Array[String] = []
 	for b in BIOME_NAMES:
 		var pct: float = 100.0 * counts[b] / total
 		legend += "%-18s #%s %6.2f%%\n" % [BIOME_NAMES[b], BIOME_COLORS[b].to_html(false), pct]
 		if counts[b] == 0:
 			missing.append(BIOME_NAMES[b])
+	legend += "land mix per biome (share of that biome's land samples):\n"
+	for b in BIOME_NAMES:
+		var l: Dictionary = land[b]
+		var n_land := maxi(1, l["land"])
+		legend += "%-18s land=%6.2f%% sand=%5.1f%% swamp=%5.1f%% grass=%5.1f%%\n" % [
+			BIOME_NAMES[b], 100.0 * l["land"] / maxi(1, counts[b]),
+			100.0 * l["sand"] / n_land, 100.0 * l["swamp"] / n_land,
+			100.0 * (l["land"] - l["sand"] - l["swamp"]) / n_land]
 	var f := FileAccess.open(legend_path, FileAccess.WRITE)
 	f.store_string(legend)
 	f.close()
@@ -133,3 +168,48 @@ func _run() -> void:
 		return
 	print("BIOME_COVERAGE_OK")
 	quit(0)
+
+
+func _terrain_color(world, p: MapGenParams, cell: Vector2i, b: int) -> Color:
+	## Same altitude and ground tile as generate_chunk, without filling the TileMap.
+	var alt: float = world.cell_altitude(cell, b)
+	var moist: float = world.moisture.get_noise_2d(cell.x, cell.y)
+	var chance: float = world.items_chance.get_noise_2d(cell.x, cell.y)
+	var tile: Vector2i = world.ground_tile(alt, moist, chance, b)
+	if tile == TileCatalog.WATER:
+		return WATER
+	if tile == TileCatalog.SAND:
+		return SAND
+	if tile == TileCatalog.SWAMP or tile == TileCatalog.SWAMP_SPECIAL:
+		return SWAMP
+	if alt >= p.tree_min_alt:
+		return HILL
+	return GRASS
+
+
+func _close_up_centres(biome_img: Image, terrain_img: Image, r: int, n: int, step: int, size: int) -> Dictionary:
+	## Per biome, the sample cell whose (2r+1)-pixel window holds the most
+	## samples of that biome, with its land counted four times, so close-ups of
+	## small biomes still sit inside them and show islands. Uses summed-area tables.
+	var centres := {}
+	for b in BIOME_NAMES:
+		var sat := PackedInt32Array()
+		sat.resize((n + 1) * (n + 1))
+		for iy in range(n):
+			var row := 0
+			for ix in range(n):
+				if biome_img.get_pixel(ix, iy) == BIOME_COLORS[b]:
+					row += 1 if terrain_img.get_pixel(ix, iy) == WATER else 5
+				sat[(iy + 1) * (n + 1) + ix + 1] = sat[iy * (n + 1) + ix + 1] + row
+		var best := -1
+		for iy in range(n):
+			for ix in range(n):
+				var x0 := maxi(0, ix - r)
+				var y0 := maxi(0, iy - r)
+				var x1 := mini(n, ix + r + 1)
+				var y1 := mini(n, iy + r + 1)
+				var score := sat[y1 * (n + 1) + x1] - sat[y0 * (n + 1) + x1] - sat[y1 * (n + 1) + x0] + sat[y0 * (n + 1) + x0]
+				if score > best:
+					best = score
+					centres[b] = Vector2i(ix * step - size / 2, iy * step - size / 2)
+	return centres

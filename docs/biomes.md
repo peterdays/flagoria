@@ -27,15 +27,37 @@ uses 0.003 unless `--freq` is given.
 ## Output
 
 - `<out>_seed_<seed>.png`: biome map on the left, terrain on the right
-  (water, sand, grass, hills), legend swatches at the far right in the
-  order OCEANIC, TEMPERATE, CONTINENTAL, ARCHIPELAGO_DENSE.
-- `<out>_seed_<seed>_legend.txt`: seed, settings, colors, and coverage.
-- stdout: the same legend with each biome's coverage %.
+  (water, sand, swamp, grass, hills), legend swatches at the far right in the
+  order OCEANIC, TEMPERATE, CONTINENTAL, ARCHIPELAGO_DENSE. Below them, one
+  256-tile close-up per biome at 1 tile per pixel, in the same order, centred
+  where that biome has the most land; cells of other biomes are dimmed. At
+  the wide panel's 8 tiles per pixel islands are only a few pixels across, so
+  the close-ups are where per-biome terrain is visible.
+- `<out>_seed_<seed>_legend.txt`: seed, settings, colors, coverage, and each
+  biome's land mix (share of its land samples that are sand, swamp, grass).
+- stdout: the same legend.
 
 The tool exits 1 and prints `FAIL: biomes with 0% coverage` when any biome
 is missing from the area. Widen `--size` or raise `--freq` in that case.
 `tools/verify.sh` runs it on one seed, so a change that removes a biome
 fails verification.
+
+## Per-biome terrain
+
+With biomes on, `BiomeCatalog.TERRAIN` changes the ground mix per biome
+(TEMPERATE is the identity row, i.e. the terrain with biomes off):
+
+| Biome             | Beach (`sand_band`) | Swamp below moisture | Flowers (`flower_chance`) |
+|-------------------|---------------------|----------------------|---------------------------|
+| OCEANIC           | +0.08 (wide cays)   | -0.25 (rare)         | +0.3 (sparse)             |
+| TEMPERATE         | 0                   | 0                    | 0                         |
+| CONTINENTAL       | -0.02 (narrow)      | -0.25 (dry, grassy)  | -0.2 (meadows)            |
+| ARCHIPELAGO_DENSE | +0.04 (broad)       | +0.2 (wet, swampy)   | 0                         |
+
+`sand_band` is added to `sand_max_alt` and `swamp_special_alt`;
+`flower_chance` is added to `flower_min_chance`. With biomes on, sand tiles
+get no bushes or flowers, because wider beaches reach into those bands.
+With `biome_frequency = 0` none of this applies and the map is unchanged.
 
 ## Biome PR renders
 

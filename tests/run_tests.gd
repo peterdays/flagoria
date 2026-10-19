@@ -23,6 +23,7 @@ func _run() -> void:
 	failures += _test_archipelago_count()
 	failures += _test_archipelago_count_land_masses()
 	failures += _test_biomes()
+	failures += _test_biome_terrain()
 	failures += await _test_water_blocks_player()
 	failures += _test_map_settings_covers_params()
 	failures += _test_map_settings_rows_from_hints()
@@ -887,6 +888,172 @@ func _test_biomes() -> int:
 			"PASS test_biomes biomes=%s oceanic=%s/%s dense=%s/%s"
 			% [seen.keys(), oceanic_active, oceanic_total, dense_active, dense_total]
 		)
+	scene.queue_free()
+	return 1 if fail > 0 else 0
+
+
+func _biome_terrain_params(arch: bool) -> MapGenParams:
+	var p := MapGenParams.make_defaults()
+	p.altitude_seed = 2
+	p.moisture_seed = 7
+	p.temperature_seed = 12
+	p.items_seed = 17
+	p.biome_seed = 31
+	p.chunk_width = 96
+	p.chunk_height = 96
+	if arch:
+		p.archipelago_spacing = 64
+		p.archipelago_island_radius = 16
+		p.archipelago_jitter = 0.35
+		p.island_falloff = 2.0
+	return p
+
+
+func _chunk_digest(world, centre: Vector2i, w: int) -> String:
+	## sha256 over layer 0, 1 and 2 atlas coords of a w x w square at centre.
+	var parts := PackedStringArray()
+	for x in range(centre.x - w / 2, centre.x + w / 2):
+		for y in range(centre.y - w / 2, centre.y + w / 2):
+			var c := Vector2i(x, y)
+			parts.append("%s%s%s" % [world.get_cell_atlas_coords(0, c), world.get_cell_atlas_coords(1, c), world.get_cell_atlas_coords(2, c)])
+	return ";".join(parts).sha256_text()
+
+
+func _test_biome_terrain() -> int:
+	## Per-biome ground mix (BiomeCatalog.TERRAIN): with biome_frequency 0 the
+	## map is unchanged (digests pinned before per-biome terrain existed); with
+	## biomes on, beaches, swamps and flowers differ by biome, and beaches stay bare.
+	print("-- test_biome_terrain")
+	const FLOWER := Vector2i(9, 3)
+	const NONE := Vector2i(-1, -1)
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+
+	# Biomes off: whole chunks (ground, foliage, flowers) match the pinned output.
+	var pinned := [
+		[false, Vector2i(0, 0), "889d3ec826e36c7d1785deb1c6df496073fcf76cfc8f919b9c725db178d94a85"],
+		[false, Vector2i(3000, -1500), "943071931c6c2264f5d5b0fbe4423363c2f6881646a833056134df4ae9da7e6c"],
+		[true, Vector2i(0, 0), "84d0e789cb2058f807eb9b3fb877ad73a57ce660fe08cebb570d04dc82503687"],
+		[true, Vector2i(3000, -1500), "15f85b7289577e289ab2b5686e0789d6dbe2b1f66f8e7b4d37c2658dba49f5c8"],
+	]
+	for pin in pinned:
+		world.apply_map_params(_biome_terrain_params(pin[0]))
+		world.generate_chunk(world.map_to_local(pin[1]))
+		var got := _chunk_digest(world, pin[1], 96)
+		if got != pin[2]:
+			printerr("FAIL biome_terrain: frequency 0 archipelago=%s at %s changed (digest %s)" % [pin[0], pin[1], got])
+			fail += 1
+	# Biomes off: the biome id passed in is ignored.
+	for b in BiomeCatalog.TERRAIN:
+		for c in [[0.22, 0.5, 0.5], [0.24, 0.5, 0.5], [0.28, 0.5, 0.5], [0.5, -0.1, 0.5], [0.5, 0.1, -0.5]]:
+			var want: Vector2i = world.ground_tile(c[0], c[1], c[2])
+			if world.ground_tile(c[0], c[1], c[2], b) != want:
+				printerr("FAIL biome_terrain: frequency 0 biome %s changed ground at %s" % [b, c])
+				fail += 1
+
+	# Biomes on: same altitude / moisture / chance, different ground per biome.
+	var on := _biome_terrain_params(true)
+	on.biome_frequency = 0.003
+	world.apply_map_params(on)
+	var T := BiomeCatalog.TEMPERATE
+	# [name, alt, moist, chance, biome, expected tile]
+	var cases := [
+		["temperate_grass_above_beach", 0.28, 0.5, 0.5, T, TileCatalog.GRASS_C],
+		["oceanic_wide_beach", 0.28, 0.5, 0.5, BiomeCatalog.OCEANIC, TileCatalog.SAND],
+		["dense_wide_beach", 0.28, 0.5, 0.5, BiomeCatalog.ARCHIPELAGO_DENSE, TileCatalog.SAND],
+		["temperate_beach", 0.24, 0.5, 0.5, T, TileCatalog.SAND],
+		["continental_narrow_beach", 0.24, 0.5, 0.5, BiomeCatalog.CONTINENTAL, TileCatalog.GRASS_C],
+		["temperate_swamp", 0.5, -0.1, 0.5, T, TileCatalog.SWAMP],
+		["continental_dry", 0.5, -0.1, 0.5, BiomeCatalog.CONTINENTAL, TileCatalog.GRASS_C],
+		["temperate_dry", 0.5, 0.1, 0.5, T, TileCatalog.GRASS_C],
+		["dense_wet_swamp", 0.5, 0.1, 0.5, BiomeCatalog.ARCHIPELAGO_DENSE, TileCatalog.SWAMP],
+	]
+	for c in cases:
+		var got: Vector2i = world.ground_tile(c[1], c[2], c[3], c[4])
+		if got != c[5]:
+			printerr("FAIL biome_terrain case=%s got %s want %s" % [c[0], got, c[5]])
+			fail += 1
+
+	# Flowers: density follows the biome; beaches stay bare when biomes are on.
+	var ground := Vector2i(500, 500)
+	var beach := Vector2i(502, 500)
+	world.set_cell(0, ground, 0, TileCatalog.GRASS_A)
+	world.set_cell(0, beach, 0, TileCatalog.SAND)
+	# [name, cell, alt, chance, biome, expected layer-1, expected layer-2]
+	var decor := [
+		["temperate_no_flower", ground, 0.28, 0.2, T, NONE, NONE],
+		["continental_meadow", ground, 0.28, 0.2, BiomeCatalog.CONTINENTAL, NONE, FLOWER],
+		["temperate_flower", ground, 0.28, 0.5, T, NONE, FLOWER],
+		["oceanic_sparse", ground, 0.28, 0.5, BiomeCatalog.OCEANIC, NONE, NONE],
+		["beach_bare", beach, 0.35, 0.9, BiomeCatalog.OCEANIC, NONE, NONE],
+	]
+	for d in decor:
+		world.erase_cell(1, d[1])
+		world.erase_cell(world.GROUND_DECOR_LAYER, d[1])
+		world.set_tile_type_z1(d[1], d[2], 0.5, 0.0, d[3], d[4])
+		var got1: Vector2i = world.get_cell_atlas_coords(1, d[1])
+		var got2: Vector2i = world.get_cell_atlas_coords(world.GROUND_DECOR_LAYER, d[1])
+		if got1 != d[5] or got2 != d[6]:
+			printerr("FAIL biome_terrain decor=%s got l1=%s l2=%s want %s %s" % [d[0], got1, got2, d[5], d[6]])
+			fail += 1
+
+	# Generated chunks use the same per-biome ground the render tool samples.
+	var probe := Vector2i(700, -300)
+	world.generate_chunk(world.map_to_local(probe))
+	var mismatched := 0
+	for x in range(probe.x - 48, probe.x + 48):
+		for y in range(probe.y - 48, probe.y + 48):
+			var cell := Vector2i(x, y)
+			var b: int = world.biome_at(cell)
+			var want: Vector2i = world.ground_tile(world.cell_altitude(cell, b),
+				world.moisture.get_noise_2d(x, y), world.items_chance.get_noise_2d(x, y), b)
+			if world.get_cell_atlas_coords(0, cell) != want:
+				mismatched += 1
+	if mismatched > 0:
+		printerr("FAIL biome_terrain: %s generated cells differ from ground_tile" % mismatched)
+		fail += 1
+
+	# Over a wide area: swamp share of land is highest in ARCHIPELAGO_DENSE and
+	# lowest in CONTINENTAL; sand share is highest in OCEANIC.
+	var land := {}
+	var swamp := {}
+	var sand := {}
+	for b in BiomeCatalog.TERRAIN:
+		land[b] = 0
+		swamp[b] = 0
+		sand[b] = 0
+	for x in range(-2048, 2048, 16):
+		for y in range(-2048, 2048, 16):
+			var cell := Vector2i(x, y)
+			var b: int = world.biome_at(cell)
+			var tile: Vector2i = world.ground_tile(world.cell_altitude(cell, b),
+				world.moisture.get_noise_2d(x, y), world.items_chance.get_noise_2d(x, y), b)
+			if tile == TileCatalog.WATER:
+				continue
+			land[b] += 1
+			if tile == TileCatalog.SAND:
+				sand[b] += 1
+			elif tile == TileCatalog.SWAMP or tile == TileCatalog.SWAMP_SPECIAL:
+				swamp[b] += 1
+	var share := func(d: Dictionary, b: int) -> float: return float(d[b]) / maxf(1.0, float(land[b]))
+	for b in land:
+		if land[b] < 20:
+			printerr("FAIL biome_terrain: biome %s has only %s land samples" % [b, land[b]])
+			fail += 1
+	var ocean := BiomeCatalog.OCEANIC
+	var cont := BiomeCatalog.CONTINENTAL
+	var dense := BiomeCatalog.ARCHIPELAGO_DENSE
+	if not (share.call(swamp, dense) > share.call(swamp, T) and share.call(swamp, T) > share.call(swamp, cont)):
+		printerr("FAIL biome_terrain: swamp shares dense=%s temperate=%s continental=%s" % [share.call(swamp, dense), share.call(swamp, T), share.call(swamp, cont)])
+		fail += 1
+	if not (share.call(sand, ocean) > share.call(sand, T) and share.call(sand, T) > share.call(sand, cont)):
+		printerr("FAIL biome_terrain: sand shares oceanic=%s temperate=%s continental=%s" % [share.call(sand, ocean), share.call(sand, T), share.call(sand, cont)])
+		fail += 1
+
+	if fail == 0:
+		print("PASS test_biome_terrain land=%s swamp=%s sand=%s" % [land, swamp, sand])
 	scene.queue_free()
 	return 1 if fail > 0 else 0
 

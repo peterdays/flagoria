@@ -1,7 +1,7 @@
 class_name BiomeCatalog
 extends RefCounted
-## Large-scale biome ids and hardcoded density / altitude bias for the first
-## biome-map step. Per-biome terrain tables come in later work.
+## Large-scale biome ids with hardcoded per-biome island density, altitude
+## bias and ground terrain table. Every table applies only when biomes are on.
 
 const OCEANIC := 0
 const TEMPERATE := 1
@@ -24,6 +24,18 @@ const ALTITUDE_BIAS := {
 	ARCHIPELAGO_DENSE: 0.05,
 }
 
+## Per-biome ground mix (layer 0 and ground decorations). TEMPERATE is the
+## identity row, so it matches the terrain with biomes off.
+## sand_band: added to sand_max_alt and swamp_special_alt (beach width).
+## swamp_moisture: land with moisture below this is swamp (0 with biomes off).
+## flower_chance: added to flower_min_chance (higher = fewer flowers).
+const TERRAIN := {
+	OCEANIC: {"sand_band": 0.08, "swamp_moisture": -0.25, "flower_chance": 0.3},
+	TEMPERATE: {"sand_band": 0.0, "swamp_moisture": 0.0, "flower_chance": 0.0},
+	CONTINENTAL: {"sand_band": -0.02, "swamp_moisture": -0.25, "flower_chance": -0.2},
+	ARCHIPELAGO_DENSE: {"sand_band": 0.04, "swamp_moisture": 0.2, "flower_chance": 0.0},
+}
+
 
 static func from_noise(value: float) -> int:
 	## Map FastNoiseLite output in roughly [-1, 1] to a biome id.
@@ -42,3 +54,9 @@ static func density(biome_id: int) -> float:
 
 static func altitude_bias(biome_id: int) -> float:
 	return float(ALTITUDE_BIAS.get(biome_id, 0.0))
+
+
+static func terrain(biome_id: int, key: String) -> float:
+	## One TERRAIN value; unknown biomes fall back to the TEMPERATE row.
+	var row: Dictionary = TERRAIN.get(biome_id, TERRAIN[TEMPERATE])
+	return float(row[key])
