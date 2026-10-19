@@ -12,6 +12,7 @@ var input = Vector2.ZERO
 @onready var currentHealth: int = maxHealth
 @onready var animations = $AnimationPlayer
 @onready var weapon = $weapon
+@onready var combat_sfx: CombatSfx = $CombatSfx
 
 signal healthChanged
 var lastAnimDirection: String = "Down"
@@ -38,6 +39,7 @@ func _unhandled_input(event):
 @rpc("call_local")  # the call local calls in all remotes and the local too
 func attack_animation():
 	animations.stop()
+	combat_sfx.play_event("swing")
 	animations.play("attack" + lastAnimDirection)
 	isAttacking = true
 	weapon.visible = true
@@ -90,9 +92,13 @@ func updateAnimation():
 
 
 func receiveDamage():
+	var was_alive := currentHealth > 0
 	currentHealth -= 1
 	if currentHealth <= 0:
 		currentHealth = 0
+	combat_sfx.play_event("hurt")
+	if was_alive and currentHealth == 0:
+		combat_sfx.play_event("sting")
 
 	var healthbar = $healthbar
 	# changing the healthbar
@@ -129,4 +135,5 @@ func _on_hurt_box_area_entered(area):
 
 	var collision_player = area.get_parent().get_parent()
 	if collision_player.name != name:
+		combat_sfx.play_event("hit")
 		receiveDamage()  # a different player is attacking

@@ -16,6 +16,7 @@ func _run() -> void:
 	failures += _test_no_decorations_on_water()
 	failures += _test_flowers()
 	failures += _test_tile_catalog()
+	failures += await _test_combat_sfx()
 	failures += _test_island_falloff()
 	failures += _test_archipelago()
 	failures += _test_archipelago_count()
@@ -228,6 +229,54 @@ func _test_no_decorations_on_water() -> int:
 
 	scene.queue_free()
 	return fail
+
+func _test_combat_sfx() -> int:
+	## Each combat event plays once per call on this peer; a repeat inside the
+	## cooldown is dropped; player hooks fire swing, hit+hurt, and sting on 0 HP.
+	print("-- test_combat_sfx")
+	var fail := 0
+	var sfx := CombatSfx.new()
+	root.add_child(sfx)
+	for event in ["swing", "hit", "hurt", "sting"]:
+		if not sfx.play_event(event) or sfx.plays[event] != 1:
+			printerr("FAIL combat_sfx: %s did not play once" % event)
+			fail += 1
+		if sfx.play_event(event) or sfx.plays[event] != 1:
+			printerr("FAIL combat_sfx: %s played again inside cooldown" % event)
+			fail += 1
+	if sfx.play_event("unknown"):
+		printerr("FAIL combat_sfx: unknown event played")
+		fail += 1
+	sfx.queue_free()
+
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var player = load("res://Player/character_body_2d.tscn").instantiate()
+	player.name = "2"
+	scene.get_node("World").add_child(player)
+	var c: CombatSfx = player.combat_sfx
+	player.attack_animation()
+	player.receiveDamage()
+	if c.plays["swing"] != 1 or c.plays["hurt"] != 1 or c.plays["sting"] != 0:
+		printerr("FAIL combat_sfx: attack + damage plays %s" % c.plays)
+		fail += 1
+	# A hit from another player's sword: hit and hurt once each; at 1 HP it is a kill.
+	c._last_ms.clear()
+	player.currentHealth = 1
+	var other = load("res://Player/character_body_2d.tscn").instantiate()
+	other.name = "3"
+	scene.get_node("World").add_child(other)
+	player._on_hurt_box_area_entered(other.get_node("weapon/sword"))
+	if c.plays["hit"] != 1 or c.plays["hurt"] != 2 or c.plays["sting"] != 1:
+		printerr("FAIL combat_sfx: kill hit plays %s" % c.plays)
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_combat_sfx")
+	return fail
+
 
 func _test_tile_catalog() -> int:
 	## Every TileCatalog.<NAME> used in Scripts/ is in TileCatalog.TILES, every
