@@ -96,7 +96,9 @@ func receiveDamage():
 	currentHealth -= 1
 	if currentHealth <= 0:
 		currentHealth = 0
-	combat_sfx.play_event("hurt")
+	# Already at 0 HP: no health lost, so no hurt sound.
+	if was_alive:
+		combat_sfx.play_event("hurt")
 	if was_alive and currentHealth == 0:
 		combat_sfx.play_event("sting")
 
