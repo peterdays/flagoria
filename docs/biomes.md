@@ -37,6 +37,23 @@ is missing from the area. Widen `--size` or raise `--freq` in that case.
 `tools/verify.sh` runs it on one seed, so a change that removes a biome
 fails verification.
 
+## Per-biome terrain
+
+With biomes on, `BiomeCatalog.TERRAIN` changes the ground mix per biome
+(TEMPERATE is the identity row, i.e. the terrain with biomes off):
+
+| Biome             | Beach (`sand_band`) | Swamp below moisture | Flowers (`flower_chance`) |
+|-------------------|---------------------|----------------------|---------------------------|
+| OCEANIC           | +0.08 (wide cays)   | -0.25 (rare)         | +0.3 (sparse)             |
+| TEMPERATE         | 0                   | 0                    | 0                         |
+| CONTINENTAL       | -0.02 (narrow)      | -0.25 (dry, grassy)  | -0.2 (meadows)            |
+| ARCHIPELAGO_DENSE | +0.04 (broad)       | +0.2 (wet, swampy)   | 0                         |
+
+`sand_band` is added to `sand_max_alt` and `swamp_special_alt`;
+`flower_chance` is added to `flower_min_chance`. With biomes on, sand tiles
+get no bushes or flowers, because wider beaches reach into those bands.
+With `biome_frequency = 0` none of this applies and the map is unchanged.
+
 ## Biome PR renders
 
 A PR that changes biomes attaches this render for at least three seeds,

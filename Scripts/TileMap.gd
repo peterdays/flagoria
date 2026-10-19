@@ -131,14 +131,21 @@ func generate_chunk(position):
 			var moist = moisture.get_noise_2d(new_x, new_y)
 			var temp = temperature.get_noise_2d(new_x, new_y)
 			var cell := Vector2i(new_x, new_y)
-			var alt = altitude.get_noise_2d(new_x, new_y)
-			if biome_frequency > 0.0:
-				alt += BiomeCatalog.altitude_bias(biome_at(cell))
-			alt = archipelago_altitude(cell, island_altitude(cell, alt))
+			var b := biome_at(cell)
+			var alt := cell_altitude(cell, b)
 			var chance = items_chance.get_noise_2d(new_x, new_y)
 
-			set_tile_type_z0(Vector2i(new_x, new_y), alt, moist, temp, chance)
-			set_tile_type_z1(Vector2i(new_x, new_y), alt, moist, temp, chance)
+			set_tile_type_z0(cell, alt, moist, temp, chance, b)
+			set_tile_type_z1(cell, alt, moist, temp, chance, b)
+
+
+func cell_altitude(cell: Vector2i, biome_id: int) -> float:
+	## Final altitude at a cell: noise, biome bias (biomes on), island and
+	## archipelago shaping. generate_chunk and tools/render_biomes.gd share it.
+	var alt := altitude.get_noise_2d(cell.x, cell.y)
+	if biome_frequency > 0.0:
+		alt += BiomeCatalog.altitude_bias(biome_id)
+	return archipelago_altitude(cell, island_altitude(cell, alt))
 
 
 func island_altitude(cell: Vector2i, alt: float) -> float:
@@ -278,23 +285,38 @@ func _archipelago_square_closer(a: Vector2i, b: Vector2i) -> bool:
 	return ha < hb
 
 
-func set_tile_type_z0(pos_vec, alt, moist, _temp, chance):
-	var tile_vec = get_random_ground_vec(chance)
-	if alt <= water_max_alt:  # water
-		tile_vec = TileCatalog.WATER
-	elif alt > water_max_alt and alt < sand_max_alt:  # sand
-		tile_vec = TileCatalog.SAND
-	elif alt > sand_max_alt and moist < 0:  # swamp
-		if alt < swamp_special_alt and chance < 0:
-			tile_vec = TileCatalog.SWAMP_SPECIAL
-		else:
-			tile_vec = TileCatalog.SWAMP
-	else:
+func set_tile_type_z0(pos_vec, alt, moist, _temp, chance, biome_id: int = BiomeCatalog.TEMPERATE):
+	var tile_vec := ground_tile(alt, moist, chance, biome_id)
+	if tile_vec != TileCatalog.WATER and tile_vec != TileCatalog.SAND \
+			and tile_vec != TileCatalog.SWAMP and tile_vec != TileCatalog.SWAMP_SPECIAL:
 		# ground — record first land tile as spawn hint
 		if spawn_point == Vector2i(0, 0):
 			spawn_point = pos_vec
 
 	set_cell(0, pos_vec, TileCatalog.SOURCE_ID, tile_vec)
+
+
+func ground_tile(alt: float, moist: float, chance: float, biome_id: int = BiomeCatalog.TEMPERATE) -> Vector2i:
+	## Layer-0 tile for one cell. With biomes on, BiomeCatalog.TERRAIN moves the
+	## beach top and the swamp moisture threshold per biome; with biomes off the
+	## Map Settings thresholds apply unchanged.
+	var sand_top := sand_max_alt
+	var swamp_special_top := swamp_special_alt
+	var swamp_moist := 0.0
+	if biome_frequency > 0.0:
+		var band := BiomeCatalog.terrain(biome_id, "sand_band")
+		sand_top = maxf(water_max_alt, sand_max_alt + band)
+		swamp_special_top = swamp_special_alt + band
+		swamp_moist = BiomeCatalog.terrain(biome_id, "swamp_moisture")
+	if alt <= water_max_alt:  # water
+		return TileCatalog.WATER
+	if alt < sand_top:  # sand
+		return TileCatalog.SAND
+	if alt > sand_top and moist < swamp_moist:  # swamp
+		if alt < swamp_special_top and chance < 0:
+			return TileCatalog.SWAMP_SPECIAL
+		return TileCatalog.SWAMP
+	return get_random_ground_vec(chance)
 
 
 func get_random_ground_vec(chance):
@@ -310,14 +332,20 @@ func get_random_ground_vec(chance):
 	return vec
 
 
-func set_tile_type_z1(pos_vec, alt, moist, _temp, chance):
+func set_tile_type_z1(pos_vec, alt, moist, _temp, chance, biome_id: int = BiomeCatalog.TEMPERATE):
 	if not is_walkable_land(pos_vec):
 		return
+	var flower_chance = flower_min_chance
+	if biome_frequency > 0.0:
+		# Biomes can widen beaches into the foliage bands; beaches stay bare.
+		if get_cell_atlas_coords(0, pos_vec) == TileCatalog.SAND:
+			return
+		flower_chance += BiomeCatalog.terrain(biome_id, "flower_chance")
 	if moist > 0 and alt > bush_min_alt and alt <= bush_max_alt and chance > bush_min_chance:
 		set_cell(1, pos_vec, TileCatalog.SOURCE_ID, TileCatalog.BUSH)
 	elif moist > 0 and alt > tree_min_alt and chance > tree_min_chance:
 		set_cell(1, pos_vec, TileCatalog.SOURCE_ID, TileCatalog.TREE)
-	elif moist > 0 and alt > flower_min_alt and alt <= flower_max_alt and chance > flower_min_chance:
+	elif moist > 0 and alt > flower_min_alt and alt <= flower_max_alt and chance > flower_chance:
 		set_cell(GROUND_DECOR_LAYER, pos_vec, TileCatalog.SOURCE_ID, TileCatalog.FLOWER)
 
 
