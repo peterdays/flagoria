@@ -1,8 +1,9 @@
-[gd_scene load_steps=17 format=3 uid="uid://4h3b7gksl7a1"]
+[gd_scene load_steps=18 format=3 uid="uid://4h3b7gksl7a1"]
 
 [ext_resource type="Script" path="res://Scripts/player.gd" id="1_npi18"]
 [ext_resource type="Texture2D" uid="uid://r2bouldhkmet" path="res://art/Sprites/Solaria Demo Pack Update 03/16x16/Sprites/Hero 01.png" id="2_2dbro"]
 [ext_resource type="PackedScene" uid="uid://criufo7hcxa3y" path="res://Player/sword.tscn" id="3_yc3si"]
+[ext_resource type="Script" path="res://Scripts/combat_sfx.gd" id="4_combat"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_5iwvh"]
 size = Vector2(8, 10)
@@ -351,6 +352,9 @@ value = 30.0
 [node name="regen_timer" type="Timer" parent="."]
 wait_time = 5.0
 autostart = true
+
+[node name="CombatSfx" type="Node2D" parent="."]
+script = ExtResource("4_combat")
 
 [connection signal="animation_finished" from="AnimationPlayer" to="." method="_on_animation_player_animation_finished"]
 [connection signal="area_entered" from="hurtBox" to="." method="_on_hurt_box_area_entered"]
