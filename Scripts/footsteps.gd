@@ -6,8 +6,12 @@ extends AudioStreamPlayer2D
 ## (replicated) position, so no RPC is needed and each peer plays each
 ## player's steps exactly once. One player node, so steps never overlap.
 
-## Pixels walked between steps.
-const STEP_DISTANCE := 22.0
+## Pixels walked between steps. A stride must outlast the longest clip so
+## every stride plays and the rhythm is the same on every surface: the longest
+## clip (swamp, 0.34 s) at the lowest pitch (0.92) lasts 0.37 s, and at the
+## player's top speed (130 px/s) that is 48 px. 50 px leaves a little margin.
+## test_footsteps checks this against the real clip lengths.
+const STEP_DISTANCE := 50.0
 ## A larger jump in one frame is a teleport (spawn placement), not walking.
 const TELEPORT_DISTANCE := 48.0
 const PITCH_MIN := 0.92
@@ -47,6 +51,8 @@ const SURFACE_BY_TILE := {
 ## Steps started so far (tests read this; audio playback is not observable headless).
 var steps_played := 0
 var last_surface := ""
+## Tests set this to pick a surface without a world map.
+var surface_override := ""
 var _travelled := 0.0
 var _last_pos := Vector2.ZERO
 var _has_last_pos := false
@@ -79,9 +85,9 @@ func advance(pos: Vector2) -> void:
 	if _travelled < STEP_DISTANCE:
 		return
 	_travelled = 0.0
-	if playing:
-		return  # never restart or stack a step that is still sounding
-	_play_step(surface_at(pos))
+	# Every stride plays. At or below top speed the previous clip has already
+	# ended (see STEP_DISTANCE), and max_polyphony = 1 means a step never stacks.
+	_play_step(surface_override if surface_override != "" else surface_at(pos))
 
 
 func _play_step(surface: String) -> void:
