@@ -17,6 +17,7 @@ func _run() -> void:
 	failures += _test_flowers()
 	failures += _test_tile_catalog()
 	failures += await _test_combat_sfx()
+	failures += _test_footsteps()
 	failures += _test_island_falloff()
 	failures += _test_archipelago()
 	failures += _test_archipelago_count()
@@ -275,6 +276,54 @@ func _test_combat_sfx() -> int:
 	await process_frame
 	if fail == 0:
 		print("PASS test_combat_sfx")
+	return fail
+
+
+func _test_footsteps() -> int:
+	## Footsteps: none while idle or on a teleport, a few per stretch of walking
+	## (one per STEP_DISTANCE at most), surfaces chosen by TileCatalog name.
+	print("-- test_footsteps")
+	var fail := 0
+	var steps := Footsteps.new()
+	root.add_child(steps)
+	for i in range(120):
+		steps.advance(Vector2(10, 10))
+	if steps.steps_played != 0:
+		printerr("FAIL footsteps: %d steps while idle" % steps.steps_played)
+		fail += 1
+	steps.advance(Vector2(500, 10))
+	if steps.steps_played != 0:
+		printerr("FAIL footsteps: step on teleport")
+		fail += 1
+	var walk := 5.0 * Footsteps.STEP_DISTANCE
+	var x := 0.0
+	while x < walk:
+		x += 2.0
+		steps.advance(Vector2(500 + x, 10))
+	if steps.steps_played < 1 or steps.steps_played > 5:
+		printerr("FAIL footsteps: %d steps over %d px, want 1..5" % [steps.steps_played, walk])
+		fail += 1
+	var after_walk: int = steps.steps_played
+	for i in range(120):
+		steps.advance(Vector2(500 + x, 10))
+	if steps.steps_played != after_walk:
+		printerr("FAIL footsteps: steps continued after stopping")
+		fail += 1
+	if steps.volume_db > -8.0 or steps.volume_db < -12.0:
+		printerr("FAIL footsteps: volume %s dB outside -12..-8" % steps.volume_db)
+		fail += 1
+	var cases := {
+		TileCatalog.SAND: "sand", TileCatalog.SWAMP: "swamp", TileCatalog.SWAMP_SPECIAL: "swamp",
+		TileCatalog.GRASS_C: "grass", TileCatalog.WATER: "grass", Vector2i(-1, -1): "grass",
+	}
+	for atlas in cases:
+		var got := Footsteps.surface_for_atlas(atlas)
+		if got != cases[atlas]:
+			printerr("FAIL footsteps: surface for %s is %s want %s" % [atlas, got, cases[atlas]])
+			fail += 1
+	steps.queue_free()
+	if fail == 0:
+		print("PASS test_footsteps")
 	return fail
 
 
