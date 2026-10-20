@@ -18,6 +18,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 MapGen="*res://Scripts/map_gen.gd"
+AudioSettings="*res://Scripts/audio_settings.gd"
 
 [display]
 

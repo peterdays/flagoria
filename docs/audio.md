@@ -1,5 +1,21 @@
 # Audio
 
+## Buses and volume
+
+`default_bus_layout.tres` defines `Music` and `SFX` buses, both sending to
+`Master`. Game sounds (footsteps, combat) play on `SFX`. The `AudioSettings`
+autoload (`Scripts/audio_settings.gd`) keeps a 0..1 volume per bus (defaults:
+Music 0.6, SFX 1.0). It applies the volume as `volume_db = linear_to_db(v)`,
+mutes the bus at 0, and saves to `user://audio_settings.cfg`. Saved values
+that are not finite numbers, or are negative, load as the default; values
+above 1 are clamped. The main menu has a slider and a percent label for each
+bus.
+
+New sounds should use `SFX` (or `Music` for music) rather than `Master`, so
+the sliders cover them.
+
+## Sounds
+
 Sounds live under `art/audio/sfx/<group>/<name>_NN.wav`, credited in
 `art/audio/CREDITS.md`. `Scripts/footsteps.gd` and `Scripts/combat_sfx.gd`
 play them from the player scene.
@@ -15,7 +31,8 @@ Android build.
 godot --headless --audio-driver Dummy --path . --script res://tools/audio_check.gd
 ```
 
-It loads the real main and player scenes and runs a timeline: idle, walk on
+It resets the volumes to their defaults without saving, loads the real main
+and player scenes, and runs a timeline: idle, walk on
 grass, sand and swamp, swing, damage, kill. It records the mixer output
 while it runs. Headless Godot uses the Dummy audio driver, which still mixes
 in real time, so no sound card or display is needed.
@@ -38,7 +55,10 @@ It fails (exit 1) when:
   earshot;
 - a step with sounds has a Master RMS outside -50..-6 dBFS. This covers a
   muted or -80 dB bus;
-- the last 0.35 s after a step is not silent (peak above -60 dBFS);
+- the last 0.35 s after a step is not silent (peak above -60 dBFS), or a
+  step marked `audible: false` is not silent. The `swing_sfx_off` step sets
+  the SFX slider to 0 and expects the swing to start but be silent on
+  Master;
 - the Master peak reaches 0 dBFS (clipping);
 - a sound file is missing: the `preload` fails to compile, and verify.sh
   treats script errors as failures.
