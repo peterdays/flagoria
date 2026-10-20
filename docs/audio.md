@@ -14,6 +14,19 @@ bus.
 New sounds should use `SFX` (or `Music` for music) rather than `Master`, so
 the sliders cover them.
 
+## Music
+
+The `MusicPlayer` autoload (`Scripts/music_player.gd`) plays looping music
+on the `Music` bus, on this client only. Nothing is networked. Tracks:
+
+- **Menu:** `MENU_TRACK`, Ninja Adventure "5 - Peaceful". Started by the
+  main menu.
+- **Game:** `GAME_TRACK`, "4 - Village". Started by Host and Join.
+
+`play(track)` crossfades over 1.5 s on two players. Asking for the track
+that is already playing does nothing, so menus and scene reloads never
+restart or double it. A dedicated server stops the music.
+
 ## Sounds
 
 Sounds live under `art/audio/sfx/<group>/<name>_NN.wav`, credited in
@@ -58,8 +71,10 @@ It fails (exit 1) when:
 - the last 0.35 s after a step is not silent (peak above -60 dBFS), or a
   step marked `audible: false` is not silent. The `swing_sfx_off` step sets
   the SFX slider to 0 and expects the swing to start but be silent on
-  Master;
-- the Master peak reaches 0 dBFS (clipping);
+  Master. `music_slider_off` does the same for the Music slider and a
+  track;
+- the Master peak reaches 0 dBFS (clipping). The `music_with_swing` step
+  mixes music and SFX to cover this;
 - a sound file is missing: the `preload` fails to compile, and verify.sh
   treats script errors as failures.
 
@@ -101,7 +116,8 @@ APK must contain:
    triggers the sound, add a branch in `_begin_step` that calls the same game
    path a player would use (input handler, RPC body, signal callback), not
    `play()` directly.
-4. Sound players on the two test players are probed automatically. For
-   sounds elsewhere (UI, music, world objects), call `_add_probe(node)` for
-   their players in `_setup`.
+4. Sound players on the two test players and the `MusicPlayer` players are
+   probed automatically. For sounds elsewhere (UI, world objects), call
+   `_add_probe(node)` for their players in `_setup`. A step with
+   `"music": "GAME_TRACK"` plays that `MusicPlayer` constant for the step.
 5. Run `./tools/verify.sh` and look at `artifacts/out/audio_check.png`.

@@ -29,7 +29,9 @@ extends SceneTree
 
 ## Timeline. `expect` maps a sound name (file name without _NN.wav) to the
 ## exact number of times it must start in the step. Optional `sfx_volume`
-## sets the SFX slider (0..1) for the step; `audible: false` makes the step
+## sets the SFX slider (0..1) for the step, `music_volume` the Music slider;
+## `music` names a MusicPlayer track constant to play (without fade) for the
+## step, stopped when the step ends; `audible: false` makes the step
 ## window a silence check (the sound starts but its bus is off). Every step is followed
 ## by IDLE_GAP seconds of idle whose last part must be silent.
 const TIMELINE := [
@@ -42,6 +44,11 @@ const TIMELINE := [
 	{"name": "kill", "action": "kill", "duration": 0.8, "expect": {"hit_land": 1, "player_hurt": 1, "hit_sting": 1}},
 	# SFX slider at 0: the swing still starts, but nothing reaches Master.
 	{"name": "swing_sfx_off", "action": "swing", "sfx_volume": 0.0, "audible": false, "duration": 0.6, "expect": {"sword_swing": 1}},
+	{"name": "music", "action": "idle", "music": "GAME_TRACK", "duration": 2.0, "expect": {"4 - Village": 1}},
+	# Music slider at 0: the track starts, but nothing reaches Master.
+	{"name": "music_slider_off", "action": "idle", "music": "GAME_TRACK", "music_volume": 0.0, "audible": false, "duration": 1.0, "expect": {"4 - Village": 1}},
+	# Music and SFX together must not clip.
+	{"name": "music_with_swing", "action": "swing", "music": "GAME_TRACK", "duration": 1.0, "expect": {"4 - Village": 1, "sword_swing": 1}},
 ]
 const IDLE_GAP := 0.9
 ## Only the tail of each idle gap must be silent (clips are under 0.5 s).
@@ -92,6 +99,9 @@ func _setup() -> void:
 	_world.set_process(false)  # no chunk regeneration over the painted strips
 	# Default volumes, whatever this machine has saved; nothing is written.
 	root.get_node("AudioSettings").reset_to_defaults()
+	# The main menu starts its music; music steps play it when they need it.
+	var music = root.get_node("MusicPlayer")
+	music.stop(0.0)
 	_paint_strips()
 	_walker = _spawn_player("2", Vector2.ZERO)
 	_attacker = _spawn_player("3", Vector2(12, 0))
@@ -103,6 +113,8 @@ func _setup() -> void:
 	for player in [_walker, _attacker]:
 		for node in _sound_players(player):
 			_add_probe(node)
+	for node in music.players():
+		_add_probe(node)
 	process_frame.connect(_tick)
 	physics_frame.connect(_physics_tick)
 
@@ -175,6 +187,8 @@ func _tick() -> void:
 	var step: Dictionary = TIMELINE[_step]
 	if not _in_gap:
 		if t - _step_start >= step["duration"]:
+			if step.has("music"):
+				root.get_node("MusicPlayer").stop(0.0)
 			var audible: bool = step.get("audible", true) and not step["expect"].is_empty()
 			_windows.append({"name": step["name"], "start": _step_start, "end": t, "kind": "event" if audible else "silent"})
 			_in_gap = true
@@ -195,9 +209,13 @@ func _begin_step(i: int, t: float) -> void:
 	_in_gap = false
 	var step: Dictionary = TIMELINE[i]
 	var audio = root.get_node("AudioSettings")
-	var sfx: float = step.get("sfx_volume", audio.DEFAULTS["SFX"])
-	if not is_equal_approx(audio.get_volume("SFX"), sfx):
-		audio.set_volume("SFX", sfx, false)
+	for bus in ["SFX", "Music"]:
+		var v: float = step.get(bus.to_lower() + "_volume", audio.DEFAULTS[bus])
+		if not is_equal_approx(audio.get_volume(bus), v):
+			audio.set_volume(bus, v, false)
+	if step.has("music"):
+		var music = root.get_node("MusicPlayer")
+		music.play(music.get(step["music"]), 0.0)
 	# Attacker in earshot of the walker but out of sword reach, so a swing
 	# alone does not land a hit; damage steps call the hit path directly.
 	_attacker.global_position = _walker.global_position + Vector2(48, 0)
@@ -253,11 +271,21 @@ func _log_starts() -> void:
 				"t": snappedf(_now(), 0.001),
 				"sound": _sound_name(file),
 				"file": file,
-				"player": str(node.get_parent().name if node.get_parent() is CharacterBody2D else node.get_parent().get_parent().name),
+				"player": _owner_name(node),
 				"probe": key,
 			})
 		_was_playing[key] = playing
 		_last_pos[key] = pos
+
+
+static func _owner_name(node: Node) -> String:
+	## Player node name for sounds on a player, "local" for music and UI.
+	var n := node.get_parent()
+	while n != null:
+		if n is CharacterBody2D:
+			return str(n.name)
+		n = n.get_parent()
+	return "local"
 
 
 static func _sound_name(file: String) -> String:
