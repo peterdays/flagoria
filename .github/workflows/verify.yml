@@ -24,3 +24,11 @@ jobs:
 
       - name: Verify
         run: ./tools/verify.sh
+
+      - name: Upload audio check recording
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-check
+          path: artifacts/out/audio_check*
+          if-no-files-found: ignore

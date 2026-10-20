@@ -1,0 +1,87 @@
+# Audio
+
+Sounds live under `art/audio/sfx/<group>/<name>_NN.wav`, credited in
+`art/audio/CREDITS.md`. `Scripts/footsteps.gd` and `Scripts/combat_sfx.gd`
+play them from the player scene.
+
+Two checks catch a sound that is not heard: one in the running game, one in the
+Android build.
+
+## In-game check: `tools/audio_check.gd`
+
+`tools/verify.sh` runs it, locally and in CI:
+
+```sh
+godot --headless --audio-driver Dummy --path . --script res://tools/audio_check.gd
+```
+
+It loads the real main and player scenes and runs a timeline: idle, walk on
+grass, sand and swamp, swing, damage, kill. It records the mixer output
+while it runs. Headless Godot uses the Dummy audio driver, which still mixes
+in real time, so no sound card or display is needed.
+
+- **Recording:** an `AudioEffectCapture` on Master records the full mix,
+  after every bus volume, mute and effect. Godot applies Master's own volume
+  and mute after its effects, so the check applies them to the recording.
+- **Per-sound probes:** each sound player gets a probe bus with its own
+  capture, routed to the bus the player already used. A sound that is silent
+  on its own is caught even when another sound plays at the same moment.
+- **Event log:** each start of a sound player (the rising edge of `playing`)
+  is logged with its time, sound, file and player.
+
+It fails (exit 1) when:
+
+- a step's sounds do not start exactly the expected number of times. This
+  covers a sound that is unwired or plays twice;
+- a logged sound is quieter than -50 dBFS on its own probe within 0.25 s of
+  starting. This covers volume -80, an empty stream, or a player out of
+  earshot;
+- a step with sounds has a Master RMS outside -50..-6 dBFS. This covers a
+  muted or -80 dB bus;
+- the last 0.35 s after a step is not silent (peak above -60 dBFS);
+- the Master peak reaches 0 dBFS (clipping);
+- a sound file is missing: the `preload` fails to compile, and verify.sh
+  treats script errors as failures.
+
+Outputs go to `artifacts/out/`. CI uploads them as the `audio-check`
+artifact.
+
+- `audio_check.wav`: the Master mix.
+- `audio_check_events.json`: the event log, step windows and failures.
+- `audio_check.png`: the waveform. Sound steps are green, silent windows are
+  grey, and logged starts are red ticks.
+
+## APK check: `tools/check_apk_audio.sh`
+
+The android-apk workflow runs it on the exported APK:
+
+```sh
+./tools/check_apk_audio.sh Builds/android/flagoria-debug.apk
+```
+
+It collects every `res://…(.wav|.ogg|.mp3)` path referenced by game scripts,
+scenes and resources, leaving out `tools/` and `tests/`. For each path the
+APK must contain:
+
+- `assets/<path>.import`;
+- a non-empty `assets/.godot/imported/<file>-<hash>.sample`, `.oggvorbisstr`
+  or `.mp3str`.
+
+## Adding a sound and its check
+
+1. Add the files under `art/audio/sfx/<group>/` with an `_NN` suffix, and
+   credit them in `art/audio/CREDITS.md`. Commit the generated `.import`
+   files.
+2. Play them from game code, for example as a `preload` in the script that
+   owns the `AudioStreamPlayer`/`AudioStreamPlayer2D`. The APK check picks up
+   any `res://` path in game code automatically.
+3. Add a step to `TIMELINE` in `tools/audio_check.gd`. Give it a name, an
+   action, a duration, and `expect`: the sound name (file name without
+   `_NN.wav`) mapped to the exact number of starts. If no existing action
+   triggers the sound, add a branch in `_begin_step` that calls the same game
+   path a player would use (input handler, RPC body, signal callback), not
+   `play()` directly.
+4. Sound players on the two test players are probed automatically. For
+   sounds elsewhere (UI, music, world objects), call `_add_probe(node)` for
+   their players in `_setup`.
+5. Run `./tools/verify.sh` and look at `artifacts/out/audio_check.png`.
