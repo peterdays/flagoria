@@ -50,6 +50,7 @@ func _ready() -> void:
 		p.name = event
 		p.volume_db = VOLUME_DB[event]
 		p.max_polyphony = 1
+		p.bus = &"SFX"
 		add_child(p)
 		_players[event] = p
 

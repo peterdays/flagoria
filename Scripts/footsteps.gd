@@ -59,6 +59,7 @@ var _has_last_pos := false
 
 
 func _ready() -> void:
+	bus = &"SFX"
 	volume_db = -10.0
 	max_polyphony = 1
 

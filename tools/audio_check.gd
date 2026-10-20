@@ -28,7 +28,9 @@ extends SceneTree
 ## (waveform with step windows and logged sounds). Exit 1 on any failure.
 
 ## Timeline. `expect` maps a sound name (file name without _NN.wav) to the
-## exact number of times it must start in the step. Every step is followed
+## exact number of times it must start in the step. Optional `sfx_volume`
+## sets the SFX slider (0..1) for the step; `audible: false` makes the step
+## window a silence check (the sound starts but its bus is off). Every step is followed
 ## by IDLE_GAP seconds of idle whose last part must be silent.
 const TIMELINE := [
 	{"name": "idle", "action": "idle", "duration": 1.0, "expect": {}},
@@ -38,6 +40,8 @@ const TIMELINE := [
 	{"name": "swing", "action": "swing", "duration": 0.6, "expect": {"sword_swing": 1}},
 	{"name": "damage", "action": "damage", "duration": 0.6, "expect": {"hit_land": 1, "player_hurt": 1}},
 	{"name": "kill", "action": "kill", "duration": 0.8, "expect": {"hit_land": 1, "player_hurt": 1, "hit_sting": 1}},
+	# SFX slider at 0: the swing still starts, but nothing reaches Master.
+	{"name": "swing_sfx_off", "action": "swing", "sfx_volume": 0.0, "audible": false, "duration": 0.6, "expect": {"sword_swing": 1}},
 ]
 const IDLE_GAP := 0.9
 ## Only the tail of each idle gap must be silent (clips are under 0.5 s).
@@ -86,6 +90,8 @@ func _setup() -> void:
 	root.add_child(_scene)
 	_world = _scene.get_node("World/worldMap")
 	_world.set_process(false)  # no chunk regeneration over the painted strips
+	# Default volumes, whatever this machine has saved; nothing is written.
+	root.get_node("AudioSettings").reset_to_defaults()
 	_paint_strips()
 	_walker = _spawn_player("2", Vector2.ZERO)
 	_attacker = _spawn_player("3", Vector2(12, 0))
@@ -169,7 +175,8 @@ func _tick() -> void:
 	var step: Dictionary = TIMELINE[_step]
 	if not _in_gap:
 		if t - _step_start >= step["duration"]:
-			_windows.append({"name": step["name"], "start": _step_start, "end": t, "kind": "event" if not step["expect"].is_empty() else "silent"})
+			var audible: bool = step.get("audible", true) and not step["expect"].is_empty()
+			_windows.append({"name": step["name"], "start": _step_start, "end": t, "kind": "event" if audible else "silent"})
 			_in_gap = true
 			_step_start = t
 	elif t - _step_start >= IDLE_GAP:
@@ -187,6 +194,10 @@ func _begin_step(i: int, t: float) -> void:
 	_step_start = t
 	_in_gap = false
 	var step: Dictionary = TIMELINE[i]
+	var audio = root.get_node("AudioSettings")
+	var sfx: float = step.get("sfx_volume", audio.DEFAULTS["SFX"])
+	if not is_equal_approx(audio.get_volume("SFX"), sfx):
+		audio.set_volume("SFX", sfx, false)
 	# Attacker in earshot of the walker but out of sword reach, so a swing
 	# alone does not land a hit; damage steps call the hit path directly.
 	_attacker.global_position = _walker.global_position + Vector2(48, 0)
@@ -201,6 +212,9 @@ func _begin_step(i: int, t: float) -> void:
 		"kill":
 			_walker.currentHealth = 1
 			_walker._on_hurt_box_area_entered(_attacker.get_node("weapon/sword"))
+	# Log starts in the same frame: Godot can stop a player at once when its
+	# bus is muted, before the next poll would see it playing.
+	_log_starts()
 
 
 func _drain() -> void:
@@ -310,7 +324,8 @@ func _finish() -> void:
 		var w: Dictionary = _windows[i * 2]
 		var counts := {}
 		for e in _events:
-			if e["t"] >= w["start"] and e["t"] < w["end"] + IDLE_GAP - SILENT_TAIL:
+			# Log times are rounded to 1 ms, so allow that much before the window.
+			if e["t"] >= w["start"] - 0.001 and e["t"] < w["end"] + IDLE_GAP - SILENT_TAIL:
 				counts[e["sound"]] = counts.get(e["sound"], 0) + 1
 		for sound in step["expect"]:
 			if counts.get(sound, 0) != step["expect"][sound]:
