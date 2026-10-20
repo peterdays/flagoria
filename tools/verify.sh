@@ -150,4 +150,19 @@ fi
 rm -f "${biome_log}"
 echo "Biome coverage: ok"
 
+echo "== Audio check (res://tools/audio_check.gd, Dummy audio driver) =="
+audio_log="$(mktemp)"
+set +e
+"$GODOT" --headless --audio-driver Dummy --path "$ROOT" --script res://tools/audio_check.gd >"${audio_log}" 2>&1
+audio_status=$?
+set -e
+cat "${audio_log}"
+if [[ "${audio_status}" -ne 0 ]] || log_has_project_error "${audio_log}" || ! grep -q 'AUDIO_CHECK_OK' "${audio_log}"; then
+  echo "error: audio check failed (exit ${audio_status}); see artifacts/out/audio_check.png" >&2
+  rm -f "${audio_log}"
+  exit 1
+fi
+rm -f "${audio_log}"
+echo "Audio check: ok"
+
 echo "Verification passed."

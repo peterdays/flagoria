@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/android-apk.yml
       - tools/next_test_tag.sh
+      - tools/check_apk_audio.sh
       - export_presets.cfg
 
 permissions:
@@ -80,6 +81,9 @@ jobs:
           godot --headless --path . --export-debug "Android" Builds/android/flagoria-debug.apk
           test -s Builds/android/flagoria-debug.apk
           ls -l Builds/android
+
+      - name: Check APK audio assets
+        run: ./tools/check_apk_audio.sh Builds/android/flagoria-debug.apk
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
