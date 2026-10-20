@@ -3,6 +3,8 @@ extends PanelContainer
 @onready var main_menu = $"."
 @onready var address_entry = $MarginContainer/VBoxContainer/AddressEntry
 @onready var ux_layer = $/root/Flagoria/CanvasLayer1
+@onready var music_volume: HSlider = $MarginContainer/VBoxContainer/MusicVolumeRow/MusicVolume
+@onready var sfx_volume: HSlider = $MarginContainer/VBoxContainer/SFXVolumeRow/SFXVolume
 
 var admin_panel: PanelContainer
 
@@ -12,6 +14,11 @@ signal new_player_joined
 
 
 func _ready() -> void:
+	var audio = get_node("/root/AudioSettings")
+	music_volume.value = audio.get_volume("Music")
+	sfx_volume.value = audio.get_volume("SFX")
+	music_volume.value_changed.connect(func(v: float) -> void: audio.set_volume("Music", v))
+	sfx_volume.value_changed.connect(func(v: float) -> void: audio.set_volume("SFX", v))
 	admin_panel = preload("res://map_admin_panel.tscn").instantiate()
 	admin_panel.visible = false
 	admin_panel.closed.connect(_on_admin_closed)
