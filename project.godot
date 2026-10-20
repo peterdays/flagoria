@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 MapGen="*res://Scripts/map_gen.gd"
 AudioSettings="*res://Scripts/audio_settings.gd"
+MusicPlayer="*res://Scripts/music_player.gd"
 
 [display]
 

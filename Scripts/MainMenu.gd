@@ -16,6 +16,8 @@ signal new_player_joined
 
 
 func _ready() -> void:
+	var music = get_node("/root/MusicPlayer")
+	music.play(music.MENU_TRACK)
 	var audio = get_node("/root/AudioSettings")
 	music_volume.value = audio.get_volume("Music")
 	sfx_volume.value = audio.get_volume("SFX")
@@ -51,6 +53,7 @@ func _on_host_button_pressed():
 	if admin_panel:
 		admin_panel.hide()
 	ux_layer.show()
+	get_node("/root/MusicPlayer").play(get_node("/root/MusicPlayer").GAME_TRACK)
 	emit_signal("new_player_added", multiplayer.get_unique_id())
 
 
@@ -59,6 +62,7 @@ func _on_join_button_pressed():
 	if admin_panel:
 		admin_panel.hide()
 	ux_layer.show()
+	get_node("/root/MusicPlayer").play(get_node("/root/MusicPlayer").GAME_TRACK)
 	emit_signal("new_player_joined")
 
 

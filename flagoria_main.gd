@@ -39,6 +39,7 @@ func start_dedicated_server(port: int) -> Error:
 	## Host with the active MapGen params and no local player or menu. Remote
 	## clients join and receive the params through the normal Join path.
 	get_node("CanvasLayer2/MainMenu").hide()
+	get_node("/root/MusicPlayer").stop(0.0)  # no one listens on a dedicated server
 	var err := setup_server(get_node("/root/MapGen").params, port)
 	if err != OK:
 		push_error("dedicated server: cannot listen on UDP port %s (error %s)" % [port, err])
