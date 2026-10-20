@@ -5,6 +5,8 @@ extends PanelContainer
 @onready var ux_layer = $/root/Flagoria/CanvasLayer1
 @onready var music_volume: HSlider = $MarginContainer/VBoxContainer/MusicVolumeRow/MusicVolume
 @onready var sfx_volume: HSlider = $MarginContainer/VBoxContainer/SFXVolumeRow/SFXVolume
+@onready var music_value: Label = $MarginContainer/VBoxContainer/MusicVolumeRow/MusicValue
+@onready var sfx_value: Label = $MarginContainer/VBoxContainer/SFXVolumeRow/SFXValue
 
 var admin_panel: PanelContainer
 
@@ -17,14 +19,24 @@ func _ready() -> void:
 	var audio = get_node("/root/AudioSettings")
 	music_volume.value = audio.get_volume("Music")
 	sfx_volume.value = audio.get_volume("SFX")
-	music_volume.value_changed.connect(func(v: float) -> void: audio.set_volume("Music", v))
-	sfx_volume.value_changed.connect(func(v: float) -> void: audio.set_volume("SFX", v))
+	music_value.text = percent(music_volume.value)
+	sfx_value.text = percent(sfx_volume.value)
+	music_volume.value_changed.connect(func(v: float) -> void:
+		audio.set_volume("Music", v)
+		music_value.text = percent(v))
+	sfx_volume.value_changed.connect(func(v: float) -> void:
+		audio.set_volume("SFX", v)
+		sfx_value.text = percent(v))
 	admin_panel = preload("res://map_admin_panel.tscn").instantiate()
 	admin_panel.visible = false
 	admin_panel.closed.connect(_on_admin_closed)
 	admin_panel.start_host_requested.connect(_on_host_button_pressed)
 	# Defer so we are not adding children while the parent CanvasLayer is still setting up.
 	get_parent().call_deferred("add_child", admin_panel)
+
+
+static func percent(v: float) -> String:
+	return "%d%%" % roundi(v * 100.0)
 
 
 func _unhandled_input(_event):

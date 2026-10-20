@@ -7,7 +7,8 @@ extends Node
 
 const SECTION := "audio"
 const BUSES := ["Music", "SFX"]
-const DEFAULTS := {"Music": 0.6, "SFX": 0.8}
+## SFX at 1.0 keeps game sounds at their designed level.
+const DEFAULTS := {"Music": 0.6, "SFX": 1.0}
 
 ## Tests point this at a scratch file.
 var save_path := "user://audio_settings.cfg"
@@ -62,6 +63,18 @@ func load_from_disk() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(save_path) == OK:
 		for bus in BUSES:
-			_volumes[bus] = clampf(float(cfg.get_value(SECTION, bus, DEFAULTS[bus])), 0.0, 1.0)
+			_volumes[bus] = parse_volume(cfg.get_value(SECTION, bus, DEFAULTS[bus]), DEFAULTS[bus])
 	for bus in BUSES:
 		_apply(bus)
+
+
+static func parse_volume(value: Variant, fallback: float) -> float:
+	## A saved volume, or `fallback` if it is not a finite number or is
+	## negative (a hand-edited or corrupt file must not crash or mute).
+	## Values above 1 are clamped to 1.
+	if typeof(value) != TYPE_INT and typeof(value) != TYPE_FLOAT:
+		return fallback
+	var v := float(value)
+	if is_nan(v) or is_inf(v) or v < 0.0:
+		return fallback
+	return minf(v, 1.0)

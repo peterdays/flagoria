@@ -5,9 +5,11 @@
 `default_bus_layout.tres` defines `Music` and `SFX` buses, both sending to
 `Master`. Game sounds (footsteps, combat) play on `SFX`. The `AudioSettings`
 autoload (`Scripts/audio_settings.gd`) keeps a 0..1 volume per bus (defaults:
-Music 0.6, SFX 0.8). It applies the volume as `volume_db = linear_to_db(v)`,
-mutes the bus at 0, and saves to `user://audio_settings.cfg`. The main menu
-has a slider for each bus.
+Music 0.6, SFX 1.0). It applies the volume as `volume_db = linear_to_db(v)`,
+mutes the bus at 0, and saves to `user://audio_settings.cfg`. Saved values
+that are not finite numbers, or are negative, load as the default; values
+above 1 are clamped. The main menu has a slider and a percent label for each
+bus.
 
 New sounds should use `SFX` (or `Music` for music) rather than `Master`, so
 the sliders cover them.
