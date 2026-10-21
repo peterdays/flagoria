@@ -37,13 +37,20 @@ uses 0.003 unless `--freq` is given.
   the close-ups are where per-biome terrain is visible.
 - `<out>_seed_<seed>_legend.txt`: seed, settings, colors, coverage, each
   biome's land mix (share of its land samples that are sand, swamp, grass)
-  and plant mix (share of its land samples with a tree, bush, flower).
+  and plant mix (share of its land samples with a tree, bush, flower), plus
+  each biome's tree + bush count on its wide land samples and on its
+  close-up land cells.
 - stdout: the same legend.
 
 The tool exits 1 and prints `FAIL: biomes with 0% coverage` when any biome
 is missing from the area. Widen `--size` or raise `--freq` in that case.
-`tools/verify.sh` runs it on one seed, so a change that removes a biome
-fails verification.
+It also exits 1 and prints `FAIL: biomes with land but no trees or bushes`
+when a biome's land grows no trees or bushes in either the wide samples or
+its full-resolution close-up (for example, an emptied `BiomeCatalog.PLANTS`
+row). The close-up is counted because sparse biomes can have only a handful
+of plants on the wide grid.
+`tools/verify.sh` runs it on one seed, so a change that removes a biome, or
+leaves one bare, fails verification.
 
 ## Per-biome terrain
 

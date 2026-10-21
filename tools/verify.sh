@@ -143,7 +143,7 @@ biome_status=$?
 set -e
 cat "${biome_log}"
 if [[ "${biome_status}" -ne 0 ]] || log_has_project_error "${biome_log}" || ! grep -q 'BIOME_COVERAGE_OK' "${biome_log}"; then
-  echo "error: biome render is missing a biome (exit ${biome_status})" >&2
+  echo "error: biome render is missing a biome, or a biome grows no plants (exit ${biome_status})" >&2
   rm -f "${biome_log}"
   exit 1
 fi
