@@ -26,15 +26,18 @@ uses 0.003 unless `--freq` is given.
 
 ## Output
 
-- `<out>_seed_<seed>.png`: biome map on the left, terrain on the right
-  (water, sand, swamp, grass, hills), legend swatches at the far right in the
-  order OCEANIC, TEMPERATE, CONTINENTAL, ARCHIPELAGO_DENSE. Below them, one
-  256-tile close-up per biome at 1 tile per pixel, in the same order, centred
-  where that biome has the most land; cells of other biomes are dimmed. At
+- `<out>_seed_<seed>.png`: biome map on the left, terrain in the middle
+  (water, sand, swamp, grass, hills), plants next to it (trees dark green,
+  bushes amber, flowers pink, bare land light grey), legend swatches at the
+  far right in the order OCEANIC, TEMPERATE, CONTINENTAL, ARCHIPELAGO_DENSE.
+  Below them, one 256-tile close-up per biome at 1 tile per pixel, in the same
+  order, centred where that biome has the most land, with plants drawn over
+  the terrain; cells of other biomes are dimmed. At
   the wide panel's 8 tiles per pixel islands are only a few pixels across, so
   the close-ups are where per-biome terrain is visible.
-- `<out>_seed_<seed>_legend.txt`: seed, settings, colors, coverage, and each
-  biome's land mix (share of its land samples that are sand, swamp, grass).
+- `<out>_seed_<seed>_legend.txt`: seed, settings, colors, coverage, each
+  biome's land mix (share of its land samples that are sand, swamp, grass)
+  and plant mix (share of its land samples with a tree, bush, flower).
 - stdout: the same legend.
 
 The tool exits 1 and prints `FAIL: biomes with 0% coverage` when any biome
@@ -58,6 +61,23 @@ With biomes on, `BiomeCatalog.TERRAIN` changes the ground mix per biome
 `flower_chance` is added to `flower_min_chance`. With biomes on, sand tiles
 get no bushes or flowers, because wider beaches reach into those bands.
 With `biome_frequency = 0` none of this applies and the map is unchanged.
+
+## Per-biome plants
+
+With biomes on, `BiomeCatalog.PLANTS` changes tree and bush density per
+biome (TEMPERATE is the identity row). Values are added to `tree_min_chance`
+and `bush_min_chance`, so higher means fewer plants:
+
+| Biome             | Trees (`tree_chance`) | Bushes (`bush_chance`) |
+|-------------------|-----------------------|------------------------|
+| OCEANIC           | +0.3 (almost bare)    | +0.2 (sparse)          |
+| TEMPERATE         | 0                     | 0                      |
+| CONTINENTAL       | -0.25 (forests)       | 0                      |
+| ARCHIPELAGO_DENSE | +0.15 (few trees)     | -0.25 (scrub)          |
+
+`TileMap.plant_tile` picks the bush, tree or flower for a cell; generation
+and the render tool share it. With `biome_frequency = 0` none of this
+applies and the plants are unchanged.
 
 ## Biome PR renders
 
