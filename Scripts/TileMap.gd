@@ -45,6 +45,8 @@ var biome_seed: int = 0
 # Walkable ground decorations (flowers) sit on their own layer at the ground's
 # z_index so the player always draws over them; layer 1 (bushes, trees) is z 1.
 const GROUND_DECOR_LAYER := 2
+# plant_tile result for a cell without a plant.
+const NO_PLANT := Vector2i(-1, -1)
 
 const SPAWN_NEIGHBORS := [
 	Vector2i(0, -1), Vector2i(1, -1), Vector2i(1, 0), Vector2i(1, 1),
@@ -335,18 +337,35 @@ func get_random_ground_vec(chance):
 func set_tile_type_z1(pos_vec, alt, moist, _temp, chance, biome_id: int = BiomeCatalog.TEMPERATE):
 	if not is_walkable_land(pos_vec):
 		return
-	var flower_chance = flower_min_chance
+	# Biomes can widen beaches into the foliage bands; beaches stay bare.
+	if biome_frequency > 0.0 and get_cell_atlas_coords(0, pos_vec) == TileCatalog.SAND:
+		return
+	var tile := plant_tile(alt, moist, chance, biome_id)
+	if tile == TileCatalog.FLOWER:
+		set_cell(GROUND_DECOR_LAYER, pos_vec, TileCatalog.SOURCE_ID, tile)
+	elif tile != NO_PLANT:
+		set_cell(1, pos_vec, TileCatalog.SOURCE_ID, tile)
+
+
+func plant_tile(alt: float, moist: float, chance: float, biome_id: int = BiomeCatalog.TEMPERATE) -> Vector2i:
+	## Bush, tree or flower for one walkable cell, or NO_PLANT. With biomes on,
+	## BiomeCatalog.PLANTS shifts the tree and bush chance thresholds and
+	## BiomeCatalog.TERRAIN the flower threshold; with biomes off the Map
+	## Settings thresholds apply unchanged.
+	var bush_chance := bush_min_chance
+	var tree_chance := tree_min_chance
+	var flower_chance := flower_min_chance
 	if biome_frequency > 0.0:
-		# Biomes can widen beaches into the foliage bands; beaches stay bare.
-		if get_cell_atlas_coords(0, pos_vec) == TileCatalog.SAND:
-			return
+		bush_chance += BiomeCatalog.plants(biome_id, "bush_chance")
+		tree_chance += BiomeCatalog.plants(biome_id, "tree_chance")
 		flower_chance += BiomeCatalog.terrain(biome_id, "flower_chance")
-	if moist > 0 and alt > bush_min_alt and alt <= bush_max_alt and chance > bush_min_chance:
-		set_cell(1, pos_vec, TileCatalog.SOURCE_ID, TileCatalog.BUSH)
-	elif moist > 0 and alt > tree_min_alt and chance > tree_min_chance:
-		set_cell(1, pos_vec, TileCatalog.SOURCE_ID, TileCatalog.TREE)
-	elif moist > 0 and alt > flower_min_alt and alt <= flower_max_alt and chance > flower_chance:
-		set_cell(GROUND_DECOR_LAYER, pos_vec, TileCatalog.SOURCE_ID, TileCatalog.FLOWER)
+	if moist > 0 and alt > bush_min_alt and alt <= bush_max_alt and chance > bush_chance:
+		return TileCatalog.BUSH
+	if moist > 0 and alt > tree_min_alt and chance > tree_chance:
+		return TileCatalog.TREE
+	if moist > 0 and alt > flower_min_alt and alt <= flower_max_alt and chance > flower_chance:
+		return TileCatalog.FLOWER
+	return NO_PLANT
 
 
 func is_walkable_land(cell: Vector2i) -> bool:

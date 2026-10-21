@@ -1,7 +1,7 @@
 class_name BiomeCatalog
 extends RefCounted
 ## Large-scale biome ids with hardcoded per-biome island density, altitude
-## bias and ground terrain table. Every table applies only when biomes are on.
+## bias, ground terrain table and plant table. Every table applies only when biomes are on.
 
 const OCEANIC := 0
 const TEMPERATE := 1
@@ -36,6 +36,17 @@ const TERRAIN := {
 	ARCHIPELAGO_DENSE: {"sand_band": 0.04, "swamp_moisture": 0.2, "flower_chance": 0.0},
 }
 
+## Per-biome plant density (layer 1 foliage). TEMPERATE is the identity row,
+## so it matches the plants with biomes off. Higher = fewer plants.
+## tree_chance: added to tree_min_chance.
+## bush_chance: added to bush_min_chance.
+const PLANTS := {
+	OCEANIC: {"tree_chance": 0.3, "bush_chance": 0.2},
+	TEMPERATE: {"tree_chance": 0.0, "bush_chance": 0.0},
+	CONTINENTAL: {"tree_chance": -0.25, "bush_chance": 0.0},
+	ARCHIPELAGO_DENSE: {"tree_chance": 0.15, "bush_chance": -0.25},
+}
+
 
 static func from_noise(value: float) -> int:
 	## Map FastNoiseLite output in roughly [-1, 1] to a biome id.
@@ -59,4 +70,10 @@ static func altitude_bias(biome_id: int) -> float:
 static func terrain(biome_id: int, key: String) -> float:
 	## One TERRAIN value; unknown biomes fall back to the TEMPERATE row.
 	var row: Dictionary = TERRAIN.get(biome_id, TERRAIN[TEMPERATE])
+	return float(row[key])
+
+
+static func plants(biome_id: int, key: String) -> float:
+	## One PLANTS value; unknown biomes fall back to the TEMPERATE row.
+	var row: Dictionary = PLANTS.get(biome_id, PLANTS[TEMPERATE])
 	return float(row[key])
