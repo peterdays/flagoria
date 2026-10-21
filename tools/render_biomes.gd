@@ -6,7 +6,10 @@ extends SceneTree
 ## Samples one cell every `step` tiles over a `size` x `size` tile square
 ## centred on the origin, so the area spans several biome noise wavelengths.
 ## Prints per-biome coverage and exits 1 when any biome covers 0 % of the
-## area, so a render that shows a single biome cannot pass silently.
+## area, so a render that shows a single biome cannot pass silently. Also
+## exits 1 when a biome's land grows no trees or bushes (BiomeCatalog.PLANTS)
+## across the wide samples and its full-resolution close-up, so an emptied
+## plant row cannot pass silently either.
 ##
 ## Usage:
 ##   godot --headless --path . --script res://tools/render_biomes.gd -- \
@@ -125,6 +128,12 @@ func _run() -> void:
 	var close_img := Image.create(row_w, CLOSE_UP, false, Image.FORMAT_RGB8)
 	close_img.fill(Color.BLACK)
 	var k := 0
+	# Per biome: land cells of that biome in its close-up, and trees + bushes on them.
+	var close_land := {}
+	var close_plants := {}
+	for b in BIOME_NAMES:
+		close_land[b] = 0
+		close_plants[b] = 0
 	for b in BIOME_NAMES:
 		var origin: Vector2i = close_centre.get(b, Vector2i.ZERO) - Vector2i(CLOSE_UP / 2, CLOSE_UP / 2)
 		for x in range(CLOSE_UP):
@@ -134,6 +143,10 @@ func _run() -> void:
 				var c := _terrain_color(world, p, cell, cb)
 				if c != WATER:
 					c = _plant_color(world, cell, cb, c)
+					if cb == b:
+						close_land[b] += 1
+						if c == TREE or c == BUSH:
+							close_plants[b] += 1
 				if cb != b:
 					c = c.lerp(Color.BLACK, 0.65)
 				close_img.set_pixel(k * (CLOSE_UP + PAD) + x, y, c)
@@ -185,6 +198,14 @@ func _run() -> void:
 		legend += "%-18s tree=%5.1f%% bush=%5.1f%% flower=%5.1f%%\n" % [
 			BIOME_NAMES[b], 100.0 * l["tree"] / n_land,
 			100.0 * l["bush"] / n_land, 100.0 * l["flower"] / n_land]
+	legend += "trees + bushes per biome (wide samples + close-up land cells):\n"
+	var bare: Array[String] = []
+	for b in BIOME_NAMES:
+		var wide: int = land[b]["tree"] + land[b]["bush"]
+		legend += "%-18s wide=%d of %d land  close_up=%d of %d land\n" % [
+			BIOME_NAMES[b], wide, land[b]["land"], close_plants[b], close_land[b]]
+		if wide + close_plants[b] == 0:
+			bare.append(BIOME_NAMES[b])
 	var f := FileAccess.open(legend_path, FileAccess.WRITE)
 	f.store_string(legend)
 	f.close()
@@ -193,6 +214,10 @@ func _run() -> void:
 	print("saved ", ProjectSettings.globalize_path(legend_path))
 	if not missing.is_empty():
 		printerr("FAIL: biomes with 0%% coverage: %s (widen --size or raise --freq)" % ", ".join(missing))
+		quit(1)
+		return
+	if not bare.is_empty():
+		printerr("FAIL: biomes with land but no trees or bushes: %s (check BiomeCatalog.PLANTS)" % ", ".join(bare))
 		quit(1)
 		return
 	print("BIOME_COVERAGE_OK")
