@@ -1,7 +1,7 @@
 [gd_scene load_steps=19 format=3 uid="uid://4h3b7gksl7a1"]
 
 [ext_resource type="Script" path="res://Scripts/player.gd" id="1_npi18"]
-[ext_resource type="Texture2D" uid="uid://r2bouldhkmet" path="res://art/Sprites/Solaria Demo Pack Update 03/16x16/Sprites/Hero 01.png" id="2_2dbro"]
+[ext_resource type="Texture2D" uid="uid://di7lvt1805we1" path="res://art/hero/sheets/flagbearer_sheet.png" id="2_2dbro"]
 [ext_resource type="PackedScene" uid="uid://criufo7hcxa3y" path="res://Player/sword.tscn" id="3_yc3si"]
 [ext_resource type="Script" path="res://Scripts/combat_sfx.gd" id="4_combat"]
 [ext_resource type="Script" path="res://Scripts/footsteps.gd" id="5_steps"]
