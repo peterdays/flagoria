@@ -32,11 +32,11 @@ The first 11 names kept their cells when the Solaria atlas was replaced. STONES 
 | GRASS_C | Land, `chance < ground_chance_c` | 0 | (6, 0) | 1×1 | None |
 | GRASS_D | Land, otherwise | 0 | (6, 1) | 1×1 | None |
 | BUSH | Bush on moist land in the bush altitude band | 1 | (7, 3) | 1×1 | Polygon at the base |
-| TREE | Tree on moist land above `tree_min_alt` | 1 | (7, 0) | 1×1 | Polygon at the trunk |
+| TREE | Tree on moist land above `tree_min_alt` | 1 | (7, 0) | 1×1 | 14×11 polygon over the lower canopy and trunk |
 | FLOWER | Walkable flower in the flower altitude band | 2 (`GROUND_DECOR_LAYER`) | (9, 3) | 1×1 | None |
 | STONES | Walkable stones on bare land and beaches in some biomes (`BiomeCatalog.STRUCTURES`, biomes on only) | 2 (`GROUND_DECOR_LAYER`) | (0, 7) | 1×1 | None |
 
-With Solaria, TREE was 3×3 cells and BUSH 1×2. Both are now 1×1, so they draw smaller and their collision polygons were redrawn.
+With Solaria, TREE was 3×3 cells and BUSH 1×2. Both are now 1×1, so they draw smaller and their collision polygons were redrawn. The TREE polygon is wide and tall enough that adjacent trees leave no gap the player (8×10 box) fits through, so a row, column or block of trees is a wall (`test_forest_walls`). One free cell between two trees is still passable.
 
 ## Island terrain
 

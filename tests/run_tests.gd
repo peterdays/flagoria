@@ -29,6 +29,7 @@ func _run() -> void:
 	failures += _test_biome_plants()
 	failures += _test_biome_structures()
 	failures += await _test_water_blocks_player()
+	failures += await _test_forest_walls()
 	failures += _test_map_settings_covers_params()
 	failures += _test_map_settings_rows_from_hints()
 	failures += _test_new_param_needs_no_ui_code()
@@ -1490,6 +1491,67 @@ func _test_biome_structures() -> int:
 		print("PASS test_biome_structures land=%s stones=%s" % [land, stones])
 	scene.queue_free()
 	return 1 if fail > 0 else 0
+
+
+func _test_forest_walls() -> int:
+	## A row or column of adjacent TREE or BUSH cells is a wall: sweep the
+	## player's shape across it one lane per pixel and require every lane to
+	## stop. With one free cell between plants the player must still pass.
+	print("-- test_forest_walls")
+	var player = load("res://Player/character_body_2d.tscn").instantiate()
+	var body: CollisionShape2D = player.get_node("CollisionShape2D")
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = body.shape
+	query.collision_mask = player.collision_mask
+	var offset: Vector2 = body.position
+	player.free()
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var fail := 0
+	for tile_name in ["TREE", "BUSH"]:
+		var tile: Vector2i = TileCatalog.TILES[tile_name]["atlas"]
+		world.clear()
+		for x in range(-2, 50):
+			for y in range(-2, 50):
+				world.set_cell(0, Vector2i(x, y), TileCatalog.SOURCE_ID, TileCatalog.GRASS_A)
+		for i in range(4, 16):
+			world.set_cell(1, Vector2i(i, 10), TileCatalog.SOURCE_ID, tile)  # row
+			world.set_cell(1, Vector2i(30, i), TileCatalog.SOURCE_ID, tile)  # column
+		for i in range(4, 16, 2):
+			world.set_cell(1, Vector2i(i, 30), TileCatalog.SOURCE_ID, tile)  # spaced row
+			world.set_cell(1, Vector2i(40, i + 20), TileCatalog.SOURCE_ID, tile)  # spaced column
+		await physics_frame
+		await physics_frame
+		var space: PhysicsDirectSpaceState2D = world.get_world_2d().direct_space_state
+		var sweeps := [
+			["row", Vector2i(5, 10), Vector2i(14, 10), Vector2(0, 1), true],
+			["column", Vector2i(30, 5), Vector2i(30, 14), Vector2(1, 0), true],
+			["spaced_row", Vector2i(5, 30), Vector2i(14, 30), Vector2(0, 1), false],
+			["spaced_column", Vector2i(40, 25), Vector2i(40, 34), Vector2(1, 0), false],
+		]
+		for sw in sweeps:
+			var a: Vector2 = world.to_global(world.map_to_local(sw[1]))
+			var b: Vector2 = world.to_global(world.map_to_local(sw[2]))
+			var dir: Vector2 = sw[3]
+			var lanes := int((b - a).length())
+			var passes := 0
+			for i in lanes:
+				query.transform = Transform2D(0, a.lerp(b, float(i) / lanes) - dir * 40.0 + offset)
+				query.motion = dir * 80.0
+				if space.cast_motion(query)[0] >= 1.0:
+					passes += 1
+			if sw[4] and passes > 0:
+				printerr("FAIL forest_walls: %s %s lets %d/%d lanes through" % [tile_name, sw[0], passes, lanes])
+				fail += 1
+			elif not sw[4] and passes == 0:
+				printerr("FAIL forest_walls: %s %s has no gap the player fits through" % [tile_name, sw[0]])
+				fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_forest_walls")
+	return fail
 
 
 func _test_water_blocks_player() -> int:
