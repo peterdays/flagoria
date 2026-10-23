@@ -29,6 +29,7 @@ func _run() -> void:
 	failures += _test_biome_plants()
 	failures += _test_biome_structures()
 	failures += await _test_water_blocks_player()
+	failures += await _test_forest_walls()
 	failures += _test_map_settings_covers_params()
 	failures += _test_map_settings_rows_from_hints()
 	failures += _test_new_param_needs_no_ui_code()
@@ -563,6 +564,56 @@ func _test_tile_catalog() -> int:
 		var src = tile_set.get_source(entry["source_id"]) if tile_set.has_source(entry["source_id"]) else null
 		if not src is TileSetAtlasSource or not src.has_tile(entry["atlas"]):
 			printerr("FAIL tile_catalog: %s %s not in TileSet source %s" % [n, entry["atlas"], entry["source_id"]])
+			fail += 1
+	## The map fill tiles keep their cells across tileset versions, so saved
+	## maps and the pinned tests stay valid.
+	var pinned := {
+		"WATER": Vector2i(5, 6), "SAND": Vector2i(5, 4), "SWAMP": Vector2i(14, 7),
+		"SWAMP_SPECIAL": Vector2i(27, 7), "GRASS_A": Vector2i(5, 0), "GRASS_B": Vector2i(5, 1),
+		"GRASS_C": Vector2i(6, 0), "GRASS_D": Vector2i(6, 1), "BUSH": Vector2i(7, 3),
+		"TREE": Vector2i(7, 0), "FLOWER": Vector2i(9, 3), "STONES": Vector2i(0, 7),
+	}
+	for n in pinned:
+		if not TileCatalog.TILES.has(n) or TileCatalog.TILES[n]["atlas"] != pinned[n]:
+			printerr("FAIL tile_catalog: %s moved from %s" % [n, pinned[n]])
+			fail += 1
+	## STONES reuses the small-rocks art cell on purpose.
+	var aliases := {"STONES": "ROCK_FLOAT_S"}
+	var cells := {}
+	for n in TileCatalog.TILES:
+		var a: Vector2i = TileCatalog.TILES[n]["atlas"]
+		if cells.has(a) and aliases.get(n, "") != cells[a] and aliases.get(cells[a], "") != n:
+			printerr("FAIL tile_catalog: %s and %s share cell %s" % [cells[a], n, a])
+			fail += 1
+		cells[a] = n
+	## Collision drives walkability: water blocks, ground fill does not.
+	var src0: TileSetAtlasSource = tile_set.get_source(TileCatalog.SOURCE_ID)
+	for n in ["WATER", "TREE", "BUSH"]:
+		if src0.get_tile_data(TileCatalog.TILES[n]["atlas"], 0).get_collision_polygons_count(0) == 0:
+			printerr("FAIL tile_catalog: %s has no collision polygon" % n)
+			fail += 1
+	for n in ["SAND", "SWAMP", "SWAMP_SPECIAL", "GRASS_A", "GRASS_B", "GRASS_C", "GRASS_D", "FLOWER", "STONES"]:
+		if src0.get_tile_data(TileCatalog.TILES[n]["atlas"], 0).get_collision_polygons_count(0) != 0:
+			printerr("FAIL tile_catalog: %s should be walkable" % n)
+			fail += 1
+	## Island terrain: one terrain set with every ISLAND_BLOB_ base piece in it.
+	if tile_set.get_terrain_sets_count() <= TileCatalog.ISLAND_TERRAIN_SET \
+			or tile_set.get_terrain_name(TileCatalog.ISLAND_TERRAIN_SET, TileCatalog.ISLAND_TERRAIN) != "Island":
+		printerr("FAIL tile_catalog: no Island terrain in the world TileSet")
+		fail += 1
+	else:
+		var bases := 0
+		for n in TileCatalog.TILES:
+			if not n.begins_with("ISLAND_BLOB_"):
+				continue
+			if not n.contains("_W"):
+				bases += 1
+			var td: TileData = src0.get_tile_data(TileCatalog.TILES[n]["atlas"], 0)
+			if td.terrain_set != TileCatalog.ISLAND_TERRAIN_SET or td.terrain != TileCatalog.ISLAND_TERRAIN:
+				printerr("FAIL tile_catalog: %s is not an Island terrain tile" % n)
+				fail += 1
+		if bases != 47:
+			printerr("FAIL tile_catalog: expected 47 island blob pieces, got %d" % bases)
 			fail += 1
 	scene.free()
 	if fail == 0:
@@ -1440,6 +1491,69 @@ func _test_biome_structures() -> int:
 		print("PASS test_biome_structures land=%s stones=%s" % [land, stones])
 	scene.queue_free()
 	return 1 if fail > 0 else 0
+
+
+func _test_forest_walls() -> int:
+	## A row or column of adjacent TREE or BUSH cells is a wall: sweep the
+	## player's shape across it in half-pixel lanes and require every lane to
+	## stop. Half pixels matter: a gap 1 px wider than the player only opens
+	## between whole-pixel lanes. With one free cell between plants the
+	## player must still pass.
+	print("-- test_forest_walls")
+	var player = load("res://Player/character_body_2d.tscn").instantiate()
+	var body: CollisionShape2D = player.get_node("CollisionShape2D")
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = body.shape
+	query.collision_mask = player.collision_mask
+	var offset: Vector2 = body.position
+	player.free()
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var fail := 0
+	for tile_name in ["TREE", "BUSH"]:
+		var tile: Vector2i = TileCatalog.TILES[tile_name]["atlas"]
+		world.clear()
+		for x in range(-2, 50):
+			for y in range(-2, 50):
+				world.set_cell(0, Vector2i(x, y), TileCatalog.SOURCE_ID, TileCatalog.GRASS_A)
+		for i in range(4, 16):
+			world.set_cell(1, Vector2i(i, 10), TileCatalog.SOURCE_ID, tile)  # row
+			world.set_cell(1, Vector2i(30, i), TileCatalog.SOURCE_ID, tile)  # column
+		for i in range(4, 16, 2):
+			world.set_cell(1, Vector2i(i, 30), TileCatalog.SOURCE_ID, tile)  # spaced row
+			world.set_cell(1, Vector2i(40, i + 20), TileCatalog.SOURCE_ID, tile)  # spaced column
+		await physics_frame
+		await physics_frame
+		var space: PhysicsDirectSpaceState2D = world.get_world_2d().direct_space_state
+		var sweeps := [
+			["row", Vector2i(5, 10), Vector2i(14, 10), Vector2(0, 1), true],
+			["column", Vector2i(30, 5), Vector2i(30, 14), Vector2(1, 0), true],
+			["spaced_row", Vector2i(5, 30), Vector2i(14, 30), Vector2(0, 1), false],
+			["spaced_column", Vector2i(40, 25), Vector2i(40, 34), Vector2(1, 0), false],
+		]
+		for sw in sweeps:
+			var a: Vector2 = world.to_global(world.map_to_local(sw[1]))
+			var b: Vector2 = world.to_global(world.map_to_local(sw[2]))
+			var dir: Vector2 = sw[3]
+			var lanes := int((b - a).length() * 2.0)  # every 0.5 px
+			var passes := 0
+			for i in lanes:
+				query.transform = Transform2D(0, a.lerp(b, float(i) / lanes) - dir * 40.0 + offset)
+				query.motion = dir * 80.0
+				if space.cast_motion(query)[0] >= 1.0:
+					passes += 1
+			if sw[4] and passes > 0:
+				printerr("FAIL forest_walls: %s %s lets %d/%d lanes through" % [tile_name, sw[0], passes, lanes])
+				fail += 1
+			elif not sw[4] and passes == 0:
+				printerr("FAIL forest_walls: %s %s has no gap the player fits through" % [tile_name, sw[0]])
+				fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_forest_walls")
+	return fail
 
 
 func _test_water_blocks_player() -> int:
