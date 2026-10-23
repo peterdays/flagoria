@@ -33,6 +33,15 @@ to a generated hero only changes the `Sprite2D` texture.
 The feet sit on the bottom row of the frame. The Sprite2D is drawn 8 px above
 the body origin, so the feet line up with the 8×10 collision box.
 
+## In-game hero
+
+The player (`Player/character_body_2d.tscn`) uses the Flagbearer sheet,
+committed at `art/hero/sheets/flagbearer_sheet.png`. To rebuild it after
+changing its parts or recipe:
+
+    python3 tools/hero/make_hero.py flagbearer
+    cp artifacts/hero/flagbearer_sheet.png art/hero/sheets/
+
 ## Recipes
 
 A hero is `art/hero/heroes/<name>.ini`:
