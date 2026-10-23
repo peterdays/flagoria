@@ -32,6 +32,7 @@ All tiles are 16×16 px. Atlas coordinates are `(column, row)` in 16 px cells. "
 | BUSH | Bush on moist land in the bush altitude band | 1 | (7, 3) | 1×2 | Polygon at the base | `Backgrounds/Tilesets/TilesetNature.png` (1, 10), 1×1 bush. Size changes from 1×2 to 1×1 |
 | TREE | Tree on moist land above `tree_min_alt` | 1 | (7, 0) | 3×3 | Polygon at the trunk | `Backgrounds/Tilesets/TilesetNature.png` (6, 8), 2×2 round tree. Size changes from 3×3 to 2×2 |
 | FLOWER | Walkable flower in the flower altitude band | 2 (`GROUND_DECOR_LAYER`) | (9, 3) | 1×1 | None | `Backgrounds/Tilesets/TilesetNature.png` (3, 11), red flower. (0, 11) and (6, 11) are other variants |
+| STONES | Walkable stones on bare land and beaches in some biomes (`BiomeCatalog.STRUCTURES`, biomes on only) | 2 (`GROUND_DECOR_LAYER`) | (6, 2) | 1×1 | None | To be picked from `Backgrounds/Tilesets/TilesetNature.png` (small rocks) during the swap |
 
 Coordinates for the Ninja Adventure column were read off the sheets by eye. Confirm each one against a rendered map before the swap lands.
 
