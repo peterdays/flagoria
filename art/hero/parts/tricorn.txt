@@ -1,0 +1,16 @@
+# Three-cornered hat (hat ramp) with gold trim.
+[down y=0]
+.....tttttt.....
+..ttttttttttTT..
+..gtttttttttTg..
+...gggggggggg...
+[left y=0]
+.....tttttt.....
+...ttttttttttT..
+...gtttttttttTg.
+....gggggggggg..
+[up y=0]
+.....tttttt.....
+..ttttttttttTT..
+..gTTTTTTTTTTg..
+...gggggggggg...
