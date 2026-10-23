@@ -41,6 +41,11 @@ func _run() -> void:
 	failures += _test_player_spawn_no_missing_nodes()
 	failures += _test_server_port_from_args()
 	failures += await _test_dedicated_server_join()
+	failures += _test_mob_predict_matches_chunks()
+	failures += _test_mob_plan()
+	failures += _test_mob_wander()
+	failures += _test_mob_sheet_swap()
+	failures += await _test_mobs_sync_to_peer()
 	if failures == 0:
 		print("All tests passed.")
 		quit(0)
@@ -2118,4 +2123,246 @@ func _test_dedicated_server_join() -> int:
 	scene.queue_free()
 	if fail == 0:
 		print("PASS test_dedicated_server_join (client %s)" % client_id)
+	return fail
+
+
+func _test_mob_predict_matches_chunks() -> int:
+	## TileMap.predict_cell gives the same ground and plant/structure as
+	## generate_chunk, with biomes off, on, and archipelago, so mobs can read
+	## terrain where no chunk was generated.
+	print("-- test_mob_predict_matches_chunks")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var cases := [_spawn_params(11, 0.0), _spawn_params(42, 0.003), _biome_terrain_params(true)]
+	var fail := 0
+	for i in cases.size():
+		world.apply_map_params(cases[i])
+		world.generate_chunk(Vector2(0, 0))
+		var checked := 0
+		for cell in world.get_used_cells(0):
+			var top: Vector2i = world.get_cell_atlas_coords(1, cell)
+			if top == world.NO_PLANT:
+				top = world.get_cell_atlas_coords(2, cell)
+			var want := [world.get_cell_atlas_coords(0, cell), top]
+			var got: Array = world.predict_cell(cell)
+			checked += 1
+			if got != want:
+				printerr("FAIL mob_predict case=%s cell=%s predicted %s, chunk has %s" % [i, cell, got, want])
+				fail += 1
+				break
+			if world.predicted_clear(cell) != world.is_clear_ground(cell):
+				printerr("FAIL mob_predict case=%s cell=%s predicted_clear differs" % [i, cell])
+				fail += 1
+				break
+		if checked == 0:
+			printerr("FAIL mob_predict case=%s generated no cells" % i)
+			fail += 1
+	if fail == 0:
+		print("PASS test_mob_predict_matches_chunks (%s maps)" % cases.size())
+	scene.queue_free()
+	return fail
+
+
+func _test_mob_plan() -> int:
+	## Mob placement is the same for a seed, places a few mobs on home ground
+	## (crabs on sand, the rest on grass) away from the player spawn and apart
+	## from each other, and generates no tiles.
+	print("-- test_mob_plan")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var fail := 0
+	var total := 0
+	for biome_frequency in [0.0, 0.003]:
+		for seed_value in [1, 7, 11, 42, 99]:
+			var label := "seed=%s biomes=%s" % [seed_value, biome_frequency > 0.0]
+			world.apply_map_params(_spawn_params(seed_value, biome_frequency))
+			var plan: Array = MobSpawner.plan(world, Vector2i(0, 0), seed_value)
+			if world.get_used_cells(0).size() != 0:
+				printerr("FAIL mob_plan %s planning generated tiles" % label)
+				fail += 1
+			world.apply_map_params(_spawn_params(seed_value, biome_frequency))
+			if MobSpawner.plan(world, Vector2i(0, 0), seed_value) != plan:
+				printerr("FAIL mob_plan %s differs between runs" % label)
+				fail += 1
+			if plan.size() > MobSpawner.MAX_MOBS:
+				printerr("FAIL mob_plan %s has %s mobs, cap %s" % [label, plan.size(), MobSpawner.MAX_MOBS])
+				fail += 1
+			total += plan.size()
+			for i in plan.size():
+				var cell: Vector2i = plan[i]["cell"]
+				var type: String = plan[i]["type"]
+				var home: int = MobCatalog.stat(type, "home")
+				if not MobSpawner.is_home_cell(world, cell, home):
+					printerr("FAIL mob_plan %s %s at %s is not on its home ground" % [label, type, cell])
+					fail += 1
+				if maxi(absi(cell.x), absi(cell.y)) <= MobSpawner.SAFE_RADIUS:
+					printerr("FAIL mob_plan %s %s at %s is next to the spawn" % [label, type, cell])
+					fail += 1
+				for j in i:
+					var o: Vector2i = plan[j]["cell"]
+					if maxi(absi(cell.x - o.x), absi(cell.y - o.y)) < MobSpawner.MIN_GAP:
+						printerr("FAIL mob_plan %s mobs %s and %s are too close" % [label, i, j])
+						fail += 1
+	if total == 0:
+		printerr("FAIL mob_plan no mobs on any map")
+		fail += 1
+	if fail == 0:
+		print("PASS test_mob_plan (%s mobs over 10 maps)" % total)
+	scene.queue_free()
+	return fail
+
+
+func _test_mob_wander() -> int:
+	## Offline host: spawn the map's mobs, run 40 s of wander, and check every
+	## mob moves, never leaves its home ground or wander radius, and shows the
+	## walk or idle rows for its facing.
+	print("-- test_mob_wander")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var mobs_node: MobSpawner = scene.get_node("World/Mobs")
+	scene.world_params = _spawn_params(42, 0.003)
+	world.apply_map_params(scene.world_params)
+	var fail := 0
+	var count: int = scene.spawn_mobs()
+	var mobs: Array = mobs_node.mobs()
+	if count == 0 or mobs.size() != count:
+		printerr("FAIL mob_wander spawned %s, %s in the tree" % [count, mobs.size()])
+		scene.queue_free()
+		return 1
+	var start := {}
+	for m in mobs:
+		start[m] = m.position
+	var moved := {}
+	var dt := 1.0 / 45.0
+	for tick in range(45 * 40):
+		for m in mobs:
+			m.think(dt)
+			m._process(dt)
+			if m.position != start[m]:
+				moved[m] = true
+			var cell: Vector2i = world.local_to_map(m.position)
+			if not MobSpawner.is_home_cell(world, cell, MobCatalog.stat(m.mob_type, "home")):
+				printerr("FAIL mob_wander %s %s left home ground at %s" % [m.name, m.mob_type, cell])
+				fail += 1
+			if m.position.distance_to(m.home) > Mob.WANDER_RADIUS + 0.01:
+				printerr("FAIL mob_wander %s left its wander radius" % m.name)
+				fail += 1
+			var row: int = m.sprite.frame_coords.y
+			var block: int = MobCatalog.ANIMS[m.anim_name()]["row"]
+			if row != block + m.facing:
+				printerr("FAIL mob_wander %s shows row %s for %s facing %s" % [m.name, row, m.anim_name(), m.facing])
+				fail += 1
+		if fail > 0:
+			break
+	if fail == 0 and moved.size() != mobs.size():
+		printerr("FAIL mob_wander only %s of %s mobs moved" % [moved.size(), mobs.size()])
+		fail += 1
+	if fail == 0:
+		print("PASS test_mob_wander (%s mobs)" % mobs.size())
+	scene.queue_free()
+	return fail
+
+
+func _test_mob_sheet_swap() -> int:
+	## Each mob type's art is one sheet path: the scene holds no texture and the
+	## sprite uses whatever file that path names, on the shared 8x16 grid.
+	print("-- test_mob_sheet_swap")
+	var fail := 0
+	var tscn := FileAccess.get_file_as_string("res://Mobs/mob.tscn")
+	if tscn.contains(".png"):
+		printerr("FAIL mob_sheet_swap Mobs/mob.tscn names a texture")
+		fail += 1
+	for type in MobCatalog.names():
+		var mob: Mob = load("res://Mobs/mob.tscn").instantiate()
+		mob.setup(type, Vector2.ZERO, 1)
+		root.add_child(mob)
+		var tex: Texture2D = mob.sprite.texture
+		var want: String = MobCatalog.stat(type, "sheet")
+		if tex == null or tex.resource_path != want:
+			printerr("FAIL mob_sheet_swap %s sprite is not %s" % [type, want])
+			fail += 1
+		elif tex.get_size() != Vector2(MobCatalog.SHEET_COLS, MobCatalog.SHEET_ROWS) * MobCatalog.FRAME_SIZE:
+			printerr("FAIL mob_sheet_swap %s sheet is %s" % [type, tex.get_size()])
+			fail += 1
+		if mob.sprite.hframes != MobCatalog.SHEET_COLS or mob.sprite.vframes != MobCatalog.SHEET_ROWS:
+			printerr("FAIL mob_sheet_swap %s sprite grid is not 8x16" % type)
+			fail += 1
+		mob.queue_free()
+	if fail == 0:
+		print("PASS test_mob_sheet_swap (%s types)" % MobCatalog.names().size())
+	return fail
+
+
+func _test_mobs_sync_to_peer() -> int:
+	## Two players: a dedicated server places the mobs and a client that joins
+	## gets the same set (names, types, near the planned cells), and sees them
+	## move as the server wanders them.
+	print("-- test_mobs_sync_to_peer")
+	var timeout_ms := 30000
+	await process_frame
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL mobs_sync_to_peer found no free UDP port")
+		return 1
+	var pid := OS.create_process(
+		OS.get_executable_path(),
+		["--headless", "--path", ProjectSettings.globalize_path("res://"), "--", "--server", "--port=%d" % port]
+	)
+	if pid <= 0:
+		printerr("FAIL mobs_sync_to_peer could not start the server process")
+		return 1
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var fail := 0
+	var mobs_node: MobSpawner = scene.get_node("World/Mobs")
+	var world = scene.get_node("World/worldMap")
+	scene.add_player_joined(port)
+	var plan: Array = []
+	var deadline := Time.get_ticks_msec() + timeout_ms
+	while Time.get_ticks_msec() < deadline and OS.is_process_running(pid):
+		var params: MapGenParams = scene.world_params
+		if plan.is_empty() and params != null and params.altitude_seed != 0:
+			plan = MobSpawner.plan(world, world.resolve_player_spawn(), params.altitude_seed)
+		if not plan.is_empty() and mobs_node.mobs().size() >= plan.size():
+			break
+		await process_frame
+	var mobs: Array = mobs_node.mobs()
+	if plan.is_empty():
+		printerr("FAIL mobs_sync_to_peer no map params or an empty mob plan")
+		fail += 1
+	elif mobs.size() != plan.size():
+		printerr("FAIL mobs_sync_to_peer client has %s mobs, plan has %s" % [mobs.size(), plan.size()])
+		fail += 1
+	else:
+		var start := {}
+		for i in plan.size():
+			var m: Mob = mobs_node.get_node_or_null("mob_%d" % i)
+			var at: Vector2 = world.map_to_local(plan[i]["cell"])
+			if m == null or m.mob_type != plan[i]["type"]:
+				printerr("FAIL mobs_sync_to_peer mob_%d missing or not a %s" % [i, plan[i]["type"]])
+				fail += 1
+			elif m.position.distance_to(at) > Mob.WANDER_RADIUS + 1.0:
+				printerr("FAIL mobs_sync_to_peer mob_%d at %s, planned %s" % [i, m.position, at])
+				fail += 1
+			else:
+				start[m] = m.position
+		var moved := false
+		deadline = Time.get_ticks_msec() + 10000
+		while fail == 0 and not moved and Time.get_ticks_msec() < deadline:
+			await process_frame
+			for m in start:
+				if is_instance_valid(m) and m.position != start[m]:
+					moved = true
+		if fail == 0 and not moved:
+			printerr("FAIL mobs_sync_to_peer no mob moved on the client in 10 s")
+			fail += 1
+	OS.kill(pid)
+	scene.enet_peer.close()
+	scene.multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	scene.queue_free()
+	if fail == 0:
+		print("PASS test_mobs_sync_to_peer (%s mobs)" % plan.size())
 	return fail

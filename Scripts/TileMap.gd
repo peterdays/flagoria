@@ -25,6 +25,8 @@ var archipelago_jitter: float = 0.5
 var archipelago_seed: int = 0
 var archipelago_world_extent: int = 0
 var archipelago_island_count: int = 0
+# predict_cell results by cell; cleared when the params change.
+var _predict_cache: Dictionary = {}
 # Kept Vector2i squares when archipelago_island_count > 0.
 var _archipelago_active_squares: Dictionary = {}
 var _archipelago_count_limited: bool = false
@@ -105,6 +107,7 @@ func apply_map_params(p: MapGenParams) -> void:
 	flower_min_chance = working.flower_min_chance
 
 	clear()
+	_predict_cache.clear()
 	spawn_point = Vector2i(0, 0)
 
 
@@ -383,6 +386,43 @@ func structure_tile(chance: float, biome_id: int = BiomeCatalog.TEMPERATE) -> Ve
 	if chance > BiomeCatalog.structures(biome_id, "stone_chance"):
 		return TileCatalog.STONES
 	return NO_PLANT
+
+
+func predict_cell(cell: Vector2i) -> Array:
+	## [ground atlas, plant or structure atlas or NO_PLANT] that generate_chunk
+	## puts at `cell`, computed from the noise alone: no tiles are placed, so
+	## code away from the players (mobs) can read terrain anywhere.
+	if _predict_cache.has(cell):
+		return _predict_cache[cell]
+	var moist := moisture.get_noise_2d(cell.x, cell.y)
+	var chance := items_chance.get_noise_2d(cell.x, cell.y)
+	var b := biome_at(cell)
+	var alt := cell_altitude(cell, b)
+	var ground := ground_tile(alt, moist, chance, b)
+	var top := NO_PLANT
+	if ground_is_walkable(ground):
+		if biome_frequency <= 0.0 or ground != TileCatalog.SAND:
+			top = plant_tile(alt, moist, chance, b)
+		if top == NO_PLANT:
+			top = structure_tile(chance, b)
+	var out := [ground, top]
+	_predict_cache[cell] = out
+	return out
+
+
+func predicted_clear(cell: Vector2i) -> bool:
+	## is_clear_ground from predict_cell: walkable, no tree, bush or stones.
+	var p := predict_cell(cell)
+	if not ground_is_walkable(p[0]):
+		return false
+	return p[1] == NO_PLANT or p[1] == TileCatalog.FLOWER
+
+
+func ground_is_walkable(atlas: Vector2i) -> bool:
+	## True when the layer-0 tile at `atlas` has no collision.
+	var src := tile_set.get_source(TileCatalog.SOURCE_ID) as TileSetAtlasSource
+	var td := src.get_tile_data(atlas, 0) if src and src.has_tile(atlas) else null
+	return td != null and td.get_collision_polygons_count(0) == 0
 
 
 func is_walkable_land(cell: Vector2i) -> bool:
