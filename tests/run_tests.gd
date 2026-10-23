@@ -27,6 +27,7 @@ func _run() -> void:
 	failures += _test_biomes()
 	failures += _test_biome_terrain()
 	failures += _test_biome_plants()
+	failures += _test_biome_structures()
 	failures += await _test_water_blocks_player()
 	failures += _test_map_settings_covers_params()
 	failures += _test_map_settings_rows_from_hints()
@@ -1143,8 +1144,9 @@ func _test_biome_terrain() -> int:
 		["temperate_no_flower", ground, 0.28, 0.2, T, NONE, NONE],
 		["continental_meadow", ground, 0.28, 0.2, BiomeCatalog.CONTINENTAL, NONE, FLOWER],
 		["temperate_flower", ground, 0.28, 0.5, T, NONE, FLOWER],
-		["oceanic_sparse", ground, 0.28, 0.5, BiomeCatalog.OCEANIC, NONE, NONE],
-		["beach_bare", beach, 0.35, 0.9, BiomeCatalog.OCEANIC, NONE, NONE],
+		# No flower; the bare cell gets OCEANIC stones (BiomeCatalog.STRUCTURES).
+		["oceanic_sparse", ground, 0.28, 0.5, BiomeCatalog.OCEANIC, NONE, TileCatalog.STONES],
+		["beach_no_plants", beach, 0.35, 0.9, T, NONE, NONE],
 	]
 	for d in decor:
 		world.erase_cell(1, d[1])
@@ -1327,6 +1329,115 @@ func _test_biome_plants() -> int:
 
 	if fail == 0:
 		print("PASS test_biome_plants land=%s trees=%s bushes=%s" % [land, trees, bushes])
+	scene.queue_free()
+	return 1 if fail > 0 else 0
+
+
+func _test_biome_structures() -> int:
+	## Per-biome structures (BiomeCatalog.STRUCTURES): with biome_frequency 0
+	## there are none (whole-chunk digests are pinned in test_biome_terrain);
+	## with biomes on, OCEANIC and CONTINENTAL land without a plant, beaches
+	## included, gets walkable stones on GROUND_DECOR_LAYER.
+	print("-- test_biome_structures")
+	const NONE := Vector2i(-1, -1)
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+
+	# Stones never block movement.
+	var src: TileSetAtlasSource = world.tile_set.get_source(TileCatalog.SOURCE_ID)
+	if src.get_tile_data(TileCatalog.STONES, 0).get_collision_polygons_count(0) != 0:
+		printerr("FAIL biome_structures: STONES has a collision polygon")
+		fail += 1
+
+	# Biomes off: no structures for any biome id.
+	world.apply_map_params(_biome_terrain_params(true))
+	for b in BiomeCatalog.STRUCTURES:
+		for chance in [-0.5, 0.0, 0.4, 0.9]:
+			if world.structure_tile(chance, b) != NONE:
+				printerr("FAIL biome_structures: frequency 0 biome %s placed stones at chance=%s" % [b, chance])
+				fail += 1
+
+	var on := _biome_terrain_params(true)
+	on.biome_frequency = 0.003
+	world.apply_map_params(on)
+	var T := BiomeCatalog.TEMPERATE
+	var ocean := BiomeCatalog.OCEANIC
+	var cont := BiomeCatalog.CONTINENTAL
+	var dense := BiomeCatalog.ARCHIPELAGO_DENSE
+	# [name, chance, biome, expected]
+	var cases := [
+		["temperate_none", 0.9, T, NONE],
+		["dense_none", 0.9, dense, NONE],
+		["oceanic_stones", 0.35, ocean, TileCatalog.STONES],
+		["oceanic_below", 0.25, ocean, NONE],
+		["continental_stones", 0.4, cont, TileCatalog.STONES],
+		["continental_below", 0.3, cont, NONE],
+	]
+	for c in cases:
+		var got: Vector2i = world.structure_tile(c[1], c[2])
+		if got != c[3]:
+			printerr("FAIL biome_structures case=%s got %s want %s" % [c[0], got, c[3]])
+			fail += 1
+
+	# Placement: plants take precedence, beaches and dry land get stones.
+	var ground := Vector2i(600, 600)
+	var beach := Vector2i(602, 600)
+	world.set_cell(0, ground, 0, TileCatalog.GRASS_A)
+	world.set_cell(0, beach, 0, TileCatalog.SAND)
+	# [name, cell, alt, moist, chance, biome, expected layer-1, expected layer-2]
+	var decor := [
+		["oceanic_bush_first", ground, 0.35, 0.5, 0.9, ocean, TileCatalog.BUSH, NONE],
+		["oceanic_dry_stones", ground, 0.35, -0.5, 0.5, ocean, NONE, TileCatalog.STONES],
+		["oceanic_beach_stones", beach, 0.35, 0.5, 0.9, ocean, NONE, TileCatalog.STONES],
+		["temperate_dry_bare", ground, 0.35, -0.5, 0.9, T, NONE, NONE],
+		["continental_flower_first", ground, 0.28, 0.5, 0.5, cont, NONE, TileCatalog.FLOWER],
+	]
+	for d in decor:
+		world.erase_cell(1, d[1])
+		world.erase_cell(world.GROUND_DECOR_LAYER, d[1])
+		world.set_tile_type_z1(d[1], d[2], d[3], 0.0, d[4], d[5])
+		var got1: Vector2i = world.get_cell_atlas_coords(1, d[1])
+		var got2: Vector2i = world.get_cell_atlas_coords(world.GROUND_DECOR_LAYER, d[1])
+		if got1 != d[6] or got2 != d[7]:
+			printerr("FAIL biome_structures decor=%s got l1=%s l2=%s want %s %s" % [d[0], got1, got2, d[6], d[7]])
+			fail += 1
+
+	# Over a wide area: stone share of land is highest in OCEANIC, then
+	# CONTINENTAL; TEMPERATE and ARCHIPELAGO_DENSE have none.
+	var land := {}
+	var stones := {}
+	for b in BiomeCatalog.STRUCTURES:
+		land[b] = 0
+		stones[b] = 0
+	for x in range(-2048, 2048, 16):
+		for y in range(-2048, 2048, 16):
+			var cell := Vector2i(x, y)
+			var b: int = world.biome_at(cell)
+			var alt: float = world.cell_altitude(cell, b)
+			var moist: float = world.moisture.get_noise_2d(x, y)
+			var chance: float = world.items_chance.get_noise_2d(x, y)
+			var tile: Vector2i = world.ground_tile(alt, moist, chance, b)
+			if tile == TileCatalog.WATER:
+				continue
+			land[b] += 1
+			var plant: Vector2i = NONE
+			if tile != TileCatalog.SAND:
+				plant = world.plant_tile(alt, moist, chance, b)
+			if plant == NONE and world.structure_tile(chance, b) == TileCatalog.STONES:
+				stones[b] += 1
+	var share := func(b: int) -> float: return float(stones[b]) / maxf(1.0, float(land[b]))
+	for b in land:
+		if land[b] < 20:
+			printerr("FAIL biome_structures: biome %s has only %s land samples" % [b, land[b]])
+			fail += 1
+	if not (share.call(ocean) > share.call(cont) and share.call(cont) > 0.0 and stones[T] == 0 and stones[dense] == 0):
+		printerr("FAIL biome_structures: stone shares oceanic=%s continental=%s temperate=%s dense=%s" % [share.call(ocean), share.call(cont), share.call(T), share.call(dense)])
+		fail += 1
+
+	if fail == 0:
+		print("PASS test_biome_structures land=%s stones=%s" % [land, stones])
 	scene.queue_free()
 	return 1 if fail > 0 else 0
 

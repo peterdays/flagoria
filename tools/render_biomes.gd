@@ -1,7 +1,7 @@
 extends SceneTree
 ## Headless biome render: a wide biome map next to a terrain map and a plant
 ## map, plus a legend with each biome's coverage, land mix (sand / swamp /
-## grass) and plant mix (tree / bush / flower).
+## grass) and plant mix (tree / bush / flower / stones).
 ##
 ## Samples one cell every `step` tiles over a `size` x `size` tile square
 ## centred on the origin, so the area spans several biome noise wavelengths.
@@ -32,11 +32,12 @@ const SAND := Color("e3d08a")
 const SWAMP := Color("7b4f2a")
 const GRASS := Color("58a64a")
 const HILL := Color("2f6b33")
-## Plant map: bare land, trees, bushes, flowers (water uses WATER).
+## Plant map: bare land, trees, bushes, flowers, stones (water uses WATER).
 const PLANT_LAND := Color("cfc9b0")
 const TREE := Color("0b2e12")
 const BUSH := Color("d9a521")
 const FLOWER := Color("ff4fd8")
+const STONES := Color("6e6a80")
 const LEGEND_W := 24
 ## Side, in tiles, of each per-biome close-up (drawn at 1 tile per pixel).
 const CLOSE_UP := 256
@@ -94,7 +95,7 @@ func _run() -> void:
 	var land := {}
 	for b in BIOME_NAMES:
 		counts[b] = 0
-		land[b] = {"land": 0, "sand": 0, "swamp": 0, "tree": 0, "bush": 0, "flower": 0}
+		land[b] = {"land": 0, "sand": 0, "swamp": 0, "tree": 0, "bush": 0, "flower": 0, "stones": 0}
 	for ix in range(n):
 		for iy in range(n):
 			var cell := Vector2i(ix * step - size / 2, iy * step - size / 2)
@@ -116,6 +117,8 @@ func _run() -> void:
 					land[b]["bush"] += 1
 				elif pc == FLOWER:
 					land[b]["flower"] += 1
+				elif pc == STONES:
+					land[b]["stones"] += 1
 				else:
 					pc = PLANT_LAND
 			terrain_img.set_pixel(ix, iy, c)
@@ -174,8 +177,8 @@ func _run() -> void:
 
 	var total := n * n
 	var legend := "seed=%d biome_frequency=%s area=%dx%d tiles step=%d\n" % [seed_v, str(freq), size, size, step]
-	legend += "left to right: biome map, terrain (water/sand/swamp/grass/hills), plants (tree #%s, bush #%s, flower #%s, bare land #%s), swatches top to bottom\n" % [
-		TREE.to_html(false), BUSH.to_html(false), FLOWER.to_html(false), PLANT_LAND.to_html(false)]
+	legend += "left to right: biome map, terrain (water/sand/swamp/grass/hills), plants (tree #%s, bush #%s, flower #%s, stones #%s, bare land #%s), swatches top to bottom\n" % [
+		TREE.to_html(false), BUSH.to_html(false), FLOWER.to_html(false), STONES.to_html(false), PLANT_LAND.to_html(false)]
 	legend += "bottom row: %d-tile close-up per biome with plants drawn, left to right in swatch order (other biomes dimmed)\n" % CLOSE_UP
 	var missing: Array[String] = []
 	for b in BIOME_NAMES:
@@ -195,9 +198,9 @@ func _run() -> void:
 	for b in BIOME_NAMES:
 		var l: Dictionary = land[b]
 		var n_land := maxi(1, l["land"])
-		legend += "%-18s tree=%5.1f%% bush=%5.1f%% flower=%5.1f%%\n" % [
+		legend += "%-18s tree=%5.1f%% bush=%5.1f%% flower=%5.1f%% stones=%5.1f%%\n" % [
 			BIOME_NAMES[b], 100.0 * l["tree"] / n_land,
-			100.0 * l["bush"] / n_land, 100.0 * l["flower"] / n_land]
+			100.0 * l["bush"] / n_land, 100.0 * l["flower"] / n_land, 100.0 * l["stones"] / n_land]
 	legend += "trees + bushes per biome (wide samples + close-up land cells):\n"
 	var bare: Array[String] = []
 	for b in BIOME_NAMES:
@@ -242,18 +245,24 @@ func _terrain_color(world, p: MapGenParams, cell: Vector2i, b: int) -> Color:
 
 
 func _plant_color(world, cell: Vector2i, b: int, ground: Color) -> Color:
-	## Same plant as set_tile_type_z1 on a land cell: TREE, BUSH or FLOWER, or
-	## `ground` when there is none. Beaches stay bare with biomes on.
-	if ground == SAND:
-		return ground
-	var plant: Vector2i = world.plant_tile(world.cell_altitude(cell, b),
-		world.moisture.get_noise_2d(cell.x, cell.y), world.items_chance.get_noise_2d(cell.x, cell.y), b)
+	## Same decoration as set_tile_type_z1 on a land cell: TREE, BUSH, FLOWER or
+	## STONES, or `ground` when there is none. Beaches get no plants with biomes
+	## on, only stones (BiomeCatalog.STRUCTURES).
+	var chance: float = world.items_chance.get_noise_2d(cell.x, cell.y)
+	var plant: Vector2i = world.NO_PLANT
+	if ground != SAND:
+		plant = world.plant_tile(world.cell_altitude(cell, b),
+			world.moisture.get_noise_2d(cell.x, cell.y), chance, b)
+	if plant == world.NO_PLANT:
+		plant = world.structure_tile(chance, b)
 	if plant == TileCatalog.TREE:
 		return TREE
 	if plant == TileCatalog.BUSH:
 		return BUSH
 	if plant == TileCatalog.FLOWER:
 		return FLOWER
+	if plant == TileCatalog.STONES:
+		return STONES
 	return ground
 
 

@@ -17,6 +17,7 @@ const GRASS_D := Vector2i(6, 1)
 const BUSH := Vector2i(7, 3)
 const TREE := Vector2i(7, 0)
 const FLOWER := Vector2i(9, 3)
+const STONES := Vector2i(6, 2)
 
 ## Name -> {source_id, atlas}. Every constant above appears here.
 const TILES := {
@@ -31,4 +32,5 @@ const TILES := {
 	"BUSH": {"source_id": SOURCE_ID, "atlas": BUSH},
 	"TREE": {"source_id": SOURCE_ID, "atlas": TREE},
 	"FLOWER": {"source_id": SOURCE_ID, "atlas": FLOWER},
+	"STONES": {"source_id": SOURCE_ID, "atlas": STONES},
 }
