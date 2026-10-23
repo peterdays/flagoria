@@ -1,6 +1,6 @@
 # Headless verify
 
-Headless verify opens the Godot 4.1 project, parses every GDScript file, and runs the headless test entry point so CI and local agents share one gate.
+Headless verify opens the Godot 4.7 project, parses every GDScript file, and runs the headless test entry point so CI and local agents share one gate.
 
 ## Sub-features
 
@@ -18,7 +18,7 @@ Headless verify opens the Godot 4.1 project, parses every GDScript file, and run
 Preconditions:
 
 - `doctor.sh` exits `0`.
-- `GODOT` is Godot 4.1.x.
+- `GODOT` is Godot 4.7.x.
 
 - **Run verify.** Execute `./.cursor/skills/verify-flagoria/bin/drive-verify.sh`. Exit code `0`. Log contains `Project load: ok`, `Script parse: ok`, `Tests: ok`, and `Verification passed.`
 - **Confirm tests.** The same log contains `All tests passed.` from `tests/run_tests.gd`.
@@ -27,5 +27,5 @@ Preconditions:
 ## Gotchas
 
 - `--editor --quit` may print RID-leak `ERROR` lines on shutdown; `tools/verify.sh` treats those as non-fatal.
-- A newer-than-4.1 Godot may migrate the project; doctor must reject it.
+- A newer-than-4.7 Godot may migrate the project; doctor must reject it.
 - Autoload names are invisible to `--check-only` on a single script; production code should use `/root/...` node paths where that matters.

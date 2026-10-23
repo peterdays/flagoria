@@ -21,15 +21,15 @@ if [[ -z "${GODOT:-}" ]]; then
   echo "doctor: GODOT is unset" >&2
   ok=0
 elif [[ ! -x "$GODOT" ]] && ! command -v "$GODOT" >/dev/null 2>&1; then
-  echo "doctor: GODOT not executable: (set GODOT to the 4.1 editor binary)" >&2
+  echo "doctor: GODOT not executable: (set GODOT to the 4.7 editor binary)" >&2
   ok=0
 else
   ver="$("$GODOT" --version 2>/dev/null || true)"
   echo "doctor: GODOT version=${ver}"
   case "${ver}" in
-    4.1.*) ;;
+    4.7.*) ;;
     *)
-      echo "doctor: need Godot 4.1.x, got ${ver}" >&2
+      echo "doctor: need Godot 4.7.x, got ${ver}" >&2
       ok=0
       ;;
   esac
