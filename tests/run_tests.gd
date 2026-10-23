@@ -564,6 +564,56 @@ func _test_tile_catalog() -> int:
 		if not src is TileSetAtlasSource or not src.has_tile(entry["atlas"]):
 			printerr("FAIL tile_catalog: %s %s not in TileSet source %s" % [n, entry["atlas"], entry["source_id"]])
 			fail += 1
+	## The map fill tiles keep their cells across tileset versions, so saved
+	## maps and the pinned tests stay valid.
+	var pinned := {
+		"WATER": Vector2i(5, 6), "SAND": Vector2i(5, 4), "SWAMP": Vector2i(14, 7),
+		"SWAMP_SPECIAL": Vector2i(27, 7), "GRASS_A": Vector2i(5, 0), "GRASS_B": Vector2i(5, 1),
+		"GRASS_C": Vector2i(6, 0), "GRASS_D": Vector2i(6, 1), "BUSH": Vector2i(7, 3),
+		"TREE": Vector2i(7, 0), "FLOWER": Vector2i(9, 3), "STONES": Vector2i(0, 7),
+	}
+	for n in pinned:
+		if not TileCatalog.TILES.has(n) or TileCatalog.TILES[n]["atlas"] != pinned[n]:
+			printerr("FAIL tile_catalog: %s moved from %s" % [n, pinned[n]])
+			fail += 1
+	## STONES reuses the small-rocks art cell on purpose.
+	var aliases := {"STONES": "ROCK_FLOAT_S"}
+	var cells := {}
+	for n in TileCatalog.TILES:
+		var a: Vector2i = TileCatalog.TILES[n]["atlas"]
+		if cells.has(a) and aliases.get(n, "") != cells[a] and aliases.get(cells[a], "") != n:
+			printerr("FAIL tile_catalog: %s and %s share cell %s" % [cells[a], n, a])
+			fail += 1
+		cells[a] = n
+	## Collision drives walkability: water blocks, ground fill does not.
+	var src0: TileSetAtlasSource = tile_set.get_source(TileCatalog.SOURCE_ID)
+	for n in ["WATER", "TREE", "BUSH"]:
+		if src0.get_tile_data(TileCatalog.TILES[n]["atlas"], 0).get_collision_polygons_count(0) == 0:
+			printerr("FAIL tile_catalog: %s has no collision polygon" % n)
+			fail += 1
+	for n in ["SAND", "SWAMP", "SWAMP_SPECIAL", "GRASS_A", "GRASS_B", "GRASS_C", "GRASS_D", "FLOWER", "STONES"]:
+		if src0.get_tile_data(TileCatalog.TILES[n]["atlas"], 0).get_collision_polygons_count(0) != 0:
+			printerr("FAIL tile_catalog: %s should be walkable" % n)
+			fail += 1
+	## Island terrain: one terrain set with every ISLAND_BLOB_ base piece in it.
+	if tile_set.get_terrain_sets_count() <= TileCatalog.ISLAND_TERRAIN_SET \
+			or tile_set.get_terrain_name(TileCatalog.ISLAND_TERRAIN_SET, TileCatalog.ISLAND_TERRAIN) != "Island":
+		printerr("FAIL tile_catalog: no Island terrain in the world TileSet")
+		fail += 1
+	else:
+		var bases := 0
+		for n in TileCatalog.TILES:
+			if not n.begins_with("ISLAND_BLOB_"):
+				continue
+			if not n.contains("_W"):
+				bases += 1
+			var td: TileData = src0.get_tile_data(TileCatalog.TILES[n]["atlas"], 0)
+			if td.terrain_set != TileCatalog.ISLAND_TERRAIN_SET or td.terrain != TileCatalog.ISLAND_TERRAIN:
+				printerr("FAIL tile_catalog: %s is not an Island terrain tile" % n)
+				fail += 1
+		if bases != 47:
+			printerr("FAIL tile_catalog: expected 47 island blob pieces, got %d" % bases)
+			fail += 1
 	scene.free()
 	if fail == 0:
 		print("PASS test_tile_catalog")
