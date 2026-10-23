@@ -1495,8 +1495,10 @@ func _test_biome_structures() -> int:
 
 func _test_forest_walls() -> int:
 	## A row or column of adjacent TREE or BUSH cells is a wall: sweep the
-	## player's shape across it one lane per pixel and require every lane to
-	## stop. With one free cell between plants the player must still pass.
+	## player's shape across it in half-pixel lanes and require every lane to
+	## stop. Half pixels matter: a gap 1 px wider than the player only opens
+	## between whole-pixel lanes. With one free cell between plants the
+	## player must still pass.
 	print("-- test_forest_walls")
 	var player = load("res://Player/character_body_2d.tscn").instantiate()
 	var body: CollisionShape2D = player.get_node("CollisionShape2D")
@@ -1534,7 +1536,7 @@ func _test_forest_walls() -> int:
 			var a: Vector2 = world.to_global(world.map_to_local(sw[1]))
 			var b: Vector2 = world.to_global(world.map_to_local(sw[2]))
 			var dir: Vector2 = sw[3]
-			var lanes := int((b - a).length())
+			var lanes := int((b - a).length() * 2.0)  # every 0.5 px
 			var passes := 0
 			for i in lanes:
 				query.transform = Transform2D(0, a.lerp(b, float(i) / lanes) - dir * 40.0 + offset)
