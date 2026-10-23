@@ -12,6 +12,7 @@ func _run() -> void:
 	failures += _test_smoke_true()
 	failures += _test_map_characterization()
 	failures += _test_spawn_on_land()
+	failures += _test_spawn_reachable()
 	failures += _test_map_settings_water_reopen()
 	failures += _test_no_decorations_on_water()
 	failures += _test_flowers()
@@ -161,6 +162,49 @@ func _test_spawn_on_land() -> int:
 
 	scene.queue_free()
 	return fail
+
+func _spawn_params(seed_value: int, biome_frequency: float) -> MapGenParams:
+	var params = MapGenParams.make_defaults()
+	params.altitude_seed = seed_value
+	params.moisture_seed = seed_value
+	params.temperature_seed = seed_value
+	params.items_seed = seed_value
+	params.biome_seed = seed_value
+	params.biome_frequency = biome_frequency
+	return params
+
+
+func _test_spawn_reachable() -> int:
+	## The spawn cell is clear ground (no tree, bush or stones) and the player
+	## can walk from it to at least SPAWN_MIN_REACHABLE clear cells. Seed 7 with
+	## biomes on used to spawn on a single sand cell surrounded by water.
+	print("-- test_spawn_reachable")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var need: int = world.SPAWN_MIN_REACHABLE
+	var cases := [[7, 0.003]]
+	for biome_frequency in [0.003, 0.0]:
+		for seed_value in range(1, 51):
+			cases.append([seed_value, biome_frequency])
+	var fail := 0
+	for case in cases:
+		world.apply_map_params(_spawn_params(case[0], case[1]))
+		var cell: Vector2i = world.resolve_player_spawn()
+		var label := "seed=%s biomes=%s cell=%s" % [case[0], case[1] > 0.0, cell]
+		if not world.is_clear_ground(cell):
+			printerr("FAIL spawn_reachable %s is not clear ground" % label)
+			fail += 1
+			continue
+		var reach: int = world.reachable_clear_cells(cell, need).size()
+		if reach < need:
+			printerr("FAIL spawn_reachable %s reaches %s cells, need %s" % [label, reach, need])
+			fail += 1
+	if fail == 0:
+		print("PASS test_spawn_reachable (%s maps, %s+ cells each)" % [cases.size(), need])
+	scene.queue_free()
+	return fail
+
 
 func _test_map_settings_water_reopen() -> int:
 	## Map Settings must show the in-use water value on reopen, even when a

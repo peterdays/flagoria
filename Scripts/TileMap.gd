@@ -52,6 +52,10 @@ const SPAWN_NEIGHBORS := [
 	Vector2i(0, -1), Vector2i(1, -1), Vector2i(1, 0), Vector2i(1, 1),
 	Vector2i(0, 1), Vector2i(-1, 1), Vector2i(-1, 0), Vector2i(-1, -1),
 ]
+# Player moves between cells by 4-neighbour steps.
+const SPAWN_STEPS := [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]
+# A spawn must reach at least this many clear-ground cells on foot.
+const SPAWN_MIN_REACHABLE := 200
 
 
 func _ready():
@@ -398,34 +402,75 @@ func count_walkable_neighbors(cell: Vector2i) -> int:
 	return n
 
 
-func resolve_player_spawn(origin_cell: Vector2i = Vector2i(0, 0), max_radius: int = 96) -> Vector2i:
-	generate_chunk(map_to_local(origin_cell))
-	if is_walkable_land(origin_cell):
-		spawn_point = origin_cell
-		return origin_cell
+func is_clear_ground(cell: Vector2i) -> bool:
+	## Walkable ground with no tree, bush or stones on it. Generates the cell's
+	## chunk first if it has not been generated yet.
+	if get_cell_source_id(0, cell) == -1:
+		generate_chunk(map_to_local(cell))
+	if not is_walkable_land(cell):
+		return false
+	if get_cell_source_id(1, cell) != -1:
+		return false
+	return get_cell_atlas_coords(GROUND_DECOR_LAYER, cell) != TileCatalog.STONES
 
-	var visited := {}
+
+func reachable_clear_cells(start: Vector2i, limit: int = SPAWN_MIN_REACHABLE) -> Array[Vector2i]:
+	## Clear-ground cells reachable from start by 4-neighbour steps, start
+	## included, in flood order. Stops once limit cells are found.
+	var found: Array[Vector2i] = []
+	if not is_clear_ground(start):
+		return found
+	var seen := {start: true}
+	found.append(start)
+	var head := 0
+	while head < found.size() and found.size() < limit:
+		var current: Vector2i = found[head]
+		head += 1
+		for d in SPAWN_STEPS:
+			var next: Vector2i = current + d
+			if seen.has(next):
+				continue
+			seen[next] = true
+			if is_clear_ground(next):
+				found.append(next)
+				if found.size() >= limit:
+					break
+	return found
+
+
+func resolve_player_spawn(origin_cell: Vector2i = Vector2i(0, 0), max_radius: int = 96) -> Vector2i:
+	## Nearest clear-ground cell to origin_cell (ring order) from which the
+	## player can walk to at least SPAWN_MIN_REACHABLE clear cells. If none is
+	## within max_radius, the candidate with the largest reachable area; if no
+	## clear cell at all, origin_cell.
+	var best := origin_cell
+	var best_size := 0
+	# Cells of areas already measured as too small, so each is flooded once.
+	var small_area := {}
+	var visited := {origin_cell: true}
 	var queue: Array[Vector2i] = [origin_cell]
-	visited[origin_cell] = true
 	var head := 0
 	while head < queue.size():
-		var current: Vector2i = queue[head]
+		var cell: Vector2i = queue[head]
 		head += 1
+		if not small_area.has(cell) and is_clear_ground(cell):
+			var area := reachable_clear_cells(cell)
+			if area.size() >= SPAWN_MIN_REACHABLE:
+				spawn_point = cell
+				return cell
+			for c in area:
+				small_area[c] = true
+			if area.size() > best_size:
+				best_size = area.size()
+				best = cell
 		for d in SPAWN_NEIGHBORS:
-			var next: Vector2i = current + d
+			var next: Vector2i = cell + d
 			if visited.has(next):
 				continue
-			var dx: int = absi(next.x - origin_cell.x)
-			var dy: int = absi(next.y - origin_cell.y)
-			if dx > max_radius or dy > max_radius:
+			if absi(next.x - origin_cell.x) > max_radius or absi(next.y - origin_cell.y) > max_radius:
 				continue
 			visited[next] = true
-			if get_cell_source_id(0, next) == -1:
-				generate_chunk(map_to_local(next))
-			if is_walkable_land(next):
-				spawn_point = next
-				return next
 			queue.append(next)
 
-	spawn_point = origin_cell
-	return origin_cell
+	spawn_point = best
+	return best
