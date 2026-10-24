@@ -11,7 +11,8 @@ extends Node2D
 ## Contact: touching a living player costs it CONTACT_DAMAGE half-hearts
 ## (PlayerHealth's invulnerability spaces out repeat hits), then the mob
 ## stands still for HIT_PAUSE.
-## Sword: a player's sword in the HurtBox during that player's swing costs 1
+## Sword: a player's sword in the HurtBox while that player's sword is active
+## (sword_active(), or isAttacking on players without it) costs 1
 ## HP, once per swing. A hit plays the hurt row (HURT); the last hit plays the
 ## hurt row, then the death puff (DYING), then the server frees the mob and
 ## the MultiplayerSpawner removes it everywhere.
@@ -174,16 +175,23 @@ func take_hit() -> bool:
 	return true
 
 
+static func swinging(attacker: Object) -> bool:
+	## The player's own sword_active() when it has one, else its isAttacking flag.
+	if attacker.has_method("sword_active"):
+		return attacker.sword_active()
+	return attacker.get("isAttacking") == true
+
+
 func _check_swords() -> void:
 	## A sword (player/weapon/sword) in the HurtBox counts while its player is
 	## swinging, once per swing.
 	for id in _struck.keys():
 		var attacker := instance_from_id(id)
-		if not is_instance_valid(attacker) or not attacker.get("isAttacking"):
+		if not is_instance_valid(attacker) or not swinging(attacker):
 			_struck.erase(id)
 	for area in hurt_box.get_overlapping_areas():
 		var attacker := area.get_parent().get_parent() if area.get_parent() else null
-		if attacker == null or not attacker.get("isAttacking") or not is_alive(attacker):
+		if attacker == null or not swinging(attacker) or not is_alive(attacker):
 			continue
 		if _struck.has(attacker.get_instance_id()):
 			continue
