@@ -244,8 +244,7 @@ func _test_spawn_radius_no_overlap() -> int:
 	## Six players joining at once, then all respawning at once (and again
 	## while half stand around the spawn) each get a spot: clear walkable
 	## ground, within SPAWN_RADIUS of the spawn point, and no two collision
-	## boxes overlap. A full area falls back to the nearest free spot outside
-	## the radius, then to the spawn point.
+	## boxes overlap.
 	print("-- test_spawn_radius_no_overlap")
 	var fail := 0
 	await process_frame
@@ -309,29 +308,51 @@ func _test_spawn_radius_no_overlap() -> int:
 		if fail == 0:
 			print("PASS spawn_radius seed=%s spawn=%s spots=%s" % [seed_value, cell, joined])
 
-	# Fallbacks: every spot in the radius taken -> nearest free one beyond it;
-	# every spot taken -> the spawn point itself.
+	scene.queue_free()
+	if fail == 0:
+		print("PASS test_spawn_radius_no_overlap")
+	return fail
+
+
+func _test_spawn_full_area_searches_outward() -> int:
+	## With every spot in the radius taken, a player gets the nearest free
+	## spot beyond it; with every spot of the usual search taken too, the
+	## search keeps going outward to a free spot instead of the spawn point.
+	print("-- test_spawn_full_area_searches_outward")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	world.apply_map_params(_spawn_params(42, 0.003))
 	var cell: Vector2i = world.resolve_player_spawn()
 	var origin: Vector2 = world.map_to_local(cell)
 	var spots: Array[Vector2] = world.spawn_spots(cell)
 	var inside: Array[Vector2] = []
 	var outside := Vector2.INF
 	for spot in spots:
-		if spot.distance_to(origin) <= radius:
+		if spot.distance_to(origin) <= world.SPAWN_RADIUS:
 			inside.append(spot)
 		elif outside == Vector2.INF:
 			outside = spot
 	var full_radius: Vector2 = world.free_spawn_position(cell, inside)
-	if full_radius != outside or full_radius.distance_to(origin) <= radius:
-		printerr("FAIL spawn_radius full radius -> %s, want nearest outside %s" % [full_radius, outside])
+	if full_radius != outside or full_radius.distance_to(origin) <= world.SPAWN_RADIUS:
+		printerr("FAIL spawn_full_area full radius -> %s, want nearest outside %s" % [full_radius, outside])
 		fail += 1
+	# Every spot the usual search walks is taken: the next one out is free.
+	var beyond: Array[Vector2] = world.spawn_spots(cell, spots.size() * 4)
+	var want := Vector2.INF
+	for spot in beyond:
+		if spot not in spots:
+			want = spot
+			break
 	var all_taken: Vector2 = world.free_spawn_position(cell, spots)
-	if all_taken != origin:
-		printerr("FAIL spawn_radius nothing free -> %s, want spawn %s" % [all_taken, origin])
+	if all_taken != want or all_taken == origin or not world.is_clear_ground(world.local_to_map(all_taken)):
+		printerr("FAIL spawn_full_area %s spots taken -> %s, want the next free spot %s (spawn %s)"
+				% [spots.size(), all_taken, want, origin])
 		fail += 1
 	scene.queue_free()
 	if fail == 0:
-		print("PASS test_spawn_radius_no_overlap (%s spots in radius)" % inside.size())
+		print("PASS test_spawn_full_area_searches_outward (%s in radius, next free %s)" % [inside.size(), all_taken])
 	return fail
 
 

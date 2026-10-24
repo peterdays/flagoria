@@ -65,7 +65,8 @@ const SPAWN_RADIUS := 64.0
 # Two players closer than this (px, centre to centre) would touch; one tile
 # apart keeps their 8 x 10 bodies from overlapping.
 const SPAWN_CLEARANCE := 16.0
-# Clear cells walked from the spawn point when looking for a free spot.
+# Clear cells walked from the spawn point when looking for a free spot, at
+# least (more when many players stand around it, see free_spawn_position).
 const SPAWN_SEARCH_LIMIT := 400
 
 
@@ -525,12 +526,13 @@ func resolve_player_spawn(origin_cell: Vector2i = Vector2i(0, 0), max_radius: in
 	return best
 
 
-func spawn_spots(origin_cell: Vector2i) -> Array[Vector2]:
-	## Centres of the clear cells a player can walk to from origin_cell,
-	## nearest first (ties by y, then x), so every peer gets the same order.
+func spawn_spots(origin_cell: Vector2i, limit: int = SPAWN_SEARCH_LIMIT) -> Array[Vector2]:
+	## Centres of up to limit clear cells a player can walk to from
+	## origin_cell, nearest first (ties by y, then x), so every peer gets the
+	## same order.
 	var origin := map_to_local(origin_cell)
 	var spots: Array[Vector2] = []
-	for cell in reachable_clear_cells(origin_cell, SPAWN_SEARCH_LIMIT):
+	for cell in reachable_clear_cells(origin_cell, limit):
 		spots.append(map_to_local(cell))
 	spots.sort_custom(func(a: Vector2, b: Vector2) -> bool:
 		var da := a.distance_squared_to(origin)
@@ -546,8 +548,13 @@ func spawn_spots(origin_cell: Vector2i) -> Array[Vector2]:
 func free_spawn_position(origin_cell: Vector2i, taken: Array[Vector2]) -> Vector2:
 	## The nearest spot to origin_cell clear of every position in taken. That
 	## is within SPAWN_RADIUS unless the area is full; then the nearest free
-	## spot further out, and origin_cell itself if nothing is free.
-	for spot in spawn_spots(origin_cell):
+	## spot further out. One position blocks at most per_taken cell centres,
+	## so the search walks enough cells that taken cannot cover them all.
+	## Only when all the ground reachable from origin_cell is taken does it
+	## fall back to origin_cell itself.
+	var span := 2 * ceili(SPAWN_CLEARANCE / tile_set.tile_size.x) + 1
+	var per_taken := span * span
+	for spot in spawn_spots(origin_cell, maxi(SPAWN_SEARCH_LIMIT, per_taken * taken.size() + 1)):
 		if _clear_of(spot, taken):
 			return spot
 	return map_to_local(origin_cell)
