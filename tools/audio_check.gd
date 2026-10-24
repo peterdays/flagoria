@@ -225,10 +225,10 @@ func _begin_step(i: int, t: float) -> void:
 		"swing":
 			_attacker.attack_animation()
 		"damage":
-			_walker.currentHealth = _walker.maxHealth
+			_walker.health.set_health_now(_walker.health.max_health)
 			_walker._on_hurt_box_area_entered(_attacker.get_node("weapon/sword"))
 		"kill":
-			_walker.currentHealth = 1
+			_walker.health.set_health_now(1)
 			_walker._on_hurt_box_area_entered(_attacker.get_node("weapon/sword"))
 	# Log starts in the same frame: Godot can stop a player at once when its
 	# bus is muted, before the next poll would see it playing.

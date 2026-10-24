@@ -1,0 +1,27 @@
+# full
+.OO..OO.
+ORHOORRO
+ORHRRRRO
+ORRRRRrO
+.ORRRrO.
+..ORrO..
+...OO...
+........
+# half
+.OO..OO.
+ORHOOEEO
+ORHREEEO
+ORRREEEO
+.ORREEO.
+..OREO..
+...OO...
+........
+# empty
+.OO..OO.
+OEEOOEEO
+OEEEEEEO
+OEEEEEEO
+.OEEEEO.
+..OEEO..
+...OO...
+........
