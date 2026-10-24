@@ -3,13 +3,13 @@ extends Node2D
 ## Combat sounds for one player instance.
 ##
 ## Every trigger already runs once on each peer: attack_animation is a
-## call_local RPC, and hurt-box overlaps are detected locally on every peer
-## from replicated positions. So each peer plays each event once from those
-## paths, and nothing here is sent over the network.
+## call_local RPC, and health changes arrive through PlayerHealth's
+## call_local RPCs from the server. So each peer plays each event once from
+## those paths, and nothing here is sent over the network.
 ##
 ## Events:
 ##   swing - this player starts an attack.
-##   hit   - another player's sword lands on this player (played with hurt).
+##   hit   - a hit lands on this player (played with hurt).
 ##   hurt  - this player loses health.
 ##   sting - accent when a hit takes this player's health to 0.
 
