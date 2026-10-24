@@ -31,6 +31,8 @@ func _ready():
 	health.damaged.connect(_on_damaged)
 	health.died.connect(_on_died)
 	health.respawned.connect(_on_respawned)
+	health.health_changed.connect(_apply_dead_state.unbind(2))
+	health.state_received.connect(_apply_dead_state.unbind(2))
 	if not is_multiplayer_authority(): return
 	camera.make_current()
 	var map_zoom := MapZoom.new()  # local camera only; zoom is never synced
@@ -141,16 +143,22 @@ func _on_damaged(_amount: int):
 
 func _on_died():
 	combat_sfx.play_event("sting")
-	weapon.visible = false
-	# A dead player neither blocks movement nor hits until it respawns.
-	body_shape.set_deferred("disabled", true)
-	sword_shape.set_deferred("disabled", true)
+
+
+func _apply_dead_state():
+	# Follows health state, however it arrived (a hit, set_health_now, a
+	# respawn, or a late copy's state reply): a dead player neither blocks
+	# movement nor hits until it respawns. The sprite hides in _process.
+	var dead := health.is_dead()
+	body_shape.set_deferred("disabled", dead)
+	if dead:
+		weapon.visible = false
+		sword_shape.set_deferred("disabled", true)
 
 
 func _on_respawned(at: Vector2):
 	position = at
 	velocity = Vector2.ZERO
-	body_shape.set_deferred("disabled", false)
 
 func _on_animation_player_animation_finished(anim_name):
 	animations.play("walkDown")

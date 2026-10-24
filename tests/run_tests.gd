@@ -22,6 +22,7 @@ func _run() -> void:
 	failures += await _test_combat_sfx()
 	failures += await _test_player_health()
 	failures += await _test_player_health_sync()
+	failures += await _test_player_health_join_while_dead()
 	failures += await _test_sword_only_hits_mid_swing()
 	failures += _test_footsteps()
 	failures += _test_island_falloff()
@@ -464,6 +465,14 @@ func _test_player_health() -> int:
 	if hud.current != 6:
 		printerr("FAIL player_health: HUD after respawn %s" % hud.current)
 		fail += 1
+	# set_health_now(0) (tools, tests) leaves the same dead body as a kill.
+	h.set_health_now(0)
+	await physics_frame
+	me._process(0.0)
+	if not me.body_shape.disabled or not me.sword_shape.disabled or me.sprite.visible:
+		printerr("FAIL player_health: set_health_now(0) body off %s, sword off %s, sprite %s"
+				% [me.body_shape.disabled, me.sword_shape.disabled, me.sprite.visible])
+		fail += 1
 	scene.queue_free()
 	await process_frame
 	if fail == 0:
@@ -568,6 +577,115 @@ func _test_player_health_sync() -> int:
 	await process_frame
 	if fail == 0:
 		print("PASS test_player_health_sync")
+	return fail
+
+
+func _test_player_health_join_while_dead() -> int:
+	## A peer that joins while another player is dead sees that player dead:
+	## hidden, with body and sword collision off, and no death sound replayed.
+	## Its own hearts take the server's value from the state reply with no
+	## loss flash. Server: bare PlayerHealth nodes; client: the real scenes.
+	print("-- test_player_health_join_while_dead")
+	var fail := 0
+	await process_frame
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL health_join_dead found no free UDP port")
+		return 1
+	var server_root := Node.new()
+	server_root.name = "JoinDeadServer"
+	root.add_child(server_root)
+	var s_world := Node.new()
+	s_world.name = "World"
+	server_root.add_child(s_world)
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var smp := SceneMultiplayer.new()
+	var cmp := SceneMultiplayer.new()
+	set_multiplayer(smp, server_root.get_path())
+	set_multiplayer(cmp, scene.get_path())
+	var speer := ENetMultiplayerPeer.new()
+	speer.create_server(port)
+	smp.multiplayer_peer = speer
+	var cpeer := ENetMultiplayerPeer.new()
+	cpeer.create_client("127.0.0.1", port)
+	var me_id := str(cpeer.get_unique_id())
+	# Before the client connects: player 5 is dead, the joiner's own player
+	# is down to 4 (as if hit right after spawning).
+	var server_health := func(player_name: String) -> PlayerHealth:
+		var p := Node2D.new()
+		p.name = player_name
+		var h := PlayerHealth.new()
+		h.name = "Health"
+		h.respawn_delay = 1000.0  # stays dead for the whole test
+		p.add_child(h)
+		s_world.add_child(p)
+		return h
+	server_health.call("5").take_damage(6)
+	server_health.call(me_id).take_damage(2)
+	cmp.multiplayer_peer = cpeer
+	var deadline := Time.get_ticks_msec() + 10000
+	while Time.get_ticks_msec() < deadline and (smp.get_peers().is_empty()
+			or cpeer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED):
+		await process_frame
+	if smp.get_peers().is_empty():
+		printerr("FAIL health_join_dead client did not connect")
+		fail += 1
+	else:
+		# The joiner's copies of both players. The test has no synchronizer on
+		# the server side, so the copies go without theirs.
+		var world: Node = scene.get_node("World")
+		var copy := func(player_name: String) -> CharacterBody2D:
+			var p = load("res://Player/character_body_2d.tscn").instantiate()
+			p.name = player_name
+			p.get_node("MultiplayerSynchronizer").free()
+			world.add_child(p)
+			return p
+		var dead = copy.call("5")
+		var deaths := [0]
+		dead.health.died.connect(func() -> void: deaths[0] += 1)
+		var me = copy.call(me_id)
+		me.set_physics_process(false)  # its animation RPCs have no server node here
+		var hud: HeartsHud = scene.get_node("CanvasLayer1/HeartsHud")
+		hud.set_process(false)  # a flash must still be up when checked
+		var until := Time.get_ticks_msec() + 5000
+		while Time.get_ticks_msec() < until and (dead.health.health != 0 or me.health.health != 4):
+			await process_frame
+		for i in 3:
+			await physics_frame
+		dead._process(0.0)
+		if dead.health.health != 0 or not dead.health.is_dead():
+			printerr("FAIL health_join_dead joiner sees %s for a dead player" % dead.health.health)
+			fail += 1
+		if not dead.body_shape.disabled or not dead.sword_shape.disabled or dead.sprite.visible or dead.weapon.visible:
+			printerr("FAIL health_join_dead dead copy: body off %s, sword off %s, sprite %s, weapon %s"
+					% [dead.body_shape.disabled, dead.sword_shape.disabled, dead.sprite.visible, dead.weapon.visible])
+			fail += 1
+		if deaths[0] != 0:
+			printerr("FAIL health_join_dead join replayed the death (%s)" % deaths[0])
+			fail += 1
+		if me.health.health != 4 or hud.current != 4:
+			printerr("FAIL health_join_dead own hearts %s, HUD %s, server 4" % [me.health.health, hud.current])
+			fail += 1
+		var flashing := false
+		for slot in 3:
+			flashing = flashing or hud.shown_icon(slot) in [HeartsHud.ICON_FLASH_0, HeartsHud.ICON_FLASH_1]
+		if flashing:
+			printerr("FAIL health_join_dead the join state reply flashed the HUD")
+			fail += 1
+		if me.body_shape.disabled:
+			printerr("FAIL health_join_dead living joiner has no body collision")
+			fail += 1
+		hud.set_process(true)
+	cpeer.close()
+	speer.close()
+	set_multiplayer(null, scene.get_path())
+	set_multiplayer(null, server_root.get_path())
+	scene.queue_free()
+	server_root.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_player_health_join_while_dead")
 	return fail
 
 

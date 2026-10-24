@@ -32,12 +32,15 @@ func _ready() -> void:
 func bind(health: PlayerHealth) -> void:
 	## Follow one player's health and show the row.
 	health.health_changed.connect(set_health)
+	# A late copy's state reply is not a loss happening now: no flash.
+	health.state_received.connect(set_health.bind(false))
 	set_health(health.health, health.max_health)
 	show()
 
 
-func set_health(value: int, max_value: int) -> void:
-	if max_value == maximum and value < current:
+func set_health(value: int, max_value: int, flash := true) -> void:
+	## `flash` false shows the new value with no loss flash.
+	if flash and max_value == maximum and value < current:
 		_flash_slots.clear()
 		for i in ceili(maximum / 2.0):
 			if icon_for(i, value) != icon_for(i, current):
