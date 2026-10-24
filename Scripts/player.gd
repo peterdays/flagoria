@@ -169,8 +169,7 @@ func _on_regen_timer_timeout():
 
 
 func _on_hurt_box_area_entered(area):
-	if area == $hurtBox: return
-
+	# An area never reports itself, and the hurtBox is on no layer anyway.
 	var collision_player = area.get_parent().get_parent()
 	if collision_player.name != name and collision_player.has_method("sword_active") and collision_player.sword_active():
 		# A different player's sword, mid-swing. Every peer sees the overlap; only

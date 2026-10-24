@@ -20,6 +20,7 @@ func _run() -> void:
 	failures += _test_audio_settings()
 	failures += await _test_music_player()
 	failures += await _test_combat_sfx()
+	failures += await _test_player_regen()
 	failures += await _test_player_health()
 	failures += await _test_player_health_sync()
 	failures += await _test_player_health_join_while_dead()
@@ -349,6 +350,58 @@ func _test_combat_sfx() -> int:
 	await process_frame
 	if fail == 0:
 		print("PASS test_combat_sfx")
+	return fail
+
+
+func _test_player_regen() -> int:
+	## The regen timer: every 5 s it heals half a heart, and skips players who
+	## are dead or already full. Ticks are fired by hand through the scene's
+	## own timeout connection, so the test does not wait 5 s per tick.
+	print("-- test_player_regen")
+	var fail := 0
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var me = load("res://Player/character_body_2d.tscn").instantiate()
+	me.name = str(scene.multiplayer.get_unique_id())
+	scene.get_node("World").add_child(me)
+	var h: PlayerHealth = me.health
+	var timer: Timer = me.get_node("regen_timer")
+	# autostart reads false once the timer has started, so check that it runs.
+	if timer.wait_time != 5.0 or timer.one_shot or timer.is_stopped():
+		printerr("FAIL player_regen timer %s s, one_shot %s, running %s"
+				% [timer.wait_time, timer.one_shot, not timer.is_stopped()])
+		fail += 1
+	if not timer.timeout.is_connected(me._on_regen_timer_timeout):
+		printerr("FAIL player_regen timer timeout is not connected to the player")
+		fail += 1
+	# Hurt: one tick heals half a heart (1 point), the next another.
+	h.set_health_now(3)
+	timer.timeout.emit()
+	if h.health != 4:
+		printerr("FAIL player_regen tick at 3 -> %s, want 4" % h.health)
+		fail += 1
+	timer.timeout.emit()
+	if h.health != 5:
+		printerr("FAIL player_regen second tick -> %s, want 5" % h.health)
+		fail += 1
+	# Full: a tick changes nothing.
+	h.set_health_now(h.max_health)
+	timer.timeout.emit()
+	if h.health != h.max_health:
+		printerr("FAIL player_regen full player -> %s" % h.health)
+		fail += 1
+	# Dead: a tick does not heal (respawn restores health).
+	h.respawn_delay = 1000.0
+	h.set_health_now(0)
+	timer.timeout.emit()
+	if h.health != 0 or not h.is_dead():
+		printerr("FAIL player_regen dead player -> %s" % h.health)
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_player_regen")
 	return fail
 
 
