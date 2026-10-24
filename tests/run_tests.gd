@@ -11,7 +11,10 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	var names := _registered_tests()
+	var skipped := {}
+	var names := _registered_tests(skipped)
+	for test_name in skipped:
+		printerr("WARNING: skipped %s: %s" % [test_name, skipped[test_name]])
 	var picked := names
 	for arg in OS.get_cmdline_user_args():
 		if arg == "--list":
@@ -25,7 +28,7 @@ func _run() -> void:
 				printerr("--only= needs at least one test name, e.g. --only=map_zoom (use --list to see the names)")
 				quit(1)
 				return
-			picked = _filter_tests(names, wanted)
+			picked = _filter_tests(names, wanted, skipped)
 			if picked.is_empty():
 				quit(1)
 				return
@@ -45,31 +48,49 @@ func _run() -> void:
 		quit(1)
 
 
-func _registered_tests() -> Array[String]:
+func _registered_tests(skipped: Dictionary) -> Array[String]:
 	## Every `func _test_*() -> int` in this file, in source order. Adding a
 	## test is just writing the function; nothing else needs to list it.
-	## A test-like function that does not match (parameters, uppercase
-	## letters, static, indented, or no leading underscore) is skipped with a
-	## warning on stderr, so it cannot silently drop out of the run.
+	## A test-like function that does not match is left out and recorded in
+	## skipped (name -> reason), so it cannot silently drop out of the run.
 	var found: Array[String] = []
 	var source := (get_script() as GDScript).source_code
 	var pattern := RegEx.create_from_string("(?m)^func (_test_[a-z0-9_]+)\\(\\)")
 	for m in pattern.search_all(source):
 		found.append(m.get_string(1))
-	var loose := RegEx.create_from_string("(?mi)^[ \\t]*(static[ \\t]+)?func[ \\t]+(_?test_\\w*)[ \\t]*\\([^)]*\\)")
+	var loose := RegEx.create_from_string("(?mi)^([ \\t]*)(static[ \\t]+)?func[ \\t]+(_?test_\\w*)[ \\t]*\\(([^)]*)\\)")
 	var exact := RegEx.create_from_string("^func _test_[a-z0-9_]+\\(\\)$")
 	for m in loose.search_all(source):
-		if exact.search(m.get_string(0)) == null:
-			printerr("WARNING: skipped %s: tests must be a top-level, non-static `func _test_<lowercase_name>()` with no parameters" % m.get_string(2))
+		if exact.search(m.get_string(0)) != null:
+			continue
+		var test_name := m.get_string(3)
+		var reasons: Array[String] = []
+		if m.get_string(1) != "":
+			reasons.append("it is indented; tests must be top-level")
+		if m.get_string(2) != "":
+			reasons.append("it is static; drop `static`")
+		if not test_name.to_lower().begins_with("_test_"):
+			reasons.append("the name must start with `_test_`")
+		if test_name != test_name.to_lower():
+			reasons.append("the name has uppercase letters; use lowercase")
+		if m.get_string(4).strip_edges() != "":
+			reasons.append("it takes parameters; tests take none")
+		if reasons.is_empty():
+			reasons.append("write it exactly as `func _test_<lowercase_name>()`")
+		skipped[test_name] = "; ".join(reasons)
 	return found
 
 
-func _filter_tests(names: Array[String], wanted: PackedStringArray) -> Array[String]:
+func _filter_tests(names: Array[String], wanted: PackedStringArray, skipped: Dictionary) -> Array[String]:
 	## The tests named in wanted (with or without the `test_` prefix), in run
 	## order. Empty, after printing the known names, if one does not match.
+	## A name that was skipped points at its warning instead of the list.
 	var keys: Array[String] = []
 	for raw in wanted:
 		var key := "_test_" + raw.trim_prefix("_").trim_prefix("test_")
+		if key in skipped:
+			printerr("Test %s is not run: see the WARNING for %s above." % [raw, key])
+			return []
 		if key not in names:
 			printerr("No test named %s. Known tests:" % raw)
 			for test_name in names:
@@ -843,7 +864,7 @@ func _test_player_respawn_no_snapback() -> int:
 		for i in 10:
 			await physics_frame
 		var stale: Vector2 = owner_copy.position
-		s_copy.health._do_respawn.rpc(spawn)
+		s_copy.health._do_respawn.rpc(spawn, s_copy.health.respawn_count + 1)
 		var reached := false
 		var snapped := ""
 		for f in 30:
@@ -882,6 +903,204 @@ func _test_player_respawn_no_snapback() -> int:
 	await process_frame
 	if fail == 0:
 		print("PASS test_player_respawn_no_snapback")
+	return fail
+
+
+func _test_player_respawn_hold_releases() -> int:
+	## The server's copy of a respawned client-owned player holds the spawn
+	## only until the owner's first update from after its respawn, wherever
+	## the owner then walks: also when it died on the spawn itself, or died
+	## near it and walks back past the death spot while the first updates
+	## after its respawn are lost. A copy that joined after the owner had
+	## already respawned must not show the death spot either.
+	print("-- test_player_respawn_hold_releases")
+	var fail := 0
+	var spawn := Vector2(400, 400)
+	fail += await _respawn_follow_case("died on the spawn", spawn, spawn, Vector2(3, 0), 0)
+	fail += await _respawn_follow_case("died near the spawn, first updates lost",
+			spawn + Vector2(-16, 0), spawn, Vector2(-3, 0), 80)
+	fail += await _respawn_follow_case("observer joined after earlier respawns",
+			spawn + Vector2(-20, 0), spawn, Vector2(3, 0), 0, 3)
+	if fail == 0:
+		print("PASS test_player_respawn_hold_releases")
+	return fail
+
+
+func _test_player_respawn_hold_before_first_sync() -> int:
+	## A copy created just before its owner's next respawn: the respawn
+	## arrives before the copy's first synced update, then a stale update
+	## the owner sent before that respawn, then a fresh one. The copy must
+	## hold the spawn through the stale update and follow the fresh one.
+	print("-- test_player_respawn_hold_before_first_sync")
+	var fail := 0
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var copy = load("res://Player/character_body_2d.tscn").instantiate()
+	copy.name = "2"  # owned by peer 2; this (offline) peer is the server
+	scene.get_node("World").add_child(copy)
+	copy.set_physics_process(false)
+	var sync: MultiplayerSynchronizer = copy.get_node("MultiplayerSynchronizer")
+	var death := Vector2(380, 400)
+	var spawn := Vector2(400, 400)
+	var n := 4  # the owner had respawned 3 times before this copy existed
+	copy.position = death
+	await physics_frame
+	copy.health._do_respawn(spawn, n)
+	copy.position = death  # stale update: sent before the owner saw respawn n
+	copy.owner_respawns = n - 1
+	sync.synchronized.emit()
+	if copy.position != spawn:
+		printerr("FAIL respawn_first_sync stale update shown: copy at %s, spawn %s" % [copy.position, spawn])
+		fail += 1
+	var fresh := spawn + Vector2(6, 0)
+	copy.position = fresh  # fresh update: sent after the owner saw respawn n
+	copy.owner_respawns = n
+	sync.synchronized.emit()
+	var next := spawn + Vector2(12, 0)
+	copy.position = next
+	sync.synchronized.emit()
+	if copy.position != next:
+		printerr("FAIL respawn_first_sync copy still held after the fresh update: at %s, owner %s" % [copy.position, next])
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_player_respawn_hold_before_first_sync")
+	return fail
+
+
+func _respawn_follow_case(label: String, death: Vector2, spawn: Vector2, walk: Vector2,
+		drop_ms: int, prior: int = 0) -> int:
+	## One respawn of a client-owned player over a UDP proxy (60 ms each way).
+	## After the owner respawns it walks `walk` per physics frame; packets from
+	## the owner are dropped for `drop_ms` from that moment. The server's copy
+	## must follow the owner, not stay at the spawn. With `prior` > 0 the owner
+	## has respawned that many times before the server's copy existed (as for
+	## a peer that joined later), and that copy must never show the death spot.
+	var fail := 0
+	await process_frame
+	var port := _free_udp_port()
+	var proxy_port := _free_udp_port()
+	if port == 0 or proxy_port == 0 or port == proxy_port:
+		printerr("FAIL respawn_hold %s found no free UDP ports" % label)
+		return 1
+	var server_root := Node.new()
+	server_root.name = "HoldServer"
+	root.add_child(server_root)
+	var s_world := Node2D.new()
+	s_world.name = "World"
+	server_root.add_child(s_world)
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var smp := SceneMultiplayer.new()
+	var cmp := SceneMultiplayer.new()
+	set_multiplayer(smp, server_root.get_path())
+	set_multiplayer(cmp, scene.get_path())
+	var speer := ENetMultiplayerPeer.new()
+	speer.create_server(port)
+	smp.multiplayer_peer = speer
+	const DELAY_MS := 60
+	var listen := UDPServer.new()
+	listen.listen(proxy_port, "127.0.0.1")
+	var upstream := PacketPeerUDP.new()
+	upstream.connect_to_host("127.0.0.1", port)
+	var link := {"down": null, "up_q": [], "down_q": [], "drop_until": 0}
+	var pump := func() -> void:
+		var now := Time.get_ticks_msec()
+		listen.poll()
+		if listen.is_connection_available():
+			link.down = listen.take_connection()
+		if link.down:
+			while link.down.get_available_packet_count() > 0:
+				var packet: PackedByteArray = link.down.get_packet()
+				if now >= link.drop_until:
+					link.up_q.append([now + DELAY_MS, packet])
+		while upstream.get_available_packet_count() > 0:
+			link.down_q.append([now + DELAY_MS, upstream.get_packet()])
+		while not link.up_q.is_empty() and link.up_q[0][0] <= now:
+			upstream.put_packet(link.up_q.pop_front()[1])
+		while link.down and not link.down_q.is_empty() and link.down_q[0][0] <= now:
+			link.down.put_packet(link.down_q.pop_front()[1])
+	process_frame.connect(pump)
+	physics_frame.connect(pump)
+	var cpeer := ENetMultiplayerPeer.new()
+	cpeer.create_client("127.0.0.1", proxy_port)
+	cmp.multiplayer_peer = cpeer
+	var deadline := Time.get_ticks_msec() + 10000
+	while Time.get_ticks_msec() < deadline and (smp.get_peers().is_empty()
+			or cpeer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED):
+		await process_frame
+	if smp.get_peers().is_empty():
+		printerr("FAIL respawn_hold %s client did not connect" % label)
+		fail += 1
+	else:
+		var player_scene := load("res://Player/character_body_2d.tscn")
+		var id := str(cpeer.get_unique_id())
+		var s_copy = player_scene.instantiate()
+		s_copy.name = id
+		s_copy.position = death
+		s_world.add_child(s_copy)
+		var owner_copy = player_scene.instantiate()
+		owner_copy.name = id
+		owner_copy.position = death
+		scene.get_node("World").add_child(owner_copy)
+		owner_copy.set_physics_process(false)  # the test moves the owner
+		for i in prior:
+			owner_copy.health._do_respawn(death, i + 1)  # unseen by the server's copy
+		s_copy.health.respawn_count = prior  # the server numbered those respawns
+		var shown_death := []
+		var watch := func() -> void:
+			var at: Vector2 = s_copy.position
+			if prior > 0 and shown_death.is_empty() and at.distance_to(death) < at.distance_to(spawn):
+				shown_death.append(at)
+		s_copy.health.respawn_delay = 1000.0
+		for i in 20:
+			await physics_frame
+		s_copy.health.take_damage(s_copy.health.max_health)
+		var until := Time.get_ticks_msec() + 5000
+		while Time.get_ticks_msec() < until and not owner_copy.health.is_dead():
+			await physics_frame
+		for i in 10:
+			await physics_frame
+		s_copy.health._do_respawn.rpc(spawn, s_copy.health.respawn_count + 1)
+		# Drop from now until drop_ms after the respawn reaches the owner.
+		link.drop_until = Time.get_ticks_msec() + DELAY_MS + drop_ms if drop_ms > 0 else 0
+		until = Time.get_ticks_msec() + 5000
+		while Time.get_ticks_msec() < until and owner_copy.health.is_dead():
+			watch.call()
+			await physics_frame
+		var started := Time.get_ticks_msec()
+		while Time.get_ticks_msec() - started < 450:
+			watch.call()
+			owner_copy.position += walk
+			await physics_frame
+		if not shown_death.is_empty():
+			printerr("FAIL respawn_hold %s: server copy showed the death spot after the respawn (%s)"
+					% [label, shown_death[0]])
+			fail += 1
+		var gap: float = s_copy.position.distance_to(owner_copy.position)
+		if gap > 40.0:
+			printerr("FAIL respawn_hold %s: server copy at %s, %d px behind the owner at %s"
+					% [label, s_copy.position, gap, owner_copy.position])
+			fail += 1
+		cpeer.close()
+		for i in 3:
+			await physics_frame
+		s_copy.queue_free()
+		owner_copy.queue_free()
+		await process_frame
+	process_frame.disconnect(pump)
+	physics_frame.disconnect(pump)
+	cpeer.close()
+	speer.close()
+	upstream.close()
+	listen.stop()
+	set_multiplayer(null, scene.get_path())
+	set_multiplayer(null, server_root.get_path())
+	scene.queue_free()
+	server_root.queue_free()
+	await process_frame
 	return fail
 
 
