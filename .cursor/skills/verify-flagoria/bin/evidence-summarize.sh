@@ -31,8 +31,8 @@ sum="${ART}/out/e2e-summary.txt"
   fi
   echo
   echo "## Notes"
-  echo "- Two-player Host/Join is not proven by verify.sh alone (see features/two-player-host-join.md)."
-  echo "- Issue #45 (automated two-player smoke) and #48 (CLI map renders) are placeholders."
+  echo "- Headless two-peer joins are proven by verify.sh; the menu Host/Join between two GUI instances is not (see features/two-player-host-join.md)."
+  echo "- Issue #45 (menu Host/Join smoke) and #48 (general map renders) are partly covered; see features/README.md."
 } >"${sum}"
 echo "evidence-summarize: wrote ${sum}"
 cat "${sum}"

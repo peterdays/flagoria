@@ -71,9 +71,9 @@ Expect exit `0` and lines confirming: repo root, `GODOT` version `4.1.*`, `tools
 ./.cursor/skills/verify-flagoria/bin/drive-verify.sh
 ```
 
-This runs `./tools/verify.sh` (import/load, parse every `.gd`, then `godot --headless --script res://tests/run_tests.gd`). Exit `0` and `Verification passed.` / `All tests passed.` are required.
+This runs `./tools/verify.sh` (import/load, parse every `.gd`, `godot --headless --script res://tests/run_tests.gd`, then the `render_biomes` and `audio_check` gates). Exit `0` and `Verification passed.` / `All tests passed.` are required.
 
-Map characterization: when `tests/run_tests.gd` defines `test_map_characterization` (map golden / pinned atlas check), the verify log must include `PASS test_map_characterization`. On checkouts that only have the smoke test, expect `PASS test_smoke_true` only — still require verify green. See `features/map-characterization.md`.
+Map characterization: the verify log must include `PASS test_map_characterization` (pinned atlas check). See `features/map-characterization.md`. Each other feature's proof is the `-- test_<name>` headers listed in its feature file.
 
 ### Visual Map Settings (optional)
 
