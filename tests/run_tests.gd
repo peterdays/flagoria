@@ -26,6 +26,7 @@ func _run() -> void:
 	failures += await _test_player_health_join_while_dead()
 	failures += await _test_player_respawn_no_snapback()
 	failures += await _test_player_respawn_hold_releases()
+	failures += await _test_player_respawn_hold_before_first_sync()
 	failures += await _test_sword_only_hits_mid_swing()
 	failures += _test_footsteps()
 	failures += _test_island_falloff()
@@ -829,7 +830,7 @@ func _test_player_respawn_no_snapback() -> int:
 		for i in 10:
 			await physics_frame
 		var stale: Vector2 = owner_copy.position
-		s_copy.health._do_respawn.rpc(spawn)
+		s_copy.health._do_respawn.rpc(spawn, s_copy.health.respawn_count + 1)
 		var reached := false
 		var snapped := ""
 		for f in 30:
@@ -888,6 +889,50 @@ func _test_player_respawn_hold_releases() -> int:
 			spawn + Vector2(-20, 0), spawn, Vector2(3, 0), 0, 3)
 	if fail == 0:
 		print("PASS test_player_respawn_hold_releases")
+	return fail
+
+
+func _test_player_respawn_hold_before_first_sync() -> int:
+	## A copy created just before its owner's next respawn: the respawn
+	## arrives before the copy's first synced update, then a stale update
+	## the owner sent before that respawn, then a fresh one. The copy must
+	## hold the spawn through the stale update and follow the fresh one.
+	print("-- test_player_respawn_hold_before_first_sync")
+	var fail := 0
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var copy = load("res://Player/character_body_2d.tscn").instantiate()
+	copy.name = "2"  # owned by peer 2; this (offline) peer is the server
+	scene.get_node("World").add_child(copy)
+	copy.set_physics_process(false)
+	var sync: MultiplayerSynchronizer = copy.get_node("MultiplayerSynchronizer")
+	var death := Vector2(380, 400)
+	var spawn := Vector2(400, 400)
+	var n := 4  # the owner had respawned 3 times before this copy existed
+	copy.position = death
+	await physics_frame
+	copy.health._do_respawn(spawn, n)
+	copy.position = death  # stale update: sent before the owner saw respawn n
+	copy.owner_respawns = n - 1
+	sync.synchronized.emit()
+	if copy.position != spawn:
+		printerr("FAIL respawn_first_sync stale update shown: copy at %s, spawn %s" % [copy.position, spawn])
+		fail += 1
+	var fresh := spawn + Vector2(6, 0)
+	copy.position = fresh  # fresh update: sent after the owner saw respawn n
+	copy.owner_respawns = n
+	sync.synchronized.emit()
+	var next := spawn + Vector2(12, 0)
+	copy.position = next
+	sync.synchronized.emit()
+	if copy.position != next:
+		printerr("FAIL respawn_first_sync copy still held after the fresh update: at %s, owner %s" % [copy.position, next])
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_player_respawn_hold_before_first_sync")
 	return fail
 
 
@@ -968,7 +1013,8 @@ func _respawn_follow_case(label: String, death: Vector2, spawn: Vector2, walk: V
 		scene.get_node("World").add_child(owner_copy)
 		owner_copy.set_physics_process(false)  # the test moves the owner
 		for i in prior:
-			owner_copy.health._do_respawn(death)  # unseen by the server's copy
+			owner_copy.health._do_respawn(death, i + 1)  # unseen by the server's copy
+		s_copy.health.respawn_count = prior  # the server numbered those respawns
 		var shown_death := []
 		var watch := func() -> void:
 			var at: Vector2 = s_copy.position
@@ -983,7 +1029,7 @@ func _respawn_follow_case(label: String, death: Vector2, spawn: Vector2, walk: V
 			await physics_frame
 		for i in 10:
 			await physics_frame
-		s_copy.health._do_respawn.rpc(spawn)
+		s_copy.health._do_respawn.rpc(spawn, s_copy.health.respawn_count + 1)
 		# Drop from now until drop_ms after the respawn reaches the owner.
 		link.drop_until = Time.get_ticks_msec() + DELAY_MS + drop_ms if drop_ms > 0 else 0
 		until = Time.get_ticks_msec() + 5000
