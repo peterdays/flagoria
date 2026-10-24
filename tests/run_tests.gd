@@ -1,73 +1,73 @@
 extends SceneTree
 ## Headless test entry point for CI.
-## Run: godot --headless --path . --script res://tests/run_tests.gd
-## Exit 0 on success, 1 on failure.
+## Run all:  godot --headless --path . --script res://tests/run_tests.gd
+## Run some: godot --headless --path . --script res://tests/run_tests.gd -- --only=map_zoom[,mob_chase]
+## List:     godot --headless --path . --script res://tests/run_tests.gd -- --list
+## Every `func _test_*() -> int` below is registered automatically, in source order.
+## Exit 0 on success, 1 on failure or an unknown test name.
 
 func _initialize() -> void:
 	call_deferred("_run")
 
 
 func _run() -> void:
+	var names := _registered_tests()
+	var picked := names
+	for arg in OS.get_cmdline_user_args():
+		if arg == "--list":
+			for test_name in names:
+				print(test_name.trim_prefix("_"))
+			quit(0)
+			return
+		if arg.begins_with("--only="):
+			picked = _filter_tests(names, arg.trim_prefix("--only=").split(",", false))
+			if picked.is_empty():
+				quit(1)
+				return
+		else:
+			printerr("Unknown argument: %s (expected --only=<name>[,<name>] or --list)" % arg)
+			quit(1)
+			return
 	var failures := 0
-	failures += _test_smoke_true()
-	failures += _test_map_characterization()
-	failures += _test_spawn_on_land()
-	failures += _test_spawn_reachable()
-	failures += _test_map_settings_water_reopen()
-	failures += _test_no_decorations_on_water()
-	failures += _test_flowers()
-	failures += _test_tile_catalog()
-	failures += _test_audio_settings()
-	failures += await _test_music_player()
-	failures += await _test_combat_sfx()
-	failures += await _test_player_regen()
-	failures += await _test_player_health()
-	failures += await _test_player_health_sync()
-	failures += await _test_player_health_join_while_dead()
-	failures += await _test_player_respawn_no_snapback()
-	failures += await _test_player_respawn_hold_releases()
-	failures += await _test_player_respawn_hold_before_first_sync()
-	failures += await _test_sword_only_hits_mid_swing()
-	failures += _test_footsteps()
-	failures += _test_island_falloff()
-	failures += _test_archipelago()
-	failures += _test_archipelago_count()
-	failures += _test_archipelago_count_land_masses()
-	failures += _test_biomes()
-	failures += _test_biome_terrain()
-	failures += _test_biome_plants()
-	failures += _test_biome_structures()
-	failures += await _test_water_blocks_player()
-	failures += await _test_forest_walls()
-	failures += _test_map_settings_covers_params()
-	failures += _test_map_settings_rows_from_hints()
-	failures += _test_new_param_needs_no_ui_code()
-	failures += _test_biome_seed_panel_round_trip()
-	failures += await _test_chunk_refresh_frames()
-	failures += _test_map_save_round_trip()
-	failures += _test_map_save_rejects_bad_files()
-	failures += _test_player_spawn_no_missing_nodes()
-	failures += _test_server_port_from_args()
-	failures += await _test_dedicated_server_join()
-	failures += _test_mob_predict_matches_chunks()
-	failures += _test_mob_plan()
-	failures += _test_mob_wander()
-	failures += _test_mob_sheet_swap()
-	failures += await _test_mobs_sync_to_peer()
-	failures += _test_mob_chase()
-	failures += await _test_mob_chase_two_players()
-	failures += _test_mob_contact()
-	failures += await _test_mob_contact_two_players()
-	failures += await _test_mob_sword()
-	failures += await _test_mob_sword_two_players()
-	failures += await _test_mob_sword_two_attackers()
-	failures += await _test_map_zoom()
+	for test_name in picked:
+		failures += await call(test_name)
+	print("Ran %d of %d tests." % [picked.size(), names.size()])
 	if failures == 0:
 		print("All tests passed.")
 		quit(0)
 	else:
 		print("Tests failed: %s" % failures)
 		quit(1)
+
+
+func _registered_tests() -> Array[String]:
+	## Every `func _test_*() -> int` in this file, in source order. Adding a
+	## test is just writing the function; nothing else needs to list it.
+	var found: Array[String] = []
+	var source := (get_script() as GDScript).source_code
+	var pattern := RegEx.create_from_string("(?m)^func (_test_[a-z0-9_]+)\\(\\)")
+	for m in pattern.search_all(source):
+		found.append(m.get_string(1))
+	return found
+
+
+func _filter_tests(names: Array[String], wanted: PackedStringArray) -> Array[String]:
+	## The tests named in wanted (with or without the `test_` prefix), in run
+	## order. Empty, after printing the known names, if one does not match.
+	var keys: Array[String] = []
+	for raw in wanted:
+		var key := "_test_" + raw.trim_prefix("_").trim_prefix("test_")
+		if key not in names:
+			printerr("No test named %s. Known tests:" % raw)
+			for test_name in names:
+				printerr("  " + test_name.trim_prefix("_"))
+			return []
+		keys.append(key)
+	var picked: Array[String] = []
+	for test_name in names:
+		if test_name in keys:
+			picked.append(test_name)
+	return picked
 
 
 func _test_smoke_true() -> int:

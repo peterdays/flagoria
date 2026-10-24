@@ -40,18 +40,18 @@ There is no public release planned for now, but the multiplayer experience shoul
 
 **What works today**
 
-- Godot 4.1 supports `--headless` (display/audio drivers stubbed). The project binary starts under `--headless` and loads the main scene.
+- Godot 4 supports `--headless` (display/audio drivers stubbed). The project binary starts under `--headless` and loads the main scene.
 - The engine build includes a dedicated-server export path (feature tag / "Export as dedicated server") that can strip visuals on export.
 - Networking today uses `ENetMultiplayerPeer` on UDP port `9786`, with a listen-server model: one player presses Host (`create_server`), others Join (`create_client`). Hosting always goes through the main menu and spawns the host as a player.
 
 **What is missing**
 
-- No headless auto-host / dedicated server mode: launching headless still presents the normal client flow; there is no export preset or boot path that starts a server without a local player UI.
+- No dedicated-server export: `-- --server` now boots a headless host without a local player (see `docs/dedicated-server.md`), but `export_presets.cfg` has only the Android preset.
 - No Docker Compose setup yet, and no server-authoritative dedicated process separate from a listening player host.
 
 **Likely next steps**
 
-1. Add a headless boot flag or main-scene path that calls `create_server` and skips local player / menus.
+1. ~~Add a headless boot flag or main-scene path that calls `create_server` and skips local player / menus.~~ Done: `-- --server [--port N]`.
 2. Add a Linux dedicated-server export preset (and optionally a `.pck` + headless binary layout suitable for a container).
 3. Document UDP `9786` publishing for compose/VPN join; keep two-player PvP working throughout.
 
