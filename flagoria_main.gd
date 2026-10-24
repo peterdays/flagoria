@@ -5,12 +5,15 @@ var enet_peer = ENetMultiplayerPeer.new()
 const Player = preload("res://Player/character_body_2d.tscn")
 @onready var address_entry = $CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/AddressEntry
 var world_params: MapGenParams
+## Client: the spot the server picked for its own player, until it is placed.
+var _own_spot := Vector2.INF
 
 
 func _ready():
 	get_node("CanvasLayer2/MainMenu").connect("new_server_created", setup_server)
 	get_node("CanvasLayer2/MainMenu").connect("new_player_added", add_player)
 	get_node("CanvasLayer2/MainMenu").connect("new_player_joined", add_player_joined)
+	get_node("World").child_entered_tree.connect(_on_world_child_entered)
 
 	var server_port := server_port_from_args(OS.get_cmdline_user_args())
 	if server_port == -1:
@@ -79,35 +82,66 @@ func _apply_params_to_world(params: MapGenParams) -> void:
 		world.apply_map_params(params)
 
 
-func _land_spawn_position() -> Vector2:
+func _land_spawn_position(for_player: Node = null) -> Vector2:
+	## The map's land spawn point. For a player, the nearest spot near it that
+	## no other living player stands on (see SPAWN_RADIUS in TileMap.gd).
 	var world = get_node("World/worldMap")
 	var cell = world.resolve_player_spawn()
-	return world.map_to_local(cell)
+	if for_player == null:
+		return world.map_to_local(cell)
+	return world.free_spawn_position(cell, _taken_spawn_spots(for_player))
 
 
-func _place_players_on_land() -> void:
-	var pos = _land_spawn_position()
-	var world_root = get_node("/root/Flagoria/World")
-	for child in world_root.get_children():
-		if child is CharacterBody2D:
-			child.position = pos
+func _taken_spawn_spots(except: Node) -> Array[Vector2]:
+	## Where the living players other than except stand. Dead bodies have no
+	## collision, so they do not take a spot.
+	var taken: Array[Vector2] = []
+	for child in get_node("World").get_children():
+		if child is CharacterBody2D and child != except:
+			var health = child.get_node_or_null("Health")
+			if health == null or not health.is_dead():
+				taken.append(child.position)
+	return taken
+
+
+func _place_own_player() -> void:
+	## Client: put its own player on the spot the server picked for it. The
+	## player arrives at (0, 0), as the server never sends the position of a
+	## node the client owns, and the owner's position is the one every peer
+	## then follows. The client moves no other player: its copies of them can
+	## still be at (0, 0) or out of date, so a spot picked from them can land
+	## on someone (found in a multi-peer play-test).
+	var me = get_node_or_null("World/" + str(multiplayer.get_unique_id()))
+	if me and _own_spot != Vector2.INF:
+		me.position = _own_spot
+		_own_spot = Vector2.INF
+
+
+func _on_world_child_entered(node: Node) -> void:
+	# The map (with the spot) can reach a client before its own player does.
+	if node is CharacterBody2D and node.name == str(multiplayer.get_unique_id()):
+		_place_own_player.call_deferred()
 
 
 func _sync_map_params_to_peer(peer_id: int) -> void:
-	## Send the full parameter dictionary (not just seeds) so both players share one map.
+	## Send the full parameter dictionary (not just seeds) so both players
+	## share one map, with the spot add_player picked for the peer's player.
 	if world_params == null:
 		return
-	rpc_id(peer_id, "receive_map_params", world_params.to_dict())
+	var player = get_node_or_null("World/" + str(peer_id))
+	var spot: Vector2 = player.position if player else Vector2.INF
+	rpc_id(peer_id, "receive_map_params", world_params.to_dict(), spot)
 
 
 @rpc("authority", "reliable", "call_remote")
-func receive_map_params(data: Dictionary) -> void:
+func receive_map_params(data: Dictionary, spot: Vector2) -> void:
 	var params = MapGenParams.new()
 	params.from_dict(data)
 	world_params = params
 	get_node("/root/MapGen").params = params.duplicate_params()
 	_apply_params_to_world(params)
-	_place_players_on_land()
+	_own_spot = spot
+	_place_own_player()  # or once the player arrives, see _on_world_child_entered
 	var world = get_node("World/worldMap")
 	world.player_spawned = true
 
@@ -117,7 +151,7 @@ func add_player(peer_id):
 	var player = Player.instantiate()
 	player.name = str(peer_id)
 	print("player added", player.name)
-	player.position = _land_spawn_position()
+	player.position = _land_spawn_position(player)
 	get_node("/root/Flagoria/World").add_child(player)
 
 	var world = get_node("World/worldMap")

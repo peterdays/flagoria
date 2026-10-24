@@ -261,6 +261,312 @@ func _test_spawn_reachable() -> int:
 	return fail
 
 
+func _test_spawn_radius_no_overlap() -> int:
+	## Six players joining at once, then all respawning at once (and again
+	## while half stand around the spawn) each get a spot: clear walkable
+	## ground, within SPAWN_RADIUS of the spawn point, and no two collision
+	## boxes overlap.
+	print("-- test_spawn_radius_no_overlap")
+	var fail := 0
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var radius: float = world.SPAWN_RADIUS
+	for seed_value in [11, 42, 99]:
+		world.apply_map_params(_spawn_params(seed_value, 0.003))
+		var cell: Vector2i = world.resolve_player_spawn()
+		var origin: Vector2 = world.map_to_local(cell)
+		var players: Array = []
+		for peer_id in range(2, 8):
+			scene.add_player(peer_id)
+			players.append(scene.get_node("World/%s" % peer_id))
+		var check := func(stage: String) -> int:
+			var bad := 0
+			for i in players.size():
+				var p = players[i]
+				var label := "seed=%s %s player %s at %s" % [seed_value, stage, p.name, p.position]
+				if not world.is_clear_ground(world.local_to_map(p.position)):
+					printerr("FAIL spawn_radius %s not on clear walkable ground" % label)
+					bad += 1
+				if p.position.distance_to(origin) > radius:
+					printerr("FAIL spawn_radius %s is %s px from the spawn, radius %s" % [label, p.position.distance_to(origin), radius])
+					bad += 1
+				var box: Rect2 = _body_rect(p)
+				for j in range(i + 1, players.size()):
+					if box.intersects(_body_rect(players[j])):
+						printerr("FAIL spawn_radius %s overlaps player %s at %s" % [label, players[j].name, players[j].position])
+						bad += 1
+			return bad
+		fail += check.call("join")
+		var joined: Array[Vector2] = []
+		for p in players:
+			joined.append(p.position)
+		if players[0].position != origin:
+			printerr("FAIL spawn_radius seed=%s first player at %s, not the spawn %s" % [seed_value, players[0].position, origin])
+			fail += 1
+		# Everyone dies on the same spot and respawns on the same frame.
+		for p in players:
+			p.health.set_health_now(0)
+			p.position = origin
+		for p in players:
+			p.health.respawn()
+		fail += check.call("respawn all")
+		var respawned: Array[Vector2] = []
+		for p in players:
+			respawned.append(p.position)
+		if respawned != joined:
+			printerr("FAIL spawn_radius seed=%s respawn spots %s differ from join spots %s" % [seed_value, respawned, joined])
+			fail += 1
+		# Half die and respawn while the others still stand on the first spots.
+		for i in range(0, players.size(), 2):
+			players[i].health.set_health_now(0)
+		for i in range(0, players.size(), 2):
+			players[i].health.respawn()
+		fail += check.call("respawn half")
+		for p in players:
+			p.free()
+		if fail == 0:
+			print("PASS spawn_radius seed=%s spawn=%s spots=%s" % [seed_value, cell, joined])
+
+	scene.queue_free()
+	if fail == 0:
+		print("PASS test_spawn_radius_no_overlap")
+	return fail
+
+
+func _test_spawn_full_area_searches_outward() -> int:
+	## With every spot in the radius taken, a player gets the nearest free
+	## spot beyond it; with every spot of the usual search taken too, the
+	## search keeps going outward to a free spot instead of the spawn point.
+	print("-- test_spawn_full_area_searches_outward")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	world.apply_map_params(_spawn_params(42, 0.003))
+	var cell: Vector2i = world.resolve_player_spawn()
+	var origin: Vector2 = world.map_to_local(cell)
+	var spots: Array[Vector2] = world.spawn_spots(cell)
+	var inside: Array[Vector2] = []
+	var outside := Vector2.INF
+	for spot in spots:
+		if spot.distance_to(origin) <= world.SPAWN_RADIUS:
+			inside.append(spot)
+		elif outside == Vector2.INF:
+			outside = spot
+	var full_radius: Vector2 = world.free_spawn_position(cell, inside)
+	if full_radius != outside or full_radius.distance_to(origin) <= world.SPAWN_RADIUS:
+		printerr("FAIL spawn_full_area full radius -> %s, want nearest outside %s" % [full_radius, outside])
+		fail += 1
+	# Every spot the usual search walks is taken: the next one out is free.
+	var beyond: Array[Vector2] = world.spawn_spots(cell, spots.size() * 4)
+	var want := Vector2.INF
+	for spot in beyond:
+		if spot not in spots:
+			want = spot
+			break
+	var all_taken: Vector2 = world.free_spawn_position(cell, spots)
+	if all_taken != want or all_taken == origin or not world.is_clear_ground(world.local_to_map(all_taken)):
+		printerr("FAIL spawn_full_area %s spots taken -> %s, want the next free spot %s (spawn %s)"
+				% [spots.size(), all_taken, want, origin])
+		fail += 1
+	scene.queue_free()
+	if fail == 0:
+		print("PASS test_spawn_full_area_searches_outward (%s in radius, next free %s)" % [inside.size(), all_taken])
+	return fail
+
+
+func _test_spawn_late_join() -> int:
+	## Peers joining one by one, each its own process: every joiner stands on
+	## the spot the server picked for it once the map arrives, and no two
+	## players overlap. (A client used to place its own player from its stale
+	## copies of the others, and the owner's position wins.) Then every player
+	## dies in one frame and the server sends the batch to spots apart.
+	## Once on a dedicated server with four joiners, once on a listen host
+	## with three.
+	print("-- test_spawn_late_join")
+	var fail := 0
+	await process_frame
+	fail += await _spawn_session("dedicated", 4)
+	fail += await _spawn_session("host", 3)
+	if fail == 0:
+		print("PASS test_spawn_late_join")
+	return fail
+
+
+func _spawn_session(mode: String, joiners: int) -> int:
+	## One session of tests/late_join_probe.gd peers (see test_spawn_late_join):
+	## a server in mode ("dedicated" or "host") and joiners clients.
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL spawn_late_join %s found no free UDP port" % mode)
+		return 1
+	# A fresh folder: a .stop file left by an earlier run would stop a peer
+	# at once, and its old JSON would read as this run's.
+	var dir := OS.get_user_data_dir().path_join("late_join_%s_%d_%d" % [mode, OS.get_process_id(), port])
+	_remove_dir(dir)
+	DirAccess.make_dir_recursive_absolute(dir)
+	var pids: Array[int] = []
+	var outs: Array[String] = []
+	var start := func(extra: Array) -> void:
+		var out := dir.path_join("p%d.json" % outs.size())
+		var args := ["--headless", "--path", ProjectSettings.globalize_path("res://"),
+				"--script", "res://tests/late_join_probe.gd", "--", "--port=%d" % port, "--out=" + out]
+		args.append_array(extra)
+		pids.append(OS.create_process(OS.get_executable_path(), args))
+		outs.append(out)
+	var read := func(i: int) -> Dictionary:
+		var text := FileAccess.get_file_as_string(outs[i])
+		var data = JSON.parse_string(text) if text != "" else null
+		return data if data is Dictionary else {}
+	var wait_for := func(cond: Callable, ms: int) -> bool:
+		var until := Time.get_ticks_msec() + ms
+		while Time.get_ticks_msec() < until and not cond.call():
+			await process_frame
+		return cond.call()
+	var pause := func(ms: int) -> void:
+		await wait_for.call(func() -> bool: return false, ms)
+
+	var tile_map: Script = load("res://Scripts/TileMap.gd")
+	# A spot is a cell centre, and the 8 x 10 body reaches 2 px into the cell
+	# above: with a wall there, physics pushes the player about 2 px down.
+	var settle := 3.0
+	# Where each peer's own player stands (in its own view) against want_of's
+	# spot for it, give or take settle; then no overlaps, all near the spawn,
+	# and every peer sees every player where its owner has it.
+	var check := func(stage: String, want_of: Callable) -> int:
+		var bad := 0
+		var at := {}
+		var server: Dictionary = read.call(0)
+		var origin := Vector2(server["origin"][0], server["origin"][1])
+		for i in outs.size():
+			var s: Dictionary = read.call(i)
+			var me = s.get("players", {}).get(s.get("id"))
+			if me == null:
+				continue  # the dedicated server has no player
+			var pos := Vector2(me["pos"][0], me["pos"][1])
+			at[s["id"]] = pos
+			var want = want_of.call(s, server)
+			if want == null or pos.distance_to(Vector2(want[0], want[1])) > settle:
+				printerr("FAIL spawn_late_join %s %s: peer %s stands at %s, the server's spot is %s" % [mode, stage, s["id"], pos, want])
+				bad += 1
+			if pos.distance_to(origin) > tile_map.SPAWN_RADIUS + settle:
+				printerr("FAIL spawn_late_join %s %s: peer %s at %s is %s px from the spawn %s" % [mode, stage, s["id"], pos, pos.distance_to(origin), origin])
+				bad += 1
+		var ids := at.keys()
+		if ids.size() != joiners + (1 if mode == "host" else 0):
+			printerr("FAIL spawn_late_join %s %s: %s players, want %s" % [mode, stage, ids.size(), joiners])
+			bad += 1
+		for i in ids.size():
+			for j in range(i + 1, ids.size()):
+				if (at[ids[i]] as Vector2).distance_to(at[ids[j]]) < tile_map.SPAWN_CLEARANCE - settle:
+					printerr("FAIL spawn_late_join %s %s: peers %s at %s and %s at %s overlap" % [mode, stage, ids[i], at[ids[i]], ids[j], at[ids[j]]])
+					bad += 1
+		for i in outs.size():
+			var s: Dictionary = read.call(i)
+			for id in ids:
+				var seen = s.get("players", {}).get(id)
+				if seen == null or not Vector2(seen["pos"][0], seen["pos"][1]).is_equal_approx(at[id]):
+					printerr("FAIL spawn_late_join %s %s: peer %s sees %s at %s, its owner has %s" % [mode, stage, s.get("id"), id, seen, at[id]])
+					bad += 1
+		if bad == 0:
+			print("PASS spawn_late_join %s %s %s" % [mode, stage, at])
+		return bad
+
+	var fail := 0
+	start.call(["--" + mode])
+	if not await wait_for.call(func() -> bool: return read.call(0).get("origin") != null, 30000):
+		printerr("FAIL spawn_late_join %s server did not start" % mode)
+		fail += 1
+	# One joiner at a time, each once the one before has its player and the map.
+	for i in joiners:
+		if fail > 0:
+			break
+		start.call([])
+		var n := outs.size() - 1
+		var joined := func() -> bool:
+			var s: Dictionary = read.call(n)
+			return s.get("origin") != null and s.get("players", {}).has(s.get("id")) \
+					and read.call(0).get("picked", {}).has(s.get("id"))
+		if not await wait_for.call(joined, 30000):
+			printerr("FAIL spawn_late_join %s joiner %s did not get its player and the map: %s, server %s"
+					% [mode, n, read.call(n), read.call(0)])
+			fail += 1
+		await pause.call(300)
+	if fail == 0:
+		await pause.call(1000)
+		fail += check.call("join", func(s: Dictionary, server: Dictionary) -> Variant:
+			return server["picked"].get(s["id"]))
+	if fail == 0:
+		FileAccess.open(outs[0] + ".kill", FileAccess.WRITE).close()
+		var all_respawned := func() -> bool:
+			for i in outs.size():
+				var s: Dictionary = read.call(i)
+				if s.get("players", {}).has(s.get("id")) and s.get("respawned_at") == null:
+					return false
+				for p in s.get("players", {}).values():
+					if p["respawns"] < 1:
+						return false
+			return true
+		if not await wait_for.call(all_respawned, 15000):
+			printerr("FAIL spawn_late_join %s the batch did not respawn on every peer" % mode)
+			fail += 1
+		else:
+			# The spots the server sent in one batch: each clear of the rest
+			# and near the spawn. (Where physics then leaves each player is
+			# not checked: a player can end a few px off its spot.)
+			var server: Dictionary = read.call(0)
+			var origin := Vector2(server["origin"][0], server["origin"][1])
+			var spots := {}
+			for i in outs.size():
+				var s: Dictionary = read.call(i)
+				if s.get("respawned_at") != null:
+					spots[s["id"]] = Vector2(s["respawned_at"][0], s["respawned_at"][1])
+			var ids := spots.keys()
+			var bad := 0
+			if ids.size() != joiners + (1 if mode == "host" else 0):
+				printerr("FAIL spawn_late_join %s respawn: %s players respawned, want %s" % [mode, ids.size(), joiners])
+				bad += 1
+			for i in ids.size():
+				if (spots[ids[i]] as Vector2).distance_to(origin) > tile_map.SPAWN_RADIUS:
+					printerr("FAIL spawn_late_join %s respawn: %s sent to %s, past the radius" % [mode, ids[i], spots[ids[i]]])
+					bad += 1
+				for j in range(i + 1, ids.size()):
+					if (spots[ids[i]] as Vector2).distance_to(spots[ids[j]]) < tile_map.SPAWN_CLEARANCE:
+						printerr("FAIL spawn_late_join %s respawn: %s and %s sent to %s and %s" % [mode, ids[i], ids[j], spots[ids[i]], spots[ids[j]]])
+						bad += 1
+			if bad == 0:
+				print("PASS spawn_late_join %s respawn %s" % [mode, spots])
+			fail += bad
+
+	for out in outs:
+		FileAccess.open(out + ".stop", FileAccess.WRITE).close()
+	await wait_for.call(func() -> bool:
+		for pid in pids:
+			if OS.is_process_running(pid):
+				return false
+		return true, 10000)
+	for pid in pids:
+		if OS.is_process_running(pid):
+			OS.kill(pid)
+	_remove_dir(dir)
+	return fail
+
+
+func _remove_dir(dir: String) -> void:
+	for file in DirAccess.get_files_at(dir):
+		DirAccess.remove_absolute(dir.path_join(file))
+	DirAccess.remove_absolute(dir)
+
+
+func _body_rect(player: Node) -> Rect2:
+	## The player's body collision box in world space.
+	var shape_node: CollisionShape2D = player.body_shape
+	var size: Vector2 = (shape_node.shape as RectangleShape2D).size
+	return Rect2(player.position + shape_node.position - size / 2.0, size)
+
+
 func _test_map_settings_water_reopen() -> int:
 	## Map Settings must show the in-use water value on reopen, even when a
 	## SpinBox LineEdit still holds a dirty string for the same numeric value.
@@ -1106,7 +1412,7 @@ func _respawn_follow_case(label: String, death: Vector2, spawn: Vector2, walk: V
 
 func _test_sword_only_hits_mid_swing() -> int:
 	## Two real players on the spawn point with physics running: an idle sword
-	## overlap deals no damage, a swing still hits, a player respawning onto
+	## overlap deals no damage, a swing still hits, a player respawning beside
 	## the other deals no damage, and a dead body does not block movement.
 	print("-- test_sword_only_hits_mid_swing")
 	var fail := 0
@@ -1172,13 +1478,16 @@ func _test_sword_only_hits_mid_swing() -> int:
 	a.collision_layer = 1
 	b.collision_mask = 1
 
-	# Respawn onto the other player: no free hit, and the body blocks again.
+	# Respawn while the other player stands on the spawn: a lands on the free
+	# spot next to it (sword in reach), takes no free hit, and blocks again.
 	b.position = spawn
 	a.position = spawn + Vector2(300, 0)
 	await settle.call()
 	a.health.advance(a.health.respawn_delay + 0.01)
 	await settle.call()
-	if a.health.is_dead() or a.position != spawn or b.health.health != 6:
+	var next_to: float = a.position.distance_to(spawn)
+	if a.health.is_dead() or next_to < world.get_node("worldMap").SPAWN_CLEARANCE \
+			or next_to > world.get_node("worldMap").SPAWN_RADIUS or b.health.health != 6:
 		printerr("FAIL sword_mid_swing respawn hit: b %s, a at %s (spawn %s)" % [b.health.health, a.position, spawn])
 		fail += 1
 	if a.body_shape.disabled:
