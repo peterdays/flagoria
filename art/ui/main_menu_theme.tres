@@ -1,0 +1,200 @@
+[gd_resource type="Theme" load_steps=21 format=3]
+
+[ext_resource type="FontFile" uid="uid://c6bqgdjqevaiv" path="res://art/Sprites/NinjaAdventure/HUD/Font/NormalFont.ttf" id="1_font"]
+
+[sub_resource type="FontVariation" id="FontVariation_pixel"]
+base_font = ExtResource("1_font")
+spacing_space = 4
+
+[sub_resource type="Gradient" id="Gradient_sky"]
+interpolation_mode = 1
+offsets = PackedFloat32Array(0, 0.5, 0.8, 0.88, 0.94)
+colors = PackedColorArray(0.231, 0.212, 0.263, 1, 0.255, 0.267, 0.353, 1, 0.29, 0.322, 0.439, 1, 0.204, 0.353, 0.322, 1, 0.078, 0.106, 0.106, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_sky"]
+gradient = SubResource("Gradient_sky")
+width = 4
+height = 64
+fill_to = Vector2(0, 1)
+
+[sub_resource type="StyleBoxTexture" id="StyleBox_backdrop"]
+texture = SubResource("GradientTexture2D_sky")
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_button_normal"]
+content_margin_left = 10.0
+content_margin_top = 3.0
+content_margin_right = 10.0
+content_margin_bottom = 3.0
+bg_color = Color(0.373, 0.443, 0.376, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 3
+border_color = Color(0.078, 0.106, 0.106, 1)
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_button_hover"]
+content_margin_left = 10.0
+content_margin_top = 3.0
+content_margin_right = 10.0
+content_margin_bottom = 3.0
+bg_color = Color(0.553, 0.592, 0.498, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 3
+border_color = Color(0.078, 0.106, 0.106, 1)
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_button_pressed"]
+content_margin_left = 10.0
+content_margin_top = 5.0
+content_margin_right = 10.0
+content_margin_bottom = 1.0
+bg_color = Color(0.204, 0.353, 0.322, 1)
+border_width_left = 1
+border_width_top = 3
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.078, 0.106, 0.106, 1)
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_button_disabled"]
+content_margin_left = 10.0
+content_margin_top = 3.0
+content_margin_right = 10.0
+content_margin_bottom = 3.0
+bg_color = Color(0.306, 0.282, 0.29, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 3
+border_color = Color(0.078, 0.106, 0.106, 1)
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_focus"]
+draw_center = false
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(1, 0.882, 0.553, 1)
+expand_margin_left = 1.0
+expand_margin_top = 1.0
+expand_margin_right = 1.0
+expand_margin_bottom = 1.0
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_line_normal"]
+content_margin_left = 6.0
+content_margin_top = 4.0
+content_margin_right = 6.0
+content_margin_bottom = 4.0
+bg_color = Color(0.078, 0.106, 0.106, 0.85)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.373, 0.443, 0.376, 1)
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_line_focus"]
+draw_center = false
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(1, 0.882, 0.553, 1)
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_slider"]
+content_margin_top = 2.0
+content_margin_bottom = 2.0
+bg_color = Color(0.078, 0.106, 0.106, 1)
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_slider_area"]
+content_margin_top = 2.0
+content_margin_bottom = 2.0
+bg_color = Color(0.329, 0.529, 0.537, 1)
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_slider_area_hl"]
+content_margin_top = 2.0
+content_margin_bottom = 2.0
+bg_color = Color(0.475, 0.722, 0.808, 1)
+anti_aliasing = false
+
+[sub_resource type="Gradient" id="Gradient_grabber"]
+interpolation_mode = 1
+offsets = PackedFloat32Array(0, 0.2, 0.8)
+colors = PackedColorArray(0.078, 0.106, 0.106, 1, 1, 0.882, 0.553, 1, 0.078, 0.106, 0.106, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_grabber"]
+gradient = SubResource("Gradient_grabber")
+width = 5
+height = 10
+
+[sub_resource type="Gradient" id="Gradient_grabber_hl"]
+interpolation_mode = 1
+offsets = PackedFloat32Array(0, 0.2, 0.8)
+colors = PackedColorArray(0.078, 0.106, 0.106, 1, 1, 1, 1, 1, 0.078, 0.106, 0.106, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_grabber_hl"]
+gradient = SubResource("Gradient_grabber_hl")
+width = 5
+height = 10
+
+[sub_resource type="StyleBoxEmpty" id="StyleBox_empty"]
+
+[resource]
+default_font = SubResource("FontVariation_pixel")
+default_font_size = 8
+Button/colors/font_color = Color(0.949, 0.918, 0.945, 1)
+Button/colors/font_disabled_color = Color(0.557, 0.486, 0.451, 1)
+Button/colors/font_focus_color = Color(1, 0.882, 0.553, 1)
+Button/colors/font_hover_color = Color(1, 1, 1, 1)
+Button/colors/font_hover_pressed_color = Color(0.722, 0.863, 0.898, 1)
+Button/colors/font_outline_color = Color(0.078, 0.106, 0.106, 1)
+Button/colors/font_pressed_color = Color(0.722, 0.863, 0.898, 1)
+Button/constants/outline_size = 2
+Button/font_sizes/font_size = 16
+Button/styles/disabled = SubResource("StyleBox_button_disabled")
+Button/styles/focus = SubResource("StyleBox_focus")
+Button/styles/hover = SubResource("StyleBox_button_hover")
+Button/styles/hover_pressed = SubResource("StyleBox_button_pressed")
+Button/styles/normal = SubResource("StyleBox_button_normal")
+Button/styles/pressed = SubResource("StyleBox_button_pressed")
+HBoxContainer/constants/separation = 6
+HSlider/icons/grabber = SubResource("GradientTexture2D_grabber")
+HSlider/icons/grabber_disabled = SubResource("GradientTexture2D_grabber")
+HSlider/icons/grabber_highlight = SubResource("GradientTexture2D_grabber_hl")
+HSlider/styles/grabber_area = SubResource("StyleBox_slider_area")
+HSlider/styles/grabber_area_highlight = SubResource("StyleBox_slider_area_hl")
+HSlider/styles/slider = SubResource("StyleBox_slider")
+HSlider/styles/focus = SubResource("StyleBox_empty")
+Label/colors/font_color = Color(0.949, 0.918, 0.945, 1)
+Label/colors/font_shadow_color = Color(0.078, 0.106, 0.106, 1)
+Label/constants/shadow_offset_x = 1
+Label/constants/shadow_offset_y = 1
+LineEdit/colors/caret_color = Color(1, 0.882, 0.553, 1)
+LineEdit/colors/font_color = Color(0.949, 0.918, 0.945, 1)
+LineEdit/colors/font_placeholder_color = Color(0.671, 0.761, 0.737, 0.7)
+LineEdit/colors/selection_color = Color(0.176, 0.412, 0.482, 1)
+LineEdit/styles/focus = SubResource("StyleBox_line_focus")
+LineEdit/styles/normal = SubResource("StyleBox_line_normal")
+LineEdit/styles/read_only = SubResource("StyleBox_line_normal")
+MarginContainer/constants/margin_bottom = 8
+MarginContainer/constants/margin_left = 8
+MarginContainer/constants/margin_right = 8
+MarginContainer/constants/margin_top = 8
+PanelContainer/styles/panel = SubResource("StyleBox_backdrop")
+TitleLabel/base_type = &"Label"
+TitleLabel/colors/font_color = Color(1, 0.882, 0.553, 1)
+TitleLabel/colors/font_outline_color = Color(0.078, 0.106, 0.106, 1)
+TitleLabel/colors/font_shadow_color = Color(0.561, 0.243, 0.337, 1)
+TitleLabel/constants/outline_size = 4
+TitleLabel/constants/shadow_offset_x = 0
+TitleLabel/constants/shadow_offset_y = 3
+TitleLabel/font_sizes/font_size = 32
+VBoxContainer/constants/separation = 6

@@ -1,14 +1,16 @@
-# Dedicated-server spike (Godot 4.1.4)
+# Dedicated server
 
 Time-boxed findings for a headless dedicated server, plus the dedicated-server boot path that followed the spike (`-- --server`, see [Dedicated server boot](#dedicated-server-boot)).
+
+**Current state.** The spike below was run on Godot 4.1.4, and its results are kept as recorded. The project now targets Godot 4.7 (feature tags `4.7`, `Mobile`). Since the spike, `-- --server` boots a headless host with no local player, and `test_dedicated_server_join` in `tests/run_tests.gd` proves that a client can join it. `export_presets.cfg` now exists but has only the Android preset. There is still no dedicated-server export preset.
 
 ## Go / no-go
 
 **Conditional go** on the engine. **No-go** on shipping a dedicated server from product code alone.
 
-Godot 4.1.4 can run headless, bind ENet on UDP, and accept peers. At spike time Flagoria was a listen-server only: Main Menu Host always spawns a local player. The `-- --server` boot path now hosts headless without a local player. There is still no `export_presets.cfg` and no export templates on the verification host, and two GUI clients moving on a headless host have not been proven.
+Godot 4.1.4 can run headless, bind ENet on UDP, and accept peers. At spike time Flagoria was a listen-server only: Main Menu Host always spawns a local player. The `-- --server` boot path now hosts headless without a local player. At spike time there was no `export_presets.cfg` and no export templates on the verification host. Two GUI clients moving on a headless host have still not been proven.
 
-## Environment
+## Environment (at spike time)
 
 - Engine: Godot 4.1.4 stable (`$GODOT --version` reports `4.1.4.stable.official…`)
 - Project feature tags include `4.1` and `Mobile`
@@ -132,7 +134,7 @@ Idle dedicated hosting should be close to headless editor plus project. Two real
 
 `docker` was not available (`docker: command not found`). Feasibility note only:
 
-- Likely image layout: Linux Godot 4.1.4 headless or editor binary, or a dedicated-server export plus `.pck`, run `--headless --path` or the exported binary, publish UDP `9786`.
+- Likely image layout: Linux Godot 4.7 headless or editor binary, or a dedicated-server export plus `.pck`, run `--headless --path` or the exported binary, publish UDP `9786`.
 - Blocked here by: no export preset or templates, and no Docker CLI to prove a build.
 
 ## 7. Engine upgrade blockers

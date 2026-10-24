@@ -20,16 +20,29 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 
 - Keep verify logs and screenshots in `artifacts/`; cleanup must not delete them.
 - UI proof for Map Settings includes a PNG with the panel title visible.
-- Two-player PvP is not fully scripted yet — see placeholders below.
+- Two-peer flows (dedicated server, mobs, health sync) are scripted headless; a full two-GUI Host/Join is still manual — see placeholders below.
 
 ## Features
 
 - [Headless verify](./headless-verify.md) — `tools/verify.sh` load, parse, and tests.
 - [Map characterization](./map-characterization.md) — pinned map-output / golden atlas check.
 - [Map Settings panel](./map-settings-panel.md) — in-game admin parameters before Host.
-- [Two-player Host/Join](./two-player-host-join.md) — multiplayer boot (partial automation).
+- [Two-player Host/Join](./two-player-host-join.md) — multiplayer boot (headless peers scripted; GUI checklist manual).
+- [Dedicated server](./dedicated-server.md) — `-- --server` headless host and a client joining it.
+- [Player health](./player-health.md) — hearts, HUD, regen, death, respawn, health sync.
+- [Sword combat](./sword-combat.md) — PvP swing, mid-swing hitbox.
+- [Mobs](./mobs.md) — seeded placement, wander, chase, contact damage, sword hits, sync.
+- [Player spawn](./player-spawn.md) — spawn on reachable land.
+- [Tileset and collision](./tileset-and-collision.md) — tile catalog, water and forest walls.
+- [Biomes](./biomes.md) — biome terrain, plants, structures, `render_biomes` coverage gate.
+- [Map save files](./map-save.md) — versioned save/load of map inputs.
+- [Map zoom](./map-zoom.md) — local pinch, wheel and Ctrl +/- zoom.
+- [Audio](./audio.md) — buses, music, combat SFX, footsteps, `audio_check` gate.
+- [Main menu](./main-menu.md) — menu theme, Host/Join, volume sliders.
+- [Hero sprites](./hero-sprites.md) — layered hero sheet generator (manual check).
+- [App icon](./app-icon.md) — icon generator and wiring (manual check).
 
 ## Placeholders (not verified here yet)
 
-- **#45 automated two-player smoke** — CI-friendly Host/Join without a human GUI. When present, add a feature file and wire it into `drive-verify.sh` or a sibling helper.
-- **#48 CLI map renders** — headless map image export for diffs. When present, document the CLI flags and expected artifact paths here.
+- **#45 automated two-player smoke** — partly covered: `test_dedicated_server_join` and the `*_two_players` mob tests start a second headless Godot as a server and join it. Still missing: a scripted Host/Join through the menu between two GUI instances.
+- **#48 CLI map renders** — partly covered: `tools/render_biomes.gd` renders a wide biome map to `artifacts/out/biomes` (see [Biomes](./biomes.md)). Still missing: a general map render for golden image diffs.

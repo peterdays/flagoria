@@ -8,30 +8,70 @@ var input = Vector2.ZERO
 
 @onready var camera = $Camera2D
 @onready var joystick = $/root/Flagoria/CanvasLayer1/player_joystick
-@export var maxHealth = 30
-@onready var currentHealth: int = maxHealth
 @onready var animations = $AnimationPlayer
 @onready var weapon = $weapon
 @onready var combat_sfx: CombatSfx = $CombatSfx
+@onready var health: PlayerHealth = $Health
+@onready var sprite: Sprite2D = $Sprite2D
+@onready var sword: Area2D = $weapon/sword
+@onready var sword_shape: CollisionShape2D = $weapon/sword/CollisionShape2D
+@onready var body_shape: CollisionShape2D = $CollisionShape2D
 
-signal healthChanged
+const HUD_PATH := "/root/Flagoria/CanvasLayer1/HeartsHud"
+const MapZoom := preload("res://Scripts/map_zoom.gd")
+const SWORD_DAMAGE := 1  ## half-hearts per sword hit
+const REGEN_AMOUNT := 1  ## half-hearts per regen_timer tick
+const BLINK_PERIOD_MS := 100  ## invulnerability blink: this long shown, this long faded
+
+const RESPAWN_HOLD_MS := 1000  ## longest a copy waits for its owner to catch up with a respawn
+
+## On copies the owner moves: the respawn spot to hold while the owner's
+## synced position is still the one from before it saw the respawn.
+var _respawn_hold := Vector2.INF
+var _respawn_from := Vector2.ZERO
+var _respawn_hold_until := 0
+
 var lastAnimDirection: String = "Down"
 var isAttacking: bool = false
 
 
 func _ready():
+	health.damaged.connect(_on_damaged)
+	health.died.connect(_on_died)
+	health.respawned.connect(_on_respawned)
+	health.health_changed.connect(_apply_dead_state.unbind(2))
+	health.state_received.connect(_apply_dead_state.unbind(2))
+	var sync := get_node_or_null("MultiplayerSynchronizer")
+	if sync:
+		sync.synchronized.connect(_on_synchronized)
 	if not is_multiplayer_authority(): return
 	camera.make_current()
+	var map_zoom := MapZoom.new()  # local camera only; zoom is never synced
+	map_zoom.name = "MapZoom"
+	camera.add_child(map_zoom)
 	joystick.connect("analogic_change", _on_player_joystick_analogic_change)
+	var hud = get_node_or_null(HUD_PATH)
+	if hud:
+		hud.bind(health)
+
+func _process(_delta):
+	# Hidden while dead; blinks while invulnerable after a hit or a respawn.
+	sprite.visible = not health.is_dead()
+	var faded := health.is_invulnerable() and (Time.get_ticks_msec() / BLINK_PERIOD_MS) % 2 == 1
+	sprite.modulate.a = 0.3 if faded else 1.0
 
 func _physics_process(delta):
 	if not is_multiplayer_authority(): return
+	if health.is_dead():
+		velocity = Vector2.ZERO
+		return
 	player_movement(delta)
 	updateAnimation.rpc()
 	
 
 func _unhandled_input(event):
 	if not is_multiplayer_authority(): return
+	if health.is_dead(): return
 	
 	if Input.is_action_just_pressed("attack"):
 		attack_animation.rpc()
@@ -43,9 +83,16 @@ func attack_animation():
 	animations.play("attack" + lastAnimDirection)
 	isAttacking = true
 	weapon.visible = true
+	sword_shape.set_deferred("disabled", false)  # the sword only hits during a swing
 	await animations.animation_finished
 	weapon.visible = false
+	sword_shape.set_deferred("disabled", true)
 	isAttacking = false
+
+
+func sword_active() -> bool:
+	## True while this player's swing can hit: mid-attack and alive.
+	return isAttacking and not health.is_dead()
 
 func _enter_tree():
 	set_multiplayer_authority(str(name).to_int())
@@ -75,6 +122,7 @@ func _on_player_joystick_analogic_change(move: Vector2) -> void:
 
 @rpc("call_local")
 func updateVelocityFromJoystick(move: Vector2):
+	if health.is_dead(): return
 	velocity = move * ACCEL * 0.5
 	velocity = velocity.limit_length(MAX_SPEED)
 
@@ -91,51 +139,67 @@ func updateAnimation():
 	animations.play("walk" + direction)
 
 
-func receiveDamage():
-	var was_alive := currentHealth > 0
-	currentHealth -= 1
-	if currentHealth <= 0:
-		currentHealth = 0
-	# Already at 0 HP: no health lost, so no hurt sound.
-	if was_alive:
-		combat_sfx.play_event("hurt")
-	if was_alive and currentHealth == 0:
-		combat_sfx.play_event("sting")
+func spawn_position() -> Vector2:
+	## Where this player respawns: the map's land spawn, as on joining.
+	var main = get_node_or_null("/root/Flagoria")
+	if main and main.has_method("_land_spawn_position"):
+		return main._land_spawn_position()
+	return position
 
-	var healthbar = $healthbar
-	# changing the healthbar
-	if healthbar:
-		healthbar.value = currentHealth
 
-	print_debug("healthChanged", " ", currentHealth, " ", name)
+func _on_damaged(_amount: int):
+	combat_sfx.play_event("hit")
+	combat_sfx.play_event("hurt")
 
-func regen_heatlh():
-	if currentHealth == 0:
+
+func _on_died():
+	combat_sfx.play_event("sting")
+
+
+func _apply_dead_state():
+	# Follows health state, however it arrived (a hit, set_health_now, a
+	# respawn, or a late copy's state reply): a dead player neither blocks
+	# movement nor hits until it respawns. The sprite hides in _process.
+	var dead := health.is_dead()
+	body_shape.set_deferred("disabled", dead)
+	if dead:
+		weapon.visible = false
+		sword_shape.set_deferred("disabled", true)
+
+
+func _on_respawned(at: Vector2):
+	if not is_multiplayer_authority():
+		_respawn_from = position
+		_respawn_hold = at
+		_respawn_hold_until = Time.get_ticks_msec() + RESPAWN_HOLD_MS
+	position = at
+	velocity = Vector2.ZERO
+
+
+func _on_synchronized():
+	# The owner keeps sending its pre-respawn position until the respawn
+	# reaches it; keep the copy at the spawn until an update is nearer the
+	# spawn than the old spot (or the hold runs out), then follow again.
+	if _respawn_hold == Vector2.INF:
 		return
-
-	currentHealth += 5
-	if currentHealth >= maxHealth:
-		currentHealth = maxHealth
-
-	var healthbar = $healthbar
-	# changing the healthbar
-	if healthbar:
-		healthbar.value = currentHealth
-
-	print_debug("healthRegened", " ", currentHealth, " ", name)
+	var caught_up := position.distance_to(_respawn_hold) < position.distance_to(_respawn_from)
+	if caught_up or Time.get_ticks_msec() > _respawn_hold_until:
+		_respawn_hold = Vector2.INF
+	else:
+		position = _respawn_hold
 
 func _on_animation_player_animation_finished(anim_name):
 	animations.play("walkDown")
 
 
 func _on_regen_timer_timeout():
-	regen_heatlh()
+	health.heal(REGEN_AMOUNT)  # server only; full or dead players are skipped
 
 
 func _on_hurt_box_area_entered(area):
-	if area == $hurtBox: return
-
+	# An area never reports itself, and the hurtBox is on no layer anyway.
 	var collision_player = area.get_parent().get_parent()
-	if collision_player.name != name:
-		combat_sfx.play_event("hit")
-		receiveDamage()  # a different player is attacking
+	if collision_player.name != name and collision_player.has_method("sword_active") and collision_player.sword_active():
+		# A different player's sword, mid-swing. Every peer sees the overlap; only
+		# the server's take_damage counts, and it syncs health and sounds to all.
+		health.take_damage(SWORD_DAMAGE)

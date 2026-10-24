@@ -17,6 +17,18 @@ cd "$ROOT"
 
 GODOT="${GODOT:-godot}"
 
+# Godot keeps editor settings, user:// files (saved map and audio settings) and
+# caches under the XDG dirs, which are shared by every checkout on a machine.
+# Give each run its own dirs so parallel runs, and settings saved by a manual
+# play session, cannot leak into the checks. An XDG var the caller already set
+# is kept.
+verify_tmp="$(mktemp -d)"
+trap 'rm -rf "${verify_tmp}"' EXIT
+export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-${verify_tmp}/config}"
+export XDG_DATA_HOME="${XDG_DATA_HOME:-${verify_tmp}/data}"
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-${verify_tmp}/cache}"
+echo "Godot user dirs: XDG_CONFIG_HOME=${XDG_CONFIG_HOME} XDG_DATA_HOME=${XDG_DATA_HOME} XDG_CACHE_HOME=${XDG_CACHE_HOME}"
+
 if [[ ! -x "$GODOT" ]] && ! command -v "$GODOT" >/dev/null 2>&1; then
   echo "error: Godot 4.7 editor binary not found (set GODOT to the binary path)" >&2
   exit 127
@@ -164,5 +176,29 @@ if [[ "${audio_status}" -ne 0 ]] || log_has_project_error "${audio_log}" || ! gr
 fi
 rm -f "${audio_log}"
 echo "Audio check: ok"
+
+echo "== Generator smoke (res://tools/generator_smoke.gd) =="
+gen_log="$(mktemp)"
+gen_args=()
+# Regenerate the hero sheet when Pillow is available and compare it with the
+# committed one; without Pillow only the committed art is checked.
+if python3 -c 'import PIL' >/dev/null 2>&1; then
+  python3 "$ROOT/tools/hero/make_hero.py" --out "${verify_tmp}/hero" flagbearer >/dev/null
+  gen_args=(-- "--hero-sheet=${verify_tmp}/hero/flagbearer_sheet.png")
+else
+  echo "Hero regeneration: skipped (python3 with Pillow not found)"
+fi
+set +e
+"$GODOT" --headless --path "$ROOT" --script res://tools/generator_smoke.gd "${gen_args[@]}" >"${gen_log}" 2>&1
+gen_status=$?
+set -e
+cat "${gen_log}"
+if [[ "${gen_status}" -ne 0 ]] || log_has_project_error "${gen_log}" || ! grep -q 'GENERATOR_SMOKE_OK' "${gen_log}"; then
+  echo "error: generator smoke failed (exit ${gen_status})" >&2
+  rm -f "${gen_log}"
+  exit 1
+fi
+rm -f "${gen_log}"
+echo "Generator smoke: ok"
 
 echo "Verification passed."

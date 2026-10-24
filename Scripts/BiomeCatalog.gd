@@ -1,7 +1,8 @@
 class_name BiomeCatalog
 extends RefCounted
 ## Large-scale biome ids with hardcoded per-biome island density, altitude
-## bias, ground terrain table and plant table. Every table applies only when biomes are on.
+## bias, ground terrain table, plant table and structure table. Every table
+## applies only when biomes are on.
 
 const OCEANIC := 0
 const TEMPERATE := 1
@@ -47,6 +48,17 @@ const PLANTS := {
 	ARCHIPELAGO_DENSE: {"tree_chance": 0.15, "bush_chance": -0.25},
 }
 
+## Per-biome structures: walkable stones on GROUND_DECOR_LAYER. A walkable land
+## cell without a plant (beaches included) gets stones where the items chance
+## is above stone_chance. Values above 1 mean never; TEMPERATE has none, so it
+## still matches the map with biomes off.
+const STRUCTURES := {
+	OCEANIC: {"stone_chance": 0.3},
+	TEMPERATE: {"stone_chance": 2.0},
+	CONTINENTAL: {"stone_chance": 0.35},
+	ARCHIPELAGO_DENSE: {"stone_chance": 2.0},
+}
+
 
 static func from_noise(value: float) -> int:
 	## Map FastNoiseLite output in roughly [-1, 1] to a biome id.
@@ -76,4 +88,10 @@ static func terrain(biome_id: int, key: String) -> float:
 static func plants(biome_id: int, key: String) -> float:
 	## One PLANTS value; unknown biomes fall back to the TEMPERATE row.
 	var row: Dictionary = PLANTS.get(biome_id, PLANTS[TEMPERATE])
+	return float(row[key])
+
+
+static func structures(biome_id: int, key: String) -> float:
+	## One STRUCTURES value; unknown biomes fall back to the TEMPERATE row.
+	var row: Dictionary = STRUCTURES.get(biome_id, STRUCTURES[TEMPERATE])
 	return float(row[key])

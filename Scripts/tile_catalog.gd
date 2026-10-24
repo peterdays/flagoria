@@ -5,7 +5,14 @@ extends RefCounted
 ## tileset swap changes only this file and the TileSet. See docs/tiles.md.
 
 const SOURCE_ID := 0
+## Terrain set and terrain of the "Island" terrain in the world TileSet
+## (Match Corners and Sides). Paint with set_cells_terrain_connect(cells,
+## ISLAND_TERRAIN_SET, ISLAND_TERRAIN).
+const ISLAND_TERRAIN_SET := 0
+const ISLAND_TERRAIN := 0
 
+## Map fill tiles placed by the generator. These keep their cells across
+## tileset versions.
 const WATER := Vector2i(5, 6)
 const SAND := Vector2i(5, 4)
 const SWAMP := Vector2i(14, 7)
@@ -17,6 +24,191 @@ const GRASS_D := Vector2i(6, 1)
 const BUSH := Vector2i(7, 3)
 const TREE := Vector2i(7, 0)
 const FLOWER := Vector2i(9, 3)
+## Walkable small stones (ground decor, no collision). Same art cell as
+## ROCK_FLOAT_S.
+const STONES := Vector2i(0, 7)
+
+## Island edges (flat top-down coast around grass)
+const GRASS_EDGE_N := Vector2i(0, 0)
+const GRASS_EDGE_E := Vector2i(1, 0)
+const GRASS_EDGE_S := Vector2i(2, 0)
+const GRASS_EDGE_W := Vector2i(3, 0)
+const GRASS_CORNER_OUT_NE := Vector2i(0, 1)
+const GRASS_CORNER_OUT_SE := Vector2i(1, 1)
+const GRASS_CORNER_OUT_SW := Vector2i(2, 1)
+const GRASS_CORNER_OUT_NW := Vector2i(3, 1)
+const GRASS_CORNER_IN_NE := Vector2i(0, 2)
+const GRASS_CORNER_IN_SE := Vector2i(1, 2)
+const GRASS_CORNER_IN_SW := Vector2i(2, 2)
+const GRASS_CORNER_IN_NW := Vector2i(3, 2)
+
+## Island blob pieces for the "Island" terrain: ISLAND_BLOB_<mask>, 8-neighbour
+## mask N1 NE2 E4 SE8 S16 SW32 W64 NW128 (a corner bit counts only when both
+## its sides are land). _W1-_W3 are weighted variants of the same piece.
+const ISLAND_BLOB_000 := Vector2i(16, 8)
+const ISLAND_BLOB_001 := Vector2i(17, 8)
+const ISLAND_BLOB_004 := Vector2i(18, 8)
+const ISLAND_BLOB_005 := Vector2i(19, 8)
+const ISLAND_BLOB_007 := Vector2i(20, 8)
+const ISLAND_BLOB_016 := Vector2i(21, 8)
+const ISLAND_BLOB_017 := Vector2i(22, 8)
+const ISLAND_BLOB_017_W1 := Vector2i(4, 8)
+const ISLAND_BLOB_017_W2 := Vector2i(5, 8)
+const ISLAND_BLOB_017_W3 := Vector2i(6, 8)
+const ISLAND_BLOB_020 := Vector2i(23, 8)
+const ISLAND_BLOB_021 := Vector2i(16, 9)
+const ISLAND_BLOB_021_W1 := Vector2i(7, 8)
+const ISLAND_BLOB_021_W2 := Vector2i(8, 8)
+const ISLAND_BLOB_021_W3 := Vector2i(9, 8)
+const ISLAND_BLOB_023 := Vector2i(17, 9)
+const ISLAND_BLOB_023_W1 := Vector2i(10, 8)
+const ISLAND_BLOB_023_W2 := Vector2i(11, 8)
+const ISLAND_BLOB_023_W3 := Vector2i(12, 8)
+const ISLAND_BLOB_028 := Vector2i(18, 9)
+const ISLAND_BLOB_029 := Vector2i(19, 9)
+const ISLAND_BLOB_029_W1 := Vector2i(4, 9)
+const ISLAND_BLOB_029_W2 := Vector2i(5, 9)
+const ISLAND_BLOB_029_W3 := Vector2i(6, 9)
+const ISLAND_BLOB_031 := Vector2i(20, 9)
+const ISLAND_BLOB_031_W1 := Vector2i(7, 9)
+const ISLAND_BLOB_031_W2 := Vector2i(8, 9)
+const ISLAND_BLOB_031_W3 := Vector2i(9, 9)
+const ISLAND_BLOB_064 := Vector2i(21, 9)
+const ISLAND_BLOB_065 := Vector2i(22, 9)
+const ISLAND_BLOB_068 := Vector2i(23, 9)
+const ISLAND_BLOB_068_W1 := Vector2i(10, 9)
+const ISLAND_BLOB_068_W2 := Vector2i(11, 9)
+const ISLAND_BLOB_068_W3 := Vector2i(12, 9)
+const ISLAND_BLOB_069 := Vector2i(16, 10)
+const ISLAND_BLOB_069_W1 := Vector2i(4, 10)
+const ISLAND_BLOB_069_W2 := Vector2i(5, 10)
+const ISLAND_BLOB_069_W3 := Vector2i(6, 10)
+const ISLAND_BLOB_071 := Vector2i(17, 10)
+const ISLAND_BLOB_071_W1 := Vector2i(7, 10)
+const ISLAND_BLOB_071_W2 := Vector2i(8, 10)
+const ISLAND_BLOB_071_W3 := Vector2i(9, 10)
+const ISLAND_BLOB_080 := Vector2i(18, 10)
+const ISLAND_BLOB_081 := Vector2i(19, 10)
+const ISLAND_BLOB_081_W1 := Vector2i(10, 10)
+const ISLAND_BLOB_081_W2 := Vector2i(11, 10)
+const ISLAND_BLOB_081_W3 := Vector2i(12, 10)
+const ISLAND_BLOB_084 := Vector2i(20, 10)
+const ISLAND_BLOB_084_W1 := Vector2i(4, 11)
+const ISLAND_BLOB_084_W2 := Vector2i(5, 11)
+const ISLAND_BLOB_084_W3 := Vector2i(6, 11)
+const ISLAND_BLOB_085 := Vector2i(21, 10)
+const ISLAND_BLOB_087 := Vector2i(22, 10)
+const ISLAND_BLOB_092 := Vector2i(23, 10)
+const ISLAND_BLOB_092_W1 := Vector2i(7, 11)
+const ISLAND_BLOB_092_W2 := Vector2i(8, 11)
+const ISLAND_BLOB_092_W3 := Vector2i(9, 11)
+const ISLAND_BLOB_093 := Vector2i(16, 11)
+const ISLAND_BLOB_095 := Vector2i(17, 11)
+const ISLAND_BLOB_112 := Vector2i(18, 11)
+const ISLAND_BLOB_113 := Vector2i(19, 11)
+const ISLAND_BLOB_113_W1 := Vector2i(10, 11)
+const ISLAND_BLOB_113_W2 := Vector2i(11, 11)
+const ISLAND_BLOB_113_W3 := Vector2i(12, 11)
+const ISLAND_BLOB_116 := Vector2i(20, 11)
+const ISLAND_BLOB_116_W1 := Vector2i(4, 12)
+const ISLAND_BLOB_116_W2 := Vector2i(5, 12)
+const ISLAND_BLOB_116_W3 := Vector2i(6, 12)
+const ISLAND_BLOB_117 := Vector2i(21, 11)
+const ISLAND_BLOB_119 := Vector2i(22, 11)
+const ISLAND_BLOB_124 := Vector2i(23, 11)
+const ISLAND_BLOB_124_W1 := Vector2i(7, 12)
+const ISLAND_BLOB_124_W2 := Vector2i(8, 12)
+const ISLAND_BLOB_124_W3 := Vector2i(9, 12)
+const ISLAND_BLOB_125 := Vector2i(16, 12)
+const ISLAND_BLOB_127 := Vector2i(17, 12)
+const ISLAND_BLOB_193 := Vector2i(18, 12)
+const ISLAND_BLOB_197 := Vector2i(19, 12)
+const ISLAND_BLOB_197_W1 := Vector2i(10, 12)
+const ISLAND_BLOB_197_W2 := Vector2i(11, 12)
+const ISLAND_BLOB_197_W3 := Vector2i(12, 12)
+const ISLAND_BLOB_199 := Vector2i(20, 12)
+const ISLAND_BLOB_199_W1 := Vector2i(4, 13)
+const ISLAND_BLOB_199_W2 := Vector2i(5, 13)
+const ISLAND_BLOB_199_W3 := Vector2i(6, 13)
+const ISLAND_BLOB_209 := Vector2i(21, 12)
+const ISLAND_BLOB_209_W1 := Vector2i(7, 13)
+const ISLAND_BLOB_209_W2 := Vector2i(8, 13)
+const ISLAND_BLOB_209_W3 := Vector2i(9, 13)
+const ISLAND_BLOB_213 := Vector2i(22, 12)
+const ISLAND_BLOB_215 := Vector2i(23, 12)
+const ISLAND_BLOB_221 := Vector2i(16, 13)
+const ISLAND_BLOB_223 := Vector2i(17, 13)
+const ISLAND_BLOB_241 := Vector2i(18, 13)
+const ISLAND_BLOB_241_W1 := Vector2i(10, 13)
+const ISLAND_BLOB_241_W2 := Vector2i(11, 13)
+const ISLAND_BLOB_241_W3 := Vector2i(12, 13)
+const ISLAND_BLOB_245 := Vector2i(19, 13)
+const ISLAND_BLOB_247 := Vector2i(20, 13)
+const ISLAND_BLOB_253 := Vector2i(21, 13)
+const ISLAND_BLOB_255 := Vector2i(22, 13)
+
+## Trees. _TOP/_BOTTOM and _TL/_TR/_BL/_BR are parts of multi-cell trees.
+const TREE_PINE_TOP := Vector2i(8, 0)
+const TREE_BIRCH_TOP := Vector2i(9, 0)
+const TREE_APPLE_TOP := Vector2i(10, 0)
+const TREE_AUTUMN_TOP := Vector2i(11, 0)
+const TREE_OAK_TALL_TOP := Vector2i(12, 0)
+const TREE_BIG_OAK_TL := Vector2i(13, 0)
+const TREE_BIG_OAK_TR := Vector2i(14, 0)
+const TREE_BUSHY := Vector2i(7, 1)
+const TREE_PINE_BOTTOM := Vector2i(8, 1)
+const TREE_BIRCH_BOTTOM := Vector2i(9, 1)
+const TREE_APPLE_BOTTOM := Vector2i(10, 1)
+const TREE_AUTUMN_BOTTOM := Vector2i(11, 1)
+const TREE_OAK_TALL_BOTTOM := Vector2i(12, 1)
+const TREE_BIG_OAK_BL := Vector2i(13, 1)
+const TREE_BIG_OAK_BR := Vector2i(14, 1)
+const TREE_PINE_SMALL := Vector2i(7, 2)
+
+## Props and floating rocks
+const ROCK_FLOAT_S := Vector2i(0, 7)
+const ROCK_FLOAT_M := Vector2i(1, 7)
+const PROP_FLAG_BLUE := Vector2i(2, 7)
+const PROP_FLAG_RED := Vector2i(3, 7)
+
+## Clouds. CLOUD_M_* and CLOUD_L_* are parts of multi-cell clouds, row-major.
+const CLOUD_S := Vector2i(0, 8)
+const CLOUD_M_0 := Vector2i(1, 8)
+const CLOUD_M_1 := Vector2i(2, 8)
+const CLOUD_L_0 := Vector2i(0, 9)
+const CLOUD_L_1 := Vector2i(1, 9)
+const CLOUD_L_2 := Vector2i(2, 9)
+const CLOUD_L_3 := Vector2i(0, 10)
+const CLOUD_L_4 := Vector2i(1, 10)
+const CLOUD_L_5 := Vector2i(2, 10)
+
+## Castle walls (overlay layer, transparent background)
+const WALL_POST := Vector2i(16, 0)
+const WALL_END_N := Vector2i(17, 0)
+const WALL_END_E := Vector2i(18, 0)
+const WALL_END_S := Vector2i(19, 0)
+const WALL_END_W := Vector2i(20, 0)
+const WALL_H := Vector2i(21, 0)
+const WALL_V := Vector2i(22, 0)
+const WALL_CORNER_OUT_NW := Vector2i(23, 0)
+const WALL_CORNER_OUT_NE := Vector2i(16, 1)
+const WALL_CORNER_OUT_SW := Vector2i(17, 1)
+const WALL_CORNER_OUT_SE := Vector2i(18, 1)
+const WALL_CORNER_IN_NW := Vector2i(19, 1)
+const WALL_CORNER_IN_NE := Vector2i(20, 1)
+const WALL_CORNER_IN_SW := Vector2i(21, 1)
+const WALL_CORNER_IN_SE := Vector2i(22, 1)
+const WALL_T_N := Vector2i(23, 1)
+const WALL_T_E := Vector2i(16, 2)
+const WALL_T_S := Vector2i(17, 2)
+const WALL_T_W := Vector2i(18, 2)
+const WALL_CROSS := Vector2i(19, 2)
+const WALL_GATE_H := Vector2i(20, 2)
+const WALL_GATE_H_OPEN := Vector2i(21, 2)
+const WALL_GATE_V := Vector2i(22, 2)
+const WALL_H_DMG_CRACK := Vector2i(23, 2)
+const WALL_H_DMG_CHUNK := Vector2i(16, 3)
+const WALL_V_DMG_CRACK := Vector2i(17, 3)
 
 ## Name -> {source_id, atlas}. Every constant above appears here.
 const TILES := {
@@ -31,4 +223,173 @@ const TILES := {
 	"BUSH": {"source_id": SOURCE_ID, "atlas": BUSH},
 	"TREE": {"source_id": SOURCE_ID, "atlas": TREE},
 	"FLOWER": {"source_id": SOURCE_ID, "atlas": FLOWER},
+	"STONES": {"source_id": SOURCE_ID, "atlas": STONES},
+	"GRASS_EDGE_N": {"source_id": SOURCE_ID, "atlas": GRASS_EDGE_N},
+	"GRASS_EDGE_E": {"source_id": SOURCE_ID, "atlas": GRASS_EDGE_E},
+	"GRASS_EDGE_S": {"source_id": SOURCE_ID, "atlas": GRASS_EDGE_S},
+	"GRASS_EDGE_W": {"source_id": SOURCE_ID, "atlas": GRASS_EDGE_W},
+	"GRASS_CORNER_OUT_NE": {"source_id": SOURCE_ID, "atlas": GRASS_CORNER_OUT_NE},
+	"GRASS_CORNER_OUT_SE": {"source_id": SOURCE_ID, "atlas": GRASS_CORNER_OUT_SE},
+	"GRASS_CORNER_OUT_SW": {"source_id": SOURCE_ID, "atlas": GRASS_CORNER_OUT_SW},
+	"GRASS_CORNER_OUT_NW": {"source_id": SOURCE_ID, "atlas": GRASS_CORNER_OUT_NW},
+	"GRASS_CORNER_IN_NE": {"source_id": SOURCE_ID, "atlas": GRASS_CORNER_IN_NE},
+	"GRASS_CORNER_IN_SE": {"source_id": SOURCE_ID, "atlas": GRASS_CORNER_IN_SE},
+	"GRASS_CORNER_IN_SW": {"source_id": SOURCE_ID, "atlas": GRASS_CORNER_IN_SW},
+	"GRASS_CORNER_IN_NW": {"source_id": SOURCE_ID, "atlas": GRASS_CORNER_IN_NW},
+	"ISLAND_BLOB_000": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_000},
+	"ISLAND_BLOB_001": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_001},
+	"ISLAND_BLOB_004": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_004},
+	"ISLAND_BLOB_005": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_005},
+	"ISLAND_BLOB_007": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_007},
+	"ISLAND_BLOB_016": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_016},
+	"ISLAND_BLOB_017": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_017},
+	"ISLAND_BLOB_017_W1": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_017_W1},
+	"ISLAND_BLOB_017_W2": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_017_W2},
+	"ISLAND_BLOB_017_W3": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_017_W3},
+	"ISLAND_BLOB_020": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_020},
+	"ISLAND_BLOB_021": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_021},
+	"ISLAND_BLOB_021_W1": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_021_W1},
+	"ISLAND_BLOB_021_W2": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_021_W2},
+	"ISLAND_BLOB_021_W3": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_021_W3},
+	"ISLAND_BLOB_023": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_023},
+	"ISLAND_BLOB_023_W1": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_023_W1},
+	"ISLAND_BLOB_023_W2": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_023_W2},
+	"ISLAND_BLOB_023_W3": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_023_W3},
+	"ISLAND_BLOB_028": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_028},
+	"ISLAND_BLOB_029": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_029},
+	"ISLAND_BLOB_029_W1": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_029_W1},
+	"ISLAND_BLOB_029_W2": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_029_W2},
+	"ISLAND_BLOB_029_W3": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_029_W3},
+	"ISLAND_BLOB_031": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_031},
+	"ISLAND_BLOB_031_W1": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_031_W1},
+	"ISLAND_BLOB_031_W2": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_031_W2},
+	"ISLAND_BLOB_031_W3": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_031_W3},
+	"ISLAND_BLOB_064": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_064},
+	"ISLAND_BLOB_065": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_065},
+	"ISLAND_BLOB_068": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_068},
+	"ISLAND_BLOB_068_W1": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_068_W1},
+	"ISLAND_BLOB_068_W2": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_068_W2},
+	"ISLAND_BLOB_068_W3": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_068_W3},
+	"ISLAND_BLOB_069": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_069},
+	"ISLAND_BLOB_069_W1": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_069_W1},
+	"ISLAND_BLOB_069_W2": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_069_W2},
+	"ISLAND_BLOB_069_W3": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_069_W3},
+	"ISLAND_BLOB_071": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_071},
+	"ISLAND_BLOB_071_W1": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_071_W1},
+	"ISLAND_BLOB_071_W2": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_071_W2},
+	"ISLAND_BLOB_071_W3": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_071_W3},
+	"ISLAND_BLOB_080": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_080},
+	"ISLAND_BLOB_081": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_081},
+	"ISLAND_BLOB_081_W1": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_081_W1},
+	"ISLAND_BLOB_081_W2": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_081_W2},
+	"ISLAND_BLOB_081_W3": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_081_W3},
+	"ISLAND_BLOB_084": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_084},
+	"ISLAND_BLOB_084_W1": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_084_W1},
+	"ISLAND_BLOB_084_W2": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_084_W2},
+	"ISLAND_BLOB_084_W3": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_084_W3},
+	"ISLAND_BLOB_085": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_085},
+	"ISLAND_BLOB_087": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_087},
+	"ISLAND_BLOB_092": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_092},
+	"ISLAND_BLOB_092_W1": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_092_W1},
+	"ISLAND_BLOB_092_W2": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_092_W2},
+	"ISLAND_BLOB_092_W3": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_092_W3},
+	"ISLAND_BLOB_093": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_093},
+	"ISLAND_BLOB_095": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_095},
+	"ISLAND_BLOB_112": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_112},
+	"ISLAND_BLOB_113": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_113},
+	"ISLAND_BLOB_113_W1": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_113_W1},
+	"ISLAND_BLOB_113_W2": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_113_W2},
+	"ISLAND_BLOB_113_W3": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_113_W3},
+	"ISLAND_BLOB_116": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_116},
+	"ISLAND_BLOB_116_W1": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_116_W1},
+	"ISLAND_BLOB_116_W2": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_116_W2},
+	"ISLAND_BLOB_116_W3": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_116_W3},
+	"ISLAND_BLOB_117": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_117},
+	"ISLAND_BLOB_119": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_119},
+	"ISLAND_BLOB_124": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_124},
+	"ISLAND_BLOB_124_W1": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_124_W1},
+	"ISLAND_BLOB_124_W2": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_124_W2},
+	"ISLAND_BLOB_124_W3": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_124_W3},
+	"ISLAND_BLOB_125": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_125},
+	"ISLAND_BLOB_127": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_127},
+	"ISLAND_BLOB_193": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_193},
+	"ISLAND_BLOB_197": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_197},
+	"ISLAND_BLOB_197_W1": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_197_W1},
+	"ISLAND_BLOB_197_W2": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_197_W2},
+	"ISLAND_BLOB_197_W3": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_197_W3},
+	"ISLAND_BLOB_199": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_199},
+	"ISLAND_BLOB_199_W1": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_199_W1},
+	"ISLAND_BLOB_199_W2": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_199_W2},
+	"ISLAND_BLOB_199_W3": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_199_W3},
+	"ISLAND_BLOB_209": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_209},
+	"ISLAND_BLOB_209_W1": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_209_W1},
+	"ISLAND_BLOB_209_W2": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_209_W2},
+	"ISLAND_BLOB_209_W3": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_209_W3},
+	"ISLAND_BLOB_213": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_213},
+	"ISLAND_BLOB_215": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_215},
+	"ISLAND_BLOB_221": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_221},
+	"ISLAND_BLOB_223": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_223},
+	"ISLAND_BLOB_241": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_241},
+	"ISLAND_BLOB_241_W1": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_241_W1},
+	"ISLAND_BLOB_241_W2": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_241_W2},
+	"ISLAND_BLOB_241_W3": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_241_W3},
+	"ISLAND_BLOB_245": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_245},
+	"ISLAND_BLOB_247": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_247},
+	"ISLAND_BLOB_253": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_253},
+	"ISLAND_BLOB_255": {"source_id": SOURCE_ID, "atlas": ISLAND_BLOB_255},
+	"TREE_PINE_TOP": {"source_id": SOURCE_ID, "atlas": TREE_PINE_TOP},
+	"TREE_BIRCH_TOP": {"source_id": SOURCE_ID, "atlas": TREE_BIRCH_TOP},
+	"TREE_APPLE_TOP": {"source_id": SOURCE_ID, "atlas": TREE_APPLE_TOP},
+	"TREE_AUTUMN_TOP": {"source_id": SOURCE_ID, "atlas": TREE_AUTUMN_TOP},
+	"TREE_OAK_TALL_TOP": {"source_id": SOURCE_ID, "atlas": TREE_OAK_TALL_TOP},
+	"TREE_BIG_OAK_TL": {"source_id": SOURCE_ID, "atlas": TREE_BIG_OAK_TL},
+	"TREE_BIG_OAK_TR": {"source_id": SOURCE_ID, "atlas": TREE_BIG_OAK_TR},
+	"TREE_BUSHY": {"source_id": SOURCE_ID, "atlas": TREE_BUSHY},
+	"TREE_PINE_BOTTOM": {"source_id": SOURCE_ID, "atlas": TREE_PINE_BOTTOM},
+	"TREE_BIRCH_BOTTOM": {"source_id": SOURCE_ID, "atlas": TREE_BIRCH_BOTTOM},
+	"TREE_APPLE_BOTTOM": {"source_id": SOURCE_ID, "atlas": TREE_APPLE_BOTTOM},
+	"TREE_AUTUMN_BOTTOM": {"source_id": SOURCE_ID, "atlas": TREE_AUTUMN_BOTTOM},
+	"TREE_OAK_TALL_BOTTOM": {"source_id": SOURCE_ID, "atlas": TREE_OAK_TALL_BOTTOM},
+	"TREE_BIG_OAK_BL": {"source_id": SOURCE_ID, "atlas": TREE_BIG_OAK_BL},
+	"TREE_BIG_OAK_BR": {"source_id": SOURCE_ID, "atlas": TREE_BIG_OAK_BR},
+	"TREE_PINE_SMALL": {"source_id": SOURCE_ID, "atlas": TREE_PINE_SMALL},
+	"ROCK_FLOAT_S": {"source_id": SOURCE_ID, "atlas": ROCK_FLOAT_S},
+	"ROCK_FLOAT_M": {"source_id": SOURCE_ID, "atlas": ROCK_FLOAT_M},
+	"PROP_FLAG_BLUE": {"source_id": SOURCE_ID, "atlas": PROP_FLAG_BLUE},
+	"PROP_FLAG_RED": {"source_id": SOURCE_ID, "atlas": PROP_FLAG_RED},
+	"CLOUD_S": {"source_id": SOURCE_ID, "atlas": CLOUD_S},
+	"CLOUD_M_0": {"source_id": SOURCE_ID, "atlas": CLOUD_M_0},
+	"CLOUD_M_1": {"source_id": SOURCE_ID, "atlas": CLOUD_M_1},
+	"CLOUD_L_0": {"source_id": SOURCE_ID, "atlas": CLOUD_L_0},
+	"CLOUD_L_1": {"source_id": SOURCE_ID, "atlas": CLOUD_L_1},
+	"CLOUD_L_2": {"source_id": SOURCE_ID, "atlas": CLOUD_L_2},
+	"CLOUD_L_3": {"source_id": SOURCE_ID, "atlas": CLOUD_L_3},
+	"CLOUD_L_4": {"source_id": SOURCE_ID, "atlas": CLOUD_L_4},
+	"CLOUD_L_5": {"source_id": SOURCE_ID, "atlas": CLOUD_L_5},
+	"WALL_POST": {"source_id": SOURCE_ID, "atlas": WALL_POST},
+	"WALL_END_N": {"source_id": SOURCE_ID, "atlas": WALL_END_N},
+	"WALL_END_E": {"source_id": SOURCE_ID, "atlas": WALL_END_E},
+	"WALL_END_S": {"source_id": SOURCE_ID, "atlas": WALL_END_S},
+	"WALL_END_W": {"source_id": SOURCE_ID, "atlas": WALL_END_W},
+	"WALL_H": {"source_id": SOURCE_ID, "atlas": WALL_H},
+	"WALL_V": {"source_id": SOURCE_ID, "atlas": WALL_V},
+	"WALL_CORNER_OUT_NW": {"source_id": SOURCE_ID, "atlas": WALL_CORNER_OUT_NW},
+	"WALL_CORNER_OUT_NE": {"source_id": SOURCE_ID, "atlas": WALL_CORNER_OUT_NE},
+	"WALL_CORNER_OUT_SW": {"source_id": SOURCE_ID, "atlas": WALL_CORNER_OUT_SW},
+	"WALL_CORNER_OUT_SE": {"source_id": SOURCE_ID, "atlas": WALL_CORNER_OUT_SE},
+	"WALL_CORNER_IN_NW": {"source_id": SOURCE_ID, "atlas": WALL_CORNER_IN_NW},
+	"WALL_CORNER_IN_NE": {"source_id": SOURCE_ID, "atlas": WALL_CORNER_IN_NE},
+	"WALL_CORNER_IN_SW": {"source_id": SOURCE_ID, "atlas": WALL_CORNER_IN_SW},
+	"WALL_CORNER_IN_SE": {"source_id": SOURCE_ID, "atlas": WALL_CORNER_IN_SE},
+	"WALL_T_N": {"source_id": SOURCE_ID, "atlas": WALL_T_N},
+	"WALL_T_E": {"source_id": SOURCE_ID, "atlas": WALL_T_E},
+	"WALL_T_S": {"source_id": SOURCE_ID, "atlas": WALL_T_S},
+	"WALL_T_W": {"source_id": SOURCE_ID, "atlas": WALL_T_W},
+	"WALL_CROSS": {"source_id": SOURCE_ID, "atlas": WALL_CROSS},
+	"WALL_GATE_H": {"source_id": SOURCE_ID, "atlas": WALL_GATE_H},
+	"WALL_GATE_H_OPEN": {"source_id": SOURCE_ID, "atlas": WALL_GATE_H_OPEN},
+	"WALL_GATE_V": {"source_id": SOURCE_ID, "atlas": WALL_GATE_V},
+	"WALL_H_DMG_CRACK": {"source_id": SOURCE_ID, "atlas": WALL_H_DMG_CRACK},
+	"WALL_H_DMG_CHUNK": {"source_id": SOURCE_ID, "atlas": WALL_H_DMG_CHUNK},
+	"WALL_V_DMG_CRACK": {"source_id": SOURCE_ID, "atlas": WALL_V_DMG_CRACK},
 }

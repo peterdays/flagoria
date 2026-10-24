@@ -1,49 +1,73 @@
 extends SceneTree
 ## Headless test entry point for CI.
-## Run: godot --headless --path . --script res://tests/run_tests.gd
-## Exit 0 on success, 1 on failure.
+## Run all:  godot --headless --path . --script res://tests/run_tests.gd
+## Run some: godot --headless --path . --script res://tests/run_tests.gd -- --only=map_zoom[,mob_chase]
+## List:     godot --headless --path . --script res://tests/run_tests.gd -- --list
+## Every `func _test_*() -> int` below is registered automatically, in source order.
+## Exit 0 on success, 1 on failure or an unknown test name.
 
 func _initialize() -> void:
 	call_deferred("_run")
 
 
 func _run() -> void:
+	var names := _registered_tests()
+	var picked := names
+	for arg in OS.get_cmdline_user_args():
+		if arg == "--list":
+			for test_name in names:
+				print(test_name.trim_prefix("_"))
+			quit(0)
+			return
+		if arg.begins_with("--only="):
+			picked = _filter_tests(names, arg.trim_prefix("--only=").split(",", false))
+			if picked.is_empty():
+				quit(1)
+				return
+		else:
+			printerr("Unknown argument: %s (expected --only=<name>[,<name>] or --list)" % arg)
+			quit(1)
+			return
 	var failures := 0
-	failures += _test_smoke_true()
-	failures += _test_map_characterization()
-	failures += _test_spawn_on_land()
-	failures += _test_map_settings_water_reopen()
-	failures += _test_no_decorations_on_water()
-	failures += _test_flowers()
-	failures += _test_tile_catalog()
-	failures += _test_audio_settings()
-	failures += await _test_music_player()
-	failures += await _test_combat_sfx()
-	failures += _test_footsteps()
-	failures += _test_island_falloff()
-	failures += _test_archipelago()
-	failures += _test_archipelago_count()
-	failures += _test_archipelago_count_land_masses()
-	failures += _test_biomes()
-	failures += _test_biome_terrain()
-	failures += _test_biome_plants()
-	failures += await _test_water_blocks_player()
-	failures += _test_map_settings_covers_params()
-	failures += _test_map_settings_rows_from_hints()
-	failures += _test_new_param_needs_no_ui_code()
-	failures += _test_biome_seed_panel_round_trip()
-	failures += await _test_chunk_refresh_frames()
-	failures += _test_map_save_round_trip()
-	failures += _test_map_save_rejects_bad_files()
-	failures += _test_player_spawn_no_missing_nodes()
-	failures += _test_server_port_from_args()
-	failures += await _test_dedicated_server_join()
+	for test_name in picked:
+		failures += await call(test_name)
+	print("Ran %d of %d tests." % [picked.size(), names.size()])
 	if failures == 0:
 		print("All tests passed.")
 		quit(0)
 	else:
 		print("Tests failed: %s" % failures)
 		quit(1)
+
+
+func _registered_tests() -> Array[String]:
+	## Every `func _test_*() -> int` in this file, in source order. Adding a
+	## test is just writing the function; nothing else needs to list it.
+	var found: Array[String] = []
+	var source := (get_script() as GDScript).source_code
+	var pattern := RegEx.create_from_string("(?m)^func (_test_[a-z0-9_]+)\\(\\)")
+	for m in pattern.search_all(source):
+		found.append(m.get_string(1))
+	return found
+
+
+func _filter_tests(names: Array[String], wanted: PackedStringArray) -> Array[String]:
+	## The tests named in wanted (with or without the `test_` prefix), in run
+	## order. Empty, after printing the known names, if one does not match.
+	var keys: Array[String] = []
+	for raw in wanted:
+		var key := "_test_" + raw.trim_prefix("_").trim_prefix("test_")
+		if key not in names:
+			printerr("No test named %s. Known tests:" % raw)
+			for test_name in names:
+				printerr("  " + test_name.trim_prefix("_"))
+			return []
+		keys.append(key)
+	var picked: Array[String] = []
+	for test_name in names:
+		if test_name in keys:
+			picked.append(test_name)
+	return picked
 
 
 func _test_smoke_true() -> int:
@@ -160,6 +184,49 @@ func _test_spawn_on_land() -> int:
 	scene.queue_free()
 	return fail
 
+func _spawn_params(seed_value: int, biome_frequency: float) -> MapGenParams:
+	var params = MapGenParams.make_defaults()
+	params.altitude_seed = seed_value
+	params.moisture_seed = seed_value
+	params.temperature_seed = seed_value
+	params.items_seed = seed_value
+	params.biome_seed = seed_value
+	params.biome_frequency = biome_frequency
+	return params
+
+
+func _test_spawn_reachable() -> int:
+	## The spawn cell is clear ground (no tree, bush or stones) and the player
+	## can walk from it to at least SPAWN_MIN_REACHABLE clear cells. Seed 7 with
+	## biomes on used to spawn on a single sand cell surrounded by water.
+	print("-- test_spawn_reachable")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var need: int = world.SPAWN_MIN_REACHABLE
+	var cases := [[7, 0.003]]
+	for biome_frequency in [0.003, 0.0]:
+		for seed_value in range(1, 51):
+			cases.append([seed_value, biome_frequency])
+	var fail := 0
+	for case in cases:
+		world.apply_map_params(_spawn_params(case[0], case[1]))
+		var cell: Vector2i = world.resolve_player_spawn()
+		var label := "seed=%s biomes=%s cell=%s" % [case[0], case[1] > 0.0, cell]
+		if not world.is_clear_ground(cell):
+			printerr("FAIL spawn_reachable %s is not clear ground" % label)
+			fail += 1
+			continue
+		var reach: int = world.reachable_clear_cells(cell, need).size()
+		if reach < need:
+			printerr("FAIL spawn_reachable %s reaches %s cells, need %s" % [label, reach, need])
+			fail += 1
+	if fail == 0:
+		print("PASS test_spawn_reachable (%s maps, %s+ cells each)" % [cases.size(), need])
+	scene.queue_free()
+	return fail
+
+
 func _test_map_settings_water_reopen() -> int:
 	## Map Settings must show the in-use water value on reopen, even when a
 	## SpinBox LineEdit still holds a dirty string for the same numeric value.
@@ -262,30 +329,633 @@ func _test_combat_sfx() -> int:
 	scene.get_node("World").add_child(player)
 	var c: CombatSfx = player.combat_sfx
 	player.attack_animation()
-	player.receiveDamage()
-	if c.plays["swing"] != 1 or c.plays["hurt"] != 1 or c.plays["sting"] != 0:
+	player.health.take_damage(1)
+	if c.plays["swing"] != 1 or c.plays["hit"] != 1 or c.plays["hurt"] != 1 or c.plays["sting"] != 0:
 		printerr("FAIL combat_sfx: attack + damage plays %s" % c.plays)
 		fail += 1
-	# A hit from another player's sword: hit and hurt once each; at 1 HP it is a kill.
+	# A hit from another player's sword: hit and hurt once each; at half a heart it is a kill.
 	c._last_ms.clear()
-	player.currentHealth = 1
+	player.health.set_health_now(1)
 	var other = load("res://Player/character_body_2d.tscn").instantiate()
 	other.name = "3"
 	scene.get_node("World").add_child(other)
+	other.attack_animation()  # only a swinging sword hits
 	player._on_hurt_box_area_entered(other.get_node("weapon/sword"))
-	if c.plays["hit"] != 1 or c.plays["hurt"] != 2 or c.plays["sting"] != 1:
+	if c.plays["hit"] != 2 or c.plays["hurt"] != 2 or c.plays["sting"] != 1:
 		printerr("FAIL combat_sfx: kill hit plays %s" % c.plays)
 		fail += 1
 	# Damage at 0 HP loses nothing: no hurt and no second sting.
 	c._last_ms.clear()
-	player.receiveDamage()
-	if player.currentHealth != 0 or c.plays["hurt"] != 2 or c.plays["sting"] != 1:
+	player.health.take_damage(1)
+	if player.health.health != 0 or c.plays["hurt"] != 2 or c.plays["sting"] != 1:
 		printerr("FAIL combat_sfx: damage at 0 HP plays %s" % c.plays)
 		fail += 1
 	scene.queue_free()
 	await process_frame
 	if fail == 0:
 		print("PASS test_combat_sfx")
+	return fail
+
+
+func _test_player_regen() -> int:
+	## The regen timer: every 5 s it heals half a heart, and skips players who
+	## are dead or already full. Ticks are fired by hand through the scene's
+	## own timeout connection, so the test does not wait 5 s per tick.
+	print("-- test_player_regen")
+	var fail := 0
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var me = load("res://Player/character_body_2d.tscn").instantiate()
+	me.name = str(scene.multiplayer.get_unique_id())
+	scene.get_node("World").add_child(me)
+	var h: PlayerHealth = me.health
+	var timer: Timer = me.get_node("regen_timer")
+	# autostart reads false once the timer has started, so check that it runs.
+	if timer.wait_time != 5.0 or timer.one_shot or timer.is_stopped():
+		printerr("FAIL player_regen timer %s s, one_shot %s, running %s"
+				% [timer.wait_time, timer.one_shot, not timer.is_stopped()])
+		fail += 1
+	if not timer.timeout.is_connected(me._on_regen_timer_timeout):
+		printerr("FAIL player_regen timer timeout is not connected to the player")
+		fail += 1
+	# Hurt: one tick heals half a heart (1 point), the next another.
+	h.set_health_now(3)
+	timer.timeout.emit()
+	if h.health != 4:
+		printerr("FAIL player_regen tick at 3 -> %s, want 4" % h.health)
+		fail += 1
+	timer.timeout.emit()
+	if h.health != 5:
+		printerr("FAIL player_regen second tick -> %s, want 5" % h.health)
+		fail += 1
+	# Full: a tick changes nothing.
+	h.set_health_now(h.max_health)
+	timer.timeout.emit()
+	if h.health != h.max_health:
+		printerr("FAIL player_regen full player -> %s" % h.health)
+		fail += 1
+	# Dead: a tick does not heal (respawn restores health).
+	h.respawn_delay = 1000.0
+	h.set_health_now(0)
+	timer.timeout.emit()
+	if h.health != 0 or not h.is_dead():
+		printerr("FAIL player_regen dead player -> %s" % h.health)
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_player_regen")
+	return fail
+
+
+func _test_player_health() -> int:
+	## Hearts: 3 hearts in half steps, damage, heal cap, invulnerability,
+	## death and respawn at the spawn point, per-player health, and the HUD
+	## row that follows the local player.
+	print("-- test_player_health")
+	var fail := 0
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world: Node = scene.get_node("World")
+	var me = load("res://Player/character_body_2d.tscn").instantiate()
+	me.name = str(scene.multiplayer.get_unique_id())  # the local player binds the HUD
+	world.add_child(me)
+	var other = load("res://Player/character_body_2d.tscn").instantiate()
+	other.name = "2"
+	world.add_child(other)
+	var h: PlayerHealth = me.health
+	var hud: HeartsHud = scene.get_node("CanvasLayer1/HeartsHud")
+	var deaths := [0]
+	h.died.connect(func() -> void: deaths[0] += 1)
+
+	if h.max_health != 6 or h.health != 6 or h.heart_count() != 3:
+		printerr("FAIL player_health: start %s/%s, %s hearts" % [h.health, h.max_health, h.heart_count()])
+		fail += 1
+	if not hud.visible or hud.current != 6 or hud.maximum != 6 or not hud.size.is_equal_approx(Vector2(29, 9)):
+		printerr("FAIL player_health: HUD visible=%s %s/%s size %s" % [hud.visible, hud.current, hud.maximum, hud.size])
+		fail += 1
+	# Half-heart step, then invulnerability blocks the next hit until it ends.
+	if not h.take_damage(1) or h.health != 5 or not h.is_invulnerable():
+		printerr("FAIL player_health: first hit -> %s, invulnerable=%s" % [h.health, h.is_invulnerable()])
+		fail += 1
+	if h.take_damage(1) or h.health != 5:
+		printerr("FAIL player_health: hit during invulnerability -> %s" % h.health)
+		fail += 1
+	if hud.current != 5:
+		printerr("FAIL player_health: HUD shows %s, want 5" % hud.current)
+		fail += 1
+	h.advance(h.invulnerable_time + 0.01)
+	if h.is_invulnerable() or not h.take_damage(2) or h.health != 3:
+		printerr("FAIL player_health: hit after invulnerability -> %s" % h.health)
+		fail += 1
+	if other.health.health != 6:
+		printerr("FAIL player_health: other player's health changed to %s" % other.health.health)
+		fail += 1
+	# Heal clamps at max; zero or negative amounts do nothing.
+	if h.take_damage(0) or h.heal(0) or h.heal(-1) or h.health != 3:
+		printerr("FAIL player_health: zero/negative amounts changed health to %s" % h.health)
+		fail += 1
+	if not h.heal(10) or h.health != 6 or h.heal(1):
+		printerr("FAIL player_health: heal cap -> %s" % h.health)
+		fail += 1
+	# HUD icons per heart slot for every half step.
+	var icons := {6: "FFF", 5: "FFH", 4: "FFE", 3: "FHE", 2: "FEE", 1: "HEE", 0: "EEE"}
+	for value in icons:
+		var got := ""
+		for slot in 3:
+			var tex := HeartsHud.icon_for(slot, value)
+			got += "F" if tex == HeartsHud.ICON_FULL else ("H" if tex == HeartsHud.ICON_HALF else "E")
+		if got != icons[value]:
+			printerr("FAIL player_health: icons at %s = %s, want %s" % [value, got, icons[value]])
+			fail += 1
+	for tex in [HeartsHud.ICON_FULL, HeartsHud.ICON_HALF, HeartsHud.ICON_EMPTY, HeartsHud.ICON_FLASH_0, HeartsHud.ICON_FLASH_1]:
+		if tex.get_size() != Vector2(9, 9):
+			printerr("FAIL player_health: heart icon %s is %s, want 9x9" % [tex.resource_path, tex.get_size()])
+			fail += 1
+	# Losing health flashes only the hearts that changed: flash 0, flash 1, then the new state.
+	hud.set_process(false)
+	hud.set_health(6, 6)
+	hud.set_health(3, 6)
+	var flash := func() -> String:
+		var out := ""
+		for slot in 3:
+			var tex := hud.shown_icon(slot)
+			out += {HeartsHud.ICON_FULL: "F", HeartsHud.ICON_HALF: "H", HeartsHud.ICON_EMPTY: "E", HeartsHud.ICON_FLASH_0: "0", HeartsHud.ICON_FLASH_1: "1"}[tex]
+		return out
+	var seen: Array[String] = [flash.call()]
+	hud.advance(HeartsHud.FLASH_FRAME + 0.001)
+	seen.append(flash.call())
+	hud.advance(HeartsHud.FLASH_FRAME)
+	seen.append(flash.call())
+	hud.set_health(6, 6)  # healing does not flash
+	seen.append(flash.call())
+	if seen != ["F00", "F11", "FHE", "FFF"]:
+		printerr("FAIL player_health: loss flash %s, want [F00, F11, FHE, FFF]" % [seen])
+		fail += 1
+	hud.set_process(true)
+	if not hud.position.is_equal_approx(Vector2(HeartsHud.MARGIN, HeartsHud.MARGIN) * hud.scale.x):
+		printerr("FAIL player_health: HUD at %s scale %s" % [hud.position, hud.scale])
+		fail += 1
+	# Death: health stops at 0, the player hides and cannot be hit or healed.
+	h.set_health_now(1)
+	if not h.take_damage(5) or h.health != 0 or not h.is_dead() or deaths[0] != 1:
+		printerr("FAIL player_health: kill -> %s, dead=%s, deaths=%s" % [h.health, h.is_dead(), deaths[0]])
+		fail += 1
+	h.advance(h.respawn_delay * 0.5)  # still before respawn
+	me._process(0.0)
+	if me.sprite.visible or h.take_damage(1) or h.heal(1) or deaths[0] != 1:
+		printerr("FAIL player_health: dead player visible=%s or changed" % me.sprite.visible)
+		fail += 1
+	# Respawn: full health, invulnerable, back at the spawn point.
+	me.position = Vector2(5000, 5000)
+	var spawn: Vector2 = me.spawn_position()
+	h.advance(h.respawn_delay * 0.5 + 0.01)
+	me._process(0.0)
+	if h.health != 6 or h.is_dead() or not h.is_invulnerable() or not me.sprite.visible:
+		printerr("FAIL player_health: respawn -> %s, invulnerable=%s" % [h.health, h.is_invulnerable()])
+		fail += 1
+	if me.position != spawn or spawn == Vector2(5000, 5000):
+		printerr("FAIL player_health: respawned at %s, spawn %s" % [me.position, spawn])
+		fail += 1
+	if hud.current != 6:
+		printerr("FAIL player_health: HUD after respawn %s" % hud.current)
+		fail += 1
+	# set_health_now(0) (tools, tests) leaves the same dead body as a kill.
+	h.set_health_now(0)
+	await physics_frame
+	me._process(0.0)
+	if not me.body_shape.disabled or not me.sword_shape.disabled or me.sprite.visible:
+		printerr("FAIL player_health: set_health_now(0) body off %s, sword off %s, sprite %s"
+				% [me.body_shape.disabled, me.sword_shape.disabled, me.sprite.visible])
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_player_health")
+	return fail
+
+
+func _test_player_health_sync() -> int:
+	## Two peers over ENet loopback, each with its own branch of the tree: the
+	## server's health changes reach the client, a late copy asks for the
+	## current value, and the client cannot change health itself.
+	print("-- test_player_health_sync")
+	var fail := 0
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL player_health_sync found no free UDP port")
+		return 1
+	var server_root := Node.new()
+	server_root.name = "HealthServer"
+	var client_root := Node.new()
+	client_root.name = "HealthClient"
+	root.add_child(server_root)
+	root.add_child(client_root)
+	var smp := SceneMultiplayer.new()
+	var cmp := SceneMultiplayer.new()
+	set_multiplayer(smp, server_root.get_path())
+	set_multiplayer(cmp, client_root.get_path())
+	var speer := ENetMultiplayerPeer.new()
+	speer.create_server(port)
+	smp.multiplayer_peer = speer
+
+	var s_player := Node2D.new()
+	s_player.name = "P"
+	s_player.position = Vector2(32, 48)
+	var s_health := PlayerHealth.new()
+	s_health.name = "Health"
+	s_player.add_child(s_health)
+	server_root.add_child(s_player)
+	s_health.take_damage(2)  # before the client exists
+
+	var cpeer := ENetMultiplayerPeer.new()
+	cpeer.create_client("127.0.0.1", port)
+	cmp.multiplayer_peer = cpeer
+	var deadline := Time.get_ticks_msec() + 10000
+	while Time.get_ticks_msec() < deadline and smp.get_peers().is_empty():
+		await process_frame
+	if smp.get_peers().is_empty():
+		printerr("FAIL player_health_sync client did not connect")
+		fail += 1
+	else:
+		var c_player := Node2D.new()
+		c_player.name = "P"
+		var c_health := PlayerHealth.new()
+		c_health.name = "Health"
+		c_player.add_child(c_health)
+		client_root.add_child(c_player)
+		var c_damage := [0]
+		var c_respawn := [Vector2.INF]
+		c_health.damaged.connect(func(amount: int) -> void: c_damage[0] += amount)
+		c_health.respawned.connect(func(at: Vector2) -> void: c_respawn[0] = at)
+
+		var wait := func(cond: Callable) -> bool:
+			var until := Time.get_ticks_msec() + 5000
+			while Time.get_ticks_msec() < until and not cond.call():
+				await process_frame
+			return cond.call()
+
+		if not await wait.call(func() -> bool: return c_health.health == 4):
+			printerr("FAIL player_health_sync late copy has %s, server 4" % c_health.health)
+			fail += 1
+		if c_health.take_damage(1) or c_health.heal(1) or c_health.health != 4 or s_health.health != 4:
+			printerr("FAIL player_health_sync client changed health (client %s, server %s)" % [c_health.health, s_health.health])
+			fail += 1
+		s_health.advance(s_health.invulnerable_time)
+		s_health.take_damage(1)
+		if not await wait.call(func() -> bool: return c_health.health == 3 and c_damage[0] == 1):
+			printerr("FAIL player_health_sync hit: client %s, damaged %s" % [c_health.health, c_damage[0]])
+			fail += 1
+		if not c_health.is_invulnerable():
+			printerr("FAIL player_health_sync client copy not invulnerable after the hit")
+			fail += 1
+		s_health.advance(s_health.invulnerable_time)
+		s_health.take_damage(3)
+		if not await wait.call(func() -> bool: return c_health.is_dead()):
+			printerr("FAIL player_health_sync client did not see the death (%s)" % c_health.health)
+			fail += 1
+		c_health.advance(10.0)  # only the server counts down to respawn
+		if not c_health.is_dead() or c_respawn[0] != Vector2.INF:
+			printerr("FAIL player_health_sync client respawned on its own")
+			fail += 1
+		s_health.advance(s_health.respawn_delay)
+		if not await wait.call(func() -> bool: return c_health.health == 6 and c_respawn[0] == Vector2(32, 48)):
+			printerr("FAIL player_health_sync respawn: client %s at %s" % [c_health.health, c_respawn[0]])
+			fail += 1
+
+	cpeer.close()
+	speer.close()
+	set_multiplayer(null, client_root.get_path())
+	set_multiplayer(null, server_root.get_path())
+	server_root.queue_free()
+	client_root.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_player_health_sync")
+	return fail
+
+
+func _test_player_health_join_while_dead() -> int:
+	## A peer that joins while another player is dead sees that player dead:
+	## hidden, with body and sword collision off, and no death sound replayed.
+	## Its own hearts take the server's value from the state reply with no
+	## loss flash. Server: bare PlayerHealth nodes; client: the real scenes.
+	print("-- test_player_health_join_while_dead")
+	var fail := 0
+	await process_frame
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL health_join_dead found no free UDP port")
+		return 1
+	var server_root := Node.new()
+	server_root.name = "JoinDeadServer"
+	root.add_child(server_root)
+	var s_world := Node.new()
+	s_world.name = "World"
+	server_root.add_child(s_world)
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var smp := SceneMultiplayer.new()
+	var cmp := SceneMultiplayer.new()
+	set_multiplayer(smp, server_root.get_path())
+	set_multiplayer(cmp, scene.get_path())
+	var speer := ENetMultiplayerPeer.new()
+	speer.create_server(port)
+	smp.multiplayer_peer = speer
+	var cpeer := ENetMultiplayerPeer.new()
+	cpeer.create_client("127.0.0.1", port)
+	var me_id := str(cpeer.get_unique_id())
+	# Before the client connects: player 5 is dead, the joiner's own player
+	# is down to 4 (as if hit right after spawning).
+	var server_health := func(player_name: String) -> PlayerHealth:
+		var p := Node2D.new()
+		p.name = player_name
+		var h := PlayerHealth.new()
+		h.name = "Health"
+		h.respawn_delay = 1000.0  # stays dead for the whole test
+		p.add_child(h)
+		s_world.add_child(p)
+		return h
+	server_health.call("5").take_damage(6)
+	server_health.call(me_id).take_damage(2)
+	cmp.multiplayer_peer = cpeer
+	var deadline := Time.get_ticks_msec() + 10000
+	while Time.get_ticks_msec() < deadline and (smp.get_peers().is_empty()
+			or cpeer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED):
+		await process_frame
+	if smp.get_peers().is_empty():
+		printerr("FAIL health_join_dead client did not connect")
+		fail += 1
+	else:
+		# The joiner's copies of both players. The test has no synchronizer on
+		# the server side, so the copies go without theirs.
+		var world: Node = scene.get_node("World")
+		var copy := func(player_name: String) -> CharacterBody2D:
+			var p = load("res://Player/character_body_2d.tscn").instantiate()
+			p.name = player_name
+			p.get_node("MultiplayerSynchronizer").free()
+			world.add_child(p)
+			return p
+		var dead = copy.call("5")
+		var deaths := [0]
+		dead.health.died.connect(func() -> void: deaths[0] += 1)
+		var me = copy.call(me_id)
+		me.set_physics_process(false)  # its animation RPCs have no server node here
+		var hud: HeartsHud = scene.get_node("CanvasLayer1/HeartsHud")
+		hud.set_process(false)  # a flash must still be up when checked
+		var until := Time.get_ticks_msec() + 5000
+		while Time.get_ticks_msec() < until and (dead.health.health != 0 or me.health.health != 4):
+			await process_frame
+		for i in 3:
+			await physics_frame
+		dead._process(0.0)
+		if dead.health.health != 0 or not dead.health.is_dead():
+			printerr("FAIL health_join_dead joiner sees %s for a dead player" % dead.health.health)
+			fail += 1
+		if not dead.body_shape.disabled or not dead.sword_shape.disabled or dead.sprite.visible or dead.weapon.visible:
+			printerr("FAIL health_join_dead dead copy: body off %s, sword off %s, sprite %s, weapon %s"
+					% [dead.body_shape.disabled, dead.sword_shape.disabled, dead.sprite.visible, dead.weapon.visible])
+			fail += 1
+		if deaths[0] != 0:
+			printerr("FAIL health_join_dead join replayed the death (%s)" % deaths[0])
+			fail += 1
+		if me.health.health != 4 or hud.current != 4:
+			printerr("FAIL health_join_dead own hearts %s, HUD %s, server 4" % [me.health.health, hud.current])
+			fail += 1
+		var flashing := false
+		for slot in 3:
+			flashing = flashing or hud.shown_icon(slot) in [HeartsHud.ICON_FLASH_0, HeartsHud.ICON_FLASH_1]
+		if flashing:
+			printerr("FAIL health_join_dead the join state reply flashed the HUD")
+			fail += 1
+		if me.body_shape.disabled:
+			printerr("FAIL health_join_dead living joiner has no body collision")
+			fail += 1
+		hud.set_process(true)
+	cpeer.close()
+	speer.close()
+	set_multiplayer(null, scene.get_path())
+	set_multiplayer(null, server_root.get_path())
+	scene.queue_free()
+	server_root.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_player_health_join_while_dead")
+	return fail
+
+
+func _test_player_respawn_no_snapback() -> int:
+	## A client-owned player respawns: the server moves its copy to the spawn
+	## at once, while the owner keeps sending its old position until the
+	## respawn reaches it. Over a link with latency (a UDP proxy that delays
+	## each packet), the server copy must not jump back to the death spot.
+	print("-- test_player_respawn_no_snapback")
+	var fail := 0
+	await process_frame
+	var port := _free_udp_port()
+	var proxy_port := _free_udp_port()
+	if port == 0 or proxy_port == 0 or port == proxy_port:
+		printerr("FAIL respawn_snapback found no free UDP ports")
+		return 1
+	var server_root := Node.new()
+	server_root.name = "SnapServer"
+	root.add_child(server_root)
+	var s_world := Node2D.new()
+	s_world.name = "World"
+	server_root.add_child(s_world)
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var smp := SceneMultiplayer.new()
+	var cmp := SceneMultiplayer.new()
+	set_multiplayer(smp, server_root.get_path())
+	set_multiplayer(cmp, scene.get_path())
+	var speer := ENetMultiplayerPeer.new()
+	speer.create_server(port)
+	smp.multiplayer_peer = speer
+	# Proxy: client <-> proxy_port <-> server, each packet held DELAY_MS.
+	const DELAY_MS := 60
+	var listen := UDPServer.new()
+	listen.listen(proxy_port, "127.0.0.1")
+	var upstream := PacketPeerUDP.new()
+	upstream.connect_to_host("127.0.0.1", port)
+	var link := {"down": null, "up_q": [], "down_q": []}
+	var pump := func() -> void:
+		var now := Time.get_ticks_msec()
+		listen.poll()
+		if listen.is_connection_available():
+			link.down = listen.take_connection()
+		if link.down:
+			while link.down.get_available_packet_count() > 0:
+				link.up_q.append([now + DELAY_MS, link.down.get_packet()])
+		while upstream.get_available_packet_count() > 0:
+			link.down_q.append([now + DELAY_MS, upstream.get_packet()])
+		while not link.up_q.is_empty() and link.up_q[0][0] <= now:
+			upstream.put_packet(link.up_q.pop_front()[1])
+		while link.down and not link.down_q.is_empty() and link.down_q[0][0] <= now:
+			link.down.put_packet(link.down_q.pop_front()[1])
+	process_frame.connect(pump)
+	physics_frame.connect(pump)
+	var cpeer := ENetMultiplayerPeer.new()
+	cpeer.create_client("127.0.0.1", proxy_port)
+	cmp.multiplayer_peer = cpeer
+	var deadline := Time.get_ticks_msec() + 10000
+	while Time.get_ticks_msec() < deadline and (smp.get_peers().is_empty()
+			or cpeer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED):
+		await process_frame
+	if smp.get_peers().is_empty():
+		printerr("FAIL respawn_snapback client did not connect")
+		fail += 1
+	else:
+		var player_scene := load("res://Player/character_body_2d.tscn")
+		var id := str(cpeer.get_unique_id())
+		var death := Vector2(100, 100)
+		var spawn := Vector2(400, 400)
+		var s_copy = player_scene.instantiate()
+		s_copy.name = id
+		s_copy.position = death
+		s_world.add_child(s_copy)
+		var owner_copy = player_scene.instantiate()
+		owner_copy.name = id
+		owner_copy.position = death
+		scene.get_node("World").add_child(owner_copy)
+		s_copy.health.respawn_delay = 1000.0
+		for i in 20:
+			await physics_frame
+		s_copy.health.take_damage(s_copy.health.max_health)
+		var until := Time.get_ticks_msec() + 5000
+		while Time.get_ticks_msec() < until and not owner_copy.health.is_dead():
+			await physics_frame
+		for i in 10:
+			await physics_frame
+		var stale: Vector2 = owner_copy.position
+		s_copy.health._do_respawn.rpc(spawn)
+		var reached := false
+		var snapped := ""
+		for f in 30:
+			var at: Vector2 = s_copy.position
+			var near_spawn := at.distance_to(spawn) < at.distance_to(stale)
+			if near_spawn:
+				reached = true
+			elif reached and snapped == "":
+				snapped = "frame %d at %s" % [f, at]
+			await physics_frame
+		if not reached:
+			printerr("FAIL respawn_snapback server copy never reached the spawn (%s)" % s_copy.position)
+			fail += 1
+		if snapped != "":
+			printerr("FAIL respawn_snapback server copy jumped back to the death spot (%s)" % snapped)
+			fail += 1
+		if owner_copy.position.distance_to(spawn) > 64.0 or s_copy.position.distance_to(owner_copy.position) > 64.0:
+			printerr("FAIL respawn_snapback copies apart: owner %s, server %s" % [owner_copy.position, s_copy.position])
+			fail += 1
+		cpeer.close()
+		for i in 3:
+			await physics_frame
+		s_copy.queue_free()
+		owner_copy.queue_free()
+		await process_frame
+	process_frame.disconnect(pump)
+	physics_frame.disconnect(pump)
+	cpeer.close()
+	speer.close()
+	upstream.close()
+	listen.stop()
+	set_multiplayer(null, scene.get_path())
+	set_multiplayer(null, server_root.get_path())
+	scene.queue_free()
+	server_root.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_player_respawn_no_snapback")
+	return fail
+
+
+func _test_sword_only_hits_mid_swing() -> int:
+	## Two real players on the spawn point with physics running: an idle sword
+	## overlap deals no damage, a swing still hits, a player respawning onto
+	## the other deals no damage, and a dead body does not block movement.
+	print("-- test_sword_only_hits_mid_swing")
+	var fail := 0
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world: Node = scene.get_node("World")
+	var a = load("res://Player/character_body_2d.tscn").instantiate()
+	a.name = "2"
+	world.add_child(a)
+	var b = load("res://Player/character_body_2d.tscn").instantiate()
+	b.name = "3"
+	world.add_child(b)
+	var spawn: Vector2 = a.spawn_position()
+	a.position = spawn
+	b.position = spawn
+	var settle := func() -> void:
+		for i in 4:
+			await physics_frame
+
+	# Idle swords overlapping the other player's hurt box: no damage either way.
+	await settle.call()
+	if a.health.health != 6 or b.health.health != 6:
+		printerr("FAIL sword_mid_swing idle overlap hurt: a %s, b %s" % [a.health.health, b.health.health])
+		fail += 1
+	# A swing still hits the player standing there, once.
+	a.attack_animation()
+	await settle.call()
+	if b.health.health != 5 or a.health.health != 6:
+		printerr("FAIL sword_mid_swing swing: b %s (want 5), a %s" % [b.health.health, a.health.health])
+		fail += 1
+	var until := Time.get_ticks_msec() + 3000
+	while a.isAttacking and Time.get_ticks_msec() < until:
+		await process_frame
+	await settle.call()
+	if a.isAttacking or not a.sword_shape.disabled:
+		printerr("FAIL sword_mid_swing sword still active after the swing")
+		fail += 1
+	b.health.set_health_now(6)
+
+	# A dead body does not block: b moving into a collides with a only while a
+	# is alive. A spare physics layer keeps map tiles out of this check.
+	const BODY_LAYER := 1 << 9
+	a.collision_layer = BODY_LAYER
+	b.collision_mask = BODY_LAYER
+	b.position = spawn + Vector2(24, 0)
+	await settle.call()
+	var hit_alive: KinematicCollision2D = b.move_and_collide(Vector2(-24, 0), true)
+	if hit_alive == null or hit_alive.get_collider() != a:
+		printerr("FAIL sword_mid_swing live body did not block (%s)" % [hit_alive.get_collider() if hit_alive else null])
+		fail += 1
+	a.health.take_damage(6)
+	await settle.call()
+	var hit_dead: KinematicCollision2D = b.move_and_collide(Vector2(-24, 0), true)
+	if not a.health.is_dead() or (hit_dead != null and hit_dead.get_collider() == a):
+		printerr("FAIL sword_mid_swing dead body still blocks (dead=%s)" % a.health.is_dead())
+		fail += 1
+	a.isAttacking = true  # a swing in progress when the player died
+	if a.sword_active():
+		printerr("FAIL sword_mid_swing a dead player's sword is active")
+		fail += 1
+	a.isAttacking = false
+	a.collision_layer = 1
+	b.collision_mask = 1
+
+	# Respawn onto the other player: no free hit, and the body blocks again.
+	b.position = spawn
+	a.position = spawn + Vector2(300, 0)
+	await settle.call()
+	a.health.advance(a.health.respawn_delay + 0.01)
+	await settle.call()
+	if a.health.is_dead() or a.position != spawn or b.health.health != 6:
+		printerr("FAIL sword_mid_swing respawn hit: b %s, a at %s (spawn %s)" % [b.health.health, a.position, spawn])
+		fail += 1
+	if a.body_shape.disabled:
+		printerr("FAIL sword_mid_swing body collision still off after respawn")
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_sword_only_hits_mid_swing")
 	return fail
 
 
@@ -562,6 +1232,56 @@ func _test_tile_catalog() -> int:
 		var src = tile_set.get_source(entry["source_id"]) if tile_set.has_source(entry["source_id"]) else null
 		if not src is TileSetAtlasSource or not src.has_tile(entry["atlas"]):
 			printerr("FAIL tile_catalog: %s %s not in TileSet source %s" % [n, entry["atlas"], entry["source_id"]])
+			fail += 1
+	## The map fill tiles keep their cells across tileset versions, so saved
+	## maps and the pinned tests stay valid.
+	var pinned := {
+		"WATER": Vector2i(5, 6), "SAND": Vector2i(5, 4), "SWAMP": Vector2i(14, 7),
+		"SWAMP_SPECIAL": Vector2i(27, 7), "GRASS_A": Vector2i(5, 0), "GRASS_B": Vector2i(5, 1),
+		"GRASS_C": Vector2i(6, 0), "GRASS_D": Vector2i(6, 1), "BUSH": Vector2i(7, 3),
+		"TREE": Vector2i(7, 0), "FLOWER": Vector2i(9, 3), "STONES": Vector2i(0, 7),
+	}
+	for n in pinned:
+		if not TileCatalog.TILES.has(n) or TileCatalog.TILES[n]["atlas"] != pinned[n]:
+			printerr("FAIL tile_catalog: %s moved from %s" % [n, pinned[n]])
+			fail += 1
+	## STONES reuses the small-rocks art cell on purpose.
+	var aliases := {"STONES": "ROCK_FLOAT_S"}
+	var cells := {}
+	for n in TileCatalog.TILES:
+		var a: Vector2i = TileCatalog.TILES[n]["atlas"]
+		if cells.has(a) and aliases.get(n, "") != cells[a] and aliases.get(cells[a], "") != n:
+			printerr("FAIL tile_catalog: %s and %s share cell %s" % [cells[a], n, a])
+			fail += 1
+		cells[a] = n
+	## Collision drives walkability: water blocks, ground fill does not.
+	var src0: TileSetAtlasSource = tile_set.get_source(TileCatalog.SOURCE_ID)
+	for n in ["WATER", "TREE", "BUSH"]:
+		if src0.get_tile_data(TileCatalog.TILES[n]["atlas"], 0).get_collision_polygons_count(0) == 0:
+			printerr("FAIL tile_catalog: %s has no collision polygon" % n)
+			fail += 1
+	for n in ["SAND", "SWAMP", "SWAMP_SPECIAL", "GRASS_A", "GRASS_B", "GRASS_C", "GRASS_D", "FLOWER", "STONES"]:
+		if src0.get_tile_data(TileCatalog.TILES[n]["atlas"], 0).get_collision_polygons_count(0) != 0:
+			printerr("FAIL tile_catalog: %s should be walkable" % n)
+			fail += 1
+	## Island terrain: one terrain set with every ISLAND_BLOB_ base piece in it.
+	if tile_set.get_terrain_sets_count() <= TileCatalog.ISLAND_TERRAIN_SET \
+			or tile_set.get_terrain_name(TileCatalog.ISLAND_TERRAIN_SET, TileCatalog.ISLAND_TERRAIN) != "Island":
+		printerr("FAIL tile_catalog: no Island terrain in the world TileSet")
+		fail += 1
+	else:
+		var bases := 0
+		for n in TileCatalog.TILES:
+			if not n.begins_with("ISLAND_BLOB_"):
+				continue
+			if not n.contains("_W"):
+				bases += 1
+			var td: TileData = src0.get_tile_data(TileCatalog.TILES[n]["atlas"], 0)
+			if td.terrain_set != TileCatalog.ISLAND_TERRAIN_SET or td.terrain != TileCatalog.ISLAND_TERRAIN:
+				printerr("FAIL tile_catalog: %s is not an Island terrain tile" % n)
+				fail += 1
+		if bases != 47:
+			printerr("FAIL tile_catalog: expected 47 island blob pieces, got %d" % bases)
 			fail += 1
 	scene.free()
 	if fail == 0:
@@ -1143,8 +1863,9 @@ func _test_biome_terrain() -> int:
 		["temperate_no_flower", ground, 0.28, 0.2, T, NONE, NONE],
 		["continental_meadow", ground, 0.28, 0.2, BiomeCatalog.CONTINENTAL, NONE, FLOWER],
 		["temperate_flower", ground, 0.28, 0.5, T, NONE, FLOWER],
-		["oceanic_sparse", ground, 0.28, 0.5, BiomeCatalog.OCEANIC, NONE, NONE],
-		["beach_bare", beach, 0.35, 0.9, BiomeCatalog.OCEANIC, NONE, NONE],
+		# No flower; the bare cell gets OCEANIC stones (BiomeCatalog.STRUCTURES).
+		["oceanic_sparse", ground, 0.28, 0.5, BiomeCatalog.OCEANIC, NONE, TileCatalog.STONES],
+		["beach_no_plants", beach, 0.35, 0.9, T, NONE, NONE],
 	]
 	for d in decor:
 		world.erase_cell(1, d[1])
@@ -1329,6 +2050,178 @@ func _test_biome_plants() -> int:
 		print("PASS test_biome_plants land=%s trees=%s bushes=%s" % [land, trees, bushes])
 	scene.queue_free()
 	return 1 if fail > 0 else 0
+
+
+func _test_biome_structures() -> int:
+	## Per-biome structures (BiomeCatalog.STRUCTURES): with biome_frequency 0
+	## there are none (whole-chunk digests are pinned in test_biome_terrain);
+	## with biomes on, OCEANIC and CONTINENTAL land without a plant, beaches
+	## included, gets walkable stones on GROUND_DECOR_LAYER.
+	print("-- test_biome_structures")
+	const NONE := Vector2i(-1, -1)
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+
+	# Stones never block movement.
+	var src: TileSetAtlasSource = world.tile_set.get_source(TileCatalog.SOURCE_ID)
+	if src.get_tile_data(TileCatalog.STONES, 0).get_collision_polygons_count(0) != 0:
+		printerr("FAIL biome_structures: STONES has a collision polygon")
+		fail += 1
+
+	# Biomes off: no structures for any biome id.
+	world.apply_map_params(_biome_terrain_params(true))
+	for b in BiomeCatalog.STRUCTURES:
+		for chance in [-0.5, 0.0, 0.4, 0.9]:
+			if world.structure_tile(chance, b) != NONE:
+				printerr("FAIL biome_structures: frequency 0 biome %s placed stones at chance=%s" % [b, chance])
+				fail += 1
+
+	var on := _biome_terrain_params(true)
+	on.biome_frequency = 0.003
+	world.apply_map_params(on)
+	var T := BiomeCatalog.TEMPERATE
+	var ocean := BiomeCatalog.OCEANIC
+	var cont := BiomeCatalog.CONTINENTAL
+	var dense := BiomeCatalog.ARCHIPELAGO_DENSE
+	# [name, chance, biome, expected]
+	var cases := [
+		["temperate_none", 0.9, T, NONE],
+		["dense_none", 0.9, dense, NONE],
+		["oceanic_stones", 0.35, ocean, TileCatalog.STONES],
+		["oceanic_below", 0.25, ocean, NONE],
+		["continental_stones", 0.4, cont, TileCatalog.STONES],
+		["continental_below", 0.3, cont, NONE],
+	]
+	for c in cases:
+		var got: Vector2i = world.structure_tile(c[1], c[2])
+		if got != c[3]:
+			printerr("FAIL biome_structures case=%s got %s want %s" % [c[0], got, c[3]])
+			fail += 1
+
+	# Placement: plants take precedence, beaches and dry land get stones.
+	var ground := Vector2i(600, 600)
+	var beach := Vector2i(602, 600)
+	world.set_cell(0, ground, 0, TileCatalog.GRASS_A)
+	world.set_cell(0, beach, 0, TileCatalog.SAND)
+	# [name, cell, alt, moist, chance, biome, expected layer-1, expected layer-2]
+	var decor := [
+		["oceanic_bush_first", ground, 0.35, 0.5, 0.9, ocean, TileCatalog.BUSH, NONE],
+		["oceanic_dry_stones", ground, 0.35, -0.5, 0.5, ocean, NONE, TileCatalog.STONES],
+		["oceanic_beach_stones", beach, 0.35, 0.5, 0.9, ocean, NONE, TileCatalog.STONES],
+		["temperate_dry_bare", ground, 0.35, -0.5, 0.9, T, NONE, NONE],
+		["continental_flower_first", ground, 0.28, 0.5, 0.5, cont, NONE, TileCatalog.FLOWER],
+	]
+	for d in decor:
+		world.erase_cell(1, d[1])
+		world.erase_cell(world.GROUND_DECOR_LAYER, d[1])
+		world.set_tile_type_z1(d[1], d[2], d[3], 0.0, d[4], d[5])
+		var got1: Vector2i = world.get_cell_atlas_coords(1, d[1])
+		var got2: Vector2i = world.get_cell_atlas_coords(world.GROUND_DECOR_LAYER, d[1])
+		if got1 != d[6] or got2 != d[7]:
+			printerr("FAIL biome_structures decor=%s got l1=%s l2=%s want %s %s" % [d[0], got1, got2, d[6], d[7]])
+			fail += 1
+
+	# Over a wide area: stone share of land is highest in OCEANIC, then
+	# CONTINENTAL; TEMPERATE and ARCHIPELAGO_DENSE have none.
+	var land := {}
+	var stones := {}
+	for b in BiomeCatalog.STRUCTURES:
+		land[b] = 0
+		stones[b] = 0
+	for x in range(-2048, 2048, 16):
+		for y in range(-2048, 2048, 16):
+			var cell := Vector2i(x, y)
+			var b: int = world.biome_at(cell)
+			var alt: float = world.cell_altitude(cell, b)
+			var moist: float = world.moisture.get_noise_2d(x, y)
+			var chance: float = world.items_chance.get_noise_2d(x, y)
+			var tile: Vector2i = world.ground_tile(alt, moist, chance, b)
+			if tile == TileCatalog.WATER:
+				continue
+			land[b] += 1
+			var plant: Vector2i = NONE
+			if tile != TileCatalog.SAND:
+				plant = world.plant_tile(alt, moist, chance, b)
+			if plant == NONE and world.structure_tile(chance, b) == TileCatalog.STONES:
+				stones[b] += 1
+	var share := func(b: int) -> float: return float(stones[b]) / maxf(1.0, float(land[b]))
+	for b in land:
+		if land[b] < 20:
+			printerr("FAIL biome_structures: biome %s has only %s land samples" % [b, land[b]])
+			fail += 1
+	if not (share.call(ocean) > share.call(cont) and share.call(cont) > 0.0 and stones[T] == 0 and stones[dense] == 0):
+		printerr("FAIL biome_structures: stone shares oceanic=%s continental=%s temperate=%s dense=%s" % [share.call(ocean), share.call(cont), share.call(T), share.call(dense)])
+		fail += 1
+
+	if fail == 0:
+		print("PASS test_biome_structures land=%s stones=%s" % [land, stones])
+	scene.queue_free()
+	return 1 if fail > 0 else 0
+
+
+func _test_forest_walls() -> int:
+	## A row or column of adjacent TREE or BUSH cells is a wall: sweep the
+	## player's shape across it in half-pixel lanes and require every lane to
+	## stop. Half pixels matter: a gap 1 px wider than the player only opens
+	## between whole-pixel lanes. With one free cell between plants the
+	## player must still pass.
+	print("-- test_forest_walls")
+	var player = load("res://Player/character_body_2d.tscn").instantiate()
+	var body: CollisionShape2D = player.get_node("CollisionShape2D")
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = body.shape
+	query.collision_mask = player.collision_mask
+	var offset: Vector2 = body.position
+	player.free()
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var fail := 0
+	for tile_name in ["TREE", "BUSH"]:
+		var tile: Vector2i = TileCatalog.TILES[tile_name]["atlas"]
+		world.clear()
+		for x in range(-2, 50):
+			for y in range(-2, 50):
+				world.set_cell(0, Vector2i(x, y), TileCatalog.SOURCE_ID, TileCatalog.GRASS_A)
+		for i in range(4, 16):
+			world.set_cell(1, Vector2i(i, 10), TileCatalog.SOURCE_ID, tile)  # row
+			world.set_cell(1, Vector2i(30, i), TileCatalog.SOURCE_ID, tile)  # column
+		for i in range(4, 16, 2):
+			world.set_cell(1, Vector2i(i, 30), TileCatalog.SOURCE_ID, tile)  # spaced row
+			world.set_cell(1, Vector2i(40, i + 20), TileCatalog.SOURCE_ID, tile)  # spaced column
+		await physics_frame
+		await physics_frame
+		var space: PhysicsDirectSpaceState2D = world.get_world_2d().direct_space_state
+		var sweeps := [
+			["row", Vector2i(5, 10), Vector2i(14, 10), Vector2(0, 1), true],
+			["column", Vector2i(30, 5), Vector2i(30, 14), Vector2(1, 0), true],
+			["spaced_row", Vector2i(5, 30), Vector2i(14, 30), Vector2(0, 1), false],
+			["spaced_column", Vector2i(40, 25), Vector2i(40, 34), Vector2(1, 0), false],
+		]
+		for sw in sweeps:
+			var a: Vector2 = world.to_global(world.map_to_local(sw[1]))
+			var b: Vector2 = world.to_global(world.map_to_local(sw[2]))
+			var dir: Vector2 = sw[3]
+			var lanes := int((b - a).length() * 2.0)  # every 0.5 px
+			var passes := 0
+			for i in lanes:
+				query.transform = Transform2D(0, a.lerp(b, float(i) / lanes) - dir * 40.0 + offset)
+				query.motion = dir * 80.0
+				if space.cast_motion(query)[0] >= 1.0:
+					passes += 1
+			if sw[4] and passes > 0:
+				printerr("FAIL forest_walls: %s %s lets %d/%d lanes through" % [tile_name, sw[0], passes, lanes])
+				fail += 1
+			elif not sw[4] and passes == 0:
+				printerr("FAIL forest_walls: %s %s has no gap the player fits through" % [tile_name, sw[0]])
+				fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_forest_walls")
+	return fail
 
 
 func _test_water_blocks_player() -> int:
@@ -1849,4 +2742,916 @@ func _test_dedicated_server_join() -> int:
 	scene.queue_free()
 	if fail == 0:
 		print("PASS test_dedicated_server_join (client %s)" % client_id)
+	return fail
+
+
+func _test_mob_predict_matches_chunks() -> int:
+	## TileMap.predict_cell gives the same ground and plant/structure as
+	## generate_chunk, with biomes off, on, and archipelago, so mobs can read
+	## terrain where no chunk was generated.
+	print("-- test_mob_predict_matches_chunks")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var cases := [_spawn_params(11, 0.0), _spawn_params(42, 0.003), _biome_terrain_params(true)]
+	var fail := 0
+	for i in cases.size():
+		world.apply_map_params(cases[i])
+		world.generate_chunk(Vector2(0, 0))
+		var checked := 0
+		for cell in world.get_used_cells(0):
+			var top: Vector2i = world.get_cell_atlas_coords(1, cell)
+			if top == world.NO_PLANT:
+				top = world.get_cell_atlas_coords(2, cell)
+			var want := [world.get_cell_atlas_coords(0, cell), top]
+			var got: Array = world.predict_cell(cell)
+			checked += 1
+			if got != want:
+				printerr("FAIL mob_predict case=%s cell=%s predicted %s, chunk has %s" % [i, cell, got, want])
+				fail += 1
+				break
+			if world.predicted_clear(cell) != world.is_clear_ground(cell):
+				printerr("FAIL mob_predict case=%s cell=%s predicted_clear differs" % [i, cell])
+				fail += 1
+				break
+		if checked == 0:
+			printerr("FAIL mob_predict case=%s generated no cells" % i)
+			fail += 1
+	if fail == 0:
+		print("PASS test_mob_predict_matches_chunks (%s maps)" % cases.size())
+	scene.queue_free()
+	return fail
+
+
+func _test_mob_plan() -> int:
+	## Mob placement is the same for a seed, places a few mobs on home ground
+	## (crabs on sand, the rest on grass) away from the player spawn and apart
+	## from each other, and generates no tiles.
+	print("-- test_mob_plan")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var fail := 0
+	var total := 0
+	for biome_frequency in [0.0, 0.003]:
+		for seed_value in [1, 7, 11, 42, 99]:
+			var label := "seed=%s biomes=%s" % [seed_value, biome_frequency > 0.0]
+			world.apply_map_params(_spawn_params(seed_value, biome_frequency))
+			var plan: Array = MobSpawner.plan(world, Vector2i(0, 0), seed_value)
+			if world.get_used_cells(0).size() != 0:
+				printerr("FAIL mob_plan %s planning generated tiles" % label)
+				fail += 1
+			world.apply_map_params(_spawn_params(seed_value, biome_frequency))
+			if MobSpawner.plan(world, Vector2i(0, 0), seed_value) != plan:
+				printerr("FAIL mob_plan %s differs between runs" % label)
+				fail += 1
+			if plan.size() > MobSpawner.MAX_MOBS:
+				printerr("FAIL mob_plan %s has %s mobs, cap %s" % [label, plan.size(), MobSpawner.MAX_MOBS])
+				fail += 1
+			total += plan.size()
+			for i in plan.size():
+				var cell: Vector2i = plan[i]["cell"]
+				var type: String = plan[i]["type"]
+				var home: int = MobCatalog.stat(type, "home")
+				if not MobSpawner.is_home_cell(world, cell, home):
+					printerr("FAIL mob_plan %s %s at %s is not on its home ground" % [label, type, cell])
+					fail += 1
+				if maxi(absi(cell.x), absi(cell.y)) <= MobSpawner.SAFE_RADIUS:
+					printerr("FAIL mob_plan %s %s at %s is next to the spawn" % [label, type, cell])
+					fail += 1
+				for j in i:
+					var o: Vector2i = plan[j]["cell"]
+					if maxi(absi(cell.x - o.x), absi(cell.y - o.y)) < MobSpawner.MIN_GAP:
+						printerr("FAIL mob_plan %s mobs %s and %s are too close" % [label, i, j])
+						fail += 1
+	if total == 0:
+		printerr("FAIL mob_plan no mobs on any map")
+		fail += 1
+	if fail == 0:
+		print("PASS test_mob_plan (%s mobs over 10 maps)" % total)
+	scene.queue_free()
+	return fail
+
+
+func _test_mob_wander() -> int:
+	## Offline host: spawn the map's mobs, run 40 s of wander, and check every
+	## mob moves, never leaves its home ground or wander radius, and shows the
+	## walk or idle rows for its facing.
+	print("-- test_mob_wander")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var mobs_node: MobSpawner = scene.get_node("World/Mobs")
+	scene.world_params = _spawn_params(42, 0.003)
+	world.apply_map_params(scene.world_params)
+	var fail := 0
+	var count: int = scene.spawn_mobs()
+	var mobs: Array = mobs_node.mobs()
+	if count == 0 or mobs.size() != count:
+		printerr("FAIL mob_wander spawned %s, %s in the tree" % [count, mobs.size()])
+		scene.queue_free()
+		return 1
+	var start := {}
+	for m in mobs:
+		start[m] = m.position
+	var moved := {}
+	var dt := 1.0 / 45.0
+	for tick in range(45 * 40):
+		for m in mobs:
+			m.think(dt)
+			m._process(dt)
+			if m.position != start[m]:
+				moved[m] = true
+			var cell: Vector2i = world.local_to_map(m.position)
+			if not MobSpawner.is_home_cell(world, cell, MobCatalog.stat(m.mob_type, "home")):
+				printerr("FAIL mob_wander %s %s left home ground at %s" % [m.name, m.mob_type, cell])
+				fail += 1
+			if m.position.distance_to(m.home) > Mob.WANDER_RADIUS + 0.01:
+				printerr("FAIL mob_wander %s left its wander radius" % m.name)
+				fail += 1
+			var row: int = m.sprite.frame_coords.y
+			var block: int = MobCatalog.ANIMS[m.anim_name()]["row"]
+			if row != block + m.facing:
+				printerr("FAIL mob_wander %s shows row %s for %s facing %s" % [m.name, row, m.anim_name(), m.facing])
+				fail += 1
+		if fail > 0:
+			break
+	if fail == 0 and moved.size() != mobs.size():
+		printerr("FAIL mob_wander only %s of %s mobs moved" % [moved.size(), mobs.size()])
+		fail += 1
+	if fail == 0:
+		print("PASS test_mob_wander (%s mobs)" % mobs.size())
+	scene.queue_free()
+	return fail
+
+
+func _test_mob_sheet_swap() -> int:
+	## Each mob type's art is one sheet path: the scene holds no texture and the
+	## sprite uses whatever file that path names, on the shared 8x16 grid.
+	print("-- test_mob_sheet_swap")
+	var fail := 0
+	var tscn := FileAccess.get_file_as_string("res://Mobs/mob.tscn")
+	if tscn.contains(".png"):
+		printerr("FAIL mob_sheet_swap Mobs/mob.tscn names a texture")
+		fail += 1
+	for type in MobCatalog.names():
+		var mob: Mob = load("res://Mobs/mob.tscn").instantiate()
+		mob.setup(type, Vector2.ZERO, 1)
+		root.add_child(mob)
+		var tex: Texture2D = mob.sprite.texture
+		var want: String = MobCatalog.stat(type, "sheet")
+		if tex == null or tex.resource_path != want:
+			printerr("FAIL mob_sheet_swap %s sprite is not %s" % [type, want])
+			fail += 1
+		elif tex.get_size() != Vector2(MobCatalog.SHEET_COLS, MobCatalog.SHEET_ROWS) * MobCatalog.FRAME_SIZE:
+			printerr("FAIL mob_sheet_swap %s sheet is %s" % [type, tex.get_size()])
+			fail += 1
+		if mob.sprite.hframes != MobCatalog.SHEET_COLS or mob.sprite.vframes != MobCatalog.SHEET_ROWS:
+			printerr("FAIL mob_sheet_swap %s sprite grid is not 8x16" % type)
+			fail += 1
+		mob.queue_free()
+	if fail == 0:
+		print("PASS test_mob_sheet_swap (%s types)" % MobCatalog.names().size())
+	return fail
+
+
+func _test_mobs_sync_to_peer() -> int:
+	## Two players: a dedicated server places the mobs and a client that joins
+	## gets the same set (names, types, near the planned cells), and sees them
+	## move as the server wanders them.
+	print("-- test_mobs_sync_to_peer")
+	var timeout_ms := 30000
+	await process_frame
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL mobs_sync_to_peer found no free UDP port")
+		return 1
+	var pid := OS.create_process(
+		OS.get_executable_path(),
+		["--headless", "--path", ProjectSettings.globalize_path("res://"), "--", "--server", "--port=%d" % port]
+	)
+	if pid <= 0:
+		printerr("FAIL mobs_sync_to_peer could not start the server process")
+		return 1
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var fail := 0
+	var mobs_node: MobSpawner = scene.get_node("World/Mobs")
+	var world = scene.get_node("World/worldMap")
+	scene.add_player_joined(port)
+	var plan: Array = []
+	var deadline := Time.get_ticks_msec() + timeout_ms
+	while Time.get_ticks_msec() < deadline and OS.is_process_running(pid):
+		var params: MapGenParams = scene.world_params
+		if plan.is_empty() and params != null and params.altitude_seed != 0:
+			plan = MobSpawner.plan(world, world.resolve_player_spawn(), params.altitude_seed)
+		if not plan.is_empty() and mobs_node.mobs().size() >= plan.size():
+			break
+		await process_frame
+	var mobs: Array = mobs_node.mobs()
+	if plan.is_empty():
+		printerr("FAIL mobs_sync_to_peer no map params or an empty mob plan")
+		fail += 1
+	elif mobs.size() != plan.size():
+		printerr("FAIL mobs_sync_to_peer client has %s mobs, plan has %s" % [mobs.size(), plan.size()])
+		fail += 1
+	else:
+		var start := {}
+		for i in plan.size():
+			var m: Mob = mobs_node.get_node_or_null("mob_%d" % i)
+			var at: Vector2 = world.map_to_local(plan[i]["cell"])
+			if m == null or m.mob_type != plan[i]["type"]:
+				printerr("FAIL mobs_sync_to_peer mob_%d missing or not a %s" % [i, plan[i]["type"]])
+				fail += 1
+			elif m.position.distance_to(at) > Mob.WANDER_RADIUS + 1.0:
+				printerr("FAIL mobs_sync_to_peer mob_%d at %s, planned %s" % [i, m.position, at])
+				fail += 1
+			else:
+				start[m] = m.position
+		var moved := false
+		deadline = Time.get_ticks_msec() + 10000
+		while fail == 0 and not moved and Time.get_ticks_msec() < deadline:
+			await process_frame
+			for m in start:
+				if is_instance_valid(m) and m.position != start[m]:
+					moved = true
+		if fail == 0 and not moved:
+			printerr("FAIL mobs_sync_to_peer no mob moved on the client in 10 s")
+			fail += 1
+	OS.kill(pid)
+	scene.enet_peer.close()
+	scene.multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	scene.queue_free()
+	if fail == 0:
+		print("PASS test_mobs_sync_to_peer (%s mobs)" % plan.size())
+	return fail
+
+
+func _chase_spot(world, mob: Mob, tiles: int) -> Variant:
+	## A point `tiles` away from `mob` in a straight line of its home ground, or null.
+	var home: int = MobCatalog.stat(mob.mob_type, "home")
+	var start: Vector2i = world.local_to_map(mob.position)
+	for d in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+		var ok := true
+		for k in range(-1, tiles + 1):
+			if not MobSpawner.is_home_cell(world, start + d * k, home):
+				ok = false
+				break
+		if ok:
+			return world.map_to_local(start) + Vector2(d * tiles * 16)
+	return null
+
+
+func _test_mob_chase() -> int:
+	## A mob chases the nearest player inside CHASE_RADIUS, stays on its home
+	## ground while chasing, ignores players further out, and gives up when the
+	## player is past GIVE_UP_RADIUS.
+	print("-- test_mob_chase")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	scene.world_params = _spawn_params(42, 0.003)
+	world.apply_map_params(scene.world_params)
+	scene.spawn_mobs()
+	var near := CharacterBody2D.new()
+	var far := CharacterBody2D.new()
+	scene.get_node("World").add_child(near)
+	scene.get_node("World").add_child(far)
+	var dt := 1.0 / 45.0
+	var fail := 0
+	var tested := 0
+	for mob in scene.get_node("World/Mobs").mobs():
+		var spot = _chase_spot(world, mob, 3)
+		if spot == null:
+			continue
+		tested += 1
+		var label := "%s %s" % [mob.name, mob.mob_type]
+		var home: int = MobCatalog.stat(mob.mob_type, "home")
+		# Out of range: no chase.
+		near.position = mob.position + (spot - mob.position) * 2.0
+		far.position = mob.position + Vector2(0, Mob.GIVE_UP_RADIUS * 3)
+		mob.think(dt)
+		if mob.state == Mob.State.CHASE:
+			printerr("FAIL mob_chase %s chased a player %s px away" % [label, mob.position.distance_to(near.position)])
+			fail += 1
+			continue
+		# Two players in range: it picks the nearer one and closes in.
+		near.position = spot
+		far.position = mob.position + (spot - mob.position) * -1.5
+		var start_d: float = mob.position.distance_to(near.position)
+		for tick in range(45 * 3):
+			mob.think(dt)
+			if not MobSpawner.is_home_cell(world, world.local_to_map(mob.position), home):
+				printerr("FAIL mob_chase %s left home ground while chasing" % label)
+				fail += 1
+				break
+		if mob.target != near or mob.state != Mob.State.CHASE:
+			printerr("FAIL mob_chase %s is not chasing the nearer player (state %s)" % [label, mob.state])
+			fail += 1
+		elif mob.position.distance_to(near.position) > 8.0:
+			printerr("FAIL mob_chase %s only got from %s to %s px" % [label, start_d, mob.position.distance_to(near.position)])
+			fail += 1
+		if mob.anim_name() != "walk":
+			printerr("FAIL mob_chase %s does not play walk while chasing" % label)
+			fail += 1
+		# Player runs off: it gives up and does not restart at once.
+		near.position = mob.position + Vector2(Mob.GIVE_UP_RADIUS + 16, 0)
+		far.position = near.position
+		mob.think(dt)
+		if mob.state == Mob.State.CHASE or mob.target != null:
+			printerr("FAIL mob_chase %s kept chasing past GIVE_UP_RADIUS" % label)
+			fail += 1
+		# Calm time: a player back in range is ignored until it runs out.
+		near.position = mob.position + Vector2(Mob.CHASE_RADIUS * 0.5, 0)
+		mob.think(dt)
+		if mob.state == Mob.State.CHASE:
+			printerr("FAIL mob_chase %s re-acquired during the calm time" % label)
+			fail += 1
+		for tick in range(int((Mob.CALM_TIME + 0.2) / dt)):
+			mob.think(dt)
+		if mob.state != Mob.State.CHASE:
+			printerr("FAIL mob_chase %s did not re-acquire after the calm time" % label)
+			fail += 1
+		near.position = Vector2(1e6, 1e6)
+		far.position = near.position
+	if tested == 0:
+		printerr("FAIL mob_chase no mob had room to test a chase")
+		fail += 1
+	if fail == 0:
+		print("PASS test_mob_chase (%s mobs)" % tested)
+	scene.queue_free()
+	return fail
+
+
+func _test_mob_chase_two_players() -> int:
+	## Two players: a client of a dedicated server walks up to a mob, and the
+	## server's chase reaches the client as the mob's CHASE state and movement
+	## towards that client's player.
+	print("-- test_mob_chase_two_players")
+	await process_frame
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL mob_chase_two_players found no free UDP port")
+		return 1
+	var pid := OS.create_process(
+		OS.get_executable_path(),
+		["--headless", "--path", ProjectSettings.globalize_path("res://"), "--", "--server", "--port=%d" % port]
+	)
+	if pid <= 0:
+		printerr("FAIL mob_chase_two_players could not start the server process")
+		return 1
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var mobs_node: MobSpawner = scene.get_node("World/Mobs")
+	scene.add_player_joined(port)
+	var fail := 0
+	var player: Node2D = null
+	var deadline := Time.get_ticks_msec() + 30000
+	while Time.get_ticks_msec() < deadline and OS.is_process_running(pid):
+		player = scene.get_node("World").get_node_or_null(str(scene.multiplayer.get_unique_id()))
+		if player and scene.world_params and not mobs_node.mobs().is_empty():
+			break
+		await process_frame
+	var mob: Mob = null
+	var spot = null
+	var open_ground := false  # the server picks the map, so a straight run of home ground is not certain
+	if player and scene.world_params:
+		for m in mobs_node.mobs():
+			spot = _chase_spot(world, m, 3)
+			if spot != null:
+				mob = m
+				open_ground = true
+				break
+		if mob == null and not mobs_node.mobs().is_empty():
+			mob = mobs_node.mobs()[0]
+			spot = mob.position + Vector2(Mob.CHASE_RADIUS * 0.5, 0)
+	if mob == null:
+		printerr("FAIL mob_chase_two_players no player or mobs on the client")
+		fail += 1
+	else:
+		var chased := false
+		var start_d := 0.0
+		deadline = Time.get_ticks_msec() + 10000
+		while Time.get_ticks_msec() < deadline:
+			player.position = spot
+			player.velocity = Vector2.ZERO
+			if not chased and mob.state == Mob.State.CHASE:
+				chased = true
+				start_d = mob.position.distance_to(spot)
+			if chased and (not open_ground or mob.position.distance_to(spot) < start_d - 8.0):
+				break
+			await process_frame
+		if not chased:
+			printerr("FAIL mob_chase_two_players %s never chased on the client" % mob.name)
+			fail += 1
+		elif open_ground and mob.position.distance_to(spot) >= start_d - 8.0:
+			printerr("FAIL mob_chase_two_players %s chased but did not close in" % mob.name)
+			fail += 1
+	OS.kill(pid)
+	scene.enet_peer.close()
+	scene.multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	scene.queue_free()
+	if fail == 0:
+		print("PASS test_mob_chase_two_players (%s)" % mob.name)
+	return fail
+
+
+func _contact_player(world_root: Node) -> CharacterBody2D:
+	## A bare player body with its own PlayerHealth, enough for mob contact.
+	var body := CharacterBody2D.new()
+	var health := PlayerHealth.new()
+	health.name = "Health"
+	body.add_child(health)
+	world_root.add_child(body)
+	return body
+
+
+func _test_mob_contact() -> int:
+	## Touching a mob costs a living player CONTACT_DAMAGE half-hearts; the
+	## player's invulnerability spaces out repeat hits; the mob pauses after a
+	## hit; dead players take no damage and are not chased.
+	print("-- test_mob_contact")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	scene.world_params = _spawn_params(42, 0.003)
+	world.apply_map_params(scene.world_params)
+	scene.spawn_mobs()
+	var mobs: Array = scene.get_node("World/Mobs").mobs()
+	var player := _contact_player(scene.get_node("World"))
+	var health: PlayerHealth = player.get_node("Health")
+	var dt := 1.0 / 45.0
+	var fail := 0
+	if mobs.is_empty():
+		printerr("FAIL mob_contact no mobs on seed 42")
+		scene.queue_free()
+		return 1
+	var mob: Mob = mobs[0]
+	var full := health.max_health
+	# Out of reach: no damage.
+	player.position = mob.position + Vector2(mob.contact_box().size.x + 8, 0)
+	mob.think(dt)
+	if health.health != full:
+		printerr("FAIL mob_contact hurt a player %s px away" % mob.position.distance_to(player.position))
+		fail += 1
+	# Touching: one hit, then the mob stands still for HIT_PAUSE.
+	player.position = mob.position
+	mob.think(dt)
+	if health.health != full - Mob.CONTACT_DAMAGE:
+		printerr("FAIL mob_contact touch left health at %s of %s" % [health.health, full])
+		fail += 1
+	player.position = mob.position + Vector2(0, 40)
+	var at := mob.position
+	for tick in range(int(Mob.HIT_PAUSE / dt) - 2):
+		mob.think(dt)
+	if mob.position != at:
+		printerr("FAIL mob_contact mob moved during its hit pause")
+		fail += 1
+	# Still touching while invulnerable: no second hit until it runs out.
+	player.position = mob.position
+	for tick in range(int(health.invulnerable_time * 0.5 / dt)):
+		health.advance(dt)
+		mob.think(dt)
+		player.position = mob.position
+	if health.health != full - Mob.CONTACT_DAMAGE:
+		printerr("FAIL mob_contact hit again during invulnerability (health %s)" % health.health)
+		fail += 1
+	for tick in range(int(health.invulnerable_time / dt) + 2):
+		health.advance(dt)
+		mob.think(dt)
+		player.position = mob.position
+	if health.health != full - 2 * Mob.CONTACT_DAMAGE:
+		printerr("FAIL mob_contact no second hit after invulnerability (health %s)" % health.health)
+		fail += 1
+	# Dead: no damage, no chase.
+	health.set_health_now(0)
+	player.position = mob.position + Vector2(0, -2)
+	mob.target = null
+	mob.state = Mob.State.IDLE
+	mob._pause = 0.0
+	mob._calm = 0.0
+	mob.think(dt)
+	if health.health != 0 or mob.state == Mob.State.CHASE:
+		printerr("FAIL mob_contact a dead player was hurt or chased (state %s)" % mob.state)
+		fail += 1
+	if fail == 0:
+		print("PASS test_mob_contact (%s %s)" % [mob.name, mob.mob_type])
+	scene.queue_free()
+	return fail
+
+
+func _test_mob_contact_two_players() -> int:
+	## A client of a dedicated server parks its player on a mob; the server
+	## lands the hit and the client's own PlayerHealth copy drops.
+	print("-- test_mob_contact_two_players")
+	await process_frame
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL mob_contact_two_players found no free UDP port")
+		return 1
+	var pid := OS.create_process(
+		OS.get_executable_path(),
+		["--headless", "--path", ProjectSettings.globalize_path("res://"), "--", "--server", "--port=%d" % port]
+	)
+	if pid <= 0:
+		printerr("FAIL mob_contact_two_players could not start the server process")
+		return 1
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var mobs_node: MobSpawner = scene.get_node("World/Mobs")
+	scene.add_player_joined(port)
+	var fail := 0
+	var player: Node2D = null
+	var deadline := Time.get_ticks_msec() + 30000
+	while Time.get_ticks_msec() < deadline and OS.is_process_running(pid):
+		player = scene.get_node("World").get_node_or_null(str(scene.multiplayer.get_unique_id()))
+		if player and scene.world_params and not mobs_node.mobs().is_empty():
+			break
+		await process_frame
+	var mob: Mob = null
+	if player and scene.world_params and not mobs_node.mobs().is_empty():
+		mob = mobs_node.mobs()[0]
+	if mob == null:
+		printerr("FAIL mob_contact_two_players no player or mobs on the client")
+		fail += 1
+	else:
+		var health: PlayerHealth = player.get_node("Health")
+		var full := health.max_health
+		deadline = Time.get_ticks_msec() + 10000
+		while Time.get_ticks_msec() < deadline and health.health == full:
+			player.position = mob.position
+			player.velocity = Vector2.ZERO
+			await process_frame
+		if health.health != full - Mob.CONTACT_DAMAGE:
+			printerr("FAIL mob_contact_two_players client health %s of %s after touching %s" % [health.health, full, mob.name])
+			fail += 1
+	OS.kill(pid)
+	scene.enet_peer.close()
+	scene.multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	scene.queue_free()
+	if fail == 0:
+		print("PASS test_mob_contact_two_players (%s)" % mob.name)
+	return fail
+
+
+func _sword_on(player: Node2D, mob: Mob) -> void:
+	## Move `player` so its sword's hitbox sits on `mob`'s HurtBox.
+	var blade: Node2D = player.get_node("weapon/sword/CollisionShape2D")
+	player.position += mob.hurt_box.global_position - blade.global_position
+	player.velocity = Vector2.ZERO
+
+
+func _test_mob_sword() -> int:
+	## A swing over a mob costs it 1 HP once per swing and plays the hurt row;
+	## a sword resting on it outside a swing does nothing; the last hit plays
+	## the hurt row, then the puff, then frees the mob.
+	print("-- test_mob_sword")
+	var fail := 0
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	scene.world_params = _spawn_params(42, 0.003)
+	world.apply_map_params(scene.world_params)
+	scene.spawn_mobs()
+	var player = load("res://Player/character_body_2d.tscn").instantiate()
+	player.name = "1"
+	scene.get_node("World").add_child(player)
+	player.health.max_health = 1000  # contact damage is not under test here
+	player.health.set_health_now(1000)
+	for t in MobCatalog.names():
+		if MobCatalog.stat(t, "hp") < 2:
+			printerr("FAIL mob_sword %s has %s HP" % [t, MobCatalog.stat(t, "hp")])
+			fail += 1
+	var mob: Mob = null
+	for m in scene.get_node("World/Mobs").mobs():
+		if m.hp == 2:
+			mob = m
+			break
+	if mob == null:
+		printerr("FAIL mob_sword no 2 HP mob on seed 42")
+		scene.queue_free()
+		return 1
+	var label := "%s %s" % [mob.name, mob.mob_type]
+	# Sword resting on the mob, no swing.
+	for i in 10:
+		_sword_on(player, mob)
+		await physics_frame
+	if mob.hp != 2 or mob.state == Mob.State.HURT:
+		printerr("FAIL mob_sword %s hurt without a swing (hp %s)" % [label, mob.hp])
+		fail += 1
+	# One swing, held on the mob for the whole swing: one hit.
+	player.attack_animation()
+	var saw_hurt := false
+	while player.isAttacking:
+		_sword_on(player, mob)
+		await physics_frame
+		saw_hurt = saw_hurt or (mob.state == Mob.State.HURT and mob.anim_name() == "hurt")
+	for i in int(Mob.HURT_TIME * 60) + 10:
+		_sword_on(player, mob)
+		await physics_frame
+	if mob.hp != 1 or not saw_hurt:
+		printerr("FAIL mob_sword %s after one swing: hp %s, hurt shown %s" % [label, mob.hp, saw_hurt])
+		fail += 1
+	if mob.state == Mob.State.HURT:
+		printerr("FAIL mob_sword %s stayed hurt past HURT_TIME" % label)
+		fail += 1
+	# Second swing: dies, hurt row, then the puff, then gone.
+	player.attack_animation()
+	var saw_dying := false
+	var saw_puff := false
+	var deadline := Time.get_ticks_msec() + 5000
+	while is_instance_valid(mob) and Time.get_ticks_msec() < deadline:
+		_sword_on(player, mob)
+		await process_frame
+		if not is_instance_valid(mob):
+			break
+		saw_dying = saw_dying or mob.state == Mob.State.DYING
+		saw_puff = saw_puff or (mob.puff.visible and not mob.sprite.visible)
+	if is_instance_valid(mob):
+		printerr("FAIL mob_sword %s not freed after the last hit (hp %s, state %s)" % [label, mob.hp, mob.state])
+		fail += 1
+	elif not saw_dying or not saw_puff:
+		printerr("FAIL mob_sword %s died without the hurt row and puff (%s, %s)" % [label, saw_dying, saw_puff])
+		fail += 1
+	if fail == 0:
+		print("PASS test_mob_sword (%s)" % label)
+	scene.queue_free()
+	return fail
+
+
+func _test_mob_sword_two_players() -> int:
+	## A client of a dedicated server swings at a mob until it dies; the host
+	## decides the hits, and the client sees the hurt and dying states, then
+	## the mob is removed on the client.
+	print("-- test_mob_sword_two_players")
+	await process_frame
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL mob_sword_two_players found no free UDP port")
+		return 1
+	var pid := OS.create_process(
+		OS.get_executable_path(),
+		["--headless", "--path", ProjectSettings.globalize_path("res://"), "--", "--server", "--port=%d" % port]
+	)
+	if pid <= 0:
+		printerr("FAIL mob_sword_two_players could not start the server process")
+		return 1
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var mobs_node: MobSpawner = scene.get_node("World/Mobs")
+	scene.add_player_joined(port)
+	var fail := 0
+	var player: Node2D = null
+	var deadline := Time.get_ticks_msec() + 30000
+	while Time.get_ticks_msec() < deadline and OS.is_process_running(pid):
+		player = scene.get_node("World").get_node_or_null(str(scene.multiplayer.get_unique_id()))
+		if player and scene.world_params and not mobs_node.mobs().is_empty():
+			break
+		await process_frame
+	var mob: Mob = null
+	if player and scene.world_params and not mobs_node.mobs().is_empty():
+		mob = mobs_node.mobs()[0]
+	var label := str(mob.name) if mob else ""
+	if mob == null:
+		printerr("FAIL mob_sword_two_players no player or mobs on the client")
+		fail += 1
+	else:
+		var seen := {}
+		var next_swing := 0
+		deadline = Time.get_ticks_msec() + 20000
+		while is_instance_valid(mob) and Time.get_ticks_msec() < deadline:
+			_sword_on(player, mob)
+			seen[mob.state] = true
+			if Time.get_ticks_msec() >= next_swing and not player.isAttacking:
+				player.attack_animation.rpc()
+				next_swing = Time.get_ticks_msec() + 600
+			await process_frame
+		if is_instance_valid(mob):
+			printerr("FAIL mob_sword_two_players %s still alive on the client (state %s)" % [label, mob.state])
+			fail += 1
+		elif not seen.has(Mob.State.HURT) or not seen.has(Mob.State.DYING):
+			printerr("FAIL mob_sword_two_players %s states seen on the client: %s" % [label, seen.keys()])
+			fail += 1
+	OS.kill(pid)
+	scene.enet_peer.close()
+	scene.multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	scene.queue_free()
+	if fail == 0:
+		print("PASS test_mob_sword_two_players (%s)" % label)
+	return fail
+
+
+func _test_mob_sword_two_attackers() -> int:
+	## Two players' swings in one mob hurt window: the second swing is not
+	## used up while the mob is hurt, and lands once the window ends. Also
+	## checks the contact box comes from the player scene's body shape.
+	print("-- test_mob_sword_two_attackers")
+	var fail := 0
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	scene.world_params = _spawn_params(42, 0.003)
+	world.apply_map_params(scene.world_params)
+	scene.spawn_mobs()
+	var players: Array = []
+	for n in ["1", "2"]:
+		var p = load("res://Player/character_body_2d.tscn").instantiate()
+		p.name = n
+		scene.get_node("World").add_child(p)
+		p.set_physics_process(false)  # positions are set by the test
+		p.health.max_health = 1000  # contact damage is not under test here
+		p.health.set_health_now(1000)
+		players.append(p)
+	var a = players[0]
+	var b = players[1]
+	var shape: CollisionShape2D = a.get_node("CollisionShape2D")
+	var size: Vector2 = shape.shape.size
+	var want := Rect2(a.position + shape.position - size * 0.5, size)
+	if Mob.player_box(a) != want or Mob.player_box(_contact_player(scene.get_node("World"))).size != size:
+		printerr("FAIL mob_sword_two_attackers player box %s, want %s from the scene" % [Mob.player_box(a), want])
+		fail += 1
+	var mob: Mob = null
+	for m in scene.get_node("World/Mobs").mobs():
+		if m.hp == 2:
+			mob = m
+			break
+	if mob == null:
+		printerr("FAIL mob_sword_two_attackers no 2 HP mob on seed 42")
+		scene.queue_free()
+		return 1
+	var label := "%s %s" % [mob.name, mob.mob_type]
+	# A swing held on: the sword's shape on, sword_active() true, as mid-attack.
+	var swing := func(p, on: bool) -> void:
+		p.isAttacking = on
+		p.sword_shape.disabled = not on
+	# a's swing lands: the mob is hurt and a moves away.
+	swing.call(a, true)
+	var frames := 0
+	while mob.state != Mob.State.HURT and frames < 30:
+		_sword_on(a, mob)
+		await physics_frame
+		frames += 1
+	swing.call(a, false)
+	a.position = mob.position + Vector2(200, 0)
+	if mob.hp != 1 or mob.state != Mob.State.HURT:
+		printerr("FAIL mob_sword_two_attackers %s first swing: hp %s, state %s" % [label, mob.hp, mob.state])
+		fail += 1
+	# b swings into the hurt window and holds past its end: one hit, after the window.
+	swing.call(b, true)
+	for i in int(Mob.HURT_TIME * Engine.physics_ticks_per_second) + 15:
+		if not is_instance_valid(mob):
+			break
+		_sword_on(b, mob)
+		await physics_frame
+	swing.call(b, false)
+	if not is_instance_valid(mob) or mob.hp != 0 or mob.state != Mob.State.DYING:
+		printerr("FAIL mob_sword_two_attackers %s second player's swing was used up in the hurt window (hp %s)"
+				% [label, mob.hp if is_instance_valid(mob) else "freed"])
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_mob_sword_two_attackers (%s)" % label)
+	return fail
+
+
+func _test_map_zoom() -> int:
+	## Pinch zoom on the local player's camera: two map touches zoom in and out
+	## within the clamp, touches that start on the joystick or attack button
+	## never pinch (and a pinch never moves the player), a double-tap on the map
+	## resets to the default, desktop wheel/Ctrl keys work, and a remote
+	## player's camera gets no zoom handler.
+	print("-- test_map_zoom")
+	var fail := 0
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	# In play: menu hidden, HUD shown. The menu's quit check would log on every
+	# unhandled synthetic event (no "quit" action is mapped), so it is paused.
+	var menu: Node = scene.get_node("CanvasLayer2/MainMenu")
+	menu.hide()
+	menu.set_process_unhandled_input(false)
+	scene.get_node("CanvasLayer1").show()
+	var world: Node = scene.get_node("World")
+	var local = load("res://Player/character_body_2d.tscn").instantiate()
+	local.name = str(scene.multiplayer.get_unique_id())  # this peer's player
+	world.add_child(local)
+	var remote = load("res://Player/character_body_2d.tscn").instantiate()
+	remote.name = str(scene.multiplayer.get_unique_id() + 1)
+	world.add_child(remote)
+	await process_frame
+	var camera: Camera2D = local.get_node("Camera2D")
+	var zoom = camera.get_node_or_null("MapZoom")
+	if zoom == null:
+		printerr("FAIL map_zoom local camera has no MapZoom")
+		scene.queue_free()
+		return 1
+	if remote.get_node("Camera2D").get_node_or_null("MapZoom") != null:
+		printerr("FAIL map_zoom remote player's camera got a MapZoom")
+		fail += 1
+	var default_zoom: Vector2 = camera.zoom
+	var joystick = scene.get_node("CanvasLayer1/player_joystick")
+	var attack: TouchScreenButton = scene.get_node("CanvasLayer1/TouchScreenButton")
+	var attack_center: Vector2 = attack.get_global_transform() * (attack.texture_normal.get_size() / 2.0)
+	var vp: Viewport = scene.get_viewport()
+	var touch := func(index: int, pos: Vector2, pressed: bool, double := false) -> void:
+		var e := InputEventScreenTouch.new()
+		e.index = index
+		e.position = pos
+		e.pressed = pressed
+		e.double_tap = double
+		vp.push_input(e, true)
+	var drag := func(index: int, pos: Vector2) -> void:
+		var e := InputEventScreenDrag.new()
+		e.index = index
+		e.position = pos
+		vp.push_input(e, true)
+	var factor := func() -> float:
+		return camera.zoom.x / default_zoom.x
+
+	# Fingers apart on the open map: zoom in, clamped at MAX_FACTOR.
+	touch.call(0, Vector2(200, 120), true)
+	touch.call(1, Vector2(260, 120), true)
+	drag.call(1, Vector2(290, 120))
+	if not factor.call() > 1.0:
+		printerr("FAIL map_zoom pinch out did not zoom in (%s)" % factor.call())
+		fail += 1
+	drag.call(1, Vector2(470, 120))
+	drag.call(0, Vector2(10, 120))
+	if not is_equal_approx(factor.call(), zoom.MAX_FACTOR):
+		printerr("FAIL map_zoom zoom in not clamped (%s)" % factor.call())
+		fail += 1
+	# Fingers together: zoom out, clamped at MIN_FACTOR.
+	drag.call(0, Vector2(230, 120))
+	drag.call(1, Vector2(240, 120))
+	drag.call(1, Vector2(231, 120))
+	if not is_equal_approx(factor.call(), zoom.MIN_FACTOR):
+		printerr("FAIL map_zoom zoom out not clamped (%s)" % factor.call())
+		fail += 1
+	touch.call(0, Vector2(230, 120), false)
+	touch.call(1, Vector2(231, 120), false)
+
+	# Double-tap on the open map: back to the default.
+	touch.call(0, Vector2(240, 100), true, true)
+	touch.call(0, Vector2(240, 100), false)
+	if camera.zoom != default_zoom or not zoom.is_default():
+		printerr("FAIL map_zoom double-tap did not reset (%s)" % camera.zoom)
+		fail += 1
+
+	# One finger on the joystick and one on the attack button never pinch.
+	for start in [joystick.global_position, attack_center]:
+		touch.call(0, start, true)
+		touch.call(1, Vector2(240, 120), true)
+		drag.call(1, Vector2(300, 60))
+		drag.call(0, start + Vector2(-10, 10))
+		if camera.zoom != default_zoom:
+			printerr("FAIL map_zoom HUD touch at %s joined a pinch (%s)" % [start, camera.zoom])
+			fail += 1
+		touch.call(0, start, false)
+		touch.call(1, Vector2(300, 60), false)
+		zoom.reset()
+	if not zoom.starts_on_hud(joystick.global_position) or not zoom.starts_on_hud(attack_center) \
+			or zoom.starts_on_hud(Vector2(240, 120)):
+		printerr("FAIL map_zoom HUD hit test (joystick, attack, map)")
+		fail += 1
+
+	# A pinch whose finger slides over the joystick does not move the player.
+	joystick.ongoing_drag = -1
+	local.velocity = Vector2.ZERO
+	touch.call(2, Vector2(160, 160), true)
+	touch.call(3, Vector2(240, 120), true)
+	drag.call(2, joystick.global_position + Vector2(10, 0))
+	if joystick.ongoing_drag != -1 or local.velocity != Vector2.ZERO:
+		printerr("FAIL map_zoom pinch finger grabbed the joystick (drag %s, v %s)" % [joystick.ongoing_drag, local.velocity])
+		fail += 1
+	touch.call(2, joystick.global_position, false)
+	touch.call(3, Vector2(240, 120), false)
+	zoom.reset()
+
+	# Desktop: wheel and Ctrl +/- zoom, Ctrl 0 resets.
+	var wheel := InputEventMouseButton.new()
+	wheel.button_index = MOUSE_BUTTON_WHEEL_UP
+	wheel.pressed = true
+	vp.push_input(wheel, true)
+	var zoomed_in: float = factor.call()
+	var key := InputEventKey.new()
+	key.pressed = true
+	key.ctrl_pressed = true
+	key.keycode = KEY_MINUS
+	vp.push_input(key, true)
+	vp.push_input(key, true)
+	var zoomed_out: float = factor.call()
+	key.keycode = KEY_0
+	vp.push_input(key, true)
+	if not (zoomed_in > 1.0 and zoomed_out < 1.0 and camera.zoom == default_zoom):
+		printerr("FAIL map_zoom desktop wheel/keys (in %s, out %s, reset %s)" % [zoomed_in, zoomed_out, camera.zoom])
+		fail += 1
+
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_map_zoom")
 	return fail
