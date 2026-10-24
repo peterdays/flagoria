@@ -11,11 +11,10 @@ extends Node2D
 ## Contact: touching a living player costs it CONTACT_DAMAGE half-hearts
 ## (PlayerHealth's invulnerability spaces out repeat hits), then the mob
 ## stands still for HIT_PAUSE.
-## Sword: a player's sword in the HurtBox while that player's sword is active
-## (sword_active(), or isAttacking on players without it) costs 1
-## HP, once per swing. A hit plays the hurt row (HURT); the last hit plays the
-## hurt row, then the death puff (DYING), then the server frees the mob and
-## the MultiplayerSpawner removes it everywhere.
+## Sword: a player's sword in the HurtBox while that player's sword_active()
+## is true costs 1 HP, once per swing. A hit plays the hurt row (HURT); the
+## last hit plays the hurt row, then the death puff (DYING), then the server
+## frees the mob and the MultiplayerSpawner removes it everywhere.
 
 enum State { IDLE, WALK, CHASE, HURT, DYING }
 
@@ -176,10 +175,8 @@ func take_hit() -> bool:
 
 
 static func swinging(attacker: Object) -> bool:
-	## The player's own sword_active() when it has one, else its isAttacking flag.
-	if attacker.has_method("sword_active"):
-		return attacker.sword_active()
-	return attacker.get("isAttacking") == true
+	## The player's sword_active() gate: mid-swing and alive.
+	return attacker.has_method("sword_active") and attacker.sword_active()
 
 
 func _check_swords() -> void:
