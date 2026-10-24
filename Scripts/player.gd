@@ -18,6 +18,7 @@ var input = Vector2.ZERO
 @onready var body_shape: CollisionShape2D = $CollisionShape2D
 
 const HUD_PATH := "/root/Flagoria/CanvasLayer1/HeartsHud"
+const MapZoom := preload("res://Scripts/map_zoom.gd")
 const SWORD_DAMAGE := 1  ## half-hearts per sword hit
 const REGEN_AMOUNT := 1  ## half-hearts per regen_timer tick
 const BLINK_PERIOD_MS := 100  ## invulnerability blink: this long shown, this long faded
@@ -45,6 +46,9 @@ func _ready():
 		sync.synchronized.connect(_on_synchronized)
 	if not is_multiplayer_authority(): return
 	camera.make_current()
+	var map_zoom := MapZoom.new()  # local camera only; zoom is never synced
+	map_zoom.name = "MapZoom"
+	camera.add_child(map_zoom)
 	joystick.connect("analogic_change", _on_player_joystick_analogic_change)
 	var hud = get_node_or_null(HUD_PATH)
 	if hud:
@@ -193,8 +197,7 @@ func _on_regen_timer_timeout():
 
 
 func _on_hurt_box_area_entered(area):
-	if area == $hurtBox: return
-
+	# An area never reports itself, and the hurtBox is on no layer anyway.
 	var collision_player = area.get_parent().get_parent()
 	if collision_player.name != name and collision_player.has_method("sword_active") and collision_player.sword_active():
 		# A different player's sword, mid-swing. Every peer sees the overlap; only
