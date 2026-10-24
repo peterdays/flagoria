@@ -177,4 +177,28 @@ fi
 rm -f "${audio_log}"
 echo "Audio check: ok"
 
+echo "== Generator smoke (res://tools/generator_smoke.gd) =="
+gen_log="$(mktemp)"
+gen_args=()
+# Regenerate the hero sheet when Pillow is available and compare it with the
+# committed one; without Pillow only the committed art is checked.
+if python3 -c 'import PIL' >/dev/null 2>&1; then
+  python3 "$ROOT/tools/hero/make_hero.py" --out "${verify_tmp}/hero" flagbearer >/dev/null
+  gen_args=(-- "--hero-sheet=${verify_tmp}/hero/flagbearer_sheet.png")
+else
+  echo "Hero regeneration: skipped (python3 with Pillow not found)"
+fi
+set +e
+"$GODOT" --headless --path "$ROOT" --script res://tools/generator_smoke.gd "${gen_args[@]}" >"${gen_log}" 2>&1
+gen_status=$?
+set -e
+cat "${gen_log}"
+if [[ "${gen_status}" -ne 0 ]] || log_has_project_error "${gen_log}" || ! grep -q 'GENERATOR_SMOKE_OK' "${gen_log}"; then
+  echo "error: generator smoke failed (exit ${gen_status})" >&2
+  rm -f "${gen_log}"
+  exit 1
+fi
+rm -f "${gen_log}"
+echo "Generator smoke: ok"
+
 echo "Verification passed."
