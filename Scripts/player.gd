@@ -140,10 +140,11 @@ func updateAnimation():
 
 
 func spawn_position() -> Vector2:
-	## Where this player respawns: the map's land spawn, as on joining.
+	## Where this player respawns: a free spot near the map's land spawn, as
+	## on joining.
 	var main = get_node_or_null("/root/Flagoria")
 	if main and main.has_method("_land_spawn_position"):
-		return main._land_spawn_position()
+		return main._land_spawn_position(self)
 	return position
 
 

@@ -227,6 +227,121 @@ func _test_spawn_reachable() -> int:
 	return fail
 
 
+func _test_spawn_radius_no_overlap() -> int:
+	## Six players joining at once, re-placed by a client, then all respawning
+	## at once (and again while half stand around the spawn) each get a spot:
+	## clear walkable ground, within SPAWN_RADIUS of the spawn point, and no
+	## two collision boxes overlap. A full area falls back to the nearest free
+	## spot outside the radius, then to the spawn point.
+	print("-- test_spawn_radius_no_overlap")
+	var fail := 0
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var radius: float = world.SPAWN_RADIUS
+	for seed_value in [11, 42, 99]:
+		world.apply_map_params(_spawn_params(seed_value, 0.003))
+		var cell: Vector2i = world.resolve_player_spawn()
+		var origin: Vector2 = world.map_to_local(cell)
+		var players: Array = []
+		for peer_id in range(2, 8):
+			scene.add_player(peer_id)
+			players.append(scene.get_node("World/%s" % peer_id))
+		var check := func(stage: String) -> int:
+			var bad := 0
+			for i in players.size():
+				var p = players[i]
+				var label := "seed=%s %s player %s at %s" % [seed_value, stage, p.name, p.position]
+				if not world.is_clear_ground(world.local_to_map(p.position)):
+					printerr("FAIL spawn_radius %s not on clear walkable ground" % label)
+					bad += 1
+				if p.position.distance_to(origin) > radius:
+					printerr("FAIL spawn_radius %s is %s px from the spawn, radius %s" % [label, p.position.distance_to(origin), radius])
+					bad += 1
+				var box: Rect2 = _body_rect(p)
+				for j in range(i + 1, players.size()):
+					if box.intersects(_body_rect(players[j])):
+						printerr("FAIL spawn_radius %s overlaps player %s at %s" % [label, players[j].name, players[j].position])
+						bad += 1
+			return bad
+		fail += check.call("join")
+		var joined: Array[Vector2] = []
+		for p in players:
+			joined.append(p.position)
+		if players[0].position != origin:
+			printerr("FAIL spawn_radius seed=%s first player at %s, not the spawn %s" % [seed_value, players[0].position, origin])
+			fail += 1
+		# A joining client re-places players once the map arrives: the spots
+		# the server picked stay, and players stacked on one spot spread out.
+		scene._place_players_on_land()
+		var kept: Array[Vector2] = []
+		for p in players:
+			kept.append(p.position)
+		if kept != joined:
+			printerr("FAIL spawn_radius seed=%s client moved server spots %s -> %s" % [seed_value, joined, kept])
+			fail += 1
+		for p in players:
+			p.position = origin
+		scene._place_players_on_land()
+		fail += check.call("client place")
+		# Everyone dies on the same spot and respawns on the same frame.
+		for p in players:
+			p.health.set_health_now(0)
+			p.position = origin
+		for p in players:
+			p.health.respawn()
+		fail += check.call("respawn all")
+		var respawned: Array[Vector2] = []
+		for p in players:
+			respawned.append(p.position)
+		if respawned != joined:
+			printerr("FAIL spawn_radius seed=%s respawn spots %s differ from join spots %s" % [seed_value, respawned, joined])
+			fail += 1
+		# Half die and respawn while the others still stand on the first spots.
+		for i in range(0, players.size(), 2):
+			players[i].health.set_health_now(0)
+		for i in range(0, players.size(), 2):
+			players[i].health.respawn()
+		fail += check.call("respawn half")
+		for p in players:
+			p.free()
+		if fail == 0:
+			print("PASS spawn_radius seed=%s spawn=%s spots=%s" % [seed_value, cell, joined])
+
+	# Fallbacks: every spot in the radius taken -> nearest free one beyond it;
+	# every spot taken -> the spawn point itself.
+	var cell: Vector2i = world.resolve_player_spawn()
+	var origin: Vector2 = world.map_to_local(cell)
+	var spots: Array[Vector2] = world.spawn_spots(cell)
+	var inside: Array[Vector2] = []
+	var outside := Vector2.INF
+	for spot in spots:
+		if spot.distance_to(origin) <= radius:
+			inside.append(spot)
+		elif outside == Vector2.INF:
+			outside = spot
+	var full_radius: Vector2 = world.free_spawn_position(cell, inside)
+	if full_radius != outside or full_radius.distance_to(origin) <= radius:
+		printerr("FAIL spawn_radius full radius -> %s, want nearest outside %s" % [full_radius, outside])
+		fail += 1
+	var all_taken: Vector2 = world.free_spawn_position(cell, spots)
+	if all_taken != origin:
+		printerr("FAIL spawn_radius nothing free -> %s, want spawn %s" % [all_taken, origin])
+		fail += 1
+	scene.queue_free()
+	if fail == 0:
+		print("PASS test_spawn_radius_no_overlap (%s spots in radius)" % inside.size())
+	return fail
+
+
+func _body_rect(player: Node) -> Rect2:
+	## The player's body collision box in world space.
+	var shape_node: CollisionShape2D = player.body_shape
+	var size: Vector2 = (shape_node.shape as RectangleShape2D).size
+	return Rect2(player.position + shape_node.position - size / 2.0, size)
+
+
 func _test_map_settings_water_reopen() -> int:
 	## Map Settings must show the in-use water value on reopen, even when a
 	## SpinBox LineEdit still holds a dirty string for the same numeric value.
@@ -874,7 +989,7 @@ func _test_player_respawn_no_snapback() -> int:
 
 func _test_sword_only_hits_mid_swing() -> int:
 	## Two real players on the spawn point with physics running: an idle sword
-	## overlap deals no damage, a swing still hits, a player respawning onto
+	## overlap deals no damage, a swing still hits, a player respawning beside
 	## the other deals no damage, and a dead body does not block movement.
 	print("-- test_sword_only_hits_mid_swing")
 	var fail := 0
@@ -940,13 +1055,16 @@ func _test_sword_only_hits_mid_swing() -> int:
 	a.collision_layer = 1
 	b.collision_mask = 1
 
-	# Respawn onto the other player: no free hit, and the body blocks again.
+	# Respawn while the other player stands on the spawn: a lands on the free
+	# spot next to it (sword in reach), takes no free hit, and blocks again.
 	b.position = spawn
 	a.position = spawn + Vector2(300, 0)
 	await settle.call()
 	a.health.advance(a.health.respawn_delay + 0.01)
 	await settle.call()
-	if a.health.is_dead() or a.position != spawn or b.health.health != 6:
+	var next_to: float = a.position.distance_to(spawn)
+	if a.health.is_dead() or next_to < world.get_node("worldMap").SPAWN_CLEARANCE \
+			or next_to > world.get_node("worldMap").SPAWN_RADIUS or b.health.health != 6:
 		printerr("FAIL sword_mid_swing respawn hit: b %s, a at %s (spawn %s)" % [b.health.health, a.position, spawn])
 		fail += 1
 	if a.body_shape.disabled:

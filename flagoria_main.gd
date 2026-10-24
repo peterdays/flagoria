@@ -79,18 +79,38 @@ func _apply_params_to_world(params: MapGenParams) -> void:
 		world.apply_map_params(params)
 
 
-func _land_spawn_position() -> Vector2:
+func _land_spawn_position(for_player: Node = null) -> Vector2:
+	## The map's land spawn point. For a player, the nearest spot near it that
+	## no other living player stands on (see SPAWN_RADIUS in TileMap.gd).
 	var world = get_node("World/worldMap")
 	var cell = world.resolve_player_spawn()
-	return world.map_to_local(cell)
+	if for_player == null:
+		return world.map_to_local(cell)
+	return world.free_spawn_position(cell, _taken_spawn_spots(for_player))
+
+
+func _taken_spawn_spots(except: Node) -> Array[Vector2]:
+	## Where the living players other than except stand. Dead bodies have no
+	## collision, so they do not take a spot.
+	var taken: Array[Vector2] = []
+	for child in get_node("World").get_children():
+		if child is CharacterBody2D and child != except:
+			var health = child.get_node_or_null("Health")
+			if health == null or not health.is_dead():
+				taken.append(child.position)
+	return taken
 
 
 func _place_players_on_land() -> void:
-	var pos = _land_spawn_position()
+	# Players the server already placed on a free spot near the spawn keep it;
+	# the rest move to one.
+	var world = get_node("World/worldMap")
+	var cell: Vector2i = world.resolve_player_spawn()
 	var world_root = get_node("/root/Flagoria/World")
 	for child in world_root.get_children():
 		if child is CharacterBody2D:
-			child.position = pos
+			if not world.is_free_spawn_spot(child.position, cell, _taken_spawn_spots(child)):
+				child.position = _land_spawn_position(child)
 
 
 func _sync_map_params_to_peer(peer_id: int) -> void:
@@ -117,7 +137,7 @@ func add_player(peer_id):
 	var player = Player.instantiate()
 	player.name = str(peer_id)
 	print("player added", player.name)
-	player.position = _land_spawn_position()
+	player.position = _land_spawn_position(player)
 	get_node("/root/Flagoria/World").add_child(player)
 
 	var world = get_node("World/worldMap")
