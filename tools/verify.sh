@@ -24,6 +24,11 @@ GODOT="${GODOT:-godot}"
 # is kept.
 verify_tmp="$(mktemp -d)"
 trap 'rm -rf "${verify_tmp}"' EXIT
+# Ctrl-C or kill must fail the run. Without these traps bash keeps going after
+# the current Godot step and can still print "Verification passed." and exit 0.
+# The EXIT trap above still removes the temp dirs.
+trap 'echo "error: interrupted (SIGINT)" >&2; exit 130' INT
+trap 'echo "error: terminated (SIGTERM)" >&2; exit 143' TERM
 export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-${verify_tmp}/config}"
 export XDG_DATA_HOME="${XDG_DATA_HOME:-${verify_tmp}/data}"
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-${verify_tmp}/cache}"

@@ -26,6 +26,9 @@ const SERVER_ID := 1
 var health := 6
 var _invulnerable_left := 0.0
 var _respawn_left := -1.0
+## How many times the server has respawned this player node: the server
+## numbers each respawn and every peer stores the number it was sent.
+var respawn_count := 0
 
 
 func _enter_tree() -> void:
@@ -87,7 +90,7 @@ func respawn() -> void:
 	if not is_multiplayer_authority():
 		return
 	_respawn_left = -1.0
-	_do_respawn.rpc(_spawn_position())
+	_do_respawn.rpc(_spawn_position(), respawn_count + 1)
 
 
 func advance(delta: float) -> void:
@@ -129,7 +132,8 @@ func _set_health(new_health: int, invulnerable_left: float) -> void:
 
 
 @rpc("authority", "call_local", "reliable")
-func _do_respawn(at: Vector2) -> void:
+func _do_respawn(at: Vector2, count: int) -> void:
+	respawn_count = count
 	health = max_health
 	_invulnerable_left = invulnerable_time
 	respawned.emit(at)
