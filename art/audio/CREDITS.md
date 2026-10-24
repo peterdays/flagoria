@@ -16,6 +16,11 @@
 | `sfx/combat/hit_sting_01.wav` | Original, generated (`tools/audio/gen_combat.py`) | Flagoria project | CC0 1.0 |
 | `art/Sprites/NinjaAdventure/Musics/5 - Peaceful.ogg` (menu music, used in place) | Ninja Adventure, `Musics/5 - Peaceful.ogg`, https://pixel-boy.itch.io/ninja-adventure-asset-pack | pixel-boy and AAA | CC0 1.0 |
 | `art/Sprites/NinjaAdventure/Musics/4 - Village.ogg` (game music, used in place) | Ninja Adventure, `Musics/4 - Village.ogg`, https://pixel-boy.itch.io/ninja-adventure-asset-pack | pixel-boy and AAA | CC0 1.0 |
+| `sfx/ui/click_01.wav` | Ninja Adventure, `Sounds/Menu/Menu3.wav`, https://pixel-boy.itch.io/ninja-adventure-asset-pack | pixel-boy and AAA | CC0 1.0 |
+| `sfx/ui/back_01.wav` | Ninja Adventure, `Sounds/Menu/Cancel.wav` (trimmed to 0.3 s), https://pixel-boy.itch.io/ninja-adventure-asset-pack | pixel-boy and AAA | CC0 1.0 |
+| `sfx/ui/menu_open_01.wav` | Original, generated (`tools/audio/gen_ui.py`) | Flagoria project | CC0 1.0 |
+| `sfx/ui/menu_close_01.wav` | Original, generated (`tools/audio/gen_ui.py`) | Flagoria project | CC0 1.0 |
+| `sfx/ui/saved_01.wav` | Ninja Adventure, `Sounds/Menu/Accept.wav`, https://pixel-boy.itch.io/ninja-adventure-asset-pack | pixel-boy and AAA | CC0 1.0 |
 
 Footstep files are procedural filtered noise (numpy), mono 16-bit 22.05 kHz, 0.22–0.34 s,
 RMS-normalized to about -20 dBFS with peaks below -0.3 dBFS. Regenerate with:
@@ -24,3 +29,8 @@ RMS-normalized to about -20 dBFS with peaks below -0.3 dBFS. Regenerate with:
 
 Ninja Adventure files are copied from `art/Sprites/NinjaAdventure/Sounds/Game/` (license: `art/Sprites/NinjaAdventure/LICENSE.txt`),
 converted to mono 16-bit 22.05 kHz, trimmed, and RMS-normalized to about -20 dBFS. Generated files use the same format and level.
+
+UI files are built by `tools/audio/gen_ui.py` (run from the repository root), mono 16-bit 22.05 kHz,
+RMS-levelled to about -22 dBFS, a little under gameplay. Regenerate with:
+
+    python3 tools/audio/gen_ui.py art/audio/sfx/ui
