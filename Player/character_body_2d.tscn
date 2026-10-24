@@ -1,10 +1,11 @@
-[gd_scene load_steps=19 format=3 uid="uid://4h3b7gksl7a1"]
+[gd_scene load_steps=20 format=3 uid="uid://4h3b7gksl7a1"]
 
 [ext_resource type="Script" path="res://Scripts/player.gd" id="1_npi18"]
 [ext_resource type="Texture2D" uid="uid://di7lvt1805we1" path="res://art/hero/sheets/flagbearer_sheet.png" id="2_2dbro"]
 [ext_resource type="PackedScene" uid="uid://criufo7hcxa3y" path="res://Player/sword.tscn" id="3_yc3si"]
 [ext_resource type="Script" path="res://Scripts/combat_sfx.gd" id="4_combat"]
 [ext_resource type="Script" path="res://Scripts/footsteps.gd" id="5_steps"]
+[ext_resource type="Script" path="res://Scripts/player_health.gd" id="6_health"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_5iwvh"]
 size = Vector2(8, 10)
@@ -339,16 +340,8 @@ collision_mask = 4
 position = Vector2(1, -8)
 shape = SubResource("RectangleShape2D_7612m")
 
-[node name="healthbar" type="ProgressBar" parent="."]
-modulate = Color(0.717647, 0.968627, 0.447059, 1)
-offset_left = -7.0
-offset_top = -21.0
-offset_right = 100.0
-offset_bottom = 6.0
-scale = Vector2(0.14, 0.14)
-max_value = 30.0
-step = 1.0
-value = 30.0
+[node name="Health" type="Node" parent="."]
+script = ExtResource("6_health")
 
 [node name="regen_timer" type="Timer" parent="."]
 wait_time = 5.0
