@@ -26,6 +26,8 @@ sum="${ART}/out/e2e-summary.txt"
   echo "## Map Settings screenshot"
   if [[ -f "${ART}/out/map_settings.png" ]]; then
     echo "result=present file=out/map_settings.png"
+  elif [[ -f "${ART}/map_settings.png" ]]; then
+    echo "result=not_captured_this_run reference=map_settings.png (run drive-map-settings-screenshot.sh to capture)"
   else
     echo "result=absent"
   fi

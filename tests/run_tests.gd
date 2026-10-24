@@ -20,7 +20,12 @@ func _run() -> void:
 			quit(0)
 			return
 		if arg.begins_with("--only="):
-			picked = _filter_tests(names, arg.trim_prefix("--only=").split(",", false))
+			var wanted := arg.trim_prefix("--only=").split(",", false)
+			if wanted.is_empty():
+				printerr("--only= needs at least one test name, e.g. --only=map_zoom (use --list to see the names)")
+				quit(1)
+				return
+			picked = _filter_tests(names, wanted)
 			if picked.is_empty():
 				quit(1)
 				return
@@ -43,11 +48,19 @@ func _run() -> void:
 func _registered_tests() -> Array[String]:
 	## Every `func _test_*() -> int` in this file, in source order. Adding a
 	## test is just writing the function; nothing else needs to list it.
+	## A test-like function that does not match (parameters, uppercase
+	## letters, static, indented, or no leading underscore) is skipped with a
+	## warning on stderr, so it cannot silently drop out of the run.
 	var found: Array[String] = []
 	var source := (get_script() as GDScript).source_code
 	var pattern := RegEx.create_from_string("(?m)^func (_test_[a-z0-9_]+)\\(\\)")
 	for m in pattern.search_all(source):
 		found.append(m.get_string(1))
+	var loose := RegEx.create_from_string("(?mi)^[ \\t]*(static[ \\t]+)?func[ \\t]+(_?test_\\w*)[ \\t]*\\([^)]*\\)")
+	var exact := RegEx.create_from_string("^func _test_[a-z0-9_]+\\(\\)$")
+	for m in loose.search_all(source):
+		if exact.search(m.get_string(0)) == null:
+			printerr("WARNING: skipped %s: tests must be a top-level, non-static `func _test_<lowercase_name>()` with no parameters" % m.get_string(2))
 	return found
 
 
