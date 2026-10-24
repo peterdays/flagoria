@@ -1,13 +1,13 @@
 ---
 name: verify-flagoria
-description: "Verify Flagoria (Godot 4.1 island PvP): headless project load/parse/tests, map generation golden checks, and Map Settings / Host-Join surfaces via tools/verify.sh and optional xvfb screenshots. Use when proving a change to map gen, the admin panel, multiplayer boot, or before opening a PR."
+description: "Verify Flagoria (Godot 4.7 island PvP): headless project load/parse/tests, map generation golden checks, and Map Settings / Host-Join surfaces via tools/verify.sh and optional xvfb screenshots. Use when proving a change to map gen, the admin panel, multiplayer boot, or before opening a PR."
 ---
 
 # Verify Flagoria
 
 Project-local verification for Flagoria. Read this cold mid-task. Prefer the feature map under `features/` for user-facing recipes. Always run **Doctor** before trusting a drive.
 
-**Engine:** Godot **4.1.x** only. Set `GODOT` to the editor binary (must report `4.1.*` from `$GODOT --version`). Do not use a newer editor: it can migrate `project.godot`.
+**Engine:** Godot **4.7.x** only, the version in `project.godot` (`config/features`). Set `GODOT` to the editor binary (must report `4.7.*` from `$GODOT --version`). Do not use a newer editor: it can migrate `project.godot`.
 
 **Repo root:** every command below assumes the current working directory is the Flagoria checkout root (the directory that contains `project.godot` and `tools/verify.sh`).
 
@@ -22,7 +22,7 @@ Project-local verification for Flagoria. Read this cold mid-task. Prefer the fea
 
 Flagoria is not a long-lived server for most checks. Launch means: confirm the engine, ensure the project can open headless, then start each drive as a short-lived process.
 
-1. Require `GODOT` on the environment and version `4.1.*`:
+1. Require `GODOT` on the environment and version `4.7.*`:
 
 ```bash
 test -n "${GODOT:-}" && "$GODOT" --version
@@ -61,7 +61,7 @@ Read-only. Run whenever anything looks off:
 ./.cursor/skills/verify-flagoria/bin/doctor.sh
 ```
 
-Expect exit `0` and lines confirming: repo root, `GODOT` version `4.1.*`, `tools/verify.sh` present, `tests/run_tests.gd` present. Fail if `GODOT` is unset, wrong major/minor, or the checkout is not Flagoria.
+Expect exit `0` and lines confirming: `GODOT` version matches the major.minor in `project.godot` `config/features` (currently `4.7`), `test_map_characterization` present in `tests/run_tests.gd`, and repo root OK (`project.godot`, `tools/verify.sh`, `tests/run_tests.gd`). Fail if `GODOT` is unset, wrong major/minor, the characterization test is missing, or the checkout is not Flagoria.
 
 ## Drive
 

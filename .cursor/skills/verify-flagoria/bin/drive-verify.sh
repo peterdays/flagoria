@@ -8,7 +8,7 @@ RUN=".cursor/skills/verify-flagoria/.run"
 mkdir -p "$ART" "$RUN"
 
 if [[ -z "${GODOT:-}" ]]; then
-  echo "drive-verify: set GODOT to the Godot 4.1 editor binary" >&2
+  echo "drive-verify: set GODOT to the Godot 4.7 editor binary" >&2
   exit 1
 fi
 
