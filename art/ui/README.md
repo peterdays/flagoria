@@ -33,5 +33,6 @@ place the icons are referenced. The row lays out from the icon width.
 - Everything else in the theme (style boxes, gradients) is defined directly in
   the `.tres` file and is original to this project.
 - Hearts: `hearts/ui_heart_*.png` are original pixel art made in-house for
-  this project, drawn in code from text grids in the flagoria palette, with
-  no third-party pixels. Repository licence (`LICENSE.md`).
+  this project, drawn in code from text grids in the flagoria palette (1 px
+  outline in the project ink colour `#2a2238`), with no third-party pixels.
+  Repository licence (`LICENSE.md`).
