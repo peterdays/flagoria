@@ -17,12 +17,12 @@ Two-player Host/Join starts a listen-server on one instance and connects a secon
 
 Preconditions:
 
-- Two display-capable game processes (or a future #45 harness).
+- Two display-capable game processes for the GUI checklist; none for the headless peer tests.
 - `doctor.sh` exits `0`.
 
-- **Automated today.** Limited: headless verify loads the main scene and map code paths but does **not** click Host/Join or spawn two peers. Do not mark `mp-host` / `mp-join` verified from verify.sh alone.
-- **Manual.** Run two instances; complete the README checklist (host, join, move, attack, regen).
-- **Placeholder #45.** When an automated two-player smoke exists, drive it from CI and record peer connect logs here.
+- **Automated today.** `tests/run_tests.gd` starts a second headless Godot as a dedicated server and joins it (`test_dedicated_server_join`, `test_mob_*_two_players`, `test_mobs_sync_to_peer`), which proves ENet join, param sync and player spawn on both peers. It does **not** click the menu Host/Join buttons; do not mark the GUI path of `mp-host` / `mp-join` verified from verify.sh alone. See [Dedicated server](./dedicated-server.md).
+- **Manual.** Run two instances; complete the README checklist (host, join, move, attack, regen, death).
+- **Placeholder #45.** The remaining gap is a scripted menu Host/Join between two instances in CI.
 - **Proof.** For manual runs: short note in `artifacts/out/e2e-summary.txt` that checklist steps passed. For #45: attach the smoke log path.
 
 ## Gotchas
