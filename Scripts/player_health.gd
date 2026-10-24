@@ -9,6 +9,9 @@ extends Node
 ## server for the current value. Each player node has its own PlayerHealth.
 
 signal health_changed(current: int, maximum: int)
+## The server's reply to a late copy's state request: the current value, with
+## no hit, death or HUD flash, since nothing happened just now.
+signal state_received(current: int, maximum: int)
 ## A hit landed and took `amount` half-hearts (fires on every peer).
 signal damaged(amount: int)
 signal died
@@ -70,7 +73,8 @@ func heal(amount: int) -> bool:
 
 func set_health_now(value: int) -> void:
 	## Server only, for tools and tests: set health with no sound and no
-	## invulnerability. 0 starts the respawn countdown.
+	## invulnerability. 0 starts the respawn countdown; the player's dead look
+	## and collision follow is_dead(), so they match a death by damage.
 	if not is_multiplayer_authority():
 		return
 	value = clampi(value, 0, max_health)
@@ -135,4 +139,11 @@ func _do_respawn(at: Vector2) -> void:
 @rpc("any_peer", "call_remote", "reliable")
 func _request_state() -> void:
 	if multiplayer.is_server():
-		_set_health.rpc_id(multiplayer.get_remote_sender_id(), health, _invulnerable_left)
+		_receive_state.rpc_id(multiplayer.get_remote_sender_id(), health, _invulnerable_left)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _receive_state(new_health: int, invulnerable_left: float) -> void:
+	health = new_health
+	_invulnerable_left = invulnerable_left
+	state_received.emit(health, max_health)
