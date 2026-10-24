@@ -15,11 +15,11 @@ const HOME_GRASS := 0
 const HOME_SAND := 1
 
 ## sheet: the type's only art reference. home: HOME_GRASS or HOME_SAND.
-## wander_speed: px/s while wandering. body: feet box in px (w, h).
+## wander_speed, chase_speed: px/s. body: feet box in px (w, h).
 const TYPES := {
-	SLIME: {"sheet": "res://art/mobs/mob_slime_sheet.png", "home": HOME_GRASS, "wander_speed": 16.0, "body": Vector2(10, 6)},
-	CRAB: {"sheet": "res://art/mobs/mob_crab_sheet.png", "home": HOME_SAND, "wander_speed": 20.0, "body": Vector2(12, 6)},
-	PIGLET: {"sheet": "res://art/mobs/mob_piglet_sheet.png", "home": HOME_GRASS, "wander_speed": 24.0, "body": Vector2(8, 6)},
+	SLIME: {"sheet": "res://art/mobs/mob_slime_sheet.png", "home": HOME_GRASS, "wander_speed": 16.0, "chase_speed": 40.0, "body": Vector2(10, 6)},
+	CRAB: {"sheet": "res://art/mobs/mob_crab_sheet.png", "home": HOME_SAND, "wander_speed": 20.0, "chase_speed": 44.0, "body": Vector2(12, 6)},
+	PIGLET: {"sheet": "res://art/mobs/mob_piglet_sheet.png", "home": HOME_GRASS, "wander_speed": 24.0, "chase_speed": 52.0, "body": Vector2(8, 6)},
 }
 
 ## Sheet grid: 8 columns x 16 rows of 16x16, like the hero sheet.
