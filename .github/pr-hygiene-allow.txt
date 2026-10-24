@@ -1,0 +1,6 @@
+# Allowlist for tools/pr_hygiene.py (see its header). One entry per line:
+#   <text>               ignore a finding whose matched text equals <text>
+#   re:<regex>           ignore findings whose matched text matches <regex>
+#   size-exclude:<glob>  leave matching paths out of the size count
+# Keep entries generic (role or noreply addresses, generated files). Adding a
+# personal address here would itself publish it.
