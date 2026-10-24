@@ -3,20 +3,26 @@
 `main_menu_theme.tres` styles the main menu: pixel font, button, line-edit and
 slider styles, and a banded backdrop, all in the game palette.
 
-## Hearts (placeholder)
+## Hearts
 
-`hearts/heart_full.png`, `heart_half.png` and `heart_empty.png` are 8x8
-placeholder icons for the player's health row (top-left corner, one icon per
-heart, half-heart steps). They are drawn from the text grids in
-`hearts/hearts_8.txt` with colours from the Ninja Adventure palette:
+The player's health row (top-left corner, one icon per heart, half-heart
+steps) uses five 9x9 icons in `hearts/`:
 
-    python3 tools/ui/make_hearts.py
+| file | shown |
+|---|---|
+| `ui_heart_full.png` | a full heart |
+| `ui_heart_half.png` | a half heart (split on the centre column) |
+| `ui_heart_empty.png` | an empty heart |
+| `ui_heart_flash_0.png`, `ui_heart_flash_1.png` | a heart that just lost health: flash 0, then flash 1, about 60 ms each, then the new state |
 
-To swap in final art, replace the three PNGs (keep the names, any square
-size) or point the `ICON_FULL`, `ICON_HALF` and `ICON_EMPTY` constants in
-`Scripts/hearts_hud.gd` at new files. That is the only place the icons are
-referenced. The row lays out from the icon width, so larger icons only need
-a new `SPACING` if the gap should change.
+Layout: 1 px gap (10 px pitch), 4 px from the screen corner. The row is drawn
+at a whole number of screen pixels per art pixel, even when the window
+stretch is fractional. The flash is only on the HUD; the player's
+invulnerability time and blink are separate.
+
+To restyle the hearts, replace the PNGs (keep the names) or point the
+`ICON_*` constants in `Scripts/hearts_hud.gd` at new files. That is the only
+place the icons are referenced. The row lays out from the icon width.
 
 ## Credits
 
@@ -26,3 +32,6 @@ a new `SPACING` if the gap should change.
   non-antialiased, unhinted rendering so glyphs stay crisp at integer scale.
 - Everything else in the theme (style boxes, gradients) is defined directly in
   the `.tres` file and is original to this project.
+- Hearts: `hearts/ui_heart_*.png` are original pixel art made in-house for
+  this project, drawn in code from text grids in the flagoria palette, with
+  no third-party pixels. Repository licence (`LICENSE.md`).
