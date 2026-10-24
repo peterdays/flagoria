@@ -226,14 +226,22 @@ func _begin_step(i: int, t: float) -> void:
 			_attacker.attack_animation()
 		"damage":
 			_walker.health.set_health_now(_walker.health.max_health)
-			_walker._on_hurt_box_area_entered(_attacker.get_node("weapon/sword"))
+			_sword_hit()
 		"kill":
 			_walker.health.set_health_now(1)
-			_walker._on_hurt_box_area_entered(_attacker.get_node("weapon/sword"))
+			_sword_hit()
 	# Log starts in the same frame: Godot can stop a player at once when its
 	# bus is muted, before the next poll would see it playing.
 	_log_starts()
 
+
+
+func _sword_hit() -> void:
+	## The hit path counts only a sword mid-swing; mark one in progress
+	## without playing the swing sound, so only the hit sounds are logged.
+	_attacker.isAttacking = true
+	_walker._on_hurt_box_area_entered(_attacker.get_node("weapon/sword"))
+	_attacker.isAttacking = false
 
 func _drain() -> void:
 	var n := _master_cap.get_frames_available()
