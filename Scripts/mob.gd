@@ -11,8 +11,12 @@ extends Node2D
 ## Contact: touching a living player costs it CONTACT_DAMAGE half-hearts
 ## (PlayerHealth's invulnerability spaces out repeat hits), then the mob
 ## stands still for HIT_PAUSE.
+## Sword: a player's sword in the HurtBox during that player's swing costs 1
+## HP, once per swing. A hit plays the hurt row (HURT); the last hit plays the
+## hurt row, then the death puff (DYING), then the server frees the mob and
+## the MultiplayerSpawner removes it everywhere.
 
-enum State { IDLE, WALK, CHASE }
+enum State { IDLE, WALK, CHASE, HURT, DYING }
 
 const WANDER_RADIUS := 6 * 16  ## px from home
 const CHASE_RADIUS := 5 * 16  ## px: start chasing a player this close
@@ -22,6 +26,8 @@ const CALM_TIME := 2.0  ## s after giving up before chasing again
 const CONTACT_DAMAGE := 1  ## half-hearts per touch
 const HIT_PAUSE := 0.6  ## s the mob stands still after a touch lands
 const PLAYER_BOX := Rect2(-4, -10, 8, 10)  ## player body around its feet (Player/character_body_2d.tscn)
+const HURT_TIME := 0.4  ## s of hurt row per hit: blink 0,1,0,1 at 10 fps
+const PUFF_TIME := MobCatalog.PUFF_FRAMES / MobCatalog.PUFF_FPS
 const IDLE_TIME := Vector2(1.0, 3.0)  ## seconds, min and max
 const WALK_TIME := Vector2(0.6, 1.6)
 
@@ -41,9 +47,13 @@ var target: Node2D
 var _timer := 0.0
 var _calm := 0.0
 var _pause := 0.0
+var hp := 1
+var _struck := {}  ## instance ids of attackers whose current swing already hit
 var _world: TileMap
 
 @onready var sprite: Sprite2D = $Sprite2D
+@onready var puff: Sprite2D = $Puff
+@onready var hurt_box: Area2D = $HurtBox
 
 
 func setup(type: String, at: Vector2, rng_seed: int) -> void:
@@ -51,12 +61,18 @@ func setup(type: String, at: Vector2, rng_seed: int) -> void:
 	mob_type = type
 	position = at
 	home = at
+	hp = MobCatalog.stat(type, "hp")
 	rng.seed = rng_seed
 	_timer = rng.randf_range(IDLE_TIME.x, IDLE_TIME.y)
 
 
 func _ready() -> void:
 	sprite.texture = MobCatalog.sheet(mob_type)
+	puff.texture = load(MobCatalog.PUFF_SHEET)
+	var shape := RectangleShape2D.new()
+	shape.size = MobCatalog.stat(mob_type, "hurtbox")
+	hurt_box.get_node("CollisionShape2D").shape = shape
+	hurt_box.position.y = MobCatalog.HURTBOX_Y
 	# Mobs live under World/Mobs, next to World/worldMap.
 	_world = get_node_or_null("../../worldMap") as TileMap
 
@@ -68,10 +84,18 @@ func _physics_process(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	anim_time += delta
-	sprite.frame_coords = MobCatalog.frame(anim_name(), facing, anim_time)
+	var puffing := state == State.DYING and anim_time >= HURT_TIME
+	sprite.visible = not puffing
+	puff.visible = puffing
+	if puffing:
+		puff.frame = mini(int((anim_time - HURT_TIME) * MobCatalog.PUFF_FPS), MobCatalog.PUFF_FRAMES - 1)
+	else:
+		sprite.frame_coords = MobCatalog.frame(anim_name(), facing, anim_time)
 
 
 func anim_name() -> String:
+	if state == State.HURT or state == State.DYING:
+		return "hurt"
 	return "idle" if state == State.IDLE else "walk"
 
 
@@ -80,6 +104,17 @@ func think(delta: float) -> void:
 	_timer -= delta
 	_calm -= delta
 	_pause -= delta
+	if state == State.DYING:
+		if _timer <= 0.0:
+			queue_free()
+		return
+	_check_swords()
+	if state == State.DYING:
+		return
+	if state == State.HURT:
+		if _timer <= 0.0:
+			_start_idle()
+		return
 	_touch_players()
 	if _pause > 0.0:
 		return
@@ -122,6 +157,38 @@ func nearest_player(radius: float) -> Node2D:
 static func is_alive(player: Node) -> bool:
 	var health := player.get_node_or_null("Health") as PlayerHealth
 	return health == null or not health.is_dead()
+
+
+func take_hit() -> bool:
+	## Server only: one sword hit. Ignored while already hurt or dying.
+	if state == State.HURT or state == State.DYING:
+		return false
+	hp -= 1
+	direction = Vector2.ZERO
+	if hp <= 0:
+		state = State.DYING
+		_timer = HURT_TIME + PUFF_TIME
+	else:
+		state = State.HURT
+		_timer = HURT_TIME
+	return true
+
+
+func _check_swords() -> void:
+	## A sword (player/weapon/sword) in the HurtBox counts while its player is
+	## swinging, once per swing.
+	for id in _struck.keys():
+		var attacker := instance_from_id(id)
+		if not is_instance_valid(attacker) or not attacker.get("isAttacking"):
+			_struck.erase(id)
+	for area in hurt_box.get_overlapping_areas():
+		var attacker := area.get_parent().get_parent() if area.get_parent() else null
+		if attacker == null or not attacker.get("isAttacking") or not is_alive(attacker):
+			continue
+		if _struck.has(attacker.get_instance_id()):
+			continue
+		_struck[attacker.get_instance_id()] = true
+		take_hit()
 
 
 func contact_box() -> Rect2:
