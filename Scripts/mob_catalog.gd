@@ -16,11 +16,19 @@ const HOME_SAND := 1
 
 ## sheet: the type's only art reference. home: HOME_GRASS or HOME_SAND.
 ## wander_speed, chase_speed: px/s. body: feet box in px (w, h).
+## hp: sword hits to kill. hurtbox: px (w, h), centred HURTBOX_Y above the feet.
 const TYPES := {
-	SLIME: {"sheet": "res://art/mobs/mob_slime_sheet.png", "home": HOME_GRASS, "wander_speed": 16.0, "chase_speed": 40.0, "body": Vector2(10, 6)},
-	CRAB: {"sheet": "res://art/mobs/mob_crab_sheet.png", "home": HOME_SAND, "wander_speed": 20.0, "chase_speed": 44.0, "body": Vector2(12, 6)},
-	PIGLET: {"sheet": "res://art/mobs/mob_piglet_sheet.png", "home": HOME_GRASS, "wander_speed": 24.0, "chase_speed": 52.0, "body": Vector2(8, 6)},
+	SLIME: {"sheet": "res://art/mobs/mob_slime_sheet.png", "home": HOME_GRASS, "wander_speed": 16.0, "chase_speed": 40.0, "body": Vector2(10, 6), "hp": 2, "hurtbox": Vector2(12, 9)},
+	CRAB: {"sheet": "res://art/mobs/mob_crab_sheet.png", "home": HOME_SAND, "wander_speed": 20.0, "chase_speed": 44.0, "body": Vector2(12, 6), "hp": 3, "hurtbox": Vector2(14, 10)},
+	PIGLET: {"sheet": "res://art/mobs/mob_piglet_sheet.png", "home": HOME_GRASS, "wander_speed": 24.0, "chase_speed": 52.0, "body": Vector2(8, 6), "hp": 2, "hurtbox": Vector2(12, 10)},
 }
+
+const HURTBOX_Y := -4.0
+
+## Death puff shared by every type: one row of 16x16 frames.
+const PUFF_SHEET := "res://art/mobs/fx_puff.png"
+const PUFF_FRAMES := 4
+const PUFF_FPS := 10.0
 
 ## Sheet grid: 8 columns x 16 rows of 16x16, like the hero sheet.
 const SHEET_COLS := 8
