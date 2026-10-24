@@ -1,5 +1,10 @@
 extends TileMap
 
+## Layer-0 ground was drawn in `cells`, or (an empty Rect2i) cleared everywhere.
+## Emitted on every peer right after the cells are set, so local visuals that
+## depend on the ground (hidden mobs) update in the same frame.
+signal ground_changed(cells: Rect2i)
+
 var rng = RandomNumberGenerator.new()
 var count = 0
 var moisture = FastNoiseLite.new()
@@ -109,6 +114,7 @@ func apply_map_params(p: MapGenParams) -> void:
 	clear()
 	_predict_cache.clear()
 	spawn_point = Vector2i(0, 0)
+	ground_changed.emit(Rect2i())
 
 
 func _configure_noise(noise: FastNoiseLite, seed_value: int, frequency: float, p: MapGenParams) -> void:
@@ -146,6 +152,8 @@ func generate_chunk(position):
 
 			set_tile_type_z0(cell, alt, moist, temp, chance, b)
 			set_tile_type_z1(cell, alt, moist, temp, chance, b)
+	var corner := Vector2i(tile_pos.x - chunk_width / 2, tile_pos.y - chunk_height / 2)
+	ground_changed.emit(Rect2i(corner, Vector2i(chunk_width, chunk_height)))
 
 
 func cell_altitude(cell: Vector2i, biome_id: int) -> float:
