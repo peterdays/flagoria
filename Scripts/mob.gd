@@ -12,7 +12,8 @@ extends Node2D
 ## (PlayerHealth's invulnerability spaces out repeat hits), then the mob
 ## stands still for HIT_PAUSE.
 ## Sword: a player's sword in the HurtBox while that player's sword_active()
-## is true costs 1 HP, once per swing. A hit plays the hurt row (HURT); the
+## is true costs 1 HP, once per swing; a swing that reaches it during HURT is
+## not used up and can still land after. A hit plays the hurt row (HURT); the
 ## last hit plays the hurt row, then the death puff (DYING), then the server
 ## frees the mob and the MultiplayerSpawner removes it everywhere.
 
@@ -25,7 +26,7 @@ const CHASE_LEASH := 12 * 16  ## px from home: stop chasing past this
 const CALM_TIME := 2.0  ## s after giving up before chasing again
 const CONTACT_DAMAGE := 1  ## half-hearts per touch
 const HIT_PAUSE := 0.6  ## s the mob stands still after a touch lands
-const PLAYER_BOX := Rect2(-4, -10, 8, 10)  ## player body around its feet (Player/character_body_2d.tscn)
+const PLAYER_SCENE := "res://Player/character_body_2d.tscn"  ## its CollisionShape2D is the default player box
 const HURT_TIME := 0.4  ## s of hurt row per hit: blink 0,1,0,1 at 10 fps
 const PUFF_TIME := MobCatalog.PUFF_FRAMES / MobCatalog.PUFF_FPS
 const IDLE_TIME := Vector2(1.0, 3.0)  ## seconds, min and max
@@ -50,6 +51,7 @@ var _pause := 0.0
 var hp := 1
 var _struck := {}  ## instance ids of attackers whose current swing already hit
 var _world: TileMap
+static var _default_player_box := Rect2()  ## from PLAYER_SCENE, read once
 
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var puff: Sprite2D = $Puff
@@ -181,7 +183,7 @@ static func swinging(attacker: Object) -> bool:
 
 func _check_swords() -> void:
 	## A sword (player/weapon/sword) in the HurtBox counts while its player is
-	## swinging, once per swing.
+	## swinging, once per swing that lands.
 	for id in _struck.keys():
 		var attacker := instance_from_id(id)
 		if not is_instance_valid(attacker) or not swinging(attacker):
@@ -192,8 +194,10 @@ func _check_swords() -> void:
 			continue
 		if _struck.has(attacker.get_instance_id()):
 			continue
-		_struck[attacker.get_instance_id()] = true
-		take_hit()
+		# A swing that lands during HURT is ignored, not used up: it can still
+		# hit once the hurt window ends, if the swing lasts that long.
+		if take_hit():
+			_struck[attacker.get_instance_id()] = true
 
 
 func contact_box() -> Rect2:
@@ -208,8 +212,29 @@ func _touch_players() -> void:
 		var health := p.get_node_or_null("Health") as PlayerHealth
 		if health == null or health.is_dead():
 			continue
-		if box.intersects(Rect2(p.position + PLAYER_BOX.position, PLAYER_BOX.size)) and health.take_damage(CONTACT_DAMAGE):
+		if box.intersects(player_box(p)) and health.take_damage(CONTACT_DAMAGE):
 			_pause = HIT_PAUSE
+
+
+static func player_box(player: Node2D) -> Rect2:
+	## The player's body collision box in world space: its own
+	## CollisionShape2D, or PLAYER_SCENE's for a body without one.
+	var local := _shape_box(player.get_node_or_null("CollisionShape2D"))
+	if not local.has_area():
+		if not _default_player_box.has_area():
+			var scene_player: Node = load(PLAYER_SCENE).instantiate()
+			_default_player_box = _shape_box(scene_player.get_node_or_null("CollisionShape2D"))
+			scene_player.free()
+		local = _default_player_box
+	return Rect2(player.position + local.position, local.size)
+
+
+static func _shape_box(node: Node) -> Rect2:
+	var shape_node := node as CollisionShape2D
+	if shape_node == null or not shape_node.shape is RectangleShape2D:
+		return Rect2()
+	var size: Vector2 = (shape_node.shape as RectangleShape2D).size
+	return Rect2(shape_node.position - size * 0.5, size)
 
 
 func _chase(delta: float) -> void:
