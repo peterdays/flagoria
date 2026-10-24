@@ -16,6 +16,21 @@
 | `sfx/combat/hit_sting_01.wav` | Original, generated (`tools/audio/gen_combat.py`) | Flagoria project | CC0 1.0 |
 | `art/Sprites/NinjaAdventure/Musics/5 - Peaceful.ogg` (menu music, used in place) | Ninja Adventure, `Musics/5 - Peaceful.ogg`, https://pixel-boy.itch.io/ninja-adventure-asset-pack | pixel-boy and AAA | CC0 1.0 |
 | `art/Sprites/NinjaAdventure/Musics/4 - Village.ogg` (game music, used in place) | Ninja Adventure, `Musics/4 - Village.ogg`, https://pixel-boy.itch.io/ninja-adventure-asset-pack | pixel-boy and AAA | CC0 1.0 |
+| `sfx/mobs/slime/slime_notice_01.wav` | Original, generated (`tools/audio/gen_mobs.py`) | Flagoria project | CC0 1.0 |
+| `sfx/mobs/slime/slime_attack_01.wav` … `_03.wav` | Original, generated (`tools/audio/gen_mobs.py`) | Flagoria project | CC0 1.0 |
+| `sfx/mobs/slime/slime_hurt_01.wav` … `_03.wav` | Original, generated (`tools/audio/gen_mobs.py`) | Flagoria project | CC0 1.0 |
+| `sfx/mobs/slime/slime_death_01.wav` | Original, generated (`tools/audio/gen_mobs.py`) | Flagoria project | CC0 1.0 |
+| `sfx/mobs/slime/slime_idle_01.wav` … `_02.wav` | Original, generated (`tools/audio/gen_mobs.py`) | Flagoria project | CC0 1.0 |
+| `sfx/mobs/crab/crab_notice_01.wav` | Original, generated (`tools/audio/gen_mobs.py`) | Flagoria project | CC0 1.0 |
+| `sfx/mobs/crab/crab_attack_01.wav` … `_03.wav` | Original, generated (`tools/audio/gen_mobs.py`) | Flagoria project | CC0 1.0 |
+| `sfx/mobs/crab/crab_hurt_01.wav` … `_03.wav` | Original, generated (`tools/audio/gen_mobs.py`) | Flagoria project | CC0 1.0 |
+| `sfx/mobs/crab/crab_death_01.wav` | Original, generated (`tools/audio/gen_mobs.py`) | Flagoria project | CC0 1.0 |
+| `sfx/mobs/crab/crab_idle_01.wav` … `_02.wav` | Original, generated (`tools/audio/gen_mobs.py`) | Flagoria project | CC0 1.0 |
+| `sfx/mobs/piglet/piglet_notice_01.wav` | Original, generated (`tools/audio/gen_mobs.py`) | Flagoria project | CC0 1.0 |
+| `sfx/mobs/piglet/piglet_attack_01.wav` … `_03.wav` | Original, generated (`tools/audio/gen_mobs.py`) | Flagoria project | CC0 1.0 |
+| `sfx/mobs/piglet/piglet_hurt_01.wav` … `_03.wav` | Original, generated (`tools/audio/gen_mobs.py`) | Flagoria project | CC0 1.0 |
+| `sfx/mobs/piglet/piglet_death_01.wav` | Original, generated (`tools/audio/gen_mobs.py`) | Flagoria project | CC0 1.0 |
+| `sfx/mobs/piglet/piglet_idle_01.wav` … `_02.wav` | Original, generated (`tools/audio/gen_mobs.py`) | Flagoria project | CC0 1.0 |
 
 Footstep files are procedural filtered noise (numpy), mono 16-bit 22.05 kHz, 0.22–0.34 s,
 RMS-normalized to about -20 dBFS with peaks below -0.3 dBFS. Regenerate with:
@@ -24,3 +39,8 @@ RMS-normalized to about -20 dBFS with peaks below -0.3 dBFS. Regenerate with:
 
 Ninja Adventure files are copied from `art/Sprites/NinjaAdventure/Sounds/Game/` (license: `art/Sprites/NinjaAdventure/LICENSE.txt`),
 converted to mono 16-bit 22.05 kHz, trimmed, and RMS-normalized to about -20 dBFS. Generated files use the same format and level.
+
+Mob files are procedural (numpy: swept sines, filtered noise, formant-filtered pulses), mono 16-bit 22.05 kHz,
+RMS-levelled to about -20 dBFS (idle about -26 dBFS). Regenerate with:
+
+    python3 tools/audio/gen_mobs.py art/audio/sfx/mobs
