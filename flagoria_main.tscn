@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3 uid="uid://cxtnu53ko1bon"]
+[gd_scene load_steps=12 format=3 uid="uid://cxtnu53ko1bon"]
 
 [ext_resource type="Script" path="res://flagoria_main.gd" id="1_p55uv"]
 [ext_resource type="Script" path="res://addons/virtual_joystick/scripts/virtual_joystick.gd" id="2_54anv"]
@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://Scripts/TileMap.gd" id="7_n5hto"]
 [ext_resource type="Script" path="res://TouchScreenButton.gd" id="7_vw8yj"]
 [ext_resource type="Script" path="res://Scripts/hearts_hud.gd" id="8_hearts"]
+[ext_resource type="Script" path="res://Scripts/mob_spawner.gd" id="8_mobs"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_bm55c"]
 radius = 250.0
@@ -65,6 +66,13 @@ layer_2/y_sort_origin = 0
 layer_2/z_index = -1
 layer_2/tile_data = PackedInt32Array()
 script = ExtResource("7_n5hto")
+
+[node name="Mobs" type="Node2D" parent="World"]
+y_sort_enabled = true
+script = ExtResource("8_mobs")
+
+[node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="World/Mobs"]
+spawn_path = NodePath("..")
 
 [node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="World"]
 _spawnable_scenes = PackedStringArray("res://Player/character_body_2d.tscn")

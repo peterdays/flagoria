@@ -61,7 +61,16 @@ func setup_server(params: MapGenParams, port: int = PORT) -> Error:
 	multiplayer.peer_connected.connect(add_player)
 	multiplayer.peer_connected.connect(_sync_map_params_to_peer)
 	multiplayer.peer_disconnected.connect(remove_player)
+	if err == OK:
+		spawn_mobs()
 	return err
+
+
+func spawn_mobs() -> int:
+	## Server only: place this map's mobs around the player spawn.
+	var world = get_node("World/worldMap")
+	var origin: Vector2i = world.resolve_player_spawn()
+	return get_node("World/Mobs").spawn_for_world(world, origin, world_params.altitude_seed)
 
 
 func _apply_params_to_world(params: MapGenParams) -> void:
