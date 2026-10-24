@@ -29,10 +29,10 @@ const RESPAWN_HOLD_MS := 1000  ## longest a copy waits for its owner to catch up
 ## synced position is still the one from before it saw the respawn.
 var _respawn_hold := Vector2.INF
 var _respawn_hold_until := 0
-## Respawns this copy has seen, and (synced from the owner, in the same
-## update as its position) how many the owner had seen when it sent it.
-var respawns := 0
+## Respawns the owner had seen when it sent an update, synced with its
+## position; a copy records the value it had when it saw a respawn.
 var owner_respawns := 0
+var _respawns_before_hold := 0
 
 var lastAnimDirection: String = "Down"
 var isAttacking: bool = false
@@ -171,10 +171,10 @@ func _apply_dead_state():
 
 
 func _on_respawned(at: Vector2):
-	respawns += 1
 	if is_multiplayer_authority():
-		owner_respawns = respawns
+		owner_respawns += 1
 	else:
+		_respawns_before_hold = owner_respawns
 		_respawn_hold = at
 		_respawn_hold_until = Time.get_ticks_msec() + RESPAWN_HOLD_MS
 	position = at
@@ -187,7 +187,7 @@ func _on_synchronized():
 	# after it respawned (or the hold runs out), then follow again.
 	if _respawn_hold == Vector2.INF:
 		return
-	if owner_respawns >= respawns or Time.get_ticks_msec() > _respawn_hold_until:
+	if owner_respawns > _respawns_before_hold or Time.get_ticks_msec() > _respawn_hold_until:
 		_respawn_hold = Vector2.INF
 	else:
 		position = _respawn_hold

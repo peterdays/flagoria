@@ -876,23 +876,29 @@ func _test_player_respawn_hold_releases() -> int:
 	## only until the owner's first update from after its respawn, wherever
 	## the owner then walks: also when it died on the spawn itself, or died
 	## near it and walks back past the death spot while the first updates
-	## after its respawn are lost.
+	## after its respawn are lost. A copy that joined after the owner had
+	## already respawned must not show the death spot either.
 	print("-- test_player_respawn_hold_releases")
 	var fail := 0
 	var spawn := Vector2(400, 400)
 	fail += await _respawn_follow_case("died on the spawn", spawn, spawn, Vector2(3, 0), 0)
 	fail += await _respawn_follow_case("died near the spawn, first updates lost",
 			spawn + Vector2(-16, 0), spawn, Vector2(-3, 0), 80)
+	fail += await _respawn_follow_case("observer joined after earlier respawns",
+			spawn + Vector2(-20, 0), spawn, Vector2(3, 0), 0, 3)
 	if fail == 0:
 		print("PASS test_player_respawn_hold_releases")
 	return fail
 
 
-func _respawn_follow_case(label: String, death: Vector2, spawn: Vector2, walk: Vector2, drop_ms: int) -> int:
+func _respawn_follow_case(label: String, death: Vector2, spawn: Vector2, walk: Vector2,
+		drop_ms: int, prior: int = 0) -> int:
 	## One respawn of a client-owned player over a UDP proxy (60 ms each way).
 	## After the owner respawns it walks `walk` per physics frame; packets from
 	## the owner are dropped for `drop_ms` from that moment. The server's copy
-	## must follow the owner, not stay at the spawn.
+	## must follow the owner, not stay at the spawn. With `prior` > 0 the owner
+	## has respawned that many times before the server's copy existed (as for
+	## a peer that joined later), and that copy must never show the death spot.
 	var fail := 0
 	await process_frame
 	var port := _free_udp_port()
@@ -961,6 +967,13 @@ func _respawn_follow_case(label: String, death: Vector2, spawn: Vector2, walk: V
 		owner_copy.position = death
 		scene.get_node("World").add_child(owner_copy)
 		owner_copy.set_physics_process(false)  # the test moves the owner
+		for i in prior:
+			owner_copy.health._do_respawn(death)  # unseen by the server's copy
+		var shown_death := []
+		var watch := func() -> void:
+			var at: Vector2 = s_copy.position
+			if prior > 0 and shown_death.is_empty() and at.distance_to(death) < at.distance_to(spawn):
+				shown_death.append(at)
 		s_copy.health.respawn_delay = 1000.0
 		for i in 20:
 			await physics_frame
@@ -975,11 +988,17 @@ func _respawn_follow_case(label: String, death: Vector2, spawn: Vector2, walk: V
 		link.drop_until = Time.get_ticks_msec() + DELAY_MS + drop_ms if drop_ms > 0 else 0
 		until = Time.get_ticks_msec() + 5000
 		while Time.get_ticks_msec() < until and owner_copy.health.is_dead():
+			watch.call()
 			await physics_frame
 		var started := Time.get_ticks_msec()
 		while Time.get_ticks_msec() - started < 450:
+			watch.call()
 			owner_copy.position += walk
 			await physics_frame
+		if not shown_death.is_empty():
+			printerr("FAIL respawn_hold %s: server copy showed the death spot after the respawn (%s)"
+					% [label, shown_death[0]])
+			fail += 1
 		var gap: float = s_copy.position.distance_to(owner_copy.position)
 		if gap > 40.0:
 			printerr("FAIL respawn_hold %s: server copy at %s, %d px behind the owner at %s"
