@@ -1,0 +1,33 @@
+name: pr-hygiene
+
+# Privacy and size rules from AGENTS.md. Runs on pull_request only (never
+# pull_request_target), with read-only contents access and no secrets, so a PR
+# from a fork runs it with no write token. Title and body are read from the
+# event file by the script, never interpolated into the shell.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-hygiene-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  hygiene:
+    name: Privacy and size check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Self-test the check
+        run: python3 tools/pr_hygiene_test.py
+
+      - name: Check this pull request
+        run: python3 tools/pr_hygiene.py --event "$GITHUB_EVENT_PATH"
