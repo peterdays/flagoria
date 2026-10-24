@@ -361,7 +361,7 @@ func _test_player_health() -> int:
 	if h.max_health != 6 or h.health != 6 or h.heart_count() != 3:
 		printerr("FAIL player_health: start %s/%s, %s hearts" % [h.health, h.max_health, h.heart_count()])
 		fail += 1
-	if not hud.visible or hud.current != 6 or hud.maximum != 6 or hud.size != Vector2(26, 8):
+	if not hud.visible or hud.current != 6 or hud.maximum != 6 or not hud.size.is_equal_approx(Vector2(29, 9)):
 		printerr("FAIL player_health: HUD visible=%s %s/%s size %s" % [hud.visible, hud.current, hud.maximum, hud.size])
 		fail += 1
 	# Half-heart step, then invulnerability blocks the next hit until it ends.
@@ -398,8 +398,33 @@ func _test_player_health() -> int:
 		if got != icons[value]:
 			printerr("FAIL player_health: icons at %s = %s, want %s" % [value, got, icons[value]])
 			fail += 1
-	if HeartsHud.ICON_FULL.get_size() != Vector2(8, 8):
-		printerr("FAIL player_health: heart icon is %s, want 8x8" % HeartsHud.ICON_FULL.get_size())
+	for tex in [HeartsHud.ICON_FULL, HeartsHud.ICON_HALF, HeartsHud.ICON_EMPTY, HeartsHud.ICON_FLASH_0, HeartsHud.ICON_FLASH_1]:
+		if tex.get_size() != Vector2(9, 9):
+			printerr("FAIL player_health: heart icon %s is %s, want 9x9" % [tex.resource_path, tex.get_size()])
+			fail += 1
+	# Losing health flashes only the hearts that changed: flash 0, flash 1, then the new state.
+	hud.set_process(false)
+	hud.set_health(6, 6)
+	hud.set_health(3, 6)
+	var flash := func() -> String:
+		var out := ""
+		for slot in 3:
+			var tex := hud.shown_icon(slot)
+			out += {HeartsHud.ICON_FULL: "F", HeartsHud.ICON_HALF: "H", HeartsHud.ICON_EMPTY: "E", HeartsHud.ICON_FLASH_0: "0", HeartsHud.ICON_FLASH_1: "1"}[tex]
+		return out
+	var seen: Array[String] = [flash.call()]
+	hud.advance(HeartsHud.FLASH_FRAME + 0.001)
+	seen.append(flash.call())
+	hud.advance(HeartsHud.FLASH_FRAME)
+	seen.append(flash.call())
+	hud.set_health(6, 6)  # healing does not flash
+	seen.append(flash.call())
+	if seen != ["F00", "F11", "FHE", "FFF"]:
+		printerr("FAIL player_health: loss flash %s, want [F00, F11, FHE, FFF]" % [seen])
+		fail += 1
+	hud.set_process(true)
+	if not hud.position.is_equal_approx(Vector2(HeartsHud.MARGIN, HeartsHud.MARGIN) * hud.scale.x):
+		printerr("FAIL player_health: HUD at %s scale %s" % [hud.position, hud.scale])
 		fail += 1
 	# Death: health stops at 0, the player hides and cannot be hit or healed.
 	h.set_health_now(1)
