@@ -2,21 +2,21 @@
 
 Time-boxed findings for a headless dedicated server, plus the dedicated-server boot path that followed the spike (`-- --server`, see [Dedicated server boot](#dedicated-server-boot)).
 
-**Current state.** The spike below was run on Godot 4.1.4, and its results are kept as recorded. The project now targets Godot 4.7 (feature tags `4.7`, `Mobile`). Since the spike, `-- --server` boots a headless host with no local player, and `test_dedicated_server_join` in `tests/run_tests.gd` proves that a client can join it. `export_presets.cfg` now exists but has only the Android preset. There is still no dedicated-server export preset.
+**Current state.** The project targets Godot 4.7 (feature tags `4.7`, `Mobile`). The spike checks below were re-run on Godot 4.7.2 with the same results unless a section says otherwise. Since the spike, `-- --server` boots a headless host with no local player, and `test_dedicated_server_join` in `tests/run_tests.gd` proves that a client can join it. `export_presets.cfg` now exists but has only the Android preset. There is still no dedicated-server export preset.
 
 ## Go / no-go
 
 **Conditional go** on the engine. **No-go** on shipping a dedicated server from product code alone.
 
-Godot 4.1.4 can run headless, bind ENet on UDP, and accept peers. At spike time Flagoria was a listen-server only: Main Menu Host always spawns a local player. The `-- --server` boot path now hosts headless without a local player. At spike time there was no `export_presets.cfg` and no export templates on the verification host. Two GUI clients moving on a headless host have still not been proven.
+Godot 4.7.2 can run headless, bind ENet on UDP, and accept peers. At spike time Flagoria was a listen-server only: Main Menu Host always spawns a local player. The `-- --server` boot path now hosts headless without a local player. There is still no dedicated-server export preset. Two GUI clients moving on a headless host have still not been proven.
 
-## Environment (at spike time)
+## Environment
 
-- Engine: Godot 4.1.4 stable (`$GODOT --version` reports `4.1.4.stable.official…`)
-- Project feature tags include `4.1` and `Mobile`
+- Engine: Godot 4.7.2 stable (`$GODOT --version` reports `4.7.2.stable.official…`)
+- Project feature tags include `4.7` and `Mobile`
 - Product networking: `ENetMultiplayerPeer`, port `9786` in `flagoria_main.gd`
 
-Run commands from the repo root with `GODOT` set to the 4.1.4 editor binary.
+Run commands from the repo root with `GODOT` set to the 4.7.x editor binary.
 
 ## 1. Headless project launch
 
@@ -37,12 +37,12 @@ Without a prior import, the first headless open can fail to load `flagoria_main.
 ### Engine support
 
 - `$GODOT --help` documents `--headless` and the export flags.
-- The 4.1.4 binary includes dedicated-server export support (`dedicated_server`, editor string "Export as dedicated server").
+- The 4.7.2 binary includes dedicated-server export support (`dedicated_server` preset option, editor string "Export as dedicated server").
 
 ### This repo and host
 
-- No `export_presets.cfg` in the repository.
-- No Godot export templates installed in the usual user templates location on the verification host.
+- `export_presets.cfg` has one preset, `Android` (`dedicated_server=false`). There is no Linux or dedicated-server preset.
+- Godot 4.7.2 export templates are installed on the verification host.
 
 Attempt:
 
@@ -53,11 +53,11 @@ Attempt:
 Result:
 
 ```text
-ERROR: This project doesn't have an `export_presets.cfg` file at its root.
-Create an export preset from the "Project > Export" dialog and try again.
+ERROR: Invalid export preset name: Dedicated Server.
+The following presets were detected in this project's `export_presets.cfg`:
 ```
 
-Conclusion: for server spikes, `$GODOT --headless --path .` (editor binary plus project) is enough and matches CI. A Linux Dedicated Server export needs an export preset plus Linux server or headless templates. Those were not available here and are not committed by this spike.
+Conclusion: for server spikes, `$GODOT --headless --path .` (editor binary plus project) is enough and matches CI. A Linux Dedicated Server export needs a Linux preset with `dedicated_server=true`. None is committed yet.
 
 ## 3. Startup options (`OS.get_cmdline_user_args()`)
 
@@ -85,7 +85,7 @@ A minimal throwaway project outside the game repo showed:
 | OS listen check | UDP `*:9786` owned by the Godot process |
 | Second process `create_client("127.0.0.1", 9786)` | `CREATE_CLIENT_ERR=0`, client sees `PEERS=[1]`, `CLIENT_DONE connected=true` |
 
-Headless ENet listen and peer connect work on 4.1.4 without a GPU.
+Headless ENet listen and peer connect work on 4.7.2 without a GPU. Re-run on a free port when 9786 is already taken by another local server.
 
 Not shown: two Flagoria game clients moving on a headless dedicated host. That needs product boot and RPC work. In-game Host/Join on two GUI instances remains the supported play path (README two-player checklist).
 
@@ -125,8 +125,8 @@ Single samples on the verification host (not a full bench):
 
 | Process | RSS (approx) | CPU (approx, short sample) |
 | --- | --- | --- |
-| Throwaway headless ENet server (idle) | ~81 MiB | ~7-8% during startup |
-| Flagoria `$GODOT --headless --path .` (idle main menu) | ~93 MiB | ~8% during startup |
+| Throwaway headless ENet server (idle) | ~104 MiB | ~29% during startup |
+| Flagoria `$GODOT --headless --path .` (idle main menu) | ~123 MiB | ~15% during startup |
 
 Idle dedicated hosting should be close to headless editor plus project. Two real game clients were not automated here.
 
@@ -135,15 +135,15 @@ Idle dedicated hosting should be close to headless editor plus project. Two real
 `docker` was not available (`docker: command not found`). Feasibility note only:
 
 - Likely image layout: Linux Godot 4.7 headless or editor binary, or a dedicated-server export plus `.pck`, run `--headless --path` or the exported binary, publish UDP `9786`.
-- Blocked here by: no export preset or templates, and no Docker CLI to prove a build.
+- Blocked here by: no dedicated-server export preset, and no Docker CLI to prove a build.
 
 ## 7. Engine upgrade blockers
 
-None found for headless ENet on 4.1.4. `--headless`, `ENetMultiplayerPeer`, and cmdline user args behave as needed.
+None found for headless ENet on 4.7.2. `--headless`, `ENetMultiplayerPeer`, and cmdline user args behave as needed.
 
 Blockers are product and process, not engine version:
 
-1. No export preset or templates for a slim dedicated binary.
+1. No dedicated-server export preset for a slim dedicated binary.
 2. No automated two-player smoke yet (tracked elsewhere).
 
 The listen-server-only flow and the missing server-mode flag were blockers at spike time. `-- --server` addresses both.
@@ -157,7 +157,7 @@ The listen-server-only flow and the missing server-mode flag were blockers at sp
 
 1. Prove two GUI clients moving and fighting on a `-- --server` host.
 2. Add a clean quit for the server (signal or command), and a way for Join to use a non-default port.
-3. Add a Linux dedicated-server export preset once templates are installed; document UDP `9786`.
+3. Add a Linux dedicated-server export preset; document UDP `9786`.
 4. Automate the two-player smoke against the headless host.
 
 ## Acceptance vs this doc

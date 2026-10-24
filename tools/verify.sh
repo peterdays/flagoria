@@ -24,6 +24,11 @@ GODOT="${GODOT:-godot}"
 # is kept.
 verify_tmp="$(mktemp -d)"
 trap 'rm -rf "${verify_tmp}"' EXIT
+# Ctrl-C or kill must fail the run. Without these traps bash keeps going after
+# the current Godot step and can still print "Verification passed." and exit 0.
+# The EXIT trap above still removes the temp dirs.
+trap 'echo "error: interrupted (SIGINT)" >&2; exit 130' INT
+trap 'echo "error: terminated (SIGTERM)" >&2; exit 143' TERM
 export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-${verify_tmp}/config}"
 export XDG_DATA_HOME="${XDG_DATA_HOME:-${verify_tmp}/data}"
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-${verify_tmp}/cache}"
@@ -61,7 +66,7 @@ run_editor() {
 }
 
 echo "== Import project (--headless --editor --quit) =="
-import_log="$(mktemp)"
+import_log="$(mktemp -p "${verify_tmp}")"
 if ! run_editor "${import_log}"; then
   echo "error: Godot editor exited non-zero during import" >&2
   rm -f "${import_log}"
@@ -70,7 +75,7 @@ fi
 rm -f "${import_log}"
 
 echo "== Load project again, after resources have been imported =="
-load_log="$(mktemp)"
+load_log="$(mktemp -p "${verify_tmp}")"
 load_status=0
 run_editor "${load_log}" || load_status=$?
 
@@ -99,7 +104,7 @@ while IFS= read -r f; do
   found=1
   rel="res://${f#./}"
   echo "-- ${rel}"
-  slog="$(mktemp)"
+  slog="$(mktemp -p "${verify_tmp}")"
   set +e
   "$GODOT" --headless --path "$ROOT" --check-only --script "${rel}" >"${slog}" 2>&1
   status=$?
@@ -127,7 +132,7 @@ echo "Script parse: ok"
 # Separate step so later verify.sh additions merge cleanly.
 # ---------------------------------------------------------------------------
 echo "== Tests (godot --headless --script res://tests/run_tests.gd) =="
-test_log="$(mktemp)"
+test_log="$(mktemp -p "${verify_tmp}")"
 set +e
 "$GODOT" --headless --path "$ROOT" --script res://tests/run_tests.gd >"${test_log}" 2>&1
 test_status=$?
@@ -147,7 +152,7 @@ rm -f "${test_log}"
 echo "Tests: ok"
 
 echo "== Biome coverage (res://tools/render_biomes.gd) =="
-biome_log="$(mktemp)"
+biome_log="$(mktemp -p "${verify_tmp}")"
 set +e
 "$GODOT" --headless --path "$ROOT" --script res://tools/render_biomes.gd -- --seed=42 --size=4096 --step=16 \
   --out=res://artifacts/out/verify_biomes >"${biome_log}" 2>&1
@@ -163,7 +168,7 @@ rm -f "${biome_log}"
 echo "Biome coverage: ok"
 
 echo "== Audio check (res://tools/audio_check.gd, Dummy audio driver) =="
-audio_log="$(mktemp)"
+audio_log="$(mktemp -p "${verify_tmp}")"
 set +e
 "$GODOT" --headless --audio-driver Dummy --path "$ROOT" --script res://tools/audio_check.gd >"${audio_log}" 2>&1
 audio_status=$?
@@ -178,7 +183,7 @@ rm -f "${audio_log}"
 echo "Audio check: ok"
 
 echo "== Generator smoke (res://tools/generator_smoke.gd) =="
-gen_log="$(mktemp)"
+gen_log="$(mktemp -p "${verify_tmp}")"
 gen_args=()
 # Regenerate the hero sheet when Pillow is available and compare it with the
 # committed one; without Pillow only the committed art is checked.
