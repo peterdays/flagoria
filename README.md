@@ -22,7 +22,7 @@ Features:
 ./tools/verify.sh
 ```
 
-This imports the project, loads the main scene, parses every script, runs the headless tests in `tests/run_tests.gd`, and runs the biome-coverage and audio checks. It ends with `Verification passed.` and exits `0`. CI runs the same script on every pull request. `GODOT` selects the Godot binary (default `godot`).
+This imports the project, opens it again in the headless editor to check that it loads without errors, parses every script, runs the headless tests in `tests/run_tests.gd` (several of them instantiate the main scene), and runs the biome-coverage, audio and generator smoke checks. It ends with `Verification passed.` and exits `0`. CI runs the same script on every pull request. `GODOT` selects the Godot binary (default `godot`).
 
 - Per-feature recipes, including manual checks for things the headless run cannot see, are in [.cursor/skills/verify-flagoria/features/](.cursor/skills/verify-flagoria/features/README.md).
 - Multiplayer changes also need the two-player checklist below.

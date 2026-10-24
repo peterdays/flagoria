@@ -42,12 +42,12 @@ There is no public release planned for now, but the multiplayer experience shoul
 
 - Godot 4 supports `--headless` (display/audio drivers stubbed). The project binary starts under `--headless` and loads the main scene.
 - The engine build includes a dedicated-server export path (feature tag / "Export as dedicated server") that can strip visuals on export.
-- Networking today uses `ENetMultiplayerPeer` on UDP port `9786`, with a listen-server model: one player presses Host (`create_server`), others Join (`create_client`). Hosting always goes through the main menu and spawns the host as a player.
+- Networking today uses `ENetMultiplayerPeer` on UDP port `9786`, with a listen-server model: one player presses Host (`create_server`), others Join (`create_client`). Main Menu Host spawns the host as a player. `-- --server [--port N]` instead starts a headless host with no local player (see `docs/dedicated-server.md`).
 
 **What is missing**
 
-- No dedicated-server export: `-- --server` now boots a headless host without a local player (see `docs/dedicated-server.md`), but `export_presets.cfg` has only the Android preset.
-- No Docker Compose setup yet, and no server-authoritative dedicated process separate from a listening player host.
+- No dedicated-server export: `export_presets.cfg` has only the Android preset.
+- No Docker Compose setup yet. The `-- --server` host runs the same game code as a player's host; one client joining it is tested, two clients moving on it are not proven yet.
 
 **Likely next steps**
 
