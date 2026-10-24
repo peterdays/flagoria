@@ -3655,3 +3655,63 @@ func _test_map_zoom() -> int:
 	if fail == 0:
 		print("PASS test_map_zoom")
 	return fail
+
+
+func _test_mob_hidden_on_uncharted() -> int:
+	## A mob is drawn only where this peer has generated the ground under it:
+	## visible on a loaded tile, hidden on an unloaded one, visible again once
+	## that tile loads. A type flagged visible_in_uncharted (final bosses)
+	## always shows. Hiding never changes the mob's position, state or hurt box.
+	print("-- test_mob_hidden_on_uncharted")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world: TileMap = scene.get_node("World/worldMap")
+	world.apply_map_params(_spawn_params(42, 0.003))
+	world.generate_chunk(Vector2.ZERO)
+	var mobs_node: Node = scene.get_node("World/Mobs")
+	var far := Vector2i(400, 400)  # far outside the loaded chunk
+	var add_mob := func(cell: Vector2i, boss: bool) -> Mob:
+		var m: Mob = load("res://Mobs/mob.tscn").instantiate()
+		m.setup(MobCatalog.SLIME, world.map_to_local(cell), 7)
+		m.visible_in_uncharted = boss
+		mobs_node.add_child(m, true)
+		return m
+	var near_mob: Mob = add_mob.call(Vector2i(0, 0), false)
+	var far_mob: Mob = add_mob.call(far, false)
+	var boss: Mob = add_mob.call(far + Vector2i(2, 0), true)
+	var fail := 0
+	if world.get_cell_source_id(0, far) != -1 or world.get_cell_source_id(0, Vector2i.ZERO) == -1:
+		printerr("FAIL mob_hidden_on_uncharted setup: far tile loaded or near tile missing")
+		scene.queue_free()
+		return 1
+	var before := {}
+	for m in [near_mob, far_mob, boss]:
+		before[m] = [m.position, m.state, m.facing, m.hp, m.hurt_box.monitoring]
+	var tick := func() -> void:
+		for m in [near_mob, far_mob, boss]:
+			m._process(Mob.CHART_CHECK_TIME + 0.01)
+	tick.call()
+	if not near_mob.visible:
+		printerr("FAIL mob_hidden_on_uncharted mob on a loaded tile is hidden")
+		fail += 1
+	if far_mob.visible:
+		printerr("FAIL mob_hidden_on_uncharted mob on an unloaded tile is visible")
+		fail += 1
+	if not boss.visible:
+		printerr("FAIL mob_hidden_on_uncharted visible_in_uncharted mob is hidden")
+		fail += 1
+	world.generate_chunk(world.map_to_local(far))
+	tick.call()
+	if not far_mob.visible:
+		printerr("FAIL mob_hidden_on_uncharted mob still hidden after its tile loaded")
+		fail += 1
+	for m in [near_mob, far_mob, boss]:
+		var now := [m.position, m.state, m.facing, m.hp, m.hurt_box.monitoring]
+		if now != before[m]:
+			printerr("FAIL mob_hidden_on_uncharted %s changed: %s -> %s" % [m.name, before[m], now])
+			fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_mob_hidden_on_uncharted")
+	return fail
