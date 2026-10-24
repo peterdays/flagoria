@@ -17,6 +17,8 @@ extends Node2D
 ## last hit plays the hurt row, then the death puff (DYING), then the server
 ## frees the mob and the MultiplayerSpawner removes it everywhere.
 ## Sounds: MobSfx (the Sfx child), driven by `state` and `attacks` changes.
+## Uncharted: on each peer, a mob standing on ground this peer has not generated
+## yet is hidden (visuals only; behaviour, collision and sync are untouched).
 
 enum State { IDLE, WALK, CHASE, HURT, DYING }
 
@@ -53,6 +55,8 @@ const WALK_TIME := Vector2(0.6, 1.6)
 		attacks = value
 		if rose and is_node_ready():
 			sfx.play_event("attack")
+## Stay visible on uncharted ground (meant for final bosses; set from MobCatalog).
+@export var visible_in_uncharted := false
 
 var home := Vector2.ZERO
 var direction := Vector2.ZERO
@@ -65,6 +69,7 @@ var _pause := 0.0
 var hp := 1
 var _struck := {}  ## instance ids of attackers whose current swing already hit
 var _world: TileMap
+var _chart_cell := Vector2i.MAX
 static var _default_player_box := Rect2()  ## from PLAYER_SCENE, read once
 
 @onready var sprite: Sprite2D = $Sprite2D
@@ -79,6 +84,7 @@ func setup(type: String, at: Vector2, rng_seed: int) -> void:
 	position = at
 	home = at
 	hp = MobCatalog.stat(type, "hp")
+	visible_in_uncharted = MobCatalog.TYPES[type].get("visible_in_uncharted", false)
 	rng.seed = rng_seed
 	_timer = rng.randf_range(IDLE_TIME.x, IDLE_TIME.y)
 
@@ -92,6 +98,8 @@ func _ready() -> void:
 	hurt_box.position.y = MobCatalog.HURTBOX_Y
 	# Mobs live under World/Mobs, next to World/worldMap.
 	_world = get_node_or_null("../../worldMap") as TileMap
+	if _world and _world.has_signal("ground_changed"):
+		_world.ground_changed.connect(_on_ground_changed)
 
 
 func _physics_process(delta: float) -> void:
@@ -101,6 +109,8 @@ func _physics_process(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	anim_time += delta
+	if _world and _world.local_to_map(position) != _chart_cell:
+		update_chart_visibility()
 	var puffing := state == State.DYING and anim_time >= HURT_TIME
 	sprite.visible = not puffing
 	puff.visible = puffing
@@ -108,6 +118,22 @@ func _process(delta: float) -> void:
 		puff.frame = mini(int((anim_time - HURT_TIME) * MobCatalog.PUFF_FPS), MobCatalog.PUFF_FRAMES - 1)
 	else:
 		sprite.frame_coords = MobCatalog.frame(anim_name(), facing, anim_time)
+
+
+func update_chart_visibility() -> void:
+	## Local visuals only: hide this mob while the ground tile under it is not
+	## generated on this peer (no layer-0 cell yet), show it once it is.
+	## Runs when the mob enters a new tile and when the ground under it is
+	## drawn or cleared (worldMap.ground_changed); nothing else changes it.
+	if _world == null:
+		return
+	_chart_cell = _world.local_to_map(position)
+	visible = visible_in_uncharted or _world.get_cell_source_id(0, _chart_cell) != -1
+
+
+func _on_ground_changed(cells: Rect2i) -> void:
+	if not cells.has_area() or cells.has_point(_world.local_to_map(position)):
+		update_chart_visibility()
 
 
 func anim_name() -> String:
