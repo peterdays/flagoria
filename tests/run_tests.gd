@@ -3689,7 +3689,7 @@ func _test_mob_hidden_on_uncharted() -> int:
 		before[m] = [m.position, m.state, m.facing, m.hp, m.hurt_box.monitoring]
 	var tick := func() -> void:
 		for m in [near_mob, far_mob, boss]:
-			m._process(Mob.CHART_CHECK_TIME + 0.01)
+			m._process(0.01)
 	tick.call()
 	if not near_mob.visible:
 		printerr("FAIL mob_hidden_on_uncharted mob on a loaded tile is hidden")
@@ -3714,4 +3714,57 @@ func _test_mob_hidden_on_uncharted() -> int:
 	await process_frame
 	if fail == 0:
 		print("PASS test_mob_hidden_on_uncharted")
+	return fail
+
+
+func _test_mob_shown_when_ground_drawn() -> int:
+	## A player respawns (or joins) next to a mob on ground this peer has not
+	## generated yet. The mob must become visible in the same frame the chunk
+	## under it is drawn, not on a later visibility check.
+	print("-- test_mob_shown_when_ground_drawn")
+	# Let earlier tests' queue_free() run so this instance is /root/Flagoria,
+	# the path TileMap._process uses to find the player.
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	if scene.get_path() != NodePath("/root/Flagoria"):
+		printerr("FAIL mob_shown_when_ground_drawn scene at %s, not /root/Flagoria" % scene.get_path())
+		scene.queue_free()
+		return 1
+	var world: TileMap = scene.get_node("World/worldMap")
+	world.apply_map_params(_spawn_params(42, 0.003))
+	world.generate_chunk(Vector2.ZERO)
+	var player := Node2D.new()
+	player.name = str(world.multiplayer.get_unique_id())
+	scene.get_node("World").add_child(player)
+	world.player_spawned = true
+	var mob_cell := Vector2i(400, 400)  # far outside the loaded chunk
+	var mob: Mob = load("res://Mobs/mob.tscn").instantiate()
+	mob.setup(MobCatalog.SLIME, world.map_to_local(mob_cell), 7)
+	scene.get_node("World/Mobs").add_child(mob, true)
+	var fail := 0
+	for i in 3:
+		await process_frame
+	if mob.visible or world.get_cell_source_id(0, mob_cell) != -1:
+		printerr("FAIL mob_shown_when_ground_drawn setup: mob visible %s, its tile loaded %s"
+				% [mob.visible, world.get_cell_source_id(0, mob_cell) != -1])
+		fail += 1
+	else:
+		player.position = world.map_to_local(mob_cell + Vector2i(1, 0))  # respawned beside it
+		var drawn_at := -1
+		for f in world.chunk_refresh_frames * 3:
+			await process_frame
+			if world.get_cell_source_id(0, mob_cell) != -1:
+				drawn_at = f
+				break
+		if drawn_at < 0:
+			printerr("FAIL mob_shown_when_ground_drawn the chunk under the mob was never drawn")
+			fail += 1
+		elif not mob.visible:
+			printerr("FAIL mob_shown_when_ground_drawn ground drawn on frame %d but the mob is still hidden" % drawn_at)
+			fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_mob_shown_when_ground_drawn")
 	return fail

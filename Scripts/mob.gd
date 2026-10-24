@@ -33,7 +33,6 @@ const HURT_TIME := 0.4  ## s of hurt row per hit: blink 0,1,0,1 at 10 fps
 const PUFF_TIME := MobCatalog.PUFF_FRAMES / MobCatalog.PUFF_FPS
 const IDLE_TIME := Vector2(1.0, 3.0)  ## seconds, min and max
 const WALK_TIME := Vector2(0.6, 1.6)
-const CHART_CHECK_TIME := 0.25  ## s between uncharted-ground checks while standing on one tile
 
 @export var mob_type: String = MobCatalog.SLIME
 @export var facing: int = MobCatalog.DOWN
@@ -56,7 +55,6 @@ var _pause := 0.0
 var hp := 1
 var _struck := {}  ## instance ids of attackers whose current swing already hit
 var _world: TileMap
-var _chart_timer := 0.0
 var _chart_cell := Vector2i.MAX
 static var _default_player_box := Rect2()  ## from PLAYER_SCENE, read once
 
@@ -85,6 +83,8 @@ func _ready() -> void:
 	hurt_box.position.y = MobCatalog.HURTBOX_Y
 	# Mobs live under World/Mobs, next to World/worldMap.
 	_world = get_node_or_null("../../worldMap") as TileMap
+	if _world and _world.has_signal("ground_changed"):
+		_world.ground_changed.connect(_on_ground_changed)
 
 
 func _physics_process(delta: float) -> void:
@@ -94,8 +94,7 @@ func _physics_process(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	anim_time += delta
-	_chart_timer -= delta
-	if _world and (_chart_timer <= 0.0 or _world.local_to_map(position) != _chart_cell):
+	if _world and _world.local_to_map(position) != _chart_cell:
 		update_chart_visibility()
 	var puffing := state == State.DYING and anim_time >= HURT_TIME
 	sprite.visible = not puffing
@@ -109,11 +108,17 @@ func _process(delta: float) -> void:
 func update_chart_visibility() -> void:
 	## Local visuals only: hide this mob while the ground tile under it is not
 	## generated on this peer (no layer-0 cell yet), show it once it is.
-	_chart_timer = CHART_CHECK_TIME
+	## Runs when the mob enters a new tile and when the ground under it is
+	## drawn or cleared (worldMap.ground_changed); nothing else changes it.
 	if _world == null:
 		return
 	_chart_cell = _world.local_to_map(position)
 	visible = visible_in_uncharted or _world.get_cell_source_id(0, _chart_cell) != -1
+
+
+func _on_ground_changed(cells: Rect2i) -> void:
+	if not cells.has_area() or cells.has_point(_world.local_to_map(position)):
+		update_chart_visibility()
 
 
 func anim_name() -> String:
