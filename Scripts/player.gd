@@ -22,6 +22,14 @@ const SWORD_DAMAGE := 1  ## half-hearts per sword hit
 const REGEN_AMOUNT := 1  ## half-hearts per regen_timer tick
 const BLINK_PERIOD_MS := 100  ## invulnerability blink: this long shown, this long faded
 
+const RESPAWN_HOLD_MS := 1000  ## longest a copy waits for its owner to catch up with a respawn
+
+## On copies the owner moves: the respawn spot to hold while the owner's
+## synced position is still the one from before it saw the respawn.
+var _respawn_hold := Vector2.INF
+var _respawn_from := Vector2.ZERO
+var _respawn_hold_until := 0
+
 var lastAnimDirection: String = "Down"
 var isAttacking: bool = false
 
@@ -32,6 +40,9 @@ func _ready():
 	health.respawned.connect(_on_respawned)
 	health.health_changed.connect(_apply_dead_state.unbind(2))
 	health.state_received.connect(_apply_dead_state.unbind(2))
+	var sync := get_node_or_null("MultiplayerSynchronizer")
+	if sync:
+		sync.synchronized.connect(_on_synchronized)
 	if not is_multiplayer_authority(): return
 	camera.make_current()
 	joystick.connect("analogic_change", _on_player_joystick_analogic_change)
@@ -153,8 +164,25 @@ func _apply_dead_state():
 
 
 func _on_respawned(at: Vector2):
+	if not is_multiplayer_authority():
+		_respawn_from = position
+		_respawn_hold = at
+		_respawn_hold_until = Time.get_ticks_msec() + RESPAWN_HOLD_MS
 	position = at
 	velocity = Vector2.ZERO
+
+
+func _on_synchronized():
+	# The owner keeps sending its pre-respawn position until the respawn
+	# reaches it; keep the copy at the spawn until an update is nearer the
+	# spawn than the old spot (or the hold runs out), then follow again.
+	if _respawn_hold == Vector2.INF:
+		return
+	var caught_up := position.distance_to(_respawn_hold) < position.distance_to(_respawn_from)
+	if caught_up or Time.get_ticks_msec() > _respawn_hold_until:
+		_respawn_hold = Vector2.INF
+	else:
+		position = _respawn_hold
 
 func _on_animation_player_animation_finished(anim_name):
 	animations.play("walkDown")
