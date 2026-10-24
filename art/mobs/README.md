@@ -29,7 +29,9 @@ replace the PNG with the same name, or change that one path.
 
 Original project art. The sheets are drawn in code from small text grids by a
 palette-locked, deterministic sprite script (fills plus a 1 px outline in the
-hero's ink colour `#141b1b`), the same method as the tileset and the hero
-generator. No third-party images, packs or generated-image models were used.
+project ink colour `#2a2238`), the same method as the tileset and the hero
+generator. The crab uses a two-step orange ramp (`#f57620`, `#b03c14`) with a
+`#ffe680` highlight; orange is a creature colour only, never a team colour.
+No third-party images, packs or generated-image models were used.
 No separate licence is declared for these files, so they are covered by the
 repository licence (`LICENSE.md`).
