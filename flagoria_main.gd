@@ -5,12 +5,15 @@ var enet_peer = ENetMultiplayerPeer.new()
 const Player = preload("res://Player/character_body_2d.tscn")
 @onready var address_entry = $CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/AddressEntry
 var world_params: MapGenParams
+## Client: the spot the server picked for its own player, until it is placed.
+var _own_spot := Vector2.INF
 
 
 func _ready():
 	get_node("CanvasLayer2/MainMenu").connect("new_server_created", setup_server)
 	get_node("CanvasLayer2/MainMenu").connect("new_player_added", add_player)
 	get_node("CanvasLayer2/MainMenu").connect("new_player_joined", add_player_joined)
+	get_node("World").child_entered_tree.connect(_on_world_child_entered)
 
 	var server_port := server_port_from_args(OS.get_cmdline_user_args())
 	if server_port == -1:
@@ -101,33 +104,44 @@ func _taken_spawn_spots(except: Node) -> Array[Vector2]:
 	return taken
 
 
-func _place_players_on_land() -> void:
-	# Players the server already placed on a free spot near the spawn keep it;
-	# the rest move to one.
-	var world = get_node("World/worldMap")
-	var cell: Vector2i = world.resolve_player_spawn()
-	var world_root = get_node("/root/Flagoria/World")
-	for child in world_root.get_children():
-		if child is CharacterBody2D:
-			if not world.is_free_spawn_spot(child.position, cell, _taken_spawn_spots(child)):
-				child.position = _land_spawn_position(child)
+func _place_own_player() -> void:
+	## Client: put its own player on the spot the server picked for it. The
+	## player arrives at (0, 0), as the server never sends the position of a
+	## node the client owns, and the owner's position is the one every peer
+	## then follows. The client moves no other player: its copies of them can
+	## still be at (0, 0) or out of date, so a spot picked from them can land
+	## on someone (found in a multi-peer play-test).
+	var me = get_node_or_null("World/" + str(multiplayer.get_unique_id()))
+	if me and _own_spot != Vector2.INF:
+		me.position = _own_spot
+		_own_spot = Vector2.INF
+
+
+func _on_world_child_entered(node: Node) -> void:
+	# The map (with the spot) can reach a client before its own player does.
+	if node is CharacterBody2D and node.name == str(multiplayer.get_unique_id()):
+		_place_own_player.call_deferred()
 
 
 func _sync_map_params_to_peer(peer_id: int) -> void:
-	## Send the full parameter dictionary (not just seeds) so both players share one map.
+	## Send the full parameter dictionary (not just seeds) so both players
+	## share one map, with the spot add_player picked for the peer's player.
 	if world_params == null:
 		return
-	rpc_id(peer_id, "receive_map_params", world_params.to_dict())
+	var player = get_node_or_null("World/" + str(peer_id))
+	var spot: Vector2 = player.position if player else Vector2.INF
+	rpc_id(peer_id, "receive_map_params", world_params.to_dict(), spot)
 
 
 @rpc("authority", "reliable", "call_remote")
-func receive_map_params(data: Dictionary) -> void:
+func receive_map_params(data: Dictionary, spot: Vector2) -> void:
 	var params = MapGenParams.new()
 	params.from_dict(data)
 	world_params = params
 	get_node("/root/MapGen").params = params.duplicate_params()
 	_apply_params_to_world(params)
-	_place_players_on_land()
+	_own_spot = spot
+	_place_own_player()  # or once the player arrives, see _on_world_child_entered
 	var world = get_node("World/worldMap")
 	world.player_spawned = true
 

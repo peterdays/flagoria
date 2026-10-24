@@ -553,17 +553,6 @@ func free_spawn_position(origin_cell: Vector2i, taken: Array[Vector2]) -> Vector
 	return map_to_local(origin_cell)
 
 
-func is_free_spawn_spot(at: Vector2, origin_cell: Vector2i, taken: Array[Vector2]) -> bool:
-	## True when at is a spawn spot within SPAWN_RADIUS of origin_cell and
-	## clear of every position in taken.
-	if at.distance_to(map_to_local(origin_cell)) > SPAWN_RADIUS or not _clear_of(at, taken):
-		return false
-	for spot in spawn_spots(origin_cell):
-		if spot.is_equal_approx(at):
-			return true
-	return false
-
-
 func _clear_of(at: Vector2, taken: Array[Vector2]) -> bool:
 	for other in taken:
 		if at.distance_to(other) < SPAWN_CLEARANCE:
