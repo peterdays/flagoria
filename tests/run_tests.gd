@@ -57,6 +57,7 @@ func _run() -> void:
 	failures += await _test_mob_contact_two_players()
 	failures += await _test_mob_sword()
 	failures += await _test_mob_sword_two_players()
+	failures += await _test_mob_sword_two_attackers()
 	failures += await _test_map_zoom()
 	if failures == 0:
 		print("All tests passed.")
@@ -3310,6 +3311,81 @@ func _test_mob_sword_two_players() -> int:
 	scene.queue_free()
 	if fail == 0:
 		print("PASS test_mob_sword_two_players (%s)" % label)
+	return fail
+
+
+func _test_mob_sword_two_attackers() -> int:
+	## Two players' swings in one mob hurt window: the second swing is not
+	## used up while the mob is hurt, and lands once the window ends. Also
+	## checks the contact box comes from the player scene's body shape.
+	print("-- test_mob_sword_two_attackers")
+	var fail := 0
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	scene.world_params = _spawn_params(42, 0.003)
+	world.apply_map_params(scene.world_params)
+	scene.spawn_mobs()
+	var players: Array = []
+	for n in ["1", "2"]:
+		var p = load("res://Player/character_body_2d.tscn").instantiate()
+		p.name = n
+		scene.get_node("World").add_child(p)
+		p.set_physics_process(false)  # positions are set by the test
+		p.health.max_health = 1000  # contact damage is not under test here
+		p.health.set_health_now(1000)
+		players.append(p)
+	var a = players[0]
+	var b = players[1]
+	var shape: CollisionShape2D = a.get_node("CollisionShape2D")
+	var size: Vector2 = shape.shape.size
+	var want := Rect2(a.position + shape.position - size * 0.5, size)
+	if Mob.player_box(a) != want or Mob.player_box(_contact_player(scene.get_node("World"))).size != size:
+		printerr("FAIL mob_sword_two_attackers player box %s, want %s from the scene" % [Mob.player_box(a), want])
+		fail += 1
+	var mob: Mob = null
+	for m in scene.get_node("World/Mobs").mobs():
+		if m.hp == 2:
+			mob = m
+			break
+	if mob == null:
+		printerr("FAIL mob_sword_two_attackers no 2 HP mob on seed 42")
+		scene.queue_free()
+		return 1
+	var label := "%s %s" % [mob.name, mob.mob_type]
+	# A swing held on: the sword's shape on, sword_active() true, as mid-attack.
+	var swing := func(p, on: bool) -> void:
+		p.isAttacking = on
+		p.sword_shape.disabled = not on
+	# a's swing lands: the mob is hurt and a moves away.
+	swing.call(a, true)
+	var frames := 0
+	while mob.state != Mob.State.HURT and frames < 30:
+		_sword_on(a, mob)
+		await physics_frame
+		frames += 1
+	swing.call(a, false)
+	a.position = mob.position + Vector2(200, 0)
+	if mob.hp != 1 or mob.state != Mob.State.HURT:
+		printerr("FAIL mob_sword_two_attackers %s first swing: hp %s, state %s" % [label, mob.hp, mob.state])
+		fail += 1
+	# b swings into the hurt window and holds past its end: one hit, after the window.
+	swing.call(b, true)
+	for i in int(Mob.HURT_TIME * Engine.physics_ticks_per_second) + 15:
+		if not is_instance_valid(mob):
+			break
+		_sword_on(b, mob)
+		await physics_frame
+	swing.call(b, false)
+	if not is_instance_valid(mob) or mob.hp != 0 or mob.state != Mob.State.DYING:
+		printerr("FAIL mob_sword_two_attackers %s second player's swing was used up in the hurt window (hp %s)"
+				% [label, mob.hp if is_instance_valid(mob) else "freed"])
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_mob_sword_two_attackers (%s)" % label)
 	return fail
 
 
