@@ -28,11 +28,10 @@ if [[ -f project.godot ]]; then
     ok=0
   fi
 fi
-if [[ -z "${GODOT:-}" ]]; then
-  echo "doctor: GODOT is unset" >&2
-  ok=0
-elif [[ ! -x "$GODOT" ]] && ! command -v "$GODOT" >/dev/null 2>&1; then
-  echo "doctor: GODOT not executable: (set GODOT to the Godot ${want:-editor} binary)" >&2
+# Same lookup as tools/verify.sh: GODOT if set, else `godot` on PATH.
+GODOT="${GODOT:-godot}"
+if [[ ! -x "$GODOT" ]] && ! command -v "$GODOT" >/dev/null 2>&1; then
+  echo "doctor: Godot not found: ${GODOT} (put godot on PATH or set GODOT to the Godot ${want:-editor} binary)" >&2
   ok=0
 else
   ver="$("$GODOT" --version 2>/dev/null || true)"
