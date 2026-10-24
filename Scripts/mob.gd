@@ -8,6 +8,9 @@ extends Node2D
 ## Chase: head for the nearest player within CHASE_RADIUS, still on home
 ## ground, and give up once that player is past GIVE_UP_RADIUS or the mob is
 ## CHASE_LEASH from home.
+## Contact: touching a living player costs it CONTACT_DAMAGE half-hearts
+## (PlayerHealth's invulnerability spaces out repeat hits), then the mob
+## stands still for HIT_PAUSE.
 
 enum State { IDLE, WALK, CHASE }
 
@@ -16,6 +19,9 @@ const CHASE_RADIUS := 5 * 16  ## px: start chasing a player this close
 const GIVE_UP_RADIUS := 8 * 16  ## px: stop once the target is this far
 const CHASE_LEASH := 12 * 16  ## px from home: stop chasing past this
 const CALM_TIME := 2.0  ## s after giving up before chasing again
+const CONTACT_DAMAGE := 1  ## half-hearts per touch
+const HIT_PAUSE := 0.6  ## s the mob stands still after a touch lands
+const PLAYER_BOX := Rect2(-4, -10, 8, 10)  ## player body around its feet (Player/character_body_2d.tscn)
 const IDLE_TIME := Vector2(1.0, 3.0)  ## seconds, min and max
 const WALK_TIME := Vector2(0.6, 1.6)
 
@@ -34,6 +40,7 @@ var rng := RandomNumberGenerator.new()
 var target: Node2D
 var _timer := 0.0
 var _calm := 0.0
+var _pause := 0.0
 var _world: TileMap
 
 @onready var sprite: Sprite2D = $Sprite2D
@@ -72,6 +79,10 @@ func think(delta: float) -> void:
 	## Server only: one behaviour step.
 	_timer -= delta
 	_calm -= delta
+	_pause -= delta
+	_touch_players()
+	if _pause > 0.0:
+		return
 	if state == State.CHASE:
 		_chase(delta)
 		return
@@ -99,6 +110,8 @@ func nearest_player(radius: float) -> Node2D:
 	var best: Node2D = null
 	var best_d := radius
 	for p in players():
+		if not is_alive(p):
+			continue
 		var d := position.distance_to(p.position)
 		if d <= best_d:
 			best = p
@@ -106,8 +119,29 @@ func nearest_player(radius: float) -> Node2D:
 	return best
 
 
+static func is_alive(player: Node) -> bool:
+	var health := player.get_node_or_null("Health") as PlayerHealth
+	return health == null or not health.is_dead()
+
+
+func contact_box() -> Rect2:
+	## The mob's body, standing on its feet at `position`.
+	var size: Vector2 = MobCatalog.stat(mob_type, "body")
+	return Rect2(position + Vector2(-size.x * 0.5, -size.y), size)
+
+
+func _touch_players() -> void:
+	var box := contact_box()
+	for p in players():
+		var health := p.get_node_or_null("Health") as PlayerHealth
+		if health == null or health.is_dead():
+			continue
+		if box.intersects(Rect2(p.position + PLAYER_BOX.position, PLAYER_BOX.size)) and health.take_damage(CONTACT_DAMAGE):
+			_pause = HIT_PAUSE
+
+
 func _chase(delta: float) -> void:
-	if (not is_instance_valid(target) or position.distance_to(target.position) > GIVE_UP_RADIUS
+	if (not is_instance_valid(target) or not is_alive(target) or position.distance_to(target.position) > GIVE_UP_RADIUS
 			or position.distance_to(home) > CHASE_LEASH):
 		target = null
 		_calm = CALM_TIME
