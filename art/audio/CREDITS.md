@@ -16,6 +16,12 @@
 | `sfx/combat/hit_sting_01.wav` | Original, generated (`tools/audio/gen_combat.py`) | Flagoria project | CC0 1.0 |
 | `art/Sprites/NinjaAdventure/Musics/5 - Peaceful.ogg` (menu music, used in place) | Ninja Adventure, `Musics/5 - Peaceful.ogg`, https://pixel-boy.itch.io/ninja-adventure-asset-pack | pixel-boy and AAA | CC0 1.0 |
 | `art/Sprites/NinjaAdventure/Musics/4 - Village.ogg` (game music, used in place) | Ninja Adventure, `Musics/4 - Village.ogg`, https://pixel-boy.itch.io/ninja-adventure-asset-pack | pixel-boy and AAA | CC0 1.0 |
+| `sfx/world/sword_hit_mob_01.wav` | Ninja Adventure, `Sounds/Game/Hit.wav`, https://pixel-boy.itch.io/ninja-adventure-asset-pack, layered with a generated thump (`tools/audio/gen_world.py`) | pixel-boy and AAA; thump: Flagoria project | CC0 1.0 |
+| `sfx/world/sword_hit_mob_02.wav` | Ninja Adventure, `Sounds/Game/Hit4.wav`, https://pixel-boy.itch.io/ninja-adventure-asset-pack, layered with a generated thump (`tools/audio/gen_world.py`) | pixel-boy and AAA; thump: Flagoria project | CC0 1.0 |
+| `sfx/world/sword_hit_mob_03.wav` | Ninja Adventure, `Sounds/Game/Hit7.wav`, https://pixel-boy.itch.io/ninja-adventure-asset-pack, layered with a generated thump (`tools/audio/gen_world.py`) | pixel-boy and AAA; thump: Flagoria project | CC0 1.0 |
+| `sfx/world/player_respawn_01.wav` | Original, generated (`tools/audio/gen_world.py`) | Flagoria project | CC0 1.0 |
+| `sfx/world/regen_tick_01.wav` | Original, generated (`tools/audio/gen_world.py`) | Flagoria project | CC0 1.0 |
+| `sfx/world/player_join_01.wav` | Original, generated (`tools/audio/gen_world.py`) | Flagoria project | CC0 1.0 |
 
 Footstep files are procedural filtered noise (numpy), mono 16-bit 22.05 kHz, 0.22–0.34 s,
 RMS-normalized to about -20 dBFS with peaks below -0.3 dBFS. Regenerate with:
@@ -24,3 +30,8 @@ RMS-normalized to about -20 dBFS with peaks below -0.3 dBFS. Regenerate with:
 
 Ninja Adventure files are copied from `art/Sprites/NinjaAdventure/Sounds/Game/` (license: `art/Sprites/NinjaAdventure/LICENSE.txt`),
 converted to mono 16-bit 22.05 kHz, trimmed, and RMS-normalized to about -20 dBFS. Generated files use the same format and level.
+
+World files are built by `tools/audio/gen_world.py` (run from the repository root), mono 16-bit 22.05 kHz,
+RMS-levelled to about -20 dBFS (regen tick about -30 dBFS). Regenerate with:
+
+    python3 tools/audio/gen_world.py art/audio/sfx/world
