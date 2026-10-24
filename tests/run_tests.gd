@@ -2444,6 +2444,17 @@ func _test_mob_chase() -> int:
 		if mob.state == Mob.State.CHASE or mob.target != null:
 			printerr("FAIL mob_chase %s kept chasing past GIVE_UP_RADIUS" % label)
 			fail += 1
+		# Calm time: a player back in range is ignored until it runs out.
+		near.position = mob.position + Vector2(Mob.CHASE_RADIUS * 0.5, 0)
+		mob.think(dt)
+		if mob.state == Mob.State.CHASE:
+			printerr("FAIL mob_chase %s re-acquired during the calm time" % label)
+			fail += 1
+		for tick in range(int((Mob.CALM_TIME + 0.2) / dt)):
+			mob.think(dt)
+		if mob.state != Mob.State.CHASE:
+			printerr("FAIL mob_chase %s did not re-acquire after the calm time" % label)
+			fail += 1
 		near.position = Vector2(1e6, 1e6)
 		far.position = near.position
 	if tested == 0:
