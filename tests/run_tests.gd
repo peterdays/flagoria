@@ -11,7 +11,10 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	var names := _registered_tests()
+	var skipped := {}
+	var names := _registered_tests(skipped)
+	for test_name in skipped:
+		printerr("WARNING: skipped %s: %s" % [test_name, skipped[test_name]])
 	var picked := names
 	for arg in OS.get_cmdline_user_args():
 		if arg == "--list":
@@ -25,7 +28,7 @@ func _run() -> void:
 				printerr("--only= needs at least one test name, e.g. --only=map_zoom (use --list to see the names)")
 				quit(1)
 				return
-			picked = _filter_tests(names, wanted)
+			picked = _filter_tests(names, wanted, skipped)
 			if picked.is_empty():
 				quit(1)
 				return
@@ -45,31 +48,49 @@ func _run() -> void:
 		quit(1)
 
 
-func _registered_tests() -> Array[String]:
+func _registered_tests(skipped: Dictionary) -> Array[String]:
 	## Every `func _test_*() -> int` in this file, in source order. Adding a
 	## test is just writing the function; nothing else needs to list it.
-	## A test-like function that does not match (parameters, uppercase
-	## letters, static, indented, or no leading underscore) is skipped with a
-	## warning on stderr, so it cannot silently drop out of the run.
+	## A test-like function that does not match is left out and recorded in
+	## skipped (name -> reason), so it cannot silently drop out of the run.
 	var found: Array[String] = []
 	var source := (get_script() as GDScript).source_code
 	var pattern := RegEx.create_from_string("(?m)^func (_test_[a-z0-9_]+)\\(\\)")
 	for m in pattern.search_all(source):
 		found.append(m.get_string(1))
-	var loose := RegEx.create_from_string("(?mi)^[ \\t]*(static[ \\t]+)?func[ \\t]+(_?test_\\w*)[ \\t]*\\([^)]*\\)")
+	var loose := RegEx.create_from_string("(?mi)^([ \\t]*)(static[ \\t]+)?func[ \\t]+(_?test_\\w*)[ \\t]*\\(([^)]*)\\)")
 	var exact := RegEx.create_from_string("^func _test_[a-z0-9_]+\\(\\)$")
 	for m in loose.search_all(source):
-		if exact.search(m.get_string(0)) == null:
-			printerr("WARNING: skipped %s: tests must be a top-level, non-static `func _test_<lowercase_name>()` with no parameters" % m.get_string(2))
+		if exact.search(m.get_string(0)) != null:
+			continue
+		var test_name := m.get_string(3)
+		var reasons: Array[String] = []
+		if m.get_string(1) != "":
+			reasons.append("it is indented; tests must be top-level")
+		if m.get_string(2) != "":
+			reasons.append("it is static; drop `static`")
+		if not test_name.to_lower().begins_with("_test_"):
+			reasons.append("the name must start with `_test_`")
+		if test_name != test_name.to_lower():
+			reasons.append("the name has uppercase letters; use lowercase")
+		if m.get_string(4).strip_edges() != "":
+			reasons.append("it takes parameters; tests take none")
+		if reasons.is_empty():
+			reasons.append("write it exactly as `func _test_<lowercase_name>()`")
+		skipped[test_name] = "; ".join(reasons)
 	return found
 
 
-func _filter_tests(names: Array[String], wanted: PackedStringArray) -> Array[String]:
+func _filter_tests(names: Array[String], wanted: PackedStringArray, skipped: Dictionary) -> Array[String]:
 	## The tests named in wanted (with or without the `test_` prefix), in run
 	## order. Empty, after printing the known names, if one does not match.
+	## A name that was skipped points at its warning instead of the list.
 	var keys: Array[String] = []
 	for raw in wanted:
 		var key := "_test_" + raw.trim_prefix("_").trim_prefix("test_")
+		if key in skipped:
+			printerr("Test %s is not run: see the WARNING for %s above." % [raw, key])
+			return []
 		if key not in names:
 			printerr("No test named %s. Known tests:" % raw)
 			for test_name in names:
