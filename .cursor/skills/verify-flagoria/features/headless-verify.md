@@ -27,5 +27,5 @@ Preconditions:
 ## Gotchas
 
 - `--editor --quit` may print RID-leak `ERROR` lines on shutdown; `tools/verify.sh` treats those as non-fatal.
-- A newer-than-4.7 Godot may migrate the project; doctor must reject it.
+- A newer-than-4.7 Godot may migrate the project. Doctor rejects any major.minor other than the one in `project.godot` `config/features`.
 - Autoload names are invisible to `--check-only` on a single script; production code should use `/root/...` node paths where that matters.
