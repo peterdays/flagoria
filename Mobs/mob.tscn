@@ -1,6 +1,7 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://Scripts/mob.gd" id="1_mob"]
+[ext_resource type="Script" path="res://Scripts/mob_sfx.gd" id="2_sfx"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_hurt"]
 size = Vector2(12, 9)
@@ -15,6 +16,9 @@ properties/1/replication_mode = 2
 properties/2/path = NodePath(".:state")
 properties/2/spawn = true
 properties/2/replication_mode = 2
+properties/3/path = NodePath(".:attacks")
+properties/3/spawn = true
+properties/3/replication_mode = 2
 
 [node name="Mob" type="Node2D"]
 texture_filter = 1
@@ -40,6 +44,9 @@ monitorable = false
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="HurtBox"]
 shape = SubResource("RectangleShape2D_hurt")
+
+[node name="Sfx" type="Node2D" parent="."]
+script = ExtResource("2_sfx")
 
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
 replication_config = SubResource("SceneReplicationConfig_mob")
