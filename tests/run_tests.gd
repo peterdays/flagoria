@@ -577,7 +577,11 @@ func _test_sword_only_hits_mid_swing() -> int:
 		fail += 1
 	b.health.set_health_now(6)
 
-	# A dead body does not block: b moving into a collides with a only while a is alive.
+	# A dead body does not block: b moving into a collides with a only while a
+	# is alive. A spare physics layer keeps map tiles out of this check.
+	const BODY_LAYER := 1 << 9
+	a.collision_layer = BODY_LAYER
+	b.collision_mask = BODY_LAYER
 	b.position = spawn + Vector2(24, 0)
 	await settle.call()
 	var hit_alive: KinematicCollision2D = b.move_and_collide(Vector2(-24, 0), true)
@@ -595,6 +599,8 @@ func _test_sword_only_hits_mid_swing() -> int:
 		printerr("FAIL sword_mid_swing a dead player's sword is active")
 		fail += 1
 	a.isAttacking = false
+	a.collision_layer = 1
+	b.collision_mask = 1
 
 	# Respawn onto the other player: no free hit, and the body blocks again.
 	b.position = spawn
