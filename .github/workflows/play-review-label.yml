@@ -1,0 +1,66 @@
+name: play-review-label
+
+# Adds the needs-play-review label to a pull request that touches gameplay
+# (see tools/play_review_paths.py). pull_request_target runs this file and the
+# classifier from the base branch, so a pull request (also from a fork) cannot
+# change what runs with the write token. Pull request code is never checked
+# out or run: the changed paths and both copies of project.godot are read
+# through the API as data, and no event text is interpolated into the shell.
+# The label is only added, never removed.
+on:
+  pull_request_target: # zizmor: ignore[dangerous-triggers] no PR code is checked out or run
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: play-review-label-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    name: Label gameplay changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out the classifier from the base branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          sparse-checkout: tools/play_review_paths.py
+          sparse-checkout-cone-mode: false
+
+      - name: Read changed paths and project.godot through the API
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$REPO/pulls/$PR/files" \
+            --jq '.[] | .filename, (.previous_filename // empty)' > "$RUNNER_TEMP/paths.txt"
+          if grep -qx 'project.godot' "$RUNNER_TEMP/paths.txt"; then
+            mb="$(gh api "repos/$REPO/compare/$BASE_SHA...$HEAD_SHA" --jq .merge_base_commit.sha)"
+            gh api -H "Accept: application/vnd.github.raw" "repos/$REPO/contents/project.godot?ref=$mb" \
+              > "$RUNNER_TEMP/base.godot" || rm -f "$RUNNER_TEMP/base.godot"
+            gh api -H "Accept: application/vnd.github.raw" "repos/$REPO/contents/project.godot?ref=$HEAD_SHA" \
+              > "$RUNNER_TEMP/head.godot" || rm -f "$RUNNER_TEMP/head.godot"
+          fi
+
+      - name: Classify
+        id: classify
+        run: |
+          python3 tools/play_review_paths.py --files "$RUNNER_TEMP/paths.txt" \
+            --base-project "$RUNNER_TEMP/base.godot" --head-project "$RUNNER_TEMP/head.godot"
+
+      - name: Add needs-play-review
+        if: steps.classify.outputs.gameplay == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: gh api -X POST "repos/$REPO/issues/$PR/labels" -f "labels[]=needs-play-review" --silent
