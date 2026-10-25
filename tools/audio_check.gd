@@ -1,6 +1,7 @@
 extends SceneTree
 ## In-game audio check: drives the real player scene through a timeline
-## (idle, walking on each surface, swing, damage, kill), records what the
+## (idle, walking on each surface, swing, damage, kill) and one mob of
+## each type through its events, records what the
 ## mixer actually outputs, and fails if a sound is not heard.
 ##
 ## Recording: an AudioEffectCapture on Master records the full mix after
@@ -49,7 +50,17 @@ const TIMELINE := [
 	{"name": "music_slider_off", "action": "idle", "music": "GAME_TRACK", "music_volume": 0.0, "audible": false, "duration": 1.0, "expect": {"4 - Village": 1}},
 	# Music and SFX together must not clip.
 	{"name": "music_with_swing", "action": "swing", "music": "GAME_TRACK", "duration": 1.0, "expect": {"4 - Village": 1, "sword_swing": 1}},
+	# One mob of each type next to the walker; each step is one event on all three.
+	{"name": "mob_notice", "action": "mob_notice", "duration": 0.6, "expect": {"slime_notice": 1, "crab_notice": 1, "piglet_notice": 1}},
+	{"name": "mob_attack", "action": "mob_attack", "duration": 0.6, "expect": {"slime_attack": 1, "crab_attack": 1, "piglet_attack": 1}},
+	{"name": "mob_hurt", "action": "mob_hurt", "duration": 0.6, "expect": {"slime_hurt": 1, "crab_hurt": 1, "piglet_hurt": 1}},
+	{"name": "mob_death", "action": "mob_death", "duration": 0.8, "expect": {"slime_hurt": 1, "slime_death": 1, "crab_hurt": 1, "crab_death": 1, "piglet_hurt": 1, "piglet_death": 1}},
+	{"name": "mob_idle", "action": "mob_idle", "duration": 0.6, "expect": {"slime_idle": 1, "crab_idle": 1, "piglet_idle": 1}},
+	# Mobs hidden on uncharted ground make no sound for any event.
+	{"name": "mob_hidden", "action": "mob_hidden", "duration": 0.6, "expect": {}},
 ]
+## Where the check places the mobs, from the walker (all in earshot).
+const MOB_OFFSETS := {"slime": Vector2(-40, 24), "crab": Vector2(0, 40), "piglet": Vector2(40, -30)}
 const IDLE_GAP := 0.9
 ## Only the tail of each idle gap must be silent (clips are under 0.5 s).
 const SILENT_TAIL := 0.35
@@ -69,6 +80,7 @@ var _scene: Node
 var _world: TileMap
 var _walker: Node2D
 var _attacker: Node2D
+var _mobs: Array[Mob] = []
 var _rate := 44100.0
 var _master_cap: AudioEffectCapture
 var _master := PackedVector2Array()
@@ -106,11 +118,19 @@ func _setup() -> void:
 	_walker = _spawn_player("2", Vector2.ZERO)
 	_attacker = _spawn_player("3", Vector2(12, 0))
 	_walker.get_node("Camera2D").make_current()
+	for t in MOB_OFFSETS:
+		var mob: Mob = load("res://Mobs/mob.tscn").instantiate()
+		mob.setup(t, Vector2.ZERO, 1)
+		mob.name = "mob_" + t
+		_scene.get_node("World/Mobs").add_child(mob)
+		mob.set_physics_process(false)  # no behaviour: steps set each event
+		mob.sfx.idle_enabled = false
+		_mobs.append(mob)
 
 	_master_cap = AudioEffectCapture.new()
 	_master_cap.buffer_length = 1.0
 	AudioServer.add_bus_effect(0, _master_cap)
-	for player in [_walker, _attacker]:
+	for player in [_walker, _attacker] + _mobs:
 		for node in _sound_players(player):
 			_add_probe(node)
 	for node in music.players():
@@ -219,6 +239,13 @@ func _begin_step(i: int, t: float) -> void:
 	# Attacker in earshot of the walker but out of sword reach, so a swing
 	# alone does not land a hit; damage steps call the hit path directly.
 	_attacker.global_position = _walker.global_position + Vector2(48, 0)
+	for mob in _mobs:
+		mob.global_position = _walker.global_position + MOB_OFFSETS[mob.mob_type]
+		mob.sfx.idle_enabled = step["action"] == "mob_idle"
+		mob.visible = step["action"] != "mob_hidden"
+		if step["action"].begins_with("mob_"):
+			mob.state = Mob.State.IDLE  # silent reset between mob steps
+		_mob_event(mob, step["action"])
 	match step["action"]:
 		"walk":
 			_walker.global_position = _strip_origin[step["name"]]
@@ -234,6 +261,28 @@ func _begin_step(i: int, t: float) -> void:
 	# bus is muted, before the next poll would see it playing.
 	_log_starts()
 
+
+
+func _mob_event(mob: Mob, action: String) -> void:
+	## Set the synced values the way the server's behaviour does.
+	match action:
+		"mob_notice":
+			mob.state = Mob.State.WALK
+			mob.state = Mob.State.CHASE
+		"mob_attack":
+			mob.attacks += 1
+		"mob_hurt":
+			mob.state = Mob.State.HURT
+		"mob_death":
+			mob.state = Mob.State.DYING
+		"mob_idle":
+			mob.sfx.idle_left = 0.0  # due on the next frame
+		"mob_hidden":
+			mob.state = Mob.State.WALK
+			mob.state = Mob.State.CHASE
+			mob.attacks += 1
+			mob.state = Mob.State.DYING
+			mob.sfx.idle_left = 0.0
 
 
 func _sword_hit() -> void:
@@ -287,10 +336,10 @@ func _log_starts() -> void:
 
 
 static func _owner_name(node: Node) -> String:
-	## Player node name for sounds on a player, "local" for music and UI.
+	## Player or mob node name for their sounds, "local" for music and UI.
 	var n := node.get_parent()
 	while n != null:
-		if n is CharacterBody2D:
+		if n is CharacterBody2D or n is Mob:
 			return str(n.name)
 		n = n.get_parent()
 	return "local"

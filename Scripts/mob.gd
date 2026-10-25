@@ -16,6 +16,7 @@ extends Node2D
 ## not used up and can still land after. A hit plays the hurt row (HURT); the
 ## last hit plays the hurt row, then the death puff (DYING), then the server
 ## frees the mob and the MultiplayerSpawner removes it everywhere.
+## Sounds: MobSfx (the Sfx child), driven by `state` and `attacks` changes.
 ## Uncharted: on each peer, a mob standing on ground this peer has not generated
 ## yet is hidden (visuals only; behaviour, collision and sync are untouched).
 
@@ -38,9 +39,22 @@ const WALK_TIME := Vector2(0.6, 1.6)
 @export var facing: int = MobCatalog.DOWN
 @export var state: State = State.IDLE:
 	set(value):
+		var from := state
 		if value != state:
 			anim_time = 0.0
 		state = value
+		# Sounds follow the state on every peer, once it is in play: values
+		# from the spawn packet arrive before the mob is ready.
+		if value != from and is_node_ready():
+			sfx.on_state_changed(from, value)
+## Contact hits that landed. Counted by the server and synced on change, so
+## every peer plays the attack sound once per hit.
+@export var attacks := 0:
+	set(value):
+		var rose := value > attacks
+		attacks = value
+		if rose and is_node_ready():
+			sfx.play_event("attack")
 ## Stay visible on uncharted ground (meant for final bosses; set from MobCatalog).
 @export var visible_in_uncharted := false
 
@@ -61,6 +75,7 @@ static var _default_player_box := Rect2()  ## from PLAYER_SCENE, read once
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var puff: Sprite2D = $Puff
 @onready var hurt_box: Area2D = $HurtBox
+@onready var sfx: MobSfx = $Sfx
 
 
 func setup(type: String, at: Vector2, rng_seed: int) -> void:
@@ -240,6 +255,7 @@ func _touch_players() -> void:
 			continue
 		if box.intersects(player_box(p)) and health.take_damage(CONTACT_DAMAGE):
 			_pause = HIT_PAUSE
+			attacks += 1
 
 
 static func player_box(player: Node2D) -> Rect2:
