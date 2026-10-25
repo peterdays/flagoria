@@ -33,6 +33,33 @@ Sounds live under `art/audio/sfx/<group>/<name>_NN.wav`, credited in
 `art/audio/CREDITS.md`. `Scripts/footsteps.gd` and `Scripts/combat_sfx.gd`
 play them from the player scene.
 
+### Mob sounds
+
+`Scripts/mob_sfx.gd` (the `Sfx` child of `Mobs/mob.tscn`) plays
+`art/audio/sfx/mobs/<type>/<type>_<event>_NN.wav` for slime, crab and
+piglet. Each event plays once on every peer, from values the mob already
+syncs:
+
+| Event | Hook | Volume |
+| --- | --- | --- |
+| notice | `state` enters `CHASE` (not the re-chase right after a hit) | -12 dB |
+| attack | `attacks` rises; the server adds 1 when contact damage lands | -11 dB |
+| hurt | `state` enters `HURT` or `DYING`, via `sword_hit_landed()` | -10 dB |
+| death | `state` enters `DYING`, via `sword_hit_landed()` | -9 dB |
+| idle | local random timer, 12–30 s, while idle or walking | -12 dB |
+
+- `attacks` is the only new synced value (on change, a few bytes per
+  landed hit). `state` was already synced.
+- Crab adds +2 dB (`MOB_VOLUME_DB`); its clips are quieter.
+- Players are `AudioStreamPlayer2D` on `SFX`, `max_distance` 320 px (just past
+  the view edge), so far mobs are quiet or silent.
+- A mob that is not visible (for example hidden on uncharted ground) plays
+  nothing.
+- A late joiner hears nothing for past events: the spawn values are applied
+  before the mob is ready.
+- `sword_hit_landed()` is the one place a sword hit on a mob is handled; add
+  a sword impact sound there.
+
 ### UI sounds
 
 The `UiSfx` autoload (`Scripts/ui_sfx.gd`) plays `art/audio/sfx/ui/` on the
@@ -67,8 +94,10 @@ godot --headless --audio-driver Dummy --path . --script res://tools/audio_check.
 
 It resets the volumes to their defaults without saving, loads the real main
 and player scenes, and runs a timeline: idle, walk on
-grass, sand and swamp, swing, damage, kill, then a Map settings click, its
-Back, a `ui_menu` panel opening and closing, and a map save. It records the mixer output
+grass, sand and swamp, swing, damage, kill, then one mob of each type
+noticing, attacking, getting hurt, dying, idling and staying silent while
+hidden, then a Map settings click, its Back, a `ui_menu` panel opening and
+closing, and a map save. It records the mixer output
 while it runs. Headless Godot uses the Dummy audio driver, which still mixes
 in real time, so no sound card or display is needed.
 
