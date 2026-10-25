@@ -62,8 +62,8 @@ jobs:
         if: steps.gate.outputs.gameplay == 'true'
         run: python3 tools/stress_netcode.py
 
-      - name: Upload failed run logs
-        if: failure() && steps.gate.outputs.gameplay == 'true'
+      - name: Upload failed run logs (also retried ones)
+        if: always() && steps.gate.outputs.gameplay == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: netcode-stress-logs

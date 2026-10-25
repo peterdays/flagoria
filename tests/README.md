@@ -22,7 +22,7 @@ Run `godot --headless --path . --import` once first on a fresh checkout. To avoi
 
 ## Netcode stress and the `needs-play-review` label
 
-`tools/stress_netcode.py` runs every multiplayer scenario (a test that opens an ENet peer or starts another Godot process) 20 times, each in a fresh headless process with its own XDG dirs, and prints pass rate and worst wall time per scenario. Logs of failed runs go to `artifacts/out/stress/`.
+`tools/stress_netcode.py` runs every multiplayer scenario (a test that opens an ENet peer or starts another Godot process) 20 times, each in a fresh headless process with its own XDG dirs, and prints pass rate and worst wall time per scenario. Logs of failed runs go to `artifacts/out/stress/`. A scenario listed in `KNOWN_FLAKY` (with the issue that tracks it) gets one retry after a failed run and counts as failed only if the retry fails too; the `retried` column shows how often its first attempt failed. Remove the entry when its issue is fixed.
 
 ```bash
 GODOT=/path/to/godot python3 tools/stress_netcode.py          # 20 runs each
@@ -30,4 +30,4 @@ python3 tools/stress_netcode.py -n 3 --only=mob_chase_two_players
 python3 tools/stress_netcode.py --list
 ```
 
-CI runs it (`.github/workflows/play-review.yml`) only for pull requests that carry `needs-play-review`. `.github/workflows/play-review-label.yml` adds that label when a pull request touches gameplay: player, mobs, scenes, HUD and menus, touch input, netcode, or the `[input]` section of `project.godot`. The path list is in `tools/play_review_paths.py` (`--self-test` checks it).
+CI runs it (`.github/workflows/play-review.yml`) only for pull requests that carry `needs-play-review`. `.github/workflows/play-review-label.yml` adds that label when a pull request touches gameplay: player, mobs, scenes, HUD and menus, touch input, netcode, map generation parameters (`Scripts/map_gen.gd`), or the `[input]` section of `project.godot`. The path list is in `tools/play_review_paths.py` (`--self-test` checks it).
