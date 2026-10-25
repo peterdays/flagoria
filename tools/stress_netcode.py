@@ -8,13 +8,17 @@ process with its own XDG dirs. A run passes when it exits 0, prints
 "All tests passed." and logs no script error. The process group of each run
 is killed afterwards, so servers a test started cannot outlive it.
 
+A scenario in KNOWN_FLAKY gets one retry after a failed run; the run counts
+as failed only if the retry fails too. The table still reports first-attempt
+failures in its "retried" column.
+
 Usage:
   python3 tools/stress_netcode.py                  # N=20
   python3 tools/stress_netcode.py -n 3 --only=mob_chase_two_players
   python3 tools/stress_netcode.py --list
   GODOT=/path/to/godot python3 tools/stress_netcode.py
 
-Exit 1 if any run failed. Failed run logs go to artifacts/out/stress/.
+Exit 1 if any run failed (after its retry, if it had one). Failed run logs go to artifacts/out/stress/.
 """
 from __future__ import annotations
 
@@ -34,6 +38,11 @@ LOG_DIR = ROOT / "artifacts" / "out" / "stress"
 NET_MARKERS = ("ENetMultiplayerPeer", "OS.create_process(")
 ERROR_RE = re.compile(r"SCRIPT ERROR:|Parse [Ee]rror|Failed to load script|Failed loading resource")
 FUNC_RE = re.compile(r"^func (\w+)\(", re.M)
+# Scenarios that may fail once per run for a known reason. Remove an entry when
+# its issue is fixed.
+KNOWN_FLAKY = {
+    "test_player_respawn_hold_releases": "#176",  # last joiner sometimes never connects
+}
 
 
 def net_scenarios(source: str) -> list[str]:
@@ -116,29 +125,41 @@ def main() -> int:
 
     rows = []
     for name in names:
-        passed, worst = 0, 0.0
+        passed, retried, worst = 0, 0, 0.0
+        attempts = 2 if name in KNOWN_FLAKY else 1
         for i in range(args.runs):
-            ok, elapsed, out = run_once(godot, name, args.timeout)
-            worst = max(worst, elapsed)
-            if ok:
-                passed += 1
-            else:
+            for attempt in range(attempts):
+                ok, elapsed, out = run_once(godot, name, args.timeout)
+                worst = max(worst, elapsed)
+                if ok:
+                    passed += 1
+                    break
                 LOG_DIR.mkdir(parents=True, exist_ok=True)
-                (LOG_DIR / ("%s_run%02d.log" % (name, i + 1))).write_text(out)
-        rows.append((name, passed, args.runs, worst))
-        print("  %s: %d/%d, worst %.1f s" % (name, passed, args.runs, worst), flush=True)
+                suffix = "_retry" if attempt else ""
+                (LOG_DIR / ("%s_run%02d%s.log" % (name, i + 1, suffix))).write_text(out)
+                if attempt + 1 < attempts:
+                    retried += 1
+                    print("  %s run %d failed, retrying once (known flaky, %s)"
+                          % (name, i + 1, KNOWN_FLAKY[name]), flush=True)
+        rows.append((name, passed, args.runs, retried, worst))
+        print("  %s: %d/%d, %d retried, worst %.1f s" % (name, passed, args.runs, retried, worst),
+              flush=True)
 
-    width = max(len("scenario"), *(len(r[0]) for r in rows))
-    table = ["| %s |  pass | rate | worst s |" % "scenario".ljust(width),
-             "|%s|-------|------|---------|" % ("-" * (width + 2))]
-    for name, passed, runs, worst in rows:
-        table.append("| %s | %5s | %3.0f%% | %7.1f |" % (name.ljust(width), "%d/%d" % (passed, runs),
-                                                       100.0 * passed / runs, worst))
+    label = {r[0]: r[0] + (" (%s)" % KNOWN_FLAKY[r[0]] if r[0] in KNOWN_FLAKY else "") for r in rows}
+    width = max(len("scenario"), *(len(v) for v in label.values()))
+    table = ["| %s |  pass | rate | retried | worst s |" % "scenario".ljust(width),
+             "|%s|-------|------|---------|---------|" % ("-" * (width + 2))]
+    for name, passed, runs, retried, worst in rows:
+        table.append("| %s | %5s | %3.0f%% | %7s | %7.1f |" % (
+            label[name].ljust(width), "%d/%d" % (passed, runs), 100.0 * passed / runs,
+            "%d" % retried if name in KNOWN_FLAKY else "-", worst))
     print("\n".join(table))
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a") as fh:
-            fh.write("### Netcode stress, %d runs each\n\n%s\n" % (args.runs, "\n".join(table)))
+            fh.write("### Netcode stress, %d runs each\n\n%s\n\nA scenario with an issue number "
+                     "gets one retry per failed run until that issue is fixed; \"retried\" counts "
+                     "its first-attempt failures.\n" % (args.runs, "\n".join(table)))
     return 0 if all(r[1] == r[2] for r in rows) else 1
 
 

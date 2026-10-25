@@ -2,9 +2,9 @@
 """Does a change touch gameplay? Decides the `needs-play-review` label.
 
 Gameplay means player, mobs, scenes, HUD and menus, touch input, netcode,
-and the input map in project.godot. A project.godot change counts only when
-its [input] section differs; with no before/after copies given, any
-project.godot change counts.
+map generation parameters, and the input map in project.godot. A
+project.godot change counts only when its [input] section differs; with no
+before/after copies given, any project.godot change counts.
 
 Reads changed paths, one per line, from --files (or stdin). Prints the
 matching paths and writes `gameplay=true|false` to $GITHUB_OUTPUT when set.
@@ -30,6 +30,7 @@ GAMEPLAY = [
     "Scripts/player.gd", "Scripts/player_health.gd",
     "Scripts/mob.gd", "Scripts/mob_spawner.gd", "Scripts/mob_catalog.gd",
     "Scripts/TileMap.gd",  # chunk loading, collision, ground sync
+    "Scripts/map_gen.gd",  # session map parameters applied to the world map
     "Scripts/hearts_hud.gd", "Scripts/map_zoom.gd",
     "Scripts/MainMenu.gd", "Scripts/MapAdminPanel.gd",
 ]
@@ -63,7 +64,8 @@ def self_test() -> int:
         (["Player/sword.tscn"], None, None, True),
         (["Scripts/mob.gd", "README.md"], None, None, True),
         (["map_admin_panel.tscn"], None, None, True),
-        (["Scripts/map_gen.gd", "docs/audio.md", "tools/verify.sh"], None, None, False),
+        (["Scripts/map_gen.gd"], None, None, True),
+        (["Scripts/map_gen.gd.uid", "docs/audio.md", "tools/verify.sh"], None, None, False),
         (["Scripts/player.gd.uid", "tests/run_tests.gd"], None, None, False),
         (["project.godot"], None, None, True),
         (["project.godot"], "[application]\nname=1\n" + inp, "[application]\nname=2\n" + inp, False),
