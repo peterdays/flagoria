@@ -1,0 +1,71 @@
+name: play-review
+
+# Netcode stress (tools/stress_netcode.py) for pull requests that carry the
+# needs-play-review label. Runs on pull_request with read-only contents and no
+# secrets, so pull request code, also from a fork, never gets a write token.
+# A label added by play-review-label.yml starts no new run (GitHub does not
+# trigger workflows from GITHUB_TOKEN events), so this job also applies the
+# same path check itself rather than waiting for the "labeled" event.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: play-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  stress:
+    name: Netcode stress
+    if: github.event.action != 'labeled' || github.event.label.name == 'needs-play-review'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Needs play review?
+        id: gate
+        env:
+          LABELED: ${{ contains(github.event.pull_request.labels.*.name, 'needs-play-review') }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$LABELED" = "true" ]; then
+            echo "gameplay=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mb="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          git diff --name-only "$mb" "$HEAD_SHA" > "$RUNNER_TEMP/paths.txt"
+          git show "$mb:project.godot" > "$RUNNER_TEMP/base.godot" || rm -f "$RUNNER_TEMP/base.godot"
+          git show "$HEAD_SHA:project.godot" > "$RUNNER_TEMP/head.godot" || rm -f "$RUNNER_TEMP/head.godot"
+          python3 tools/play_review_paths.py --files "$RUNNER_TEMP/paths.txt" \
+            --base-project "$RUNNER_TEMP/base.godot" --head-project "$RUNNER_TEMP/head.godot"
+
+      - name: Install Godot 4.7.2
+        if: steps.gate.outputs.gameplay == 'true'
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/godot.zip \
+            https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
+          unzip -q -o /tmp/godot.zip -d /tmp/godot
+          sudo install -m 755 /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version
+
+      - name: Stress multiplayer scenarios (20 runs each)
+        if: steps.gate.outputs.gameplay == 'true'
+        run: python3 tools/stress_netcode.py
+
+      - name: Upload failed run logs
+        if: failure() && steps.gate.outputs.gameplay == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: netcode-stress-logs
+          path: artifacts/out/stress/
+          if-no-files-found: ignore
