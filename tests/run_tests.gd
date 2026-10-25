@@ -382,7 +382,8 @@ func _test_spawn_late_join() -> int:
 	## the spot the server picked for it once the map arrives, and no two
 	## players overlap. (A client used to place its own player from its stale
 	## copies of the others, and the owner's position wins.) Then every player
-	## dies in one frame and the server sends the batch to spots apart.
+	## dies in one frame and the server sends the batch to spots apart, where
+	## each then stands.
 	## Once on a dedicated server with four joiners, once on a listen host
 	## with three.
 	print("-- test_spawn_late_join")
@@ -514,8 +515,8 @@ func _spawn_session(mode: String, joiners: int) -> int:
 			fail += 1
 		else:
 			# The spots the server sent in one batch: each clear of the rest
-			# and near the spawn. (Where physics then leaves each player is
-			# not checked: a player can end a few px off its spot.)
+			# and near the spawn. Then each player stands on its spot, as
+			# after joining (see test_respawn_teleport_ghosts).
 			var server: Dictionary = read.call(0)
 			var origin := Vector2(server["origin"][0], server["origin"][1])
 			var spots := {}
@@ -539,6 +540,9 @@ func _spawn_session(mode: String, joiners: int) -> int:
 			if bad == 0:
 				print("PASS spawn_late_join %s respawn %s" % [mode, spots])
 			fail += bad
+			await pause.call(1000)
+			fail += check.call("respawn landing", func(s: Dictionary, _server: Dictionary) -> Variant:
+				return s.get("respawned_at"))
 
 	for out in outs:
 		FileAccess.open(out + ".stop", FileAccess.WRITE).close()
@@ -4731,4 +4735,76 @@ func _test_ui_sfx_presses() -> int:
 	await process_frame
 	if fail == 0:
 		print("PASS test_ui_sfx_presses (%d buttons)" % buttons.size())
+	return fail
+
+
+func _test_respawn_teleport_ghosts() -> int:
+	## A respawn moves a body, and the physics server only moves it at its
+	## next step: for one tick a player who also just respawned still stands
+	## where it died. The player respawning onto that spot must stay on the
+	## spot it was sent to, not be pushed off it, or carried along when the
+	## other body (its top taken for a floor) jumps to its own spot. A player
+	## standing where a dead player lay must not be shoved when that one
+	## respawns elsewhere. Real player scenes, the local one the owner.
+	print("-- test_respawn_teleport_ghosts")
+	var fail := 0
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world: Node = scene.get_node("World")
+	var spot := Vector2(4000, 4000)  # off the map: no walls, only the two bodies
+	# [label, where the local player died (null: it stays alive there),
+	#  where the other died, where each respawns]
+	var cases := [
+		["onto the other's death spot", spot + Vector2(-32, 0), spot, spot, spot + Vector2(32, 0)],
+		["just above the other's death spot", spot + Vector2(-32, 0), spot + Vector2(0, 6), spot, spot + Vector2(32, 6)],
+		["side by side with it", spot + Vector2(-32, 0), spot + Vector2(5, 0), spot, spot + Vector2(32, 0)],
+		["standing where it lay dead", null, spot, spot, spot + Vector2(32, 0)],
+	]
+	for c in cases:
+		var label: String = c[0]
+		var me = load("res://Player/character_body_2d.tscn").instantiate()
+		me.name = str(scene.multiplayer.get_unique_id())
+		var other = load("res://Player/character_body_2d.tscn").instantiate()
+		other.name = "2"  # a copy: only its owner would move it
+		world.add_child(me)
+		world.add_child(other)
+		for p in [me, other]:
+			p.health.respawn_delay = 1000.0  # respawned by hand below
+		me.position = c[1] if c[1] != null else c[3]
+		other.position = c[2]
+		for i in 2:
+			await physics_frame
+		other.health.set_health_now(0)
+		if c[1] != null:
+			me.health.set_health_now(0)
+		for i in 3:
+			await physics_frame
+		if c[1] == null:
+			me.position = c[3]  # walks onto the dead body's spot (no collision)
+			for i in 3:
+				await physics_frame
+		# The server's batch: both in one frame, as one packet delivers them.
+		await process_frame
+		if c[1] != null:
+			me.health._do_respawn(c[3], 1)
+		other.health._do_respawn(c[4], 1)
+		var worst := 0.0
+		for i in 10:
+			await physics_frame
+			worst = maxf(worst, (me.position as Vector2).distance_to(c[3]))
+		if worst > 0.5 or not (other.position as Vector2).is_equal_approx(c[4]):
+			printerr("FAIL respawn_teleport_ghosts %s: the local player ends at %s, up to %.1f px off its spot %s; the other at %s, sent to %s"
+					% [label, me.position, worst, c[3], other.position, c[4]])
+			fail += 1
+		if me.body_shape.disabled or other.body_shape.disabled:
+			printerr("FAIL respawn_teleport_ghosts %s: collision still off after the respawn (%s, %s)"
+					% [label, me.body_shape.disabled, other.body_shape.disabled])
+			fail += 1
+		me.free()
+		other.free()
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_respawn_teleport_ghosts")
 	return fail

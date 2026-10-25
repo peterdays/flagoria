@@ -33,6 +33,13 @@ var _respawn_hold_until := 0
 ## its position. A copy holds the spawn until this reaches the number the
 ## server gave the respawn, so it needs no baseline of its own.
 var owner_respawns := 0
+## Physics frames left with the body's collision off after a respawn moved
+## it. The physics server moves a body to a new position only at its next
+## step, so for one tick the bodies of players who also just respawned still
+## stand where they died. Colliding then pushes the owner off the server's
+## spot, or (taking a body's top for a floor) carries it along when that
+## body jumps to its own spot (found in a multi-peer play-test).
+var _respawn_ghost_ticks := 0
 
 var lastAnimDirection: String = "Down"
 var isAttacking: bool = false
@@ -64,6 +71,10 @@ func _process(_delta):
 	sprite.modulate.a = 0.3 if faded else 1.0
 
 func _physics_process(delta):
+	if _respawn_ghost_ticks > 0:
+		_respawn_ghost_ticks -= 1
+		if _respawn_ghost_ticks == 0:
+			_apply_dead_state()
 	if not is_multiplayer_authority(): return
 	if health.is_dead():
 		velocity = Vector2.ZERO
@@ -165,7 +176,7 @@ func _apply_dead_state():
 	# respawn, or a late copy's state reply): a dead player neither blocks
 	# movement nor hits until it respawns. The sprite hides in _process.
 	var dead := health.is_dead()
-	body_shape.set_deferred("disabled", dead)
+	body_shape.set_deferred("disabled", dead or _respawn_ghost_ticks > 0)
 	if dead:
 		weapon.visible = false
 		sword_shape.set_deferred("disabled", true)
@@ -179,6 +190,10 @@ func _on_respawned(at: Vector2):
 		_respawn_hold_until = Time.get_ticks_msec() + RESPAWN_HOLD_MS
 	position = at
 	velocity = Vector2.ZERO
+	# On every peer: this body neither pushes nor is pushed until the
+	# physics server has every respawned body at its new spot.
+	_respawn_ghost_ticks = 1
+	body_shape.set_deferred("disabled", true)
 
 
 func _on_synchronized():
