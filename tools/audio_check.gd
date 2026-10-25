@@ -1,7 +1,8 @@
 extends SceneTree
 ## In-game audio check: drives the real player scene through a timeline
-## (idle, walking on each surface, swing, damage, kill) and one mob of
-## each type through its events, records what the
+## (idle, walking on each surface, swing, damage, kill), one mob of each
+## type through its events, then UI presses, a menu opening and closing,
+## and a map save, records what the
 ## mixer actually outputs, and fails if a sound is not heard.
 ##
 ## Recording: an AudioEffectCapture on Master records the full mix after
@@ -58,6 +59,13 @@ const TIMELINE := [
 	{"name": "mob_idle", "action": "mob_idle", "duration": 0.6, "expect": {"slime_idle": 1, "crab_idle": 1, "piglet_idle": 1}},
 	# Mobs hidden on uncharted ground make no sound for any event.
 	{"name": "mob_hidden", "action": "mob_hidden", "duration": 0.6, "expect": {}},
+	# UI, through the real buttons: Map settings opens the panel, Back closes it.
+	{"name": "ui_click", "action": "ui_click", "duration": 0.5, "expect": {"click": 1}},
+	{"name": "ui_back", "action": "ui_back", "duration": 0.6, "expect": {"back": 1}},
+	# A "ui_menu" panel (the group an in-game menu joins) shown, then hidden.
+	{"name": "ui_menu_open", "action": "ui_menu_open", "duration": 0.5, "expect": {"menu_open": 1}},
+	{"name": "ui_menu_close", "action": "ui_menu_close", "duration": 0.5, "expect": {"menu_close": 1}},
+	{"name": "ui_saved", "action": "ui_saved", "duration": 0.8, "expect": {"saved": 1}},
 ]
 ## Where the check places the mobs, from the walker (all in earshot).
 const MOB_OFFSETS := {"slime": Vector2(-40, 24), "crab": Vector2(0, 40), "piglet": Vector2(40, -30)}
@@ -81,6 +89,7 @@ var _world: TileMap
 var _walker: Node2D
 var _attacker: Node2D
 var _mobs: Array[Mob] = []
+var _ui_menu: Control
 var _rate := 44100.0
 var _master_cap: AudioEffectCapture
 var _master := PackedVector2Array()
@@ -135,6 +144,12 @@ func _setup() -> void:
 			_add_probe(node)
 	for node in music.players():
 		_add_probe(node)
+	for node in root.get_node("UiSfx").players().values():
+		_add_probe(node)
+	_ui_menu = Control.new()
+	_ui_menu.add_to_group(&"ui_menu")
+	_ui_menu.visible = false
+	_scene.get_node("CanvasLayer2").add_child(_ui_menu)
 	process_frame.connect(_tick)
 	physics_frame.connect(_physics_tick)
 
@@ -257,6 +272,16 @@ func _begin_step(i: int, t: float) -> void:
 		"kill":
 			_walker.health.set_health_now(1)
 			_sword_hit()
+		"ui_click":
+			_scene.get_node("CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/MapSettingsButton").pressed.emit()
+		"ui_back":
+			_scene.get_node("CanvasLayer2/MainMenu").admin_panel.get_node("Margin/VBox/Buttons2/Back").pressed.emit()
+		"ui_menu_open":
+			_ui_menu.show()
+		"ui_menu_close":
+			_ui_menu.hide()
+		"ui_saved":
+			_save_map()
 	# Log starts in the same frame: Godot can stop a player at once when its
 	# bus is muted, before the next poll would see it playing.
 	_log_starts()
@@ -291,6 +316,20 @@ func _sword_hit() -> void:
 	_attacker.isAttacking = true
 	_walker._on_hurt_box_area_entered(_attacker.get_node("weapon/sword"))
 	_attacker.isAttacking = false
+
+func _save_map() -> void:
+	## A real map save with resolved seeds, removed again; the active params
+	## are left as they were.
+	var map_gen = root.get_node("MapGen")
+	var kept: MapGenParams = map_gen.params
+	map_gen.params = kept.duplicate_params()
+	map_gen.params.ensure_seeds()
+	var err: String = map_gen.save_map_inputs("audio_check")
+	if err != "":
+		_failures.append("ui_saved: map save failed: %s" % err)
+	DirAccess.remove_absolute(MapSave.path_for("audio_check"))
+	map_gen.params = kept
+
 
 func _drain() -> void:
 	var n := _master_cap.get_frames_available()
