@@ -31,6 +31,8 @@ GAMEPLAY = [
     "Scripts/mob.gd", "Scripts/mob_spawner.gd", "Scripts/mob_catalog.gd",
     "Scripts/TileMap.gd",  # chunk loading, collision, ground sync
     "Scripts/map_gen.gd",  # session map parameters applied to the world map
+    "Scripts/MapGenParams.gd",  # map generation defaults and value ranges
+    "Scripts/map_save.gd",  # saved worlds: which parameters a world loads with
     "Scripts/hearts_hud.gd", "Scripts/map_zoom.gd",
     "Scripts/MainMenu.gd", "Scripts/MapAdminPanel.gd",
 ]
@@ -66,6 +68,9 @@ def self_test() -> int:
         (["map_admin_panel.tscn"], None, None, True),
         (["Scripts/map_gen.gd"], None, None, True),
         (["Scripts/map_gen.gd.uid", "docs/audio.md", "tools/verify.sh"], None, None, False),
+        (["Scripts/MapGenParams.gd"], None, None, True),
+        (["Scripts/map_save.gd"], None, None, True),
+        (["Scripts/MapGenParams.gd.uid", "Scripts/map_save.gd.uid"], None, None, False),
         (["Scripts/player.gd.uid", "tests/run_tests.gd"], None, None, False),
         (["project.godot"], None, None, True),
         (["project.godot"], "[application]\nname=1\n" + inp, "[application]\nname=2\n" + inp, False),

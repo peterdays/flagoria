@@ -30,4 +30,4 @@ python3 tools/stress_netcode.py -n 3 --only=mob_chase_two_players
 python3 tools/stress_netcode.py --list
 ```
 
-CI runs it (`.github/workflows/play-review.yml`) only for pull requests that carry `needs-play-review`. `.github/workflows/play-review-label.yml` adds that label when a pull request touches gameplay: player, mobs, scenes, HUD and menus, touch input, netcode, map generation parameters (`Scripts/map_gen.gd`), or the `[input]` section of `project.godot`. The path list is in `tools/play_review_paths.py` (`--self-test` checks it).
+CI runs it (`.github/workflows/play-review.yml`) only for pull requests that carry `needs-play-review`. `.github/workflows/play-review-label.yml` adds that label when a pull request touches gameplay: player, mobs, scenes, HUD and menus, touch input, netcode, map generation parameters and saved worlds (`Scripts/map_gen.gd`, `Scripts/MapGenParams.gd`, `Scripts/map_save.gd`), or the `[input]` section of `project.godot`. The path list is in `tools/play_review_paths.py` (`--self-test` checks it).
