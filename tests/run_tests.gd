@@ -104,6 +104,14 @@ func _filter_tests(names: Array[String], wanted: PackedStringArray, skipped: Dic
 	return picked
 
 
+func _pre_biome_defaults() -> MapGenParams:
+	## Default params with biomes off. New worlds have biomes on; tests that pin
+	## exact cells or compare against pre-biome maps start from this instead.
+	var params := MapGenParams.make_defaults()
+	params.biome_frequency = 0.0
+	return params
+
+
 func _test_smoke_true() -> int:
 	## Trivial sanity check that the headless runner executes and reports.
 	print("-- test_smoke_true")
@@ -141,7 +149,7 @@ func _test_map_characterization() -> int:
 		printerr("FAIL: World/worldMap missing")
 		return 1
 
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	params.altitude_seed = 2
 	params.moisture_seed = 7
 	params.temperature_seed = 12
@@ -183,7 +191,7 @@ func _test_spawn_on_land() -> int:
 		return 1
 
 	for case in cases:
-		var params = MapGenParams.make_defaults()
+		var params = _pre_biome_defaults()
 		params.altitude_seed = case["alt"]
 		params.moisture_seed = case["moist"]
 		params.temperature_seed = case["temp"]
@@ -219,7 +227,7 @@ func _test_spawn_on_land() -> int:
 	return fail
 
 func _spawn_params(seed_value: int, biome_frequency: float) -> MapGenParams:
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	params.altitude_seed = seed_value
 	params.moisture_seed = seed_value
 	params.temperature_seed = seed_value
@@ -581,7 +589,7 @@ func _test_map_settings_water_reopen() -> int:
 	var in_use := 0.45
 	spin.value = in_use
 	spin.get_line_edit().text = "0.2"
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	params.water_max_alt = in_use
 	panel.load_from_params(params)
 	var shown := float(spin.get_line_edit().text)
@@ -612,7 +620,7 @@ func _test_no_decorations_on_water() -> int:
 		return 1
 
 	for case in cases:
-		var params = MapGenParams.make_defaults()
+		var params = _pre_biome_defaults()
 		params.altitude_seed = case["alt"]
 		params.moisture_seed = case["moist"]
 		params.temperature_seed = case["temp"]
@@ -1848,7 +1856,7 @@ func _test_flowers() -> int:
 	root.add_child(scene)
 	var world = scene.get_node("World/worldMap")
 
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	params.altitude_seed = 2
 	params.moisture_seed = 7
 	params.temperature_seed = 12
@@ -1930,7 +1938,7 @@ func _test_island_falloff() -> int:
 	root.add_child(scene)
 	var world = scene.get_node("World/worldMap")
 
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	params.altitude_seed = 2
 	params.moisture_seed = 7
 	params.temperature_seed = 12
@@ -1981,7 +1989,7 @@ func _test_archipelago() -> int:
 	root.add_child(scene)
 	var world = scene.get_node("World/worldMap")
 
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	params.altitude_seed = 2
 	params.moisture_seed = 7
 	params.temperature_seed = 12
@@ -2033,7 +2041,7 @@ func _test_archipelago_count() -> int:
 	root.add_child(scene)
 	var world = scene.get_node("World/worldMap")
 
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	params.altitude_seed = 2
 	params.moisture_seed = 7
 	params.temperature_seed = 12
@@ -2170,7 +2178,7 @@ func _test_archipelago_count_land_masses() -> int:
 	var scene = load("res://flagoria_main.tscn").instantiate()
 	root.add_child(scene)
 	var world = scene.get_node("World/worldMap")
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	params.altitude_seed = 42
 	params.moisture_seed = 7
 	params.temperature_seed = 12
@@ -2233,7 +2241,7 @@ func _test_biomes() -> int:
 	root.add_child(scene)
 	var world = scene.get_node("World/worldMap")
 
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	params.altitude_seed = 2
 	params.moisture_seed = 7
 	params.temperature_seed = 12
@@ -2315,7 +2323,7 @@ func _test_biomes() -> int:
 
 
 func _biome_terrain_params(arch: bool) -> MapGenParams:
-	var p := MapGenParams.make_defaults()
+	var p := _pre_biome_defaults()
 	p.altitude_seed = 2
 	p.moisture_seed = 7
 	p.temperature_seed = 12
@@ -2791,7 +2799,7 @@ func _test_water_blocks_player() -> int:
 	var space: PhysicsDirectSpaceState2D = world.get_world_2d().direct_space_state
 
 	for case in cases:
-		var params = MapGenParams.make_defaults()
+		var params = _pre_biome_defaults()
 		params.altitude_seed = case["alt"]
 		params.moisture_seed = case["moist"]
 		params.temperature_seed = case["temp"]
@@ -2837,7 +2845,7 @@ func _test_map_settings_covers_params() -> int:
 	## have a Map Settings control.
 	print("-- test_map_settings_covers_params")
 	var hand_wired := ["altitude_seed", "moisture_seed", "temperature_seed", "items_seed", "biome_seed", "noise_type"]
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	var keys: Dictionary = params.to_dict()
 	var panel = load("res://map_admin_panel.tscn").instantiate()
 	root.add_child(panel)
@@ -2985,13 +2993,71 @@ func _test_new_param_needs_no_ui_code() -> int:
 		print("PASS test_new_param_needs_no_ui_code")
 	return fail
 
+func _test_new_world_biomes_on() -> int:
+	## A new world has biomes on: default params give a world with every biome
+	## in a wide area. A map save written before biomes existed (no
+	## biome_frequency) still loads with biomes off, so it regenerates unchanged.
+	print("-- test_new_world_biomes_on")
+	var fail := 0
+	var params := MapGenParams.make_defaults()
+	if params.biome_frequency <= 0.0:
+		printerr("FAIL new_world_biomes_on: default biome_frequency=%s" % params.biome_frequency)
+		fail += 1
+	params.altitude_seed = 11
+	params.moisture_seed = 12
+	params.temperature_seed = 13
+	params.items_seed = 14
+	params.biome_seed = 15
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	world.apply_map_params(params)
+	var seen := {}
+	for x in range(-2048, 2048, 64):
+		for y in range(-2048, 2048, 64):
+			seen[world.biome_at(Vector2i(x, y))] = true
+	scene.queue_free()
+	for b in [BiomeCatalog.OCEANIC, BiomeCatalog.TEMPERATE, BiomeCatalog.CONTINENTAL, BiomeCatalog.ARCHIPELAGO_DENSE]:
+		if not seen.has(b):
+			printerr("FAIL new_world_biomes_on: biome %s missing from a 4096-tile area" % b)
+			fail += 1
+
+	var legacy := _pre_biome_defaults()
+	legacy.biome_frequency = 0.01
+	legacy.ensure_seeds()
+	var data: Dictionary = legacy.to_dict()
+	data.erase("biome_frequency")
+	var path := MapSave.path_for("test_pre_biome_save")
+	DirAccess.make_dir_recursive_absolute(MapSave.SAVE_DIR)
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	file.store_string(JSON.stringify({"format_version": MapSave.FORMAT_VERSION, "params": data}))
+	file.close()
+	var loaded = MapSave.load_map(path)
+	DirAccess.remove_absolute(path)
+	if loaded["error"] != "" or loaded["params"].biome_frequency != 0.0:
+		printerr("FAIL new_world_biomes_on: pre-biome save loaded error=%s biome_frequency=%s" % [loaded["error"], loaded["params"].biome_frequency if loaded["params"] else null])
+		fail += 1
+
+	var current := MapGenParams.make_defaults()
+	current.ensure_seeds()
+	var saved = MapSave.save_map(current, "test_biome_save")
+	var reloaded = MapSave.load_map(saved["path"])
+	DirAccess.remove_absolute(saved["path"])
+	if reloaded["error"] != "" or reloaded["params"].biome_frequency != current.biome_frequency:
+		printerr("FAIL new_world_biomes_on: biome save reloaded error=%s" % reloaded["error"])
+		fail += 1
+	if fail == 0:
+		print("PASS test_new_world_biomes_on (%s biomes seen)" % seen.size())
+	return fail
+
+
 func _test_biome_seed_panel_round_trip() -> int:
 	## A biome_seed above 2^31 - 1 (randi() returns up to 2^32 - 1) survives the
 	## Map Settings panel unchanged and has its own seed row, not a SpinBox.
 	print("-- test_biome_seed_panel_round_trip")
 	var fail := 0
 	var big := 4000000000
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	params.biome_seed = big
 	var map_gen = root.get_node("MapGen")
 	var saved_params = map_gen.params
@@ -3006,7 +3072,7 @@ func _test_biome_seed_panel_round_trip() -> int:
 	if panel.seed_biome.text != str(big):
 		printerr("FAIL biome_seed_panel: row shows %s want %s" % [panel.seed_biome.text, big])
 		fail += 1
-	var out = MapGenParams.make_defaults()
+	var out = _pre_biome_defaults()
 	panel.apply_to_params(out)
 	if out.biome_seed != big:
 		printerr("FAIL biome_seed_panel: round-trip %s want %s" % [out.biome_seed, big])
@@ -3040,7 +3106,7 @@ func _test_chunk_refresh_frames() -> int:
 
 	var fail := 0
 	for frames in [15, 4]:
-		var params = MapGenParams.make_defaults()
+		var params = _pre_biome_defaults()
 		params.chunk_refresh_frames = frames
 		world.apply_map_params(params)
 		world.count = 0
@@ -3066,7 +3132,7 @@ func _test_map_save_round_trip() -> int:
 	## use all 17 significant digits.
 	print("-- test_map_save_round_trip")
 	var fail := 0
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	var defaults: Dictionary = params.to_dict()
 	for key in defaults.keys():
 		if typeof(defaults[key]) == TYPE_INT:
@@ -3091,7 +3157,7 @@ func _test_map_save_round_trip() -> int:
 	var world = scene.get_node("World/worldMap")
 	var map_gen = root.get_node("MapGen")
 	var active_params = map_gen.params
-	var original = MapGenParams.make_defaults()
+	var original = _pre_biome_defaults()
 	original.altitude_seed = 4242
 	original.moisture_seed = 5252
 	original.temperature_seed = 6262
@@ -3100,7 +3166,7 @@ func _test_map_save_round_trip() -> int:
 	original.sand_max_alt = 0.48
 	map_gen.params = original
 	var save_error: String = map_gen.save_map_inputs("test_same_map")
-	map_gen.params = MapGenParams.make_defaults()
+	map_gen.params = _pre_biome_defaults()
 	var load_error: String = map_gen.load_map_inputs(MapSave.path_for("test_same_map"))
 	var reloaded: MapGenParams = map_gen.params
 	map_gen.params = active_params
@@ -3133,7 +3199,7 @@ func _test_map_save_rejects_bad_files() -> int:
 	## Unknown versions, malformed files and unresolved seeds give clear errors.
 	print("-- test_map_save_rejects_bad_files")
 	var fail := 0
-	var unresolved = MapSave.save_map(MapGenParams.make_defaults(), "test_unresolved")
+	var unresolved = MapSave.save_map(_pre_biome_defaults(), "test_unresolved")
 	if not "unresolved" in unresolved["error"] or FileAccess.file_exists(MapSave.path_for("test_unresolved")):
 		printerr("FAIL map_save_rejects_bad_files unresolved seeds: %s" % unresolved["error"])
 		fail += 1

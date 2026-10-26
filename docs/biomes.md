@@ -21,8 +21,11 @@ Options (all optional):
 | `--step` | `8`                          | Tiles per pixel                             |
 | `--out`  | `res://artifacts/out/biomes` | Output prefix (`artifacts/` is git-ignored) |
 
-`MapGenParams.biome_frequency` defaults to 0 (biomes off), so the tool
-uses 0.003 unless `--freq` is given.
+`MapGenParams.biome_frequency` defaults to 0.003, so new worlds have
+biomes. The tool uses the same 0.003 unless `--freq` is given. Setting
+Biome frequency to 0 in Map Settings turns biomes off. Map saves written
+before biomes existed have no `biome_frequency` and load with biomes off,
+so they regenerate unchanged.
 
 ## Output
 
