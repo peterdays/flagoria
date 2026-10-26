@@ -70,5 +70,8 @@ static func load_map(path: String) -> Dictionary:
 		return {"params": null, "error": "%s has no params section" % path}
 
 	var params := MapGenParams.make_defaults()
+	# Saves written before biomes existed have no biome_frequency; they load
+	# with biomes off so the saved world regenerates as it was.
+	params.biome_frequency = 0.0
 	params.from_dict(parsed["params"])
 	return {"params": params, "error": ""}

@@ -15,8 +15,9 @@ extends Resource
 @export_range(0.001, 1.0, 0.001) var moisture_frequency: float = 0.01
 @export_range(0.001, 1.0, 0.001) var temperature_frequency: float = 0.01
 @export_range(0.01, 4.0, 0.01) var items_frequency: float = 1.0
-# Large-scale biome regions. 0 frequency turns biomes off (no density modulation).
-@export_range(0.0, 0.05, 0.0001) var biome_frequency: float = 0.0
+# Large-scale biome regions, on by default for new worlds. 0 frequency turns
+# biomes off (no density modulation); map saves without the field load as 0.
+@export_range(0.0, 0.05, 0.0001) var biome_frequency: float = 0.003
 @export_range(1, 10) var fractal_octaves: int = 5
 @export_range(0.1, 4.0, 0.1) var fractal_lacunarity: float = 2.0
 @export_range(0.0, 2.0, 0.05) var fractal_gain: float = 0.5
