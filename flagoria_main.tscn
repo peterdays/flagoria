@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3 uid="uid://cxtnu53ko1bon"]
+[gd_scene load_steps=17 format=3 uid="uid://cxtnu53ko1bon"]
 
 [ext_resource type="Script" path="res://flagoria_main.gd" id="1_p55uv"]
 [ext_resource type="Script" path="res://addons/virtual_joystick/scripts/virtual_joystick.gd" id="2_54anv"]
@@ -14,6 +14,7 @@
 [ext_resource type="PackedScene" path="res://quit_prompt.tscn" id="10_quit_prompt"]
 [ext_resource type="Script" path="res://Scripts/points.gd" id="10_points"]
 [ext_resource type="Script" path="res://Scripts/score_hud.gd" id="11_score_hud"]
+[ext_resource type="Script" path="res://Scripts/discovery_points.gd" id="12_discovery"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_bm55c"]
 radius = 250.0
@@ -65,6 +66,9 @@ script = ExtResource("11_score_hud")
 
 [node name="Points" type="Node" parent="."]
 script = ExtResource("10_points")
+
+[node name="Discovery" type="Node" parent="."]
+script = ExtResource("12_discovery")
 
 [node name="World" type="Node2D" parent="."]
 

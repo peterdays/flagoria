@@ -1619,6 +1619,140 @@ func _test_points_sync() -> int:
 	return fail
 
 
+func _test_points_discovery() -> int:
+	## The server pays DISCOVERY_POINTS once per chunk, to the first player
+	## seen in it on two checks in a row: not again for that chunk, not to a
+	## second player there, not for a single stale sample or to a dead
+	## player, and a new world starts over.
+	print("-- test_points_discovery")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	scene.world_params = _spawn_params(42, 0.003)
+	world.apply_map_params(scene.world_params)
+	var discovery: DiscoveryPoints = scene.get_node("Discovery")
+	discovery.set_physics_process(false)  # checks run by hand below
+	var points: Points = scene.get_node("Points")
+	scene.add_player(1)
+	scene.add_player(2)
+	var p1: Node2D = scene.get_node("World/1")
+	var p2: Node2D = scene.get_node("World/2")
+	var chunk_px := Vector2(world.chunk_width, world.chunk_height) * 16.0
+	var cases := [[Vector2i(0, 0), Vector2i(0, 0)], [Vector2i(31, 31), Vector2i(0, 0)],
+			[Vector2i(32, 0), Vector2i(1, 0)], [Vector2i(-1, -33), Vector2i(-1, -2)]]
+	for c in cases:
+		if DiscoveryPoints.chunk_of(c[0], world) != c[1]:
+			printerr("FAIL points_discovery chunk_of(%s) = %s, want %s" % [c[0], DiscoveryPoints.chunk_of(c[0], world), c[1]])
+			fail += 1
+	var home: Vector2i = DiscoveryPoints.chunk_of(world.local_to_map(p1.position), world)
+	p2.position = p1.position + chunk_px * 4.0
+	p2.health.set_health_now(0)  # dead: its chunk does not pay
+	discovery.check_players()
+	if points.total_of(1) != 0:
+		printerr("FAIL points_discovery paid %s on the first sample" % points.total_of(1))
+		fail += 1
+	for i in 3:
+		discovery.check_players()
+	if points.total_of(1) != Points.DISCOVERY_POINTS or discovery.discoverer_of(home) != 1:
+		printerr("FAIL points_discovery host has %s after staying in %s (discoverer %s)"
+				% [points.total_of(1), home, discovery.discoverer_of(home)])
+		fail += 1
+	if points.total_of(2) != 0:
+		printerr("FAIL points_discovery dead player got %s" % points.total_of(2))
+		fail += 1
+	# A second player in the host's chunk gets nothing for it.
+	p2.health.set_health_now(p2.health.max_health)
+	p2.position = p1.position
+	for i in 3:
+		discovery.check_players()
+	if points.total_of(2) != 0:
+		printerr("FAIL points_discovery second player paid %s for a discovered chunk" % points.total_of(2))
+		fail += 1
+	# Flicking between two new chunks on every check never pays.
+	for i in 4:
+		p2.position = p1.position + chunk_px * (3.0 if i % 2 == 0 else -3.0)
+		discovery.check_players()
+	if points.total_of(2) != 0:
+		printerr("FAIL points_discovery paid %s for single samples" % points.total_of(2))
+		fail += 1
+	# The second player discovers a new chunk; the host following does not.
+	var far: Vector2 = p1.position + chunk_px * Vector2(3.0, 0.0)
+	p2.position = far
+	discovery.check_players()
+	discovery.check_players()
+	p1.position = far
+	for i in 3:
+		discovery.check_players()
+	var far_chunk: Vector2i = DiscoveryPoints.chunk_of(world.local_to_map(far), world)
+	if points.total_of(2) != Points.DISCOVERY_POINTS or points.total_of(1) != Points.DISCOVERY_POINTS \
+			or discovery.discoverer_of(far_chunk) != 2:
+		printerr("FAIL points_discovery after the new chunk: host %s, second %s, discoverer %s"
+				% [points.total_of(1), points.total_of(2), discovery.discoverer_of(far_chunk)])
+		fail += 1
+	# A new world: the same chunk pays again.
+	world.apply_map_params(scene.world_params)
+	discovery.check_players()
+	discovery.check_players()
+	if points.total_of(1) != 2 * Points.DISCOVERY_POINTS or discovery.discoverer_of(far_chunk) != 1:
+		printerr("FAIL points_discovery new world: host %s, discoverer %s"
+				% [points.total_of(1), discovery.discoverer_of(far_chunk)])
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_points_discovery")
+	return fail
+
+
+func _test_points_discovery_two_players() -> int:
+	## A client of a dedicated server stands still at its spawn: the server
+	## pays it for its spawn chunk exactly once, and its counter shows it.
+	print("-- test_points_discovery_two_players")
+	await process_frame
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL points_discovery_two_players found no free UDP port")
+		return 1
+	var pid := OS.create_process(
+		OS.get_executable_path(),
+		["--headless", "--path", ProjectSettings.globalize_path("res://"), "--", "--server", "--port=%d" % port]
+	)
+	if pid <= 0:
+		printerr("FAIL points_discovery_two_players could not start the server process")
+		return 1
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var points: Points = scene.get_node("Points")
+	var hud: ScoreHud = scene.get_node("CanvasLayer1/ScoreHud")
+	scene.add_player_joined(port)
+	var fail := 0
+	var me := 0
+	var deadline := Time.get_ticks_msec() + 30000
+	while Time.get_ticks_msec() < deadline and OS.is_process_running(pid):
+		me = scene.multiplayer.get_unique_id()
+		if me > 1 and points.total_of(me) > 0:
+			break
+		await process_frame
+	if points.total_of(me) != Points.DISCOVERY_POINTS:
+		printerr("FAIL points_discovery_two_players client total %s, want %s" % [points.total_of(me), Points.DISCOVERY_POINTS])
+		fail += 1
+	else:
+		var until := Time.get_ticks_msec() + 1500  # several more checks
+		while Time.get_ticks_msec() < until:
+			await process_frame
+		if points.total_of(me) != Points.DISCOVERY_POINTS or hud.text != "%d pts" % Points.DISCOVERY_POINTS:
+			printerr("FAIL points_discovery_two_players standing still: total %s, counter '%s'" % [points.total_of(me), hud.text])
+			fail += 1
+	OS.kill(pid)
+	scene.enet_peer.close()
+	scene.multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	scene.queue_free()
+	if fail == 0:
+		print("PASS test_points_discovery_two_players")
+	return fail
+
+
 func _test_player_respawn_no_snapback() -> int:
 	## A client-owned player respawns: the server moves its copy to the spawn
 	## at once, while the owner keeps sending its old position until the
@@ -3510,6 +3644,121 @@ func _test_map_settings_number_pad() -> int:
 	if fail == 0:
 		print("PASS test_map_settings_number_pad (%s fields)" % fields.size())
 	return fail
+
+func _test_map_settings_number_pad_touch_tap() -> int:
+	## Tapping a seed field on a phone opens the pad and it stays open. Android
+	## sends each tap as an emulated mouse button first and then the screen
+	## touch (emulate_mouse_from_touch), so the touch lands on the pad that the
+	## mouse press just opened. Desktop with emulate_touch_from_mouse sends the
+	## touch first. Both orders, and a plain mouse click, must keep the pad
+	## open with the field as its target, and a later tap outside must close it.
+	print("-- test_map_settings_number_pad_touch_tap")
+	var panel = load("res://map_admin_panel.tscn").instantiate()
+	root.add_child(panel)
+	await process_frame
+	var pad = panel.get_node("NumberPad")
+	var fail := 0
+	for field_name in ["AltitudeSeed", "MoistureSeed", "TemperatureSeed", "ItemsSeed", "BiomeSeed"]:
+		var f: LineEdit = panel.find_child(field_name)
+		var row: HBoxContainer = f.get_parent()
+		if f.alignment != HORIZONTAL_ALIGNMENT_CENTER or f.size_flags_horizontal & Control.SIZE_EXPAND \
+				or row.alignment != BoxContainer.ALIGNMENT_CENTER:
+			printerr("FAIL number_pad_touch_tap %s is not a centered fixed-width field" % field_name)
+			fail += 1
+	var orders := {
+		"android": ["mouse_down", "touch_down", "mouse_up", "touch_up"],
+		"desktop": ["touch_down", "mouse_down", "touch_up", "mouse_up"],
+		"mouse": ["mouse_down", "mouse_up"],
+		"engine": ["input_touch_down", "input_touch_up"],
+	}
+	for order_name in orders:
+		for field_name in ["AltitudeSeed", "BiomeSeed"]:
+			var field: LineEdit = panel.find_child(field_name)
+			field.release_focus()
+			pad.close()
+			await process_frame
+			field.text = "0"
+			_tap_sequence(field.get_global_rect().get_center(), orders[order_name])
+			await process_frame
+			if not pad.visible or pad.target != field or not field.has_focus():
+				printerr(
+					"FAIL number_pad_touch_tap %s tap on %s: pad open=%s target=%s focus=%s"
+					% [order_name, field_name, pad.visible, pad.target.name if pad.target else "none", field.has_focus()]
+				)
+				fail += 1
+				continue
+			for key in ["Digit7", "Digit3"]:
+				pad.find_child(key, true, false).pressed.emit()
+			if field.text != "73":
+				printerr("FAIL number_pad_touch_tap %s %s typed %s want 73" % [order_name, field_name, field.text])
+				fail += 1
+			_tap_sequence(Vector2(root.get_visible_rect().size) - Vector2(2, 2), orders[order_name])
+			await process_frame
+			if pad.visible:
+				printerr("FAIL number_pad_touch_tap %s tap outside did not close the pad" % order_name)
+				fail += 1
+	panel.queue_free()
+	if fail == 0:
+		print("PASS test_map_settings_number_pad_touch_tap (%s orders)" % orders.size())
+	return fail
+
+func _test_map_settings_uses_menu_theme() -> int:
+	## Map Settings uses the menu theme at its root, so its text uses the game
+	## font and its bottom buttons look like the main menu's.
+	print("-- test_map_settings_uses_menu_theme")
+	var theme: Theme = load("res://art/ui/main_menu_theme.tres")
+	var panel = load("res://map_admin_panel.tscn").instantiate()
+	root.add_child(panel)
+	await process_frame
+	var fail := 0
+	if panel.theme != theme:
+		printerr("FAIL map_settings_uses_menu_theme panel root theme is %s" % panel.theme)
+		fail += 1
+	for button_name in ["RandomSeed", "Reset", "Back", "Start"]:
+		var b: Button = panel.find_child(button_name)
+		if b.get_theme_stylebox("normal") != theme.get_stylebox("normal", "Button") \
+				or b.get_theme_font("font") != theme.default_font \
+				or b.get_theme_font_size("font_size") != theme.get_font_size("font_size", "Button"):
+			printerr("FAIL map_settings_uses_menu_theme %s does not use the menu button style" % button_name)
+			fail += 1
+	for node_name in ["Title", "AltitudeSeed", "NoiseType"]:
+		var c: Control = panel.find_child(node_name)
+		if c.get_theme_font("font") != theme.default_font:
+			printerr("FAIL map_settings_uses_menu_theme %s does not use the game font" % node_name)
+			fail += 1
+	panel.queue_free()
+	if fail == 0:
+		print("PASS test_map_settings_uses_menu_theme")
+	return fail
+
+func _tap_sequence(pos: Vector2, steps: Array) -> void:
+	## Pushes one tap at pos as the given mix of mouse and touch events.
+	## "input_touch_*" goes through Input, which adds the emulated mouse
+	## events itself, in the order a phone build gets them.
+	for step in steps:
+		if step.begins_with("input_touch"):
+			var t := InputEventScreenTouch.new()
+			t.pressed = step.ends_with("down")
+			t.position = root.get_final_transform() * pos  # window pixels
+			Input.parse_input_event(t)
+			Input.flush_buffered_events()
+			continue
+		var ev: InputEvent
+		if step.begins_with("mouse"):
+			var mb := InputEventMouseButton.new()
+			mb.button_index = MOUSE_BUTTON_LEFT
+			mb.pressed = step.ends_with("down")
+			mb.button_mask = MOUSE_BUTTON_MASK_LEFT if mb.pressed else 0
+			mb.position = pos
+			mb.global_position = pos
+			ev = mb
+		else:
+			var st := InputEventScreenTouch.new()
+			st.index = 0
+			st.pressed = step.ends_with("down")
+			st.position = pos
+			ev = st
+		root.push_input(ev, true)
 
 func _test_new_param_needs_no_ui_code() -> int:
 	## A field added to MapGenParams reaches to_dict() and gets a Map Settings
