@@ -25,6 +25,12 @@ func _ready() -> void:
 	_build_extra_controls(get_node("/root/MapGen").params)
 	_populate_noise_types()
 	load_from_params(get_node("/root/MapGen").params)
+	# Seeds are typed on an in-game pad instead of the OS keyboard.
+	var pad: NumberPad = preload("res://number_pad.tscn").instantiate()
+	add_child(pad)
+	for field in [seed_alt, seed_moist, seed_temp, seed_items, seed_biome]:
+		pad.attach(field)
+	visibility_changed.connect(pad.close)
 
 
 func _populate_noise_types() -> void:
