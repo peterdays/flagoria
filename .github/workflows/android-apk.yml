@@ -54,13 +54,35 @@ jobs:
           unzip -q -j /tmp/templates.tpz 'templates/android_*' 'templates/version.txt' -d "$dest"
           ls "$dest"
 
-      - name: Generate debug keystore and editor settings
+      - name: Set up signing keystore and editor settings
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           set -euo pipefail
-          keystore="$RUNNER_TEMP/debug.keystore"
-          keytool -genkeypair -v -keystore "$keystore" -storepass android \
-            -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
-            -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          keystore="$RUNNER_TEMP/signing.keystore"
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$keystore"
+            alias="$KEY_ALIAS"
+            pass="$KEYSTORE_PASSWORD"
+          elif [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            echo "::warning::Signing secrets are not available to this run; using a throwaway key. This APK cannot update an installed build."
+            alias=androiddebugkey
+            pass="$(openssl rand -hex 16)"
+            keytool -genkeypair -keystore "$keystore" -storepass "$pass" \
+              -alias "$alias" -keypass "$pass" -keyalg RSA -keysize 2048 \
+              -validity 10000 -dname "CN=throwaway pull request build"
+          else
+            echo "::error::Missing ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD or ANDROID_KEY_ALIAS secret. Published builds must be signed with the stable key."
+            exit 1
+          fi
+          echo "::add-mask::$pass"
+          {
+            echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$keystore"
+            echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=$alias"
+            echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=$pass"
+          } >> "$GITHUB_ENV"
           mkdir -p "$HOME/.config/godot"
           cat > "$HOME/.config/godot/editor_settings-${GODOT_VERSION%.*}.tres" <<TRES
           [gd_resource type="EditorSettings" format=3]
@@ -68,10 +90,16 @@ jobs:
           [resource]
           export/android/android_sdk_path = "$ANDROID_HOME"
           export/android/java_sdk_path = "$JAVA_HOME"
-          export/android/debug_keystore = "$keystore"
-          export/android/debug_keystore_user = "androiddebugkey"
-          export/android/debug_keystore_pass = "android"
           TRES
+
+      - name: Set version code
+        run: |
+          set -euo pipefail
+          # Android only installs an update over an existing app when the
+          # version code is higher, so every build gets a new one.
+          code=$((GITHUB_RUN_NUMBER + 1))
+          sed -i "s|^version/code=.*|version/code=$code|" export_presets.cfg
+          grep -n '^version/code=' export_presets.cfg
 
       - name: Export APK
         run: |
@@ -81,6 +109,21 @@ jobs:
           godot --headless --path . --export-debug "Android" Builds/android/flagoria-debug.apk
           test -s Builds/android/flagoria-debug.apk
           ls -l Builds/android
+
+      - name: Print APK signing certificate
+        run: |
+          set -euo pipefail
+          apksigner="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/apksigner"
+          "$apksigner" verify --print-certs Builds/android/flagoria-debug.apk | tee "$RUNNER_TEMP/certs.txt"
+          apk_sha=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/certs.txt")
+          key_sha=$(keytool -list -v -keystore "$GODOT_ANDROID_KEYSTORE_DEBUG_PATH" \
+            -storepass "$GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD" -alias "$GODOT_ANDROID_KEYSTORE_DEBUG_USER" \
+            | sed -n 's/^[[:space:]]*SHA256: //p' | tr -d ':' | tr 'A-F' 'a-f')
+          echo "APK certificate SHA-256: $apk_sha"
+          if [ -z "$apk_sha" ] || [ "$apk_sha" != "$key_sha" ]; then
+            echo "::error::APK is not signed with the configured keystore."
+            exit 1
+          fi
 
       - name: Check APK audio assets
         run: ./tools/check_apk_audio.sh Builds/android/flagoria-debug.apk
@@ -112,7 +155,7 @@ jobs:
               echo "Source pull request: #$pr"
             fi
             echo
-            echo "Debug-signed test build. Install instructions: [docs/android-apk.md]($repo_url/blob/$GITHUB_SHA/docs/android-apk.md)."
+            echo "Test build signed with the project's stable test key. Install instructions: [docs/android-apk.md]($repo_url/blob/$GITHUB_SHA/docs/android-apk.md)."
           } > "$RUNNER_TEMP/notes.md"
           gh release create "$tag" "$apk" \
             --prerelease \
