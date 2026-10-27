@@ -4995,7 +4995,8 @@ func _test_mob_sword() -> int:
 func _test_mob_sword_two_players() -> int:
 	## A client of a dedicated server swings at a mob until it dies; the host
 	## decides the hits, and the client sees the hurt and dying states, then
-	## the mob is removed on the client.
+	## the mob is removed on the client, and the client is paid the mob's
+	## kill points once.
 	print("-- test_mob_sword_two_players")
 	await process_frame
 	var port := _free_udp_port()
@@ -5012,6 +5013,11 @@ func _test_mob_sword_two_players() -> int:
 	var scene = load("res://flagoria_main.tscn").instantiate()
 	root.add_child(scene)
 	var mobs_node: MobSpawner = scene.get_node("World/Mobs")
+	var kills: Array = []  # [peer, amount] of each mob_kill award seen on the client
+	scene.get_node("Points").total_changed.connect(
+			func(peer_id: int, _total: int, amount: int, reason: String) -> void:
+				if reason == "mob_kill":
+					kills.append([peer_id, amount]))
 	scene.add_player_joined(port)
 	var fail := 0
 	var player: Node2D = null
@@ -5025,6 +5031,7 @@ func _test_mob_sword_two_players() -> int:
 	if player and scene.world_params and not mobs_node.mobs().is_empty():
 		mob = mobs_node.mobs()[0]
 	var label := str(mob.name) if mob else ""
+	var mob_type := mob.mob_type if mob else ""
 	if mob == null:
 		printerr("FAIL mob_sword_two_players no player or mobs on the client")
 		fail += 1
@@ -5045,12 +5052,75 @@ func _test_mob_sword_two_players() -> int:
 		elif not seen.has(Mob.State.HURT) or not seen.has(Mob.State.DYING):
 			printerr("FAIL mob_sword_two_players %s states seen on the client: %s" % [label, seen.keys()])
 			fail += 1
+		var want := [[scene.multiplayer.get_unique_id(), Points.MOB_KILL_POINTS[mob_type]]]
+		deadline = Time.get_ticks_msec() + 3000
+		while kills.size() < want.size() and Time.get_ticks_msec() < deadline:
+			await process_frame
+		for i in 30:  # a second award would arrive with these frames
+			await process_frame
+		if kills != want:
+			printerr("FAIL mob_sword_two_players %s kill awards on the client %s, want %s" % [label, kills, want])
+			fail += 1
 	OS.kill(pid)
 	scene.enet_peer.close()
 	scene.multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	scene.queue_free()
 	if fail == 0:
 		print("PASS test_mob_sword_two_players (%s)" % label)
+	return fail
+
+
+func _test_points_mob_kill() -> int:
+	## Kill points by type (slime 5, crab 8, piglet 10) go to the player
+	## whose hit kills the mob, once: earlier hits by another player and hits
+	## on a dying mob pay nothing, and a hit with no known player pays no one.
+	print("-- test_points_mob_kill")
+	var fail := 0
+	var want_values := {MobCatalog.SLIME: 5, MobCatalog.CRAB: 8, MobCatalog.PIGLET: 10}
+	if Points.MOB_KILL_POINTS != want_values or Points.MOB_KILL_POINTS.size() != MobCatalog.names().size():
+		printerr("FAIL points_mob_kill values %s for types %s" % [Points.MOB_KILL_POINTS, MobCatalog.names()])
+		fail += 1
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	scene.get_node("Discovery").set_physics_process(false)  # only kill points here
+	var points: Points = scene.get_node("Points")
+	var mobs_root: Node = scene.get_node("World/Mobs")
+	var paid: Array = []
+	points.total_changed.connect(func(peer_id: int, _total: int, amount: int, reason: String) -> void:
+		paid.append([peer_id, amount, reason]))
+	var want_paid: Array = []
+	for t in MobCatalog.names():
+		var mob: Mob = load("res://Mobs/mob.tscn").instantiate()
+		mob.setup(t, Vector2(4000, 4000), 7)
+		mobs_root.add_child(mob)
+		mob.set_physics_process(false)  # hits by hand below
+		# Peer 2 lands every hit but the last; peer 1 lands the killing hit.
+		while mob.hp > 1:
+			mob.take_hit(2)
+			mob.state = Mob.State.IDLE  # end the hurt window
+		mob.take_hit(1)
+		mob.take_hit(2)  # dying: ignored
+		mob.take_hit(1)
+		want_paid.append([1, want_values[t], "mob_kill"])
+		mob.free()
+	var unknown: Mob = load("res://Mobs/mob.tscn").instantiate()
+	unknown.setup(MobCatalog.SLIME, Vector2(4000, 4000), 7)
+	mobs_root.add_child(unknown)
+	unknown.set_physics_process(false)
+	unknown.take_hit()
+	unknown.state = Mob.State.IDLE
+	unknown.take_hit()  # killed by an unknown hitter
+	unknown.free()
+	if paid != want_paid:
+		printerr("FAIL points_mob_kill awards %s, want %s" % [paid, want_paid])
+		fail += 1
+	if points.total_of(2) != 0:
+		printerr("FAIL points_mob_kill earlier hitter got %s" % points.total_of(2))
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_points_mob_kill")
 	return fail
 
 

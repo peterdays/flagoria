@@ -16,6 +16,8 @@ extends Node2D
 ## not used up and can still land after. A hit plays the hurt row (HURT); the
 ## last hit plays the hurt row, then the death puff (DYING), then the server
 ## frees the mob and the MultiplayerSpawner removes it everywhere.
+## Kill points: the player whose hit kills the mob gets
+## Points.MOB_KILL_POINTS for its type, once (no share for earlier hits).
 ## Sounds: MobSfx (the Sfx child), driven by `state` and `attacks` changes.
 ## Uncharted: on each peer, a mob standing on ground this peer has not generated
 ## yet is hidden (visuals only; behaviour, collision and sync are untouched).
@@ -202,8 +204,9 @@ static func is_alive(player: Node) -> bool:
 	return health == null or not health.is_dead()
 
 
-func take_hit() -> bool:
-	## Server only: one sword hit. Ignored while already hurt or dying.
+func take_hit(by_peer: int = 0) -> bool:
+	## Server only: one sword hit by player by_peer (0: unknown). Ignored
+	## while already hurt or dying, so only the killing hit pays.
 	if state == State.HURT or state == State.DYING:
 		return false
 	hp -= 1
@@ -211,10 +214,18 @@ func take_hit() -> bool:
 	if hp <= 0:
 		state = State.DYING
 		_timer = HURT_TIME + PUFF_TIME
+		_award_kill(by_peer)
 	else:
 		state = State.HURT
 		_timer = HURT_TIME
 	return true
+
+
+func _award_kill(by_peer: int) -> void:
+	# Points sits at the main scene root, next to World (World/Mobs/<mob>).
+	var points := get_node_or_null("../../../Points") as Points
+	if points and by_peer > 0:
+		points.award(by_peer, Points.MOB_KILL_POINTS.get(mob_type, 0), "mob_kill")
 
 
 static func swinging(attacker: Object) -> bool:
@@ -237,7 +248,7 @@ func _check_swords() -> void:
 			continue
 		# A swing that lands during HURT is ignored, not used up: it can still
 		# hit once the hurt window ends, if the swing lasts that long.
-		if take_hit():
+		if take_hit(str(attacker.name).to_int()):
 			_struck[attacker.get_instance_id()] = true
 
 
