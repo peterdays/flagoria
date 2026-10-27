@@ -3320,6 +3320,46 @@ func _test_server_port_from_args() -> int:
 	return fail
 
 
+func _test_server_params_from_args() -> int:
+	## `--params <file>` gives the dedicated server a map save to host; no
+	## --params means the active params (null); a bad value is an error.
+	print("-- test_server_params_from_args")
+	var main_script = load("res://flagoria_main.gd")
+	var params := MapGenParams.make_defaults()
+	params.altitude_seed = 1101
+	params.moisture_seed = 1102
+	params.temperature_seed = 1103
+	params.items_seed = 1104
+	params.biome_seed = 1105
+	params.water_max_alt = 0.125
+	var saved := MapSave.save_map(params, "test_server_params")
+	var path: String = saved["path"]
+	var fail := 0
+	for case in [
+		[["--server"], ""],
+		[["--server", "--params", path], ""],
+		[["--server", "--params=" + ProjectSettings.globalize_path(path)], ""],
+		[["--server", "--params"], "needs a map save"],
+		[["--server", "--params", "--port=9799"], "needs a map save"],
+		[["--server", "--params="], "needs a map save"],
+		[["--server", "--params", "user://no_such_save.json"], "no map save"],
+	]:
+		var got: Dictionary = main_script.server_params_from_args(PackedStringArray(case[0]))
+		var has_file: bool = case[0].size() > 1 and case[1] == ""
+		var ok: bool = (got["error"] == "" if case[1] == "" else case[1] in got["error"])
+		if ok and has_file:
+			ok = got["params"] != null and got["params"].to_dict() == params.to_dict()
+		elif ok:
+			ok = got["params"] == null
+		if not ok:
+			printerr("FAIL server_params_from_args %s = %s" % [case[0], got])
+			fail += 1
+	DirAccess.remove_absolute(path)
+	if fail == 0:
+		print("PASS test_server_params_from_args")
+	return fail
+
+
 func _free_udp_port() -> int:
 	## A random UDP port in 20000-59999 that ENet can bind right now, or 0.
 	## Fixed ports fail when another run or service holds them.
@@ -3409,6 +3449,67 @@ func _test_dedicated_server_join() -> int:
 	scene.queue_free()
 	if fail == 0:
 		print("PASS test_dedicated_server_join (client %s)" % client_id)
+	return fail
+
+
+func _test_dedicated_server_params_file() -> int:
+	## `-- --server --params <file>` hosts the map in that save: a client that
+	## joins gets exactly its params. A missing file stops the server with
+	## exit 1 before it listens. Both server runs have a hard `timeout`.
+	print("-- test_dedicated_server_params_file")
+	var fail := 0
+	var exe := OS.get_executable_path()
+	var project := ProjectSettings.globalize_path("res://")
+	await process_frame
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL dedicated_server_params_file found no free UDP port")
+		return 1
+	var out := []
+	var code := OS.execute("timeout", ["-k", "5", "30", exe, "--headless", "--path", project,
+		"--", "--server", "--port=%d" % port, "--params=user://no_such_save.json"], out, true)
+	if code != 1 or not "no map save" in "".join(out):
+		printerr("FAIL dedicated_server_params_file missing file: exit %s, want 1 and 'no map save'" % code)
+		fail += 1
+
+	var params := MapGenParams.make_defaults()
+	params.altitude_seed = 2201
+	params.moisture_seed = 2202
+	params.temperature_seed = 2203
+	params.items_seed = 2204
+	params.biome_seed = 2205
+	params.water_max_alt = 0.125
+	var saved := MapSave.save_map(params, "test_dedicated_server_params")
+	if saved["error"] != "":
+		printerr("FAIL dedicated_server_params_file save: %s" % saved["error"])
+		return fail + 1
+	# `timeout` forwards the TERM below to the server and kills it after 90 s
+	# whatever happens to this run.
+	var pid := OS.create_process("timeout", ["-k", "5", "90", exe, "--headless", "--path", project,
+		"--", "--server", "--port=%d" % port, "--params=" + ProjectSettings.globalize_path(saved["path"])])
+	if pid <= 0:
+		printerr("FAIL dedicated_server_params_file could not start the server process")
+		return fail + 1
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	scene.add_player_joined(port)
+	var deadline := Time.get_ticks_msec() + 30000
+	while Time.get_ticks_msec() < deadline and OS.is_process_running(pid):
+		if scene.world_params != null and scene.world_params.altitude_seed != 0:
+			break
+		await process_frame
+	var got: MapGenParams = scene.world_params
+	if got == null or got.to_dict() != params.to_dict():
+		printerr("FAIL dedicated_server_params_file client got %s, want %s" % [
+			got.to_dict() if got != null else null, params.to_dict()])
+		fail += 1
+	OS.execute("kill", ["-TERM", str(pid)])
+	scene.enet_peer.close()
+	scene.multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	scene.queue_free()
+	DirAccess.remove_absolute(saved["path"])
+	if fail == 0:
+		print("PASS test_dedicated_server_params_file")
 	return fail
 
 

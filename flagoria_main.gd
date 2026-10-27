@@ -15,12 +15,18 @@ func _ready():
 	get_node("CanvasLayer2/MainMenu").connect("new_player_joined", add_player_joined)
 	get_node("World").child_entered_tree.connect(_on_world_child_entered)
 
-	var server_port := server_port_from_args(OS.get_cmdline_user_args())
+	var args := OS.get_cmdline_user_args()
+	var server_port := server_port_from_args(args)
 	if server_port == -1:
 		push_error("dedicated server: --port must be a number from 1 to 65535")
 		get_tree().quit(1)
-	elif server_port > 0 and start_dedicated_server(server_port) != OK:
-		get_tree().quit(1)
+	elif server_port > 0:
+		var loaded := server_params_from_args(args)
+		if loaded["error"] != "":
+			push_error("dedicated server: " + loaded["error"])
+			get_tree().quit(1)
+		elif start_dedicated_server(server_port, loaded["params"]) != OK:
+			get_tree().quit(1)
 
 
 static func server_port_from_args(args: PackedStringArray) -> int:
@@ -38,12 +44,31 @@ static func server_port_from_args(args: PackedStringArray) -> int:
 	return port_text.to_int()
 
 
-func start_dedicated_server(port: int) -> Error:
-	## Host with the active MapGen params and no local player or menu. Remote
-	## clients join and receive the params through the normal Join path.
+static func server_params_from_args(args: PackedStringArray) -> Dictionary:
+	## Map params for `--params <file>` or `--params=<file>`, a map save
+	## (MapSave). {"params": MapGenParams, or null without --params, "error"}.
+	var path := ""
+	for i in args.size():
+		if args[i] == "--params":
+			path = args[i + 1] if i + 1 < args.size() else ""
+			if path == "" or path.begins_with("--"):
+				return {"params": null, "error": "--params needs a map save file"}
+		elif args[i].begins_with("--params="):
+			path = args[i].trim_prefix("--params=")
+			if path == "":
+				return {"params": null, "error": "--params needs a map save file"}
+	if path == "":
+		return {"params": null, "error": ""}
+	return MapSave.load_map(path)
+
+
+func start_dedicated_server(port: int, params: MapGenParams = null) -> Error:
+	## Host with `params` (the active MapGen params when null) and no local
+	## player or menu. Remote clients join and receive the params through the
+	## normal Join path.
 	get_node("CanvasLayer2/MainMenu").hide()
 	get_node("/root/MusicPlayer").stop(0.0)  # no one listens on a dedicated server
-	var err := setup_server(get_node("/root/MapGen").params, port)
+	var err := setup_server(params if params != null else get_node("/root/MapGen").params, port)
 	if err != OK:
 		push_error("dedicated server: cannot listen on UDP port %s (error %s)" % [port, err])
 		return err
