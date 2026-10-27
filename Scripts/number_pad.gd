@@ -11,6 +11,11 @@ const KEYS := ["1", "2", "3", "4", "5", "6", "7", "8", "9", "Delete", "0", "OK"]
 const KEY_SIZE := Vector2(44, 26)
 
 var target: LineEdit
+## Pointers (mouse left button, touch indexes) held down right now.
+var _held := {}
+## True while the press that opened the pad is still held. Its release, and the
+## emulated twin of that press, belong to the tap on the field, not to the pad.
+var _opening_tap := false
 
 @onready var _panel: PanelContainer = $Panel
 @onready var _grid: GridContainer = $Panel/Margin/Grid
@@ -40,6 +45,7 @@ func attach(field: LineEdit) -> void:
 
 func open(field: LineEdit) -> void:
 	target = field
+	_opening_tap = not _held.is_empty()
 	show()
 	_place_beside(field)
 
@@ -66,10 +72,35 @@ func _on_key(key: String) -> void:
 	target.caret_column = target.text.length()
 
 
+func _input(event: InputEvent) -> void:
+	## Track held pointers before the GUI routes the event. On Android a tap
+	## arrives as an emulated mouse press, then the touch press, then both
+	## releases; the mouse press focuses the field and opens the pad, so the
+	## touch press and release of that same tap land on the pad. A new tap
+	## starts only when nothing is held.
+	var key = _pointer_key(event)
+	if key == null:
+		return
+	if event.pressed:
+		# A press of a key still marked held means its release was lost.
+		if _held.is_empty() or _held.has(key):
+			_held.clear()
+			_opening_tap = false
+		_held[key] = true
+	else:
+		_held.erase(key)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		_held.clear()
+
+
 func _gui_input(event: InputEvent) -> void:
 	# The pad panel takes its own clicks, so a tap that reaches here is outside it.
-	if _is_tap(event):
+	if _pointer_key(event) != null:
 		accept_event()
+	if _is_tap(event) and not _opening_tap:
 		close()
 
 
@@ -101,6 +132,14 @@ static func _keep_digits(field: LineEdit) -> void:
 
 static func _max_digits(field: LineEdit) -> int:
 	return field.max_length if field.max_length > 0 else DEFAULT_MAX_DIGITS
+
+
+static func _pointer_key(event: InputEvent) -> Variant:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		return "mouse"
+	if event is InputEventScreenTouch:
+		return "touch%d" % event.index
+	return null
 
 
 static func _is_tap(event: InputEvent) -> bool:

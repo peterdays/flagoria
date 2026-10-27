@@ -39,77 +39,82 @@ theme_override_constants/separation = 3
 
 [node name="SeedRow" type="HBoxContainer" parent="Margin/VBox/Scroll/Form"]
 layout_mode = 2
+alignment = 1
 
 [node name="Label" type="Label" parent="Margin/VBox/Scroll/Form/SeedRow"]
 custom_minimum_size = Vector2(140, 0)
 layout_mode = 2
-size_flags_horizontal = 3
 text = "Altitude seed"
+horizontal_alignment = 1
 
 [node name="AltitudeSeed" type="LineEdit" parent="Margin/VBox/Scroll/Form/SeedRow"]
-custom_minimum_size = Vector2(100, 22)
+custom_minimum_size = Vector2(140, 22)
 layout_mode = 2
-size_flags_horizontal = 3
+alignment = 1
 placeholder_text = "0 = random"
 
 [node name="SeedRow2" type="HBoxContainer" parent="Margin/VBox/Scroll/Form"]
 layout_mode = 2
+alignment = 1
 
 [node name="Label" type="Label" parent="Margin/VBox/Scroll/Form/SeedRow2"]
 custom_minimum_size = Vector2(140, 0)
 layout_mode = 2
-size_flags_horizontal = 3
 text = "Moisture seed"
+horizontal_alignment = 1
 
 [node name="MoistureSeed" type="LineEdit" parent="Margin/VBox/Scroll/Form/SeedRow2"]
-custom_minimum_size = Vector2(100, 22)
+custom_minimum_size = Vector2(140, 22)
 layout_mode = 2
-size_flags_horizontal = 3
+alignment = 1
 placeholder_text = "0 = random"
 
 [node name="SeedRow3" type="HBoxContainer" parent="Margin/VBox/Scroll/Form"]
 layout_mode = 2
+alignment = 1
 
 [node name="Label" type="Label" parent="Margin/VBox/Scroll/Form/SeedRow3"]
 custom_minimum_size = Vector2(140, 0)
 layout_mode = 2
-size_flags_horizontal = 3
 text = "Temperature seed"
+horizontal_alignment = 1
 
 [node name="TemperatureSeed" type="LineEdit" parent="Margin/VBox/Scroll/Form/SeedRow3"]
-custom_minimum_size = Vector2(100, 22)
+custom_minimum_size = Vector2(140, 22)
 layout_mode = 2
-size_flags_horizontal = 3
+alignment = 1
 placeholder_text = "0 = random"
 
 [node name="SeedRow4" type="HBoxContainer" parent="Margin/VBox/Scroll/Form"]
 layout_mode = 2
+alignment = 1
 
 [node name="Label" type="Label" parent="Margin/VBox/Scroll/Form/SeedRow4"]
 custom_minimum_size = Vector2(140, 0)
 layout_mode = 2
-size_flags_horizontal = 3
 text = "Items seed"
+horizontal_alignment = 1
 
 [node name="ItemsSeed" type="LineEdit" parent="Margin/VBox/Scroll/Form/SeedRow4"]
-custom_minimum_size = Vector2(100, 22)
+custom_minimum_size = Vector2(140, 22)
 layout_mode = 2
-size_flags_horizontal = 3
+alignment = 1
 placeholder_text = "0 = random"
 
 [node name="SeedRow5" type="HBoxContainer" parent="Margin/VBox/Scroll/Form"]
 layout_mode = 2
+alignment = 1
 
 [node name="Label" type="Label" parent="Margin/VBox/Scroll/Form/SeedRow5"]
 custom_minimum_size = Vector2(140, 0)
 layout_mode = 2
-size_flags_horizontal = 3
 text = "Biome seed"
+horizontal_alignment = 1
 
 [node name="BiomeSeed" type="LineEdit" parent="Margin/VBox/Scroll/Form/SeedRow5"]
-custom_minimum_size = Vector2(100, 22)
+custom_minimum_size = Vector2(140, 22)
 layout_mode = 2
-size_flags_horizontal = 3
+alignment = 1
 placeholder_text = "0 = random"
 
 [node name="NoiseTypeRow" type="HBoxContainer" parent="Margin/VBox/Scroll/Form"]
