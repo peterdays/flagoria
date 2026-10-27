@@ -10,7 +10,9 @@ extends SceneTree
 ## picked for each player that joined, how many deaths its own player had
 ## and the first engine errors this process logged. It quits once PATH.stop exists. The server also kills every player
 ## in one frame once PATH.kill exists, so they all respawn together, and
-## again each time the text in PATH.kill changes.
+## again each time the text in PATH.kill changes. While PATH.walk exists,
+## this peer holds the input action named in it (for example ui_right), so
+## its own player walks through the normal movement code.
 
 var _out := ""
 var _id := 0
@@ -19,6 +21,7 @@ var _respawned_at := Vector2.INF
 var _origin := Vector2.INF
 var _kill_text = null
 var _deaths := 0
+var _walking := ""
 var _errors := _ErrorLog.new()
 
 
@@ -90,6 +93,14 @@ func _run() -> void:
 			for child in world.get_children():
 				if child is CharacterBody2D:
 					child.health.set_health_now(0)
+		var walk := FileAccess.get_file_as_string(_out + ".walk").strip_edges() \
+				if FileAccess.file_exists(_out + ".walk") else ""
+		if walk != _walking:
+			if _walking != "":
+				Input.action_release(_walking)
+			if walk != "" and InputMap.has_action(walk):
+				Input.action_press(walk)
+			_walking = walk
 		if Time.get_ticks_msec() >= next_write:
 			next_write = Time.get_ticks_msec() + 100
 			_write(main, world)
