@@ -16,6 +16,9 @@ signal totals_received
 
 const SERVER_ID := 1
 
+## Point values, tuned here and nowhere else.
+const DISCOVERY_POINTS := 1  ## first player to stand in a map chunk (DiscoveryPoints)
+
 var _totals := {}  ## peer id -> points
 
 
