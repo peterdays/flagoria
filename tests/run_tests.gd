@@ -587,6 +587,9 @@ func _spawn_session(mode: String, joiners: int) -> int:
 
 
 func _remove_dir(dir: String) -> void:
+	## Quiet when dir does not exist (the first clean-up of a fresh session).
+	if not DirAccess.dir_exists_absolute(dir):
+		return
 	for file in DirAccess.get_files_at(dir):
 		DirAccess.remove_absolute(dir.path_join(file))
 	DirAccess.remove_absolute(dir)
