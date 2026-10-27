@@ -4,10 +4,30 @@ extends SceneTree
 ## Run some: godot --headless --path . --script res://tests/run_tests.gd -- --only=map_zoom[,mob_chase]
 ## List:     godot --headless --path . --script res://tests/run_tests.gd -- --list
 ## Every `func _test_*() -> int` below is registered automatically, in source order.
-## Exit 0 on success, 1 on failure or an unknown test name.
+## Exit 0 on success, 1 on failure or an unknown test name. A SCRIPT ERROR
+## logged while a test runs, even inside a helper it goes on past, fails it.
 
 func _initialize() -> void:
 	call_deferred("_run")
+
+
+class _ScriptErrorCount extends Logger:
+	## Godot may log from any thread.
+	var _count := 0
+	var _lock := Mutex.new()
+
+	func _log_error(_function: String, _file: String, _line: int, _code: String, _rationale: String,
+			_editor_notify: bool, error_type: int, _script_backtraces: Array[ScriptBacktrace]) -> void:
+		if error_type == ERROR_TYPE_SCRIPT:
+			_lock.lock()
+			_count += 1
+			_lock.unlock()
+
+	func count() -> int:
+		_lock.lock()
+		var n := _count
+		_lock.unlock()
+		return n
 
 
 func _run() -> void:
@@ -37,8 +57,15 @@ func _run() -> void:
 			quit(1)
 			return
 	var failures := 0
+	var script_errors := _ScriptErrorCount.new()
+	OS.add_logger(script_errors)
 	for test_name in picked:
-		failures += await call(test_name)
+		var before := script_errors.count()
+		var result = await call(test_name)
+		var raised := script_errors.count() - before
+		if raised > 0:
+			printerr("FAIL %s logged %d SCRIPT ERROR(s)" % [test_name.trim_prefix("_"), raised])
+		failures += (result if result is int else 1) + raised
 	print("Ran %d of %d tests." % [picked.size(), names.size()])
 	if failures == 0:
 		print("All tests passed.")
@@ -4874,3 +4901,4 @@ func _test_respawn_teleport_ghosts() -> int:
 	if fail == 0:
 		print("PASS test_respawn_teleport_ghosts")
 	return fail
+
