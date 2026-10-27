@@ -5060,3 +5060,60 @@ func _test_discovery_messages() -> int:
 	if fail == 0:
 		print("PASS test_discovery_messages")
 	return fail
+
+
+func _test_saved_maps_list_rename_delete() -> int:
+	## The saved-maps list shows each save's name and date, newest first, and
+	## rename and delete act on the right file. Runs in a temporary directory.
+	print("-- test_saved_maps_list_rename_delete")
+	var fail := 0
+	var dir := "user://test_saved_maps_%d/" % OS.get_process_id()
+	if MapSave.list_saves(dir) != []:
+		printerr("FAIL saved_maps: missing directory lists %s, want []" % [MapSave.list_saves(dir)])
+		fail += 1
+	DirAccess.make_dir_recursive_absolute(dir)
+	# [name, modified time]; a non-save file must not be listed.
+	var files := [["Alpha", 1000], ["beta", 3000], ["Gamma", 2000]]
+	for entry in files:
+		var file := FileAccess.open(dir + entry[0] + ".json", FileAccess.WRITE)
+		file.store_string('{"format_version": 1, "params": {}}')
+		file.close()
+		# Godot cannot set a file's modified time; touch sets it to the second.
+		OS.execute("touch", ["-d", "@%d" % entry[1], ProjectSettings.globalize_path(dir + entry[0] + ".json")])
+	FileAccess.open(dir + "notes.txt", FileAccess.WRITE).close()
+
+	var listed: Array[Dictionary] = MapSave.list_saves(dir)
+	var names: Array = listed.map(func(row): return row["name"])
+	if names != ["beta", "Gamma", "Alpha"] or listed[0]["modified"] != 3000 or listed[0]["path"] != dir + "beta.json":
+		printerr("FAIL saved_maps: listed %s, want beta, Gamma, Alpha newest first" % [listed])
+		fail += 1
+
+	var cases := [
+		[["Gamma", "Delta"], "", ["beta", "Delta", "Alpha"]],
+		[["Delta", "Alpha"], "already", null],
+		[["missing", "Other"], "no map save", null],
+		[["Delta", "  "], "name", null],
+	]
+	for case in cases:
+		var err: String = MapSave.rename_save(case[0][0], case[0][1], dir)
+		var after: Array = MapSave.list_saves(dir).map(func(row): return row["name"])
+		if (err != "" if case[1] == "" else not case[1] in err) or (case[2] != null and after != case[2]):
+			printerr("FAIL saved_maps: rename %s -> %s gave error=%s list=%s" % [case[0][0], case[0][1], err, after])
+			fail += 1
+	if FileAccess.get_file_as_string(dir + "Delta.json") != '{"format_version": 1, "params": {}}':
+		printerr("FAIL saved_maps: renamed save lost its contents")
+		fail += 1
+
+	var delete_error: String = MapSave.delete_save("beta", dir)
+	var missing_error: String = MapSave.delete_save("beta", dir)
+	var left: Array = MapSave.list_saves(dir).map(func(row): return row["name"])
+	if delete_error != "" or not "no map save" in missing_error or left != ["Delta", "Alpha"]:
+		printerr("FAIL saved_maps: delete gave %s / %s, list %s" % [delete_error, missing_error, left])
+		fail += 1
+
+	for name in DirAccess.get_files_at(dir):
+		DirAccess.remove_absolute(dir + name)
+	DirAccess.remove_absolute(dir)
+	if fail == 0:
+		print("PASS test_saved_maps_list_rename_delete")
+	return fail

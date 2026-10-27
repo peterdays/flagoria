@@ -75,3 +75,43 @@ static func load_map(path: String) -> Dictionary:
 	params.biome_frequency = 0.0
 	params.from_dict(parsed["params"])
 	return {"params": params, "error": ""}
+
+
+static func list_saves(dir: String = SAVE_DIR) -> Array[Dictionary]:
+	## The saved maps in dir, newest first: {"name", "path", "modified"}, where
+	## name is the file name without ".json" and modified is Unix seconds.
+	## Files are not parsed; load_map reports a broken one.
+	var rows: Array[Dictionary] = []
+	if not DirAccess.dir_exists_absolute(dir):
+		return rows
+	for file_name in DirAccess.get_files_at(dir):
+		if file_name.get_extension() == "json":
+			var path := dir + file_name
+			rows.append({"name": file_name.get_basename(), "path": path, "modified": FileAccess.get_modified_time(path)})
+	rows.sort_custom(func(a, b): return a["modified"] > b["modified"] or (a["modified"] == b["modified"] and a["name"] < b["name"]))
+	return rows
+
+
+static func rename_save(save_name: String, new_name: String, dir: String = SAVE_DIR) -> String:
+	## Renames a save in dir; returns "" or an error. The new name goes through
+	## validate_filename like save_map's, and an existing save is never replaced.
+	var path := dir + save_name + ".json"
+	var clean := new_name.strip_edges().validate_filename()
+	if not FileAccess.file_exists(path):
+		return "no map save named %s" % save_name
+	if clean == "":
+		return "a save needs a name"
+	var new_path := dir + clean + ".json"
+	if FileAccess.file_exists(new_path):
+		return "a map save named %s already exists" % clean
+	var err := DirAccess.rename_absolute(path, new_path)
+	return "" if err == OK else "cannot rename %s to %s (error %s)" % [save_name, clean, err]
+
+
+static func delete_save(save_name: String, dir: String = SAVE_DIR) -> String:
+	## Deletes a save in dir; returns "" or an error.
+	var path := dir + save_name + ".json"
+	if not FileAccess.file_exists(path):
+		return "no map save named %s" % save_name
+	var err := DirAccess.remove_absolute(path)
+	return "" if err == OK else "cannot delete %s (error %s)" % [save_name, err]
