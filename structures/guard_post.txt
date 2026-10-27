@@ -1,0 +1,23 @@
+flagoria-structure 1
+name: guard_post
+version: 1
+size: 5x4
+anchor: 2,3
+tags: defense, starter
+; Walls and gates are auto-solved from neighbours; the flag takes the owner's colour.
+legend:
+  # = WALL_H auto
+  F = PROP_FLAG_BLUE team
+  G = WALL_GATE_H auto
+  T = WALL_POST
+  s = SAND
+ground:
+  .....
+  .sss.
+  .sss.
+  ..s..
+object:
+  T###T
+  #...#
+  #.F.#
+  ##G##
