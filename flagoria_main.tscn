@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3 uid="uid://cxtnu53ko1bon"]
+[gd_scene load_steps=13 format=3 uid="uid://cxtnu53ko1bon"]
 
 [ext_resource type="Script" path="res://flagoria_main.gd" id="1_p55uv"]
 [ext_resource type="Script" path="res://addons/virtual_joystick/scripts/virtual_joystick.gd" id="2_54anv"]
@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://TouchScreenButton.gd" id="7_vw8yj"]
 [ext_resource type="Script" path="res://Scripts/hearts_hud.gd" id="8_hearts"]
 [ext_resource type="Script" path="res://Scripts/mob_spawner.gd" id="8_mobs"]
+[ext_resource type="PackedScene" path="res://ingame_menu.tscn" id="9_ingame_menu"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_bm55c"]
 radius = 250.0
@@ -43,6 +44,8 @@ offset_right = 33.0
 offset_bottom = 13.0
 mouse_filter = 2
 script = ExtResource("8_hearts")
+
+[node name="InGameMenu" parent="CanvasLayer1" instance=ExtResource("9_ingame_menu")]
 
 [node name="World" type="Node2D" parent="."]
 
