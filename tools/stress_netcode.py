@@ -40,9 +40,7 @@ ERROR_RE = re.compile(r"SCRIPT ERROR:|Parse [Ee]rror|Failed to load script|Faile
 FUNC_RE = re.compile(r"^func (\w+)\(", re.M)
 # Scenarios that may fail once per run for a known reason. Remove an entry when
 # its issue is fixed.
-KNOWN_FLAKY = {
-    "test_player_respawn_hold_releases": "#176",  # last joiner sometimes never connects
-}
+KNOWN_FLAKY: dict[str, str] = {}  # e.g. {"test_name": "#123"}
 
 
 def net_scenarios(source: str) -> list[str]:
