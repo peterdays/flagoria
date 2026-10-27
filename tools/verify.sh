@@ -23,10 +23,45 @@ GODOT="${GODOT:-godot}"
 # play session, cannot leak into the checks. An XDG var the caller already set
 # is kept.
 verify_tmp="$(mktemp -d)"
-trap 'rm -rf "${verify_tmp}"' EXIT
+# Tests start servers and clients with OS.create_process, which puts each one
+# in its own session, so Ctrl-C on this script never reaches them and a failed
+# or interrupted run would leave them running. Tag the run in the environment,
+# which every child inherits, and on exit kill any Godot process that still
+# carries the tag. Needs /proc (Linux); elsewhere this is a no-op.
+export FLAGORIA_VERIFY_RUN="${verify_tmp}"
+kill_tagged_godots() {
+  local godot_exe env pid pids=()
+  godot_exe="$(readlink -f "$(command -v "$GODOT" 2>/dev/null)" 2>/dev/null)" || return 0
+  [[ -n "${godot_exe}" ]] || return 0
+  for env in /proc/[0-9]*/environ; do
+    pid="${env#/proc/}"
+    pid="${pid%/environ}"
+    [[ "$(readlink "/proc/${pid}/exe" 2>/dev/null)" == "${godot_exe}" ]] || continue
+    if grep -qzxF "FLAGORIA_VERIFY_RUN=${verify_tmp}" "${env}" 2>/dev/null; then
+      pids+=("${pid}")
+    fi
+  done
+  [[ ${#pids[@]} -eq 0 ]] && return 0
+  echo "Stopping ${#pids[@]} Godot process(es) left by this run:" >&2
+  for pid in "${pids[@]}"; do
+    echo "  ${pid} $(tr '\0' ' ' <"/proc/${pid}/cmdline" 2>/dev/null | cut -c1-200)" >&2
+  done
+  kill -TERM "${pids[@]}" 2>/dev/null || true
+  local _ alive
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    alive=()
+    for pid in "${pids[@]}"; do
+      kill -0 "${pid}" 2>/dev/null && alive+=("${pid}")
+    done
+    [[ ${#alive[@]} -eq 0 ]] && return 0
+    sleep 0.2
+  done
+  kill -KILL "${alive[@]}" 2>/dev/null || true
+}
+trap 'kill_tagged_godots; rm -rf "${verify_tmp}"' EXIT
 # Ctrl-C or kill must fail the run. Without these traps bash keeps going after
 # the current Godot step and can still print "Verification passed." and exit 0.
-# The EXIT trap above still removes the temp dirs.
+# The EXIT trap above still stops tagged Godots and removes the temp dirs.
 trap 'echo "error: interrupted (SIGINT)" >&2; exit 130' INT
 trap 'echo "error: terminated (SIGTERM)" >&2; exit 143' TERM
 export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-${verify_tmp}/config}"
