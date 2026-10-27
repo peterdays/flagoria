@@ -3576,6 +3576,121 @@ func _test_map_settings_number_pad() -> int:
 		print("PASS test_map_settings_number_pad (%s fields)" % fields.size())
 	return fail
 
+func _test_map_settings_number_pad_touch_tap() -> int:
+	## Tapping a seed field on a phone opens the pad and it stays open. Android
+	## sends each tap as an emulated mouse button first and then the screen
+	## touch (emulate_mouse_from_touch), so the touch lands on the pad that the
+	## mouse press just opened. Desktop with emulate_touch_from_mouse sends the
+	## touch first. Both orders, and a plain mouse click, must keep the pad
+	## open with the field as its target, and a later tap outside must close it.
+	print("-- test_map_settings_number_pad_touch_tap")
+	var panel = load("res://map_admin_panel.tscn").instantiate()
+	root.add_child(panel)
+	await process_frame
+	var pad = panel.get_node("NumberPad")
+	var fail := 0
+	for field_name in ["AltitudeSeed", "MoistureSeed", "TemperatureSeed", "ItemsSeed", "BiomeSeed"]:
+		var f: LineEdit = panel.find_child(field_name)
+		var row: HBoxContainer = f.get_parent()
+		if f.alignment != HORIZONTAL_ALIGNMENT_CENTER or f.size_flags_horizontal & Control.SIZE_EXPAND \
+				or row.alignment != BoxContainer.ALIGNMENT_CENTER:
+			printerr("FAIL number_pad_touch_tap %s is not a centered fixed-width field" % field_name)
+			fail += 1
+	var orders := {
+		"android": ["mouse_down", "touch_down", "mouse_up", "touch_up"],
+		"desktop": ["touch_down", "mouse_down", "touch_up", "mouse_up"],
+		"mouse": ["mouse_down", "mouse_up"],
+		"engine": ["input_touch_down", "input_touch_up"],
+	}
+	for order_name in orders:
+		for field_name in ["AltitudeSeed", "BiomeSeed"]:
+			var field: LineEdit = panel.find_child(field_name)
+			field.release_focus()
+			pad.close()
+			await process_frame
+			field.text = "0"
+			_tap_sequence(field.get_global_rect().get_center(), orders[order_name])
+			await process_frame
+			if not pad.visible or pad.target != field or not field.has_focus():
+				printerr(
+					"FAIL number_pad_touch_tap %s tap on %s: pad open=%s target=%s focus=%s"
+					% [order_name, field_name, pad.visible, pad.target.name if pad.target else "none", field.has_focus()]
+				)
+				fail += 1
+				continue
+			for key in ["Digit7", "Digit3"]:
+				pad.find_child(key, true, false).pressed.emit()
+			if field.text != "73":
+				printerr("FAIL number_pad_touch_tap %s %s typed %s want 73" % [order_name, field_name, field.text])
+				fail += 1
+			_tap_sequence(Vector2(root.get_visible_rect().size) - Vector2(2, 2), orders[order_name])
+			await process_frame
+			if pad.visible:
+				printerr("FAIL number_pad_touch_tap %s tap outside did not close the pad" % order_name)
+				fail += 1
+	panel.queue_free()
+	if fail == 0:
+		print("PASS test_map_settings_number_pad_touch_tap (%s orders)" % orders.size())
+	return fail
+
+func _test_map_settings_uses_menu_theme() -> int:
+	## Map Settings uses the menu theme at its root, so its text uses the game
+	## font and its bottom buttons look like the main menu's.
+	print("-- test_map_settings_uses_menu_theme")
+	var theme: Theme = load("res://art/ui/main_menu_theme.tres")
+	var panel = load("res://map_admin_panel.tscn").instantiate()
+	root.add_child(panel)
+	await process_frame
+	var fail := 0
+	if panel.theme != theme:
+		printerr("FAIL map_settings_uses_menu_theme panel root theme is %s" % panel.theme)
+		fail += 1
+	for button_name in ["RandomSeed", "Reset", "Back", "Start"]:
+		var b: Button = panel.find_child(button_name)
+		if b.get_theme_stylebox("normal") != theme.get_stylebox("normal", "Button") \
+				or b.get_theme_font("font") != theme.default_font \
+				or b.get_theme_font_size("font_size") != theme.get_font_size("font_size", "Button"):
+			printerr("FAIL map_settings_uses_menu_theme %s does not use the menu button style" % button_name)
+			fail += 1
+	for node_name in ["Title", "AltitudeSeed", "NoiseType"]:
+		var c: Control = panel.find_child(node_name)
+		if c.get_theme_font("font") != theme.default_font:
+			printerr("FAIL map_settings_uses_menu_theme %s does not use the game font" % node_name)
+			fail += 1
+	panel.queue_free()
+	if fail == 0:
+		print("PASS test_map_settings_uses_menu_theme")
+	return fail
+
+func _tap_sequence(pos: Vector2, steps: Array) -> void:
+	## Pushes one tap at pos as the given mix of mouse and touch events.
+	## "input_touch_*" goes through Input, which adds the emulated mouse
+	## events itself, in the order a phone build gets them.
+	for step in steps:
+		if step.begins_with("input_touch"):
+			var t := InputEventScreenTouch.new()
+			t.pressed = step.ends_with("down")
+			t.position = root.get_final_transform() * pos  # window pixels
+			Input.parse_input_event(t)
+			Input.flush_buffered_events()
+			continue
+		var ev: InputEvent
+		if step.begins_with("mouse"):
+			var mb := InputEventMouseButton.new()
+			mb.button_index = MOUSE_BUTTON_LEFT
+			mb.pressed = step.ends_with("down")
+			mb.button_mask = MOUSE_BUTTON_MASK_LEFT if mb.pressed else 0
+			mb.position = pos
+			mb.global_position = pos
+			ev = mb
+		else:
+			var st := InputEventScreenTouch.new()
+			st.index = 0
+			st.pressed = step.ends_with("down")
+			st.position = pos
+			ev = st
+		root.push_input(ev, true)
+
 func _test_new_param_needs_no_ui_code() -> int:
 	## A field added to MapGenParams reaches to_dict() and gets a Map Settings
 	## row with no other edits. A runtime subclass stands in for that edit.
