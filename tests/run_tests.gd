@@ -3124,6 +3124,72 @@ func _test_map_settings_rows_from_hints() -> int:
 		print("PASS test_map_settings_rows_from_hints (%s rows)" % expected.size())
 	return fail
 
+func _test_map_settings_number_pad() -> int:
+	## Seed fields use the in-game number pad instead of the OS keyboard:
+	## the pad's keys edit the field, OK or a tap outside closes it, and typed
+	## non-digits are dropped.
+	print("-- test_map_settings_number_pad")
+	var panel = load("res://map_admin_panel.tscn").instantiate()
+	root.add_child(panel)
+	await process_frame
+	var fail := 0
+	var fields := ["AltitudeSeed", "MoistureSeed", "TemperatureSeed", "ItemsSeed", "BiomeSeed"]
+	for field_name in fields:
+		var f: LineEdit = panel.find_child(field_name)
+		if f.virtual_keyboard_enabled:
+			printerr("FAIL number_pad %s still opens the OS keyboard" % field_name)
+			fail += 1
+	var pad = panel.get_node_or_null("NumberPad")
+	if pad == null:
+		printerr("FAIL number_pad Map Settings has no NumberPad")
+		panel.queue_free()
+		return fail + 1
+	var field: LineEdit = panel.find_child("ItemsSeed")
+	field.text = "0"
+	field.grab_focus()
+	await process_frame
+	if not pad.visible or pad.target != field:
+		printerr("FAIL number_pad focusing ItemsSeed did not open the pad for it")
+		fail += 1
+	for key in ["Digit4", "Digit2", "Digit7", "Delete", "Digit9"]:
+		pad.find_child(key, true, false).pressed.emit()
+	if field.text != "429":
+		printerr("FAIL number_pad keys gave %s want 429" % field.text)
+		fail += 1
+	field.caret_column = field.text.length()
+	for ch in "a-5.":
+		var ev := InputEventKey.new()
+		ev.pressed = true
+		ev.unicode = ch.unicode_at(0)
+		root.push_input(ev)
+	await process_frame  # LineEdit emits text_changed deferred
+	if field.text != "4295":
+		printerr("FAIL number_pad typed a-5. gave %s want 4295" % field.text)
+		fail += 1
+	pad.find_child("OK", true, false).pressed.emit()
+	if pad.visible:
+		printerr("FAIL number_pad OK did not close the pad")
+		fail += 1
+	pad.open(field)
+	for down in [true, false]:
+		var click := InputEventMouseButton.new()
+		click.button_index = MOUSE_BUTTON_LEFT
+		click.pressed = down
+		click.position = Vector2(root.get_visible_rect().size) - Vector2(2, 2)
+		root.push_input(click, true)
+	if pad.visible:
+		printerr("FAIL number_pad a tap outside did not close the pad")
+		fail += 1
+	var params = MapGenParams.make_defaults()
+	panel.apply_to_params(params)
+	if params.items_seed != 4295:
+		printerr("FAIL number_pad items_seed=%s want 4295" % params.items_seed)
+		fail += 1
+	panel.queue_free()
+	if fail == 0:
+		print("PASS test_map_settings_number_pad (%s fields)" % fields.size())
+	return fail
+
 func _test_new_param_needs_no_ui_code() -> int:
 	## A field added to MapGenParams reaches to_dict() and gets a Map Settings
 	## row with no other edits. A runtime subclass stands in for that edit.
