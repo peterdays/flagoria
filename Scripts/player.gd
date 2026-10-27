@@ -22,6 +22,8 @@ var input = Vector2.ZERO
 @onready var body_shape: CollisionShape2D = $CollisionShape2D
 
 const HUD_PATH := "/root/Flagoria/CanvasLayer1/HeartsHud"
+const SCORE_HUD_PATH := "/root/Flagoria/CanvasLayer1/ScoreHud"
+const POINTS_PATH := "/root/Flagoria/Points"
 const MapZoom := preload("res://Scripts/map_zoom.gd")
 const SWORD_DAMAGE := 1  ## half-hearts per sword hit
 const REGEN_AMOUNT := 1  ## half-hearts per regen_timer tick
@@ -74,6 +76,10 @@ func _ready():
 	var hud = get_node_or_null(HUD_PATH)
 	if hud:
 		hud.bind(health)
+	var score_hud = get_node_or_null(SCORE_HUD_PATH)
+	var points = get_node_or_null(POINTS_PATH)
+	if score_hud and points:
+		score_hud.bind(points, str(name).to_int())
 
 func _process(_delta):
 	# Hidden while dead; blinks while invulnerable after a hit or a respawn.
