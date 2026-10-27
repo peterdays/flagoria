@@ -898,6 +898,75 @@ func _test_ingame_menu_leave() -> int:
 	print("PASS test_ingame_menu_leave")
 	return 0
 
+
+func _test_quit_prompt_on_back() -> int:
+	## Back (Android) or closing the window asks "Do you want to quit?"
+	## instead of exiting, on the main menu and in a match. Cancel, Esc or a
+	## second back closes the prompt and the game carries on; Quit closes the
+	## network session and quits. The world is not paused behind the prompt.
+	print("-- test_quit_prompt_on_back")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	await process_frame
+	var prompt = scene.get_node_or_null("QuitLayer/QuitPrompt")
+	if prompt == null:
+		printerr("FAIL quit_prompt_on_back: no quit prompt in the main scene")
+		scene.queue_free()
+		await process_frame
+		return 1
+	var quits := []
+	scene.quit_hook = func() -> void: quits.append(true)
+
+	# Main menu: back opens the prompt, a second back closes it.
+	root.propagate_notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	if not prompt.is_open() or not quits.is_empty():
+		printerr("FAIL quit_prompt_on_back: back on the main menu open=%s quits=%d" % [prompt.is_open(), quits.size()])
+		fail += 1
+	root.propagate_notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	if prompt.is_open() or not quits.is_empty():
+		printerr("FAIL quit_prompt_on_back: second back did not just close the prompt (open=%s quits=%d)" % [prompt.is_open(), quits.size()])
+		fail += 1
+	# Window close opens it too; Cancel closes it.
+	root.propagate_notification(Node.NOTIFICATION_WM_CLOSE_REQUEST)
+	var opened_by_close: bool = prompt.is_open()
+	prompt.cancel_button.pressed.emit()
+	if not opened_by_close or prompt.is_open() or not quits.is_empty():
+		printerr("FAIL quit_prompt_on_back: window close open=%s, after Cancel open=%s quits=%d" % [opened_by_close, prompt.is_open(), quits.size()])
+		fail += 1
+
+	# In a match (a hosted session): Esc closes the prompt without opening the
+	# in-game menu, the world keeps running, and Quit closes the session.
+	var port := _free_udp_port()
+	scene.enet_peer.create_server(port)
+	scene.multiplayer.multiplayer_peer = scene.enet_peer
+	scene.get_node("CanvasLayer1").show()  # as Host and Join do
+	var menu = scene.get_node("CanvasLayer1/InGameMenu")
+	root.propagate_notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	var esc := InputEventKey.new()
+	esc.keycode = KEY_ESCAPE
+	esc.physical_keycode = KEY_ESCAPE
+	esc.pressed = true
+	root.push_input(esc)
+	if prompt.is_open() or menu.is_open():
+		printerr("FAIL quit_prompt_on_back: Esc in a match left prompt open=%s, in-game menu open=%s" % [prompt.is_open(), menu.is_open()])
+		fail += 1
+	root.propagate_notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
+	if not prompt.is_open() or paused or not quits.is_empty():
+		printerr("FAIL quit_prompt_on_back: back in a match open=%s paused=%s quits=%d" % [prompt.is_open(), paused, quits.size()])
+		fail += 1
+	prompt.quit_button.pressed.emit()
+	if quits.size() != 1 or not scene.multiplayer.multiplayer_peer is OfflineMultiplayerPeer \
+			or scene.enet_peer.get_connection_status() != MultiplayerPeer.CONNECTION_DISCONNECTED:
+		printerr("FAIL quit_prompt_on_back: Quit quits=%d peer=%s" % [quits.size(), scene.multiplayer.multiplayer_peer])
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_quit_prompt_on_back")
+	return fail
+
+
 func _test_no_decorations_on_water() -> int:
 	print("-- test_no_decorations_on_water")
 	var cases = [

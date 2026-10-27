@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3 uid="uid://cxtnu53ko1bon"]
+[gd_scene load_steps=17 format=3 uid="uid://cxtnu53ko1bon"]
 
 [ext_resource type="Script" path="res://flagoria_main.gd" id="1_p55uv"]
 [ext_resource type="Script" path="res://addons/virtual_joystick/scripts/virtual_joystick.gd" id="2_54anv"]
@@ -11,6 +11,7 @@
 [ext_resource type="Script" path="res://Scripts/hearts_hud.gd" id="8_hearts"]
 [ext_resource type="Script" path="res://Scripts/mob_spawner.gd" id="8_mobs"]
 [ext_resource type="PackedScene" path="res://ingame_menu.tscn" id="9_ingame_menu"]
+[ext_resource type="PackedScene" path="res://quit_prompt.tscn" id="10_quit_prompt"]
 [ext_resource type="Script" path="res://Scripts/points.gd" id="10_points"]
 [ext_resource type="Script" path="res://Scripts/score_hud.gd" id="11_score_hud"]
 [ext_resource type="Script" path="res://Scripts/discovery_points.gd" id="12_discovery"]
@@ -188,6 +189,11 @@ custom_minimum_size = Vector2(28, 0)
 layout_mode = 2
 text = "100%"
 horizontal_alignment = 2
+
+[node name="QuitLayer" type="CanvasLayer" parent="."]
+layer = 10
+
+[node name="QuitPrompt" parent="QuitLayer" instance=ExtResource("10_quit_prompt")]
 
 [connection signal="pressed" from="CanvasLayer1/TouchScreenButton" to="CanvasLayer1/TouchScreenButton" method="_on_pressed"]
 [connection signal="pressed" from="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/MapSettingsButton" to="CanvasLayer2/MainMenu" method="_on_map_settings_pressed"]

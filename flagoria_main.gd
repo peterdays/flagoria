@@ -9,6 +9,8 @@ const Player = preload("res://Player/character_body_2d.tscn")
 var world_params: MapGenParams
 ## Client: the spot the server picked for its own player, until it is placed.
 var _own_spot := Vector2.INF
+## Called instead of SceneTree.quit() when set (tests).
+var quit_hook := Callable()
 
 
 func _ready():
@@ -17,6 +19,7 @@ func _ready():
 	get_node("CanvasLayer2/MainMenu").connect("new_player_added", add_player)
 	get_node("CanvasLayer2/MainMenu").connect("new_player_joined", add_player_joined)
 	get_node("World").child_entered_tree.connect(_on_world_child_entered)
+	$QuitLayer/QuitPrompt.quit_confirmed.connect(quit_game)
 
 	var args := OS.get_cmdline_user_args()
 	var server_port := server_port_from_args(args)
@@ -206,6 +209,17 @@ func leave_to_main_menu() -> void:
 	enet_peer.close()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	get_tree().reload_current_scene()
+
+
+func quit_game() -> void:
+	## Quit from the quit prompt: close the network session first, as leaving
+	## for the main menu does, so other players see this one leave.
+	enet_peer.close()
+	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	if quit_hook.is_valid():
+		quit_hook.call()
+	else:
+		get_tree().quit()
 
 
 func remove_player(peer_id):
