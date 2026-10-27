@@ -3197,6 +3197,7 @@ func _test_map_save_round_trip() -> int:
 	original.moisture_seed = 5252
 	original.temperature_seed = 6262
 	original.items_seed = 7272
+	original.biome_seed = 8282
 	original.water_max_alt = 0.4
 	original.sand_max_alt = 0.48
 	map_gen.params = original
@@ -5091,4 +5092,33 @@ func _test_main_menu_input_no_log_spam() -> int:
 		fail += 1
 	if fail == 0:
 		print("PASS test_main_menu_input_no_log_spam")
+	return fail
+
+
+func _test_map_save_needs_every_seed() -> int:
+	## A save must hold every seed the world used. Any MapGenParams seed left
+	## at 0 would be re-rolled on load, so saving refuses it and writes no file.
+	print("-- test_map_save_needs_every_seed")
+	var fail := 0
+	var seed_keys: Array[String] = []
+	for key in MapGenParams.make_defaults().to_dict().keys():
+		if key.ends_with("_seed"):
+			seed_keys.append(key)
+	if not "biome_seed" in seed_keys:
+		printerr("FAIL map_save_needs_every_seed: biome_seed not among %s" % [seed_keys])
+		fail += 1
+	for unset_key in seed_keys:
+		var params := MapGenParams.make_defaults()
+		for key in seed_keys:
+			params.set(key, 0 if key == unset_key else 17)
+		var save_name: String = "test_unset_" + unset_key
+		DirAccess.remove_absolute(MapSave.path_for(save_name))
+		var result = MapSave.save_map(params, save_name)
+		var written := FileAccess.file_exists(MapSave.path_for(save_name))
+		DirAccess.remove_absolute(MapSave.path_for(save_name))
+		if not unset_key in result["error"] or written:
+			printerr("FAIL map_save_needs_every_seed %s=0: error=%s file written=%s" % [unset_key, result["error"], written])
+			fail += 1
+	if fail == 0:
+		print("PASS test_map_save_needs_every_seed (%s seeds)" % seed_keys.size())
 	return fail
