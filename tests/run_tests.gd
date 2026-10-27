@@ -12,7 +12,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	var skipped := {}
-	var names := _registered_tests(skipped)
+	var names := _registered_tests((get_script() as GDScript).source_code, skipped)
 	for test_name in skipped:
 		printerr("WARNING: skipped %s: %s" % [test_name, skipped[test_name]])
 	var picked := names
@@ -48,13 +48,13 @@ func _run() -> void:
 		quit(1)
 
 
-func _registered_tests(skipped: Dictionary) -> Array[String]:
-	## Every `func _test_*() -> int` in this file, in source order. Adding a
+func _registered_tests(source: String, skipped: Dictionary) -> Array[String]:
+	## Every `func _test_*() -> int` in source, in source order. Adding a
 	## test is just writing the function; nothing else needs to list it.
 	## A test-like function that does not match is left out and recorded in
-	## skipped (name -> reason), so it cannot silently drop out of the run.
+	## skipped ("name (line N)" -> reason), so it cannot silently drop out of
+	## the run.
 	var found: Array[String] = []
-	var source := (get_script() as GDScript).source_code
 	var pattern := RegEx.create_from_string("(?m)^func (_test_[a-z0-9_]+)\\(\\)")
 	for m in pattern.search_all(source):
 		found.append(m.get_string(1))
@@ -77,26 +77,46 @@ func _registered_tests(skipped: Dictionary) -> Array[String]:
 			reasons.append("it takes parameters; tests take none")
 		if reasons.is_empty():
 			reasons.append("write it exactly as `func _test_<lowercase_name>()`")
-		skipped[test_name] = "; ".join(reasons)
+		if test_name in found:
+			reasons.append("the top-level %s is the one that runs" % test_name)
+		var line := source.substr(0, m.get_start()).count("\n") + 1
+		skipped["%s (line %d)" % [test_name, line]] = "; ".join(reasons)
 	return found
+
+
+func _only_problem(names: Array[String], raw: String, skipped: Dictionary) -> String:
+	## Why `--only=<raw>` cannot run, or "" when it names a registered test.
+	## Matches with or without the `test_` prefix, and points a name that only
+	## a skipped function has at that function's WARNING.
+	var key := _only_key(raw)
+	if key in names:
+		return ""
+	for label: String in skipped:
+		if _only_key(label.get_slice(" ", 0).to_lower()) == key.to_lower():
+			return "Test %s is not run: see the WARNING for %s above." % [raw, label]
+	return "No test named %s." % raw
+
+
+func _only_key(raw: String) -> String:
+	## The function name `--only=<raw>` asks for: `x`, `test_x` and `_test_x`
+	## all mean `_test_x`.
+	return "_test_" + raw.trim_prefix("_").trim_prefix("test_")
 
 
 func _filter_tests(names: Array[String], wanted: PackedStringArray, skipped: Dictionary) -> Array[String]:
 	## The tests named in wanted (with or without the `test_` prefix), in run
-	## order. Empty, after printing the known names, if one does not match.
-	## A name that was skipped points at its warning instead of the list.
+	## order. Empty, after printing why, if one does not match.
 	var keys: Array[String] = []
 	for raw in wanted:
-		var key := "_test_" + raw.trim_prefix("_").trim_prefix("test_")
-		if key in skipped:
-			printerr("Test %s is not run: see the WARNING for %s above." % [raw, key])
+		var problem := _only_problem(names, raw, skipped)
+		if problem != "":
+			printerr(problem)
+			if problem.begins_with("No test named"):
+				printerr("Known tests:")
+				for test_name in names:
+					printerr("  " + test_name.trim_prefix("_"))
 			return []
-		if key not in names:
-			printerr("No test named %s. Known tests:" % raw)
-			for test_name in names:
-				printerr("  " + test_name.trim_prefix("_"))
-			return []
-		keys.append(key)
+		keys.append(_only_key(raw))
 	var picked: Array[String] = []
 	for test_name in names:
 		if test_name in keys:
@@ -4873,4 +4893,43 @@ func _test_respawn_teleport_ghosts() -> int:
 	await process_frame
 	if fail == 0:
 		print("PASS test_respawn_teleport_ghosts")
+	return fail
+
+
+func _test_discovery_messages() -> int:
+	## A misnamed test, and an indented copy of a real test's name, are
+	## reported by line, and `--only=` points at the WARNING for them instead
+	## of saying there is no such test (or that a test that runs is skipped).
+	print("-- test_discovery_messages")
+	var fail := 0
+	var source := "\n".join([
+		"func _test_ok() -> int:",
+		"func test_qa_x() -> int:",
+		"class Inner:",
+		"\tfunc _test_ok() -> int:",
+	])
+	var skipped := {}
+	var names := _registered_tests(source, skipped)
+	if names.size() != 1 or names[0] != "_test_ok":
+		printerr("FAIL discovery_messages: registered %s, want [_test_ok]" % [names])
+		fail += 1
+	var want := {
+		"test_qa_x (line 2)": "the name must start with `_test_`",
+		"_test_ok (line 4)": "it is indented; tests must be top-level; the top-level _test_ok is the one that runs",
+	}
+	if skipped != want:
+		printerr("FAIL discovery_messages: skipped %s, want %s" % [skipped, want])
+		fail += 1
+	for case in [
+		["qa_x", "Test qa_x is not run: see the WARNING for test_qa_x (line 2) above."],
+		["test_qa_x", "Test test_qa_x is not run: see the WARNING for test_qa_x (line 2) above."],
+		["ok", ""],
+		["nope", "No test named nope."],
+	]:
+		var got := _only_problem(names, case[0], skipped)
+		if got != case[1]:
+			printerr("FAIL discovery_messages: --only=%s says %s, want %s" % [case[0], got, case[1]])
+			fail += 1
+	if fail == 0:
+		print("PASS test_discovery_messages")
 	return fail

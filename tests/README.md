@@ -6,7 +6,7 @@
 
 Write a `func _test_<name>() -> int` in `tests/run_tests.gd` that prints `-- test_<name>` and returns the number of failures. The runner finds it by name; nothing else needs to list it. Tests run in source order, and each must also pass on its own.
 
-Only top-level, non-static functions named `_test_<lowercase_name>` with no parameters are run. A test-like function that breaks one of these rules (parameters, uppercase letters, `static`, indented, or no leading underscore) is skipped and the runner prints `WARNING: skipped <name>: ...` on stderr.
+Only top-level, non-static functions named `_test_<lowercase_name>` with no parameters are run. A test-like function that breaks one of these rules (parameters, uppercase letters, `static`, indented, or no leading underscore) is skipped and the runner prints `WARNING: skipped <name> (line N): ...` on stderr. `--only=<name>` for such a function points at that warning.
 
 ## Running one test
 
