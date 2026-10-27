@@ -2,6 +2,8 @@ extends Node2D
 
 const PORT = 9786
 var enet_peer = ENetMultiplayerPeer.new()
+## UDP port the main menu's Host button listens on.
+var host_port := PORT
 const Player = preload("res://Player/character_body_2d.tscn")
 @onready var address_entry = $CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/AddressEntry
 var world_params: MapGenParams
@@ -10,7 +12,8 @@ var _own_spot := Vector2.INF
 
 
 func _ready():
-	get_node("CanvasLayer2/MainMenu").connect("new_server_created", setup_server)
+	get_node("CanvasLayer2/MainMenu").connect("new_server_created",
+		func(params: MapGenParams) -> void: setup_server(params, host_port))
 	get_node("CanvasLayer2/MainMenu").connect("new_player_added", add_player)
 	get_node("CanvasLayer2/MainMenu").connect("new_player_joined", add_player_joined)
 	get_node("World").child_entered_tree.connect(_on_world_child_entered)
@@ -193,6 +196,16 @@ func add_player_joined(port: int = PORT):
 	multiplayer.multiplayer_peer = enet_peer
 	var world = get_node("World/worldMap")
 	world.player_spawned = true
+
+
+func leave_to_main_menu() -> void:
+	## Leave the match for the main menu (the in-game menu's Main menu).
+	## Closes the network session, so the port is free to host again, then
+	## reloads this scene: the world, players and mobs are freed, and the new
+	## main menu starts its music as on launch.
+	enet_peer.close()
+	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	get_tree().reload_current_scene()
 
 
 func remove_player(peer_id):

@@ -810,6 +810,94 @@ func _test_map_settings_water_reopen() -> int:
 	print("PASS test_map_settings_water_reopen shown=%s" % shown)
 	return 0
 
+
+func _test_ingame_menu_open_resume() -> int:
+	## During a match the HUD's Menu button, or Esc, opens the in-game menu
+	## and Resume, or Esc again, closes it. On the main menu Esc does nothing.
+	## A closed menu leaves the open map to pinch zoom; an open one covers it.
+	print("-- test_ingame_menu_open_resume")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var cam := Camera2D.new()
+	var zoom := Node.new()
+	zoom.set_script(load("res://Scripts/map_zoom.gd"))
+	cam.add_child(zoom)
+	root.add_child(cam)
+	await process_frame
+	var menu = scene.get_node_or_null("CanvasLayer1/InGameMenu")
+	if menu == null:
+		printerr("FAIL ingame_menu_open_resume: no in-game menu in the HUD")
+		cam.queue_free()
+		scene.queue_free()
+		await process_frame
+		return 1
+	var esc := InputEventKey.new()
+	esc.keycode = KEY_ESCAPE
+	esc.physical_keycode = KEY_ESCAPE
+	esc.pressed = true
+	menu._unhandled_input(esc)
+	if menu.is_open() or menu.menu_button.is_visible_in_tree():
+		printerr("FAIL ingame_menu_open_resume: menu reachable from the main menu")
+		fail += 1
+	scene.get_node("CanvasLayer1").show()  # as Host and Join do
+	var centre: Vector2 = scene.get_viewport().get_visible_rect().get_center()
+	var corner: Vector2 = menu.menu_button.get_global_rect().get_center()
+	if not menu.menu_button.is_visible_in_tree() or not zoom.starts_on_hud(corner) or zoom.starts_on_hud(centre):
+		printerr("FAIL ingame_menu_open_resume: Menu button not shown, or the closed menu covers the map")
+		fail += 1
+	menu.menu_button.pressed.emit()
+	if not menu.is_open() or not zoom.starts_on_hud(centre):
+		printerr("FAIL ingame_menu_open_resume: Menu button did not open the panel over the map")
+		fail += 1
+	menu.resume_button.pressed.emit()
+	if menu.is_open() or not menu.menu_button.visible:
+		printerr("FAIL ingame_menu_open_resume: Resume did not close the panel")
+		fail += 1
+	menu._unhandled_input(esc)
+	var opened_by_esc: bool = menu.is_open()
+	menu._unhandled_input(esc)
+	if not opened_by_esc or menu.is_open():
+		printerr("FAIL ingame_menu_open_resume: Esc open=%s, second Esc open=%s" % [opened_by_esc, menu.is_open()])
+		fail += 1
+	cam.queue_free()
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_ingame_menu_open_resume")
+	return fail
+
+
+func _test_ingame_menu_leave() -> int:
+	## Main menu in the in-game menu returns to the main menu with no network
+	## peer, players or errors left, and a second game hosts on the same port.
+	## Runs tests/ingame_menu_probe.gd in its own process: leaving reloads the
+	## current scene, which this test runner does not have.
+	print("-- test_ingame_menu_leave")
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL ingame_menu_leave found no free UDP port")
+		return 1
+	var output := []
+	var code := OS.execute(
+		OS.get_executable_path(),
+		[
+			"--headless", "--path", ProjectSettings.globalize_path("res://"), "--quit-after", "3000",
+			"--script", "res://tests/ingame_menu_probe.gd", "--", "--port=%d" % port,
+		],
+		output,
+		true
+	)
+	var log_text: String = "".join(output)
+	if code != 0 or not log_text.contains("INGAME_MENU_PROBE_OK"):
+		for line in log_text.split("\n"):
+			if line.contains("ingame_menu_probe"):
+				printerr(line)
+		printerr("FAIL ingame_menu_leave probe exit=%s" % code)
+		return 1
+	print("PASS test_ingame_menu_leave")
+	return 0
+
 func _test_no_decorations_on_water() -> int:
 	print("-- test_no_decorations_on_water")
 	var cases = [
