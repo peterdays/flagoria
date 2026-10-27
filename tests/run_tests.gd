@@ -4,14 +4,37 @@ extends SceneTree
 ## Run some: godot --headless --path . --script res://tests/run_tests.gd -- --only=map_zoom[,mob_chase]
 ## List:     godot --headless --path . --script res://tests/run_tests.gd -- --list
 ## Every `func _test_*() -> int` below is registered automatically, in source order.
-## Exit 0 on success, 1 on failure or an unknown test name.
+## Exit 0 on success, 1 on failure or an unknown test name. A SCRIPT ERROR
+## logged while a test runs, even inside a helper it goes on past, fails it.
 
 func _initialize() -> void:
 	call_deferred("_run")
 
 
+class _ScriptErrorCount extends Logger:
+	## Godot may log from any thread.
+	var _count := 0
+	var _lock := Mutex.new()
+
+	func _log_error(_function: String, _file: String, _line: int, _code: String, _rationale: String,
+			_editor_notify: bool, error_type: int, _script_backtraces: Array[ScriptBacktrace]) -> void:
+		if error_type == ERROR_TYPE_SCRIPT:
+			_lock.lock()
+			_count += 1
+			_lock.unlock()
+
+	func count() -> int:
+		_lock.lock()
+		var n := _count
+		_lock.unlock()
+		return n
+
+
 func _run() -> void:
-	var names := _registered_tests()
+	var skipped := {}
+	var names := _registered_tests((get_script() as GDScript).source_code, skipped)
+	for test_name in skipped:
+		printerr("WARNING: skipped %s: %s" % [test_name, skipped[test_name]])
 	var picked := names
 	for arg in OS.get_cmdline_user_args():
 		if arg == "--list":
@@ -25,7 +48,7 @@ func _run() -> void:
 				printerr("--only= needs at least one test name, e.g. --only=map_zoom (use --list to see the names)")
 				quit(1)
 				return
-			picked = _filter_tests(names, wanted)
+			picked = _filter_tests(names, wanted, skipped)
 			if picked.is_empty():
 				quit(1)
 				return
@@ -34,8 +57,15 @@ func _run() -> void:
 			quit(1)
 			return
 	var failures := 0
+	var script_errors := _ScriptErrorCount.new()
+	OS.add_logger(script_errors)
 	for test_name in picked:
-		failures += await call(test_name)
+		var before := script_errors.count()
+		var result = await call(test_name)
+		var raised := script_errors.count() - before
+		if raised > 0:
+			printerr("FAIL %s logged %d SCRIPT ERROR(s)" % [test_name.trim_prefix("_"), raised])
+		failures += (result if result is int else 1) + raised
 	print("Ran %d of %d tests." % [picked.size(), names.size()])
 	if failures == 0:
 		print("All tests passed.")
@@ -45,42 +75,88 @@ func _run() -> void:
 		quit(1)
 
 
-func _registered_tests() -> Array[String]:
-	## Every `func _test_*() -> int` in this file, in source order. Adding a
+func _registered_tests(source: String, skipped: Dictionary) -> Array[String]:
+	## Every `func _test_*() -> int` in source, in source order. Adding a
 	## test is just writing the function; nothing else needs to list it.
-	## A test-like function that does not match (parameters, uppercase
-	## letters, static, indented, or no leading underscore) is skipped with a
-	## warning on stderr, so it cannot silently drop out of the run.
+	## A test-like function that does not match is left out and recorded in
+	## skipped ("name (line N)" -> reason), so it cannot silently drop out of
+	## the run.
 	var found: Array[String] = []
-	var source := (get_script() as GDScript).source_code
 	var pattern := RegEx.create_from_string("(?m)^func (_test_[a-z0-9_]+)\\(\\)")
 	for m in pattern.search_all(source):
 		found.append(m.get_string(1))
-	var loose := RegEx.create_from_string("(?mi)^[ \\t]*(static[ \\t]+)?func[ \\t]+(_?test_\\w*)[ \\t]*\\([^)]*\\)")
+	var loose := RegEx.create_from_string("(?mi)^([ \\t]*)(static[ \\t]+)?func[ \\t]+(_?test_\\w*)[ \\t]*\\(([^)]*)\\)")
 	var exact := RegEx.create_from_string("^func _test_[a-z0-9_]+\\(\\)$")
 	for m in loose.search_all(source):
-		if exact.search(m.get_string(0)) == null:
-			printerr("WARNING: skipped %s: tests must be a top-level, non-static `func _test_<lowercase_name>()` with no parameters" % m.get_string(2))
+		if exact.search(m.get_string(0)) != null:
+			continue
+		var test_name := m.get_string(3)
+		var reasons: Array[String] = []
+		if m.get_string(1) != "":
+			reasons.append("it is indented; tests must be top-level")
+		if m.get_string(2) != "":
+			reasons.append("it is static; drop `static`")
+		if not test_name.to_lower().begins_with("_test_"):
+			reasons.append("the name must start with `_test_`")
+		if test_name != test_name.to_lower():
+			reasons.append("the name has uppercase letters; use lowercase")
+		if m.get_string(4).strip_edges() != "":
+			reasons.append("it takes parameters; tests take none")
+		if reasons.is_empty():
+			reasons.append("write it exactly as `func _test_<lowercase_name>()`")
+		if test_name in found:
+			reasons.append("the top-level %s is the one that runs" % test_name)
+		var line := source.substr(0, m.get_start()).count("\n") + 1
+		skipped["%s (line %d)" % [test_name, line]] = "; ".join(reasons)
 	return found
 
 
-func _filter_tests(names: Array[String], wanted: PackedStringArray) -> Array[String]:
+func _only_problem(names: Array[String], raw: String, skipped: Dictionary) -> String:
+	## Why `--only=<raw>` cannot run, or "" when it names a registered test.
+	## Matches with or without the `test_` prefix, and points a name that only
+	## a skipped function has at that function's WARNING.
+	var key := _only_key(raw)
+	if key in names:
+		return ""
+	for label: String in skipped:
+		if _only_key(label.get_slice(" ", 0).to_lower()) == key.to_lower():
+			return "Test %s is not run: see the WARNING for %s above." % [raw, label]
+	return "No test named %s." % raw
+
+
+func _only_key(raw: String) -> String:
+	## The function name `--only=<raw>` asks for: `x`, `test_x` and `_test_x`
+	## all mean `_test_x`.
+	return "_test_" + raw.trim_prefix("_").trim_prefix("test_")
+
+
+func _filter_tests(names: Array[String], wanted: PackedStringArray, skipped: Dictionary) -> Array[String]:
 	## The tests named in wanted (with or without the `test_` prefix), in run
-	## order. Empty, after printing the known names, if one does not match.
+	## order. Empty, after printing why, if one does not match.
 	var keys: Array[String] = []
 	for raw in wanted:
-		var key := "_test_" + raw.trim_prefix("_").trim_prefix("test_")
-		if key not in names:
-			printerr("No test named %s. Known tests:" % raw)
-			for test_name in names:
-				printerr("  " + test_name.trim_prefix("_"))
+		var problem := _only_problem(names, raw, skipped)
+		if problem != "":
+			printerr(problem)
+			if problem.begins_with("No test named"):
+				printerr("Known tests:")
+				for test_name in names:
+					printerr("  " + test_name.trim_prefix("_"))
 			return []
-		keys.append(key)
+		keys.append(_only_key(raw))
 	var picked: Array[String] = []
 	for test_name in names:
 		if test_name in keys:
 			picked.append(test_name)
 	return picked
+
+
+func _pre_biome_defaults() -> MapGenParams:
+	## Default params with biomes off. New worlds have biomes on; tests that pin
+	## exact cells or compare against pre-biome maps start from this instead.
+	var params := MapGenParams.make_defaults()
+	params.biome_frequency = 0.0
+	return params
 
 
 func _test_smoke_true() -> int:
@@ -120,7 +196,7 @@ func _test_map_characterization() -> int:
 		printerr("FAIL: World/worldMap missing")
 		return 1
 
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	params.altitude_seed = 2
 	params.moisture_seed = 7
 	params.temperature_seed = 12
@@ -145,6 +221,55 @@ func _test_map_characterization() -> int:
 	scene.queue_free()
 	return fail
 
+
+func _test_map_cli_render_and_stats() -> int:
+	## tools/cli.gd `map render` matches tests/golden/map_render_seed42.txt,
+	## more water_max_alt draws more water, `map stats` is JSON and repeats
+	## byte for byte, and bad input gives an error instead of a random map.
+	print("-- test_map_cli_render_and_stats")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var params: MapGenParams = MapCli.params_for("default", "42")["params"]
+	var rendered := MapCli.ascii(MapCli.generate(world, params))
+	var golden := FileAccess.get_file_as_string("res://tests/golden/map_render_seed42.txt")
+	if rendered != golden:
+		printerr("FAIL map_cli: seed 42 render differs from the golden file; got:\n%s" % rendered)
+		fail += 1
+	params.water_max_alt += 0.1
+	var wetter := MapCli.ascii(MapCli.generate(world, params))
+	if wetter.count("~") <= rendered.count("~"):
+		printerr("FAIL map_cli: water_max_alt +0.1 drew %s water cells, was %s" % [wetter.count("~"), rendered.count("~")])
+		fail += 1
+
+	var first := MapCli.stats(MapCli.generate(world, MapCli.params_for("default", "42")["params"]))
+	var second := MapCli.stats(MapCli.generate(world, MapCli.params_for("default", "42")["params"]))
+	var data = JSON.parse_string(first)
+	if first != second or not data is Dictionary or data["tiles"].get("water", 0) != golden.count("~") \
+			or data["land_cells"] + data["water_cells"] != 32 * 32 or data["islands"] < 1:
+		printerr("FAIL map_cli: stats not stable or wrong:\n%s\n%s" % [first, second])
+		fail += 1
+
+	for case in [
+		[["map", "draw"], "unknown command"],
+		[["map", "render", "--seed"], "bad option"],
+		[["map", "render", "--format", "png"], "ascii only"],
+	]:
+		var parsed := MapCli.parse(PackedStringArray(case[0]))
+		if not case[1] in parsed["error"]:
+			printerr("FAIL map_cli: %s gave error '%s', want '%s'" % [case[0], parsed["error"], case[1]])
+			fail += 1
+	for case in [["default", "", "is 0 (random)"], ["default", "abc", "--seed"], ["res://no_such_save.json", "7", "no map save"]]:
+		var resolved := MapCli.params_for(case[0], case[1])
+		if resolved["params"] != null or not case[2] in resolved["error"]:
+			printerr("FAIL map_cli: params %s seed '%s' gave '%s', want '%s'" % [case[0], case[1], resolved["error"], case[2]])
+			fail += 1
+	scene.queue_free()
+	if fail == 0:
+		print("PASS test_map_cli_render_and_stats")
+	return fail
+
 func _test_spawn_on_land() -> int:
 	print("-- test_spawn_on_land")
 	var cases = [
@@ -162,7 +287,7 @@ func _test_spawn_on_land() -> int:
 		return 1
 
 	for case in cases:
-		var params = MapGenParams.make_defaults()
+		var params = _pre_biome_defaults()
 		params.altitude_seed = case["alt"]
 		params.moisture_seed = case["moist"]
 		params.temperature_seed = case["temp"]
@@ -198,7 +323,7 @@ func _test_spawn_on_land() -> int:
 	return fail
 
 func _spawn_params(seed_value: int, biome_frequency: float) -> MapGenParams:
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	params.altitude_seed = seed_value
 	params.moisture_seed = seed_value
 	params.temperature_seed = seed_value
@@ -240,6 +365,427 @@ func _test_spawn_reachable() -> int:
 	return fail
 
 
+func _test_spawn_radius_no_overlap() -> int:
+	## Six players joining at once, then all respawning at once (and again
+	## while half stand around the spawn) each get a spot: clear walkable
+	## ground, within SPAWN_RADIUS of the spawn point, and no two collision
+	## boxes overlap.
+	print("-- test_spawn_radius_no_overlap")
+	var fail := 0
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var radius: float = world.SPAWN_RADIUS
+	for seed_value in [11, 42, 99]:
+		world.apply_map_params(_spawn_params(seed_value, 0.003))
+		var cell: Vector2i = world.resolve_player_spawn()
+		var origin: Vector2 = world.map_to_local(cell)
+		var players: Array = []
+		for peer_id in range(2, 8):
+			scene.add_player(peer_id)
+			players.append(scene.get_node("World/%s" % peer_id))
+		var check := func(stage: String) -> int:
+			var bad := 0
+			for i in players.size():
+				var p = players[i]
+				var label := "seed=%s %s player %s at %s" % [seed_value, stage, p.name, p.position]
+				if not world.is_clear_ground(world.local_to_map(p.position)):
+					printerr("FAIL spawn_radius %s not on clear walkable ground" % label)
+					bad += 1
+				if p.position.distance_to(origin) > radius:
+					printerr("FAIL spawn_radius %s is %s px from the spawn, radius %s" % [label, p.position.distance_to(origin), radius])
+					bad += 1
+				var box: Rect2 = _body_rect(p)
+				for j in range(i + 1, players.size()):
+					if box.intersects(_body_rect(players[j])):
+						printerr("FAIL spawn_radius %s overlaps player %s at %s" % [label, players[j].name, players[j].position])
+						bad += 1
+			return bad
+		fail += check.call("join")
+		var joined: Array[Vector2] = []
+		for p in players:
+			joined.append(p.position)
+		if players[0].position != origin:
+			printerr("FAIL spawn_radius seed=%s first player at %s, not the spawn %s" % [seed_value, players[0].position, origin])
+			fail += 1
+		# Everyone dies on the same spot and respawns on the same frame.
+		for p in players:
+			p.health.set_health_now(0)
+			p.position = origin
+		for p in players:
+			p.health.respawn()
+		fail += check.call("respawn all")
+		var respawned: Array[Vector2] = []
+		for p in players:
+			respawned.append(p.position)
+		if respawned != joined:
+			printerr("FAIL spawn_radius seed=%s respawn spots %s differ from join spots %s" % [seed_value, respawned, joined])
+			fail += 1
+		# Half die and respawn while the others still stand on the first spots.
+		for i in range(0, players.size(), 2):
+			players[i].health.set_health_now(0)
+		for i in range(0, players.size(), 2):
+			players[i].health.respawn()
+		fail += check.call("respawn half")
+		for p in players:
+			p.free()
+		if fail == 0:
+			print("PASS spawn_radius seed=%s spawn=%s spots=%s" % [seed_value, cell, joined])
+
+	scene.queue_free()
+	if fail == 0:
+		print("PASS test_spawn_radius_no_overlap")
+	return fail
+
+
+func _test_spawn_full_area_searches_outward() -> int:
+	## With every spot in the radius taken, a player gets the nearest free
+	## spot beyond it; with every spot of the usual search taken too, the
+	## search keeps going outward to a free spot instead of the spawn point.
+	print("-- test_spawn_full_area_searches_outward")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	world.apply_map_params(_spawn_params(42, 0.003))
+	var cell: Vector2i = world.resolve_player_spawn()
+	var origin: Vector2 = world.map_to_local(cell)
+	var spots: Array[Vector2] = world.spawn_spots(cell)
+	var inside: Array[Vector2] = []
+	var outside := Vector2.INF
+	for spot in spots:
+		if spot.distance_to(origin) <= world.SPAWN_RADIUS:
+			inside.append(spot)
+		elif outside == Vector2.INF:
+			outside = spot
+	var full_radius: Vector2 = world.free_spawn_position(cell, inside)
+	if full_radius != outside or full_radius.distance_to(origin) <= world.SPAWN_RADIUS:
+		printerr("FAIL spawn_full_area full radius -> %s, want nearest outside %s" % [full_radius, outside])
+		fail += 1
+	# Every spot the usual search walks is taken: the next one out is free.
+	var beyond: Array[Vector2] = world.spawn_spots(cell, spots.size() * 4)
+	var want := Vector2.INF
+	for spot in beyond:
+		if spot not in spots:
+			want = spot
+			break
+	var all_taken: Vector2 = world.free_spawn_position(cell, spots)
+	if all_taken != want or all_taken == origin or not world.is_clear_ground(world.local_to_map(all_taken)):
+		printerr("FAIL spawn_full_area %s spots taken -> %s, want the next free spot %s (spawn %s)"
+				% [spots.size(), all_taken, want, origin])
+		fail += 1
+	scene.queue_free()
+	if fail == 0:
+		print("PASS test_spawn_full_area_searches_outward (%s in radius, next free %s)" % [inside.size(), all_taken])
+	return fail
+
+
+func _test_spawn_late_join() -> int:
+	## Peers joining one by one, each its own process: every joiner stands on
+	## the spot the server picked for it once the map arrives, and no two
+	## players overlap. (A client used to place its own player from its stale
+	## copies of the others, and the owner's position wins.) Then every player
+	## dies in one frame and the server sends the batch to spots apart, where
+	## each then stands.
+	## Once on a dedicated server with four joiners, once on a listen host
+	## with three.
+	print("-- test_spawn_late_join")
+	var fail := 0
+	await process_frame
+	fail += await _spawn_session("dedicated", 4)
+	fail += await _spawn_session("host", 3)
+	if fail == 0:
+		print("PASS test_spawn_late_join")
+	return fail
+
+
+func _spawn_session(mode: String, joiners: int) -> int:
+	## One session of tests/late_join_probe.gd peers (see test_spawn_late_join):
+	## a server in mode ("dedicated" or "host") and joiners clients.
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL spawn_late_join %s found no free UDP port" % mode)
+		return 1
+	# A fresh folder: a .stop file left by an earlier run would stop a peer
+	# at once, and its old JSON would read as this run's.
+	var dir := OS.get_user_data_dir().path_join("late_join_%s_%d_%d" % [mode, OS.get_process_id(), port])
+	_remove_dir(dir)
+	DirAccess.make_dir_recursive_absolute(dir)
+	var pids: Array[int] = []
+	var outs: Array[String] = []
+	var start := func(extra: Array) -> void:
+		var out := dir.path_join("p%d.json" % outs.size())
+		var args := ["--headless", "--path", ProjectSettings.globalize_path("res://"),
+				"--script", "res://tests/late_join_probe.gd", "--", "--port=%d" % port, "--out=" + out]
+		args.append_array(extra)
+		pids.append(OS.create_process(OS.get_executable_path(), args))
+		outs.append(out)
+	var read := func(i: int) -> Dictionary:
+		var text := FileAccess.get_file_as_string(outs[i])
+		var data = JSON.parse_string(text) if text != "" else null
+		return data if data is Dictionary else {}
+	var wait_for := func(cond: Callable, ms: int) -> bool:
+		var until := Time.get_ticks_msec() + ms
+		while Time.get_ticks_msec() < until and not cond.call():
+			await process_frame
+		return cond.call()
+	var pause := func(ms: int) -> void:
+		await wait_for.call(func() -> bool: return false, ms)
+
+	var tile_map: Script = load("res://Scripts/TileMap.gd")
+	# A spot is a cell centre, and the 8 x 10 body reaches 2 px into the cell
+	# above: with a wall there, physics pushes the player about 2 px down.
+	var settle := 3.0
+	# Where each peer's own player stands (in its own view) against want_of's
+	# spot for it, give or take settle; then no overlaps, all near the spawn,
+	# and every peer sees every player where its owner has it.
+	var check := func(stage: String, want_of: Callable) -> int:
+		var bad := 0
+		var at := {}
+		var server: Dictionary = read.call(0)
+		var origin := Vector2(server["origin"][0], server["origin"][1])
+		for i in outs.size():
+			var s: Dictionary = read.call(i)
+			var me = s.get("players", {}).get(s.get("id"))
+			if me == null:
+				continue  # the dedicated server has no player
+			var pos := Vector2(me["pos"][0], me["pos"][1])
+			at[s["id"]] = pos
+			var want = want_of.call(s, server)
+			if want == null or pos.distance_to(Vector2(want[0], want[1])) > settle:
+				printerr("FAIL spawn_late_join %s %s: peer %s stands at %s, the server's spot is %s" % [mode, stage, s["id"], pos, want])
+				bad += 1
+			if pos.distance_to(origin) > tile_map.SPAWN_RADIUS + settle:
+				printerr("FAIL spawn_late_join %s %s: peer %s at %s is %s px from the spawn %s" % [mode, stage, s["id"], pos, pos.distance_to(origin), origin])
+				bad += 1
+		var ids := at.keys()
+		if ids.size() != joiners + (1 if mode == "host" else 0):
+			printerr("FAIL spawn_late_join %s %s: %s players, want %s" % [mode, stage, ids.size(), joiners])
+			bad += 1
+		for i in ids.size():
+			for j in range(i + 1, ids.size()):
+				if (at[ids[i]] as Vector2).distance_to(at[ids[j]]) < tile_map.SPAWN_CLEARANCE - settle:
+					printerr("FAIL spawn_late_join %s %s: peers %s at %s and %s at %s overlap" % [mode, stage, ids[i], at[ids[i]], ids[j], at[ids[j]]])
+					bad += 1
+		for i in outs.size():
+			var s: Dictionary = read.call(i)
+			for id in ids:
+				var seen = s.get("players", {}).get(id)
+				if seen == null or not Vector2(seen["pos"][0], seen["pos"][1]).is_equal_approx(at[id]):
+					printerr("FAIL spawn_late_join %s %s: peer %s sees %s at %s, its owner has %s" % [mode, stage, s.get("id"), id, seen, at[id]])
+					bad += 1
+		if bad == 0:
+			print("PASS spawn_late_join %s %s %s" % [mode, stage, at])
+		return bad
+
+	var fail := 0
+	start.call(["--" + mode])
+	if not await wait_for.call(func() -> bool: return read.call(0).get("origin") != null, 30000):
+		printerr("FAIL spawn_late_join %s server did not start" % mode)
+		fail += 1
+	# One joiner at a time, each once the one before has its player and the map.
+	for i in joiners:
+		if fail > 0:
+			break
+		start.call([])
+		var n := outs.size() - 1
+		var joined := func() -> bool:
+			var s: Dictionary = read.call(n)
+			return s.get("origin") != null and s.get("players", {}).has(s.get("id")) \
+					and read.call(0).get("picked", {}).has(s.get("id"))
+		if not await wait_for.call(joined, 30000):
+			printerr("FAIL spawn_late_join %s joiner %s did not get its player and the map: %s, server %s"
+					% [mode, n, read.call(n), read.call(0)])
+			fail += 1
+		await pause.call(300)
+	if fail == 0:
+		await pause.call(1000)
+		fail += check.call("join", func(s: Dictionary, server: Dictionary) -> Variant:
+			return server["picked"].get(s["id"]))
+	if fail == 0:
+		FileAccess.open(outs[0] + ".kill", FileAccess.WRITE).close()
+		var all_respawned := func() -> bool:
+			for i in outs.size():
+				var s: Dictionary = read.call(i)
+				if s.get("players", {}).has(s.get("id")) and s.get("respawned_at") == null:
+					return false
+				for p in s.get("players", {}).values():
+					if p["respawns"] < 1:
+						return false
+			return true
+		if not await wait_for.call(all_respawned, 15000):
+			printerr("FAIL spawn_late_join %s the batch did not respawn on every peer" % mode)
+			fail += 1
+		else:
+			# The spots the server sent in one batch: each clear of the rest
+			# and near the spawn. Then each player stands on its spot, as
+			# after joining (see test_respawn_teleport_ghosts).
+			var server: Dictionary = read.call(0)
+			var origin := Vector2(server["origin"][0], server["origin"][1])
+			var spots := {}
+			for i in outs.size():
+				var s: Dictionary = read.call(i)
+				if s.get("respawned_at") != null:
+					spots[s["id"]] = Vector2(s["respawned_at"][0], s["respawned_at"][1])
+			var ids := spots.keys()
+			var bad := 0
+			if ids.size() != joiners + (1 if mode == "host" else 0):
+				printerr("FAIL spawn_late_join %s respawn: %s players respawned, want %s" % [mode, ids.size(), joiners])
+				bad += 1
+			for i in ids.size():
+				if (spots[ids[i]] as Vector2).distance_to(origin) > tile_map.SPAWN_RADIUS:
+					printerr("FAIL spawn_late_join %s respawn: %s sent to %s, past the radius" % [mode, ids[i], spots[ids[i]]])
+					bad += 1
+				for j in range(i + 1, ids.size()):
+					if (spots[ids[i]] as Vector2).distance_to(spots[ids[j]]) < tile_map.SPAWN_CLEARANCE:
+						printerr("FAIL spawn_late_join %s respawn: %s and %s sent to %s and %s" % [mode, ids[i], ids[j], spots[ids[i]], spots[ids[j]]])
+						bad += 1
+			if bad == 0:
+				print("PASS spawn_late_join %s respawn %s" % [mode, spots])
+			fail += bad
+			await pause.call(1000)
+			fail += check.call("respawn landing", func(s: Dictionary, _server: Dictionary) -> Variant:
+				return s.get("respawned_at"))
+
+	for out in outs:
+		FileAccess.open(out + ".stop", FileAccess.WRITE).close()
+	await wait_for.call(func() -> bool:
+		for pid in pids:
+			if OS.is_process_running(pid):
+				return false
+		return true, 10000)
+	for pid in pids:
+		if OS.is_process_running(pid):
+			OS.kill(pid)
+	_remove_dir(dir)
+	return fail
+
+
+func _test_two_player_smoke() -> int:
+	## The multiplayer gate (#45): a dedicated server and two clients, each its
+	## own headless process (tests/late_join_probe.gd). Every peer sees both
+	## players; then client A walks by holding an input action and both the
+	## server and client B see A move to where A has it.
+	print("-- test_two_player_smoke")
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL two_player_smoke found no free UDP port")
+		return 1
+	var dir := OS.get_user_data_dir().path_join("smoke_%d_%d" % [OS.get_process_id(), port])
+	_remove_dir(dir)
+	DirAccess.make_dir_recursive_absolute(dir)
+	var outs: Array[String] = []
+	var pids: Array[int] = []
+	for extra in [["--dedicated"], [], []]:
+		outs.append(dir.path_join("p%d.json" % outs.size()))
+		# Each probe quits by itself after 90 s, whatever happens to this run.
+		var args := ["--headless", "--path", ProjectSettings.globalize_path("res://"),
+				"--script", "res://tests/late_join_probe.gd", "--", "--port=%d" % port, "--out=" + outs[-1]]
+		args.append_array(extra)
+		pids.append(OS.create_process(OS.get_executable_path(), args))
+		if outs.size() == 1:
+			# Clients join once the server is up, so their spots are picked.
+			var up := Time.get_ticks_msec() + 30000
+			while Time.get_ticks_msec() < up and not FileAccess.file_exists(outs[0]):
+				await process_frame
+	var read := func(i: int) -> Dictionary:
+		var text := FileAccess.get_file_as_string(outs[i])
+		var data = JSON.parse_string(text) if text != "" else null
+		return data if data is Dictionary else {}
+	var seen := func(viewer: int, id: String) -> Vector2:
+		## Where peer `viewer` sees player `id`, or Vector2.INF.
+		var p = read.call(viewer).get("players", {}).get(id)
+		return Vector2(p["pos"][0], p["pos"][1]) if p != null else Vector2.INF
+	var wait_for := func(cond: Callable, ms: int) -> bool:
+		var until := Time.get_ticks_msec() + ms
+		while Time.get_ticks_msec() < until and not cond.call():
+			await process_frame
+		return cond.call()
+
+	var fail := 0
+	var both_seen := func() -> bool:
+		var ids := [read.call(1).get("id", ""), read.call(2).get("id", "")]
+		for viewer in 3:
+			for id in ids:
+				if id in ["", "0", "1"] or seen.call(viewer, id) == Vector2.INF:
+					return false
+		return true
+	var waited: bool = await wait_for.call(both_seen, 45000)
+	var a: String = read.call(1).get("id", "")
+	var b: String = read.call(2).get("id", "")
+	if not waited:
+		printerr("FAIL two_player_smoke not every peer sees both players: server %s, A %s, B %s"
+				% [read.call(0), read.call(1), read.call(2)])
+		fail += 1
+	else:
+		await wait_for.call(func() -> bool: return false, 500)  # let spawn landing settle
+		var start: Vector2 = seen.call(1, a)
+		var b_start: Vector2 = seen.call(2, a)
+		# Walk until A has moved 4 px; a wall, water or the other player may
+		# block a way, so try each in turn.
+		var moved := false
+		for action in ["ui_right", "ui_left", "ui_down", "ui_up"]:
+			var walk := FileAccess.open(outs[1] + ".walk", FileAccess.WRITE)
+			walk.store_string(action)
+			walk.close()
+			moved = await wait_for.call(func() -> bool:
+				var own: Vector2 = seen.call(1, a)
+				return own != Vector2.INF and own.distance_to(start) >= 4.0, 1500)
+			DirAccess.remove_absolute(outs[1] + ".walk")
+			if moved:
+				break
+		if not moved:
+			printerr("FAIL two_player_smoke player %s did not move from %s in any direction: A %s"
+					% [a, start, read.call(1)])
+			fail += 1
+		else:
+			# Once A stops, both other peers see it where A has it.
+			var synced := func() -> bool:
+				var own: Vector2 = seen.call(1, a)
+				return own != Vector2.INF and own.distance_to(seen.call(0, a)) < 1.0 \
+						and own.distance_to(seen.call(2, a)) < 1.0 and own.distance_to(b_start) >= 4.0
+			if not await wait_for.call(synced, 5000):
+				printerr("FAIL two_player_smoke A %s is at %s on A, %s on the server, %s on B (was %s on B)"
+						% [a, seen.call(1, a), seen.call(0, a), seen.call(2, a), b_start])
+				fail += 1
+		for i in 3:
+			var errors: Array = read.call(i).get("errors", [])
+			if not errors.is_empty():
+				printerr("FAIL two_player_smoke peer %s logged errors: %s" % [i, errors])
+				fail += 1
+
+	for out in outs:
+		FileAccess.open(out + ".stop", FileAccess.WRITE).close()
+	await wait_for.call(func() -> bool:
+		for pid in pids:
+			if OS.is_process_running(pid):
+				return false
+		return true, 10000)
+	for pid in pids:
+		if OS.is_process_running(pid):
+			OS.kill(pid)
+	_remove_dir(dir)
+	if fail == 0:
+		print("PASS test_two_player_smoke (%s walked, seen by server and %s)" % [a, b])
+	return fail
+
+func _remove_dir(dir: String) -> void:
+	## Quiet when dir does not exist (the first clean-up of a fresh session).
+	if not DirAccess.dir_exists_absolute(dir):
+		return
+	for file in DirAccess.get_files_at(dir):
+		DirAccess.remove_absolute(dir.path_join(file))
+	DirAccess.remove_absolute(dir)
+
+
+func _body_rect(player: Node) -> Rect2:
+	## The player's body collision box in world space.
+	var shape_node: CollisionShape2D = player.body_shape
+	var size: Vector2 = (shape_node.shape as RectangleShape2D).size
+	return Rect2(player.position + shape_node.position - size / 2.0, size)
+
+
 func _test_map_settings_water_reopen() -> int:
 	## Map Settings must show the in-use water value on reopen, even when a
 	## SpinBox LineEdit still holds a dirty string for the same numeric value.
@@ -250,7 +796,7 @@ func _test_map_settings_water_reopen() -> int:
 	var in_use := 0.45
 	spin.value = in_use
 	spin.get_line_edit().text = "0.2"
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	params.water_max_alt = in_use
 	panel.load_from_params(params)
 	var shown := float(spin.get_line_edit().text)
@@ -281,7 +827,7 @@ func _test_no_decorations_on_water() -> int:
 		return 1
 
 	for case in cases:
-		var params = MapGenParams.make_defaults()
+		var params = _pre_biome_defaults()
 		params.altitude_seed = case["alt"]
 		params.moisture_seed = case["moist"]
 		params.temperature_seed = case["temp"]
@@ -586,10 +1132,7 @@ func _test_player_health_sync() -> int:
 	var cpeer := ENetMultiplayerPeer.new()
 	cpeer.create_client("127.0.0.1", port)
 	cmp.multiplayer_peer = cpeer
-	var deadline := Time.get_ticks_msec() + 10000
-	while Time.get_ticks_msec() < deadline and smp.get_peers().is_empty():
-		await process_frame
-	if smp.get_peers().is_empty():
+	if not await _client_connected(smp, cpeer):
 		printerr("FAIL player_health_sync client did not connect")
 		fail += 1
 	else:
@@ -694,11 +1237,7 @@ func _test_player_health_join_while_dead() -> int:
 	server_health.call("5").take_damage(6)
 	server_health.call(me_id).take_damage(2)
 	cmp.multiplayer_peer = cpeer
-	var deadline := Time.get_ticks_msec() + 10000
-	while Time.get_ticks_msec() < deadline and (smp.get_peers().is_empty()
-			or cpeer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED):
-		await process_frame
-	if smp.get_peers().is_empty():
+	if not await _client_connected(smp, cpeer):
 		printerr("FAIL health_join_dead client did not connect")
 		fail += 1
 	else:
@@ -813,11 +1352,7 @@ func _test_player_respawn_no_snapback() -> int:
 	var cpeer := ENetMultiplayerPeer.new()
 	cpeer.create_client("127.0.0.1", proxy_port)
 	cmp.multiplayer_peer = cpeer
-	var deadline := Time.get_ticks_msec() + 10000
-	while Time.get_ticks_msec() < deadline and (smp.get_peers().is_empty()
-			or cpeer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED):
-		await process_frame
-	if smp.get_peers().is_empty():
+	if not await _client_connected(smp, cpeer):
 		printerr("FAIL respawn_snapback client did not connect")
 		fail += 1
 	else:
@@ -843,7 +1378,7 @@ func _test_player_respawn_no_snapback() -> int:
 		for i in 10:
 			await physics_frame
 		var stale: Vector2 = owner_copy.position
-		s_copy.health._do_respawn.rpc(spawn)
+		s_copy.health._do_respawn.rpc(spawn, s_copy.health.respawn_count + 1)
 		var reached := false
 		var snapped := ""
 		for f in 30:
@@ -885,9 +1420,203 @@ func _test_player_respawn_no_snapback() -> int:
 	return fail
 
 
+func _test_player_respawn_hold_releases() -> int:
+	## The server's copy of a respawned client-owned player holds the spawn
+	## only until the owner's first update from after its respawn, wherever
+	## the owner then walks: also when it died on the spawn itself, or died
+	## near it and walks back past the death spot while the first updates
+	## after its respawn are lost. A copy that joined after the owner had
+	## already respawned must not show the death spot either.
+	print("-- test_player_respawn_hold_releases")
+	var fail := 0
+	var spawn := Vector2(400, 400)
+	fail += await _respawn_follow_case("died on the spawn", spawn, spawn, Vector2(3, 0), 0)
+	fail += await _respawn_follow_case("died near the spawn, first updates lost",
+			spawn + Vector2(-16, 0), spawn, Vector2(-3, 0), 80)
+	fail += await _respawn_follow_case("observer joined after earlier respawns",
+			spawn + Vector2(-20, 0), spawn, Vector2(3, 0), 0, 3)
+	if fail == 0:
+		print("PASS test_player_respawn_hold_releases")
+	return fail
+
+
+func _test_player_respawn_hold_before_first_sync() -> int:
+	## A copy created just before its owner's next respawn: the respawn
+	## arrives before the copy's first synced update, then a stale update
+	## the owner sent before that respawn, then a fresh one. The copy must
+	## hold the spawn through the stale update and follow the fresh one.
+	print("-- test_player_respawn_hold_before_first_sync")
+	var fail := 0
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var copy = load("res://Player/character_body_2d.tscn").instantiate()
+	copy.name = "2"  # owned by peer 2; this (offline) peer is the server
+	scene.get_node("World").add_child(copy)
+	copy.set_physics_process(false)
+	var sync: MultiplayerSynchronizer = copy.get_node("MultiplayerSynchronizer")
+	var death := Vector2(380, 400)
+	var spawn := Vector2(400, 400)
+	var n := 4  # the owner had respawned 3 times before this copy existed
+	copy.position = death
+	await physics_frame
+	copy.health._do_respawn(spawn, n)
+	copy.position = death  # stale update: sent before the owner saw respawn n
+	copy.owner_respawns = n - 1
+	sync.synchronized.emit()
+	if copy.position != spawn:
+		printerr("FAIL respawn_first_sync stale update shown: copy at %s, spawn %s" % [copy.position, spawn])
+		fail += 1
+	var fresh := spawn + Vector2(6, 0)
+	copy.position = fresh  # fresh update: sent after the owner saw respawn n
+	copy.owner_respawns = n
+	sync.synchronized.emit()
+	var next := spawn + Vector2(12, 0)
+	copy.position = next
+	sync.synchronized.emit()
+	if copy.position != next:
+		printerr("FAIL respawn_first_sync copy still held after the fresh update: at %s, owner %s" % [copy.position, next])
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_player_respawn_hold_before_first_sync")
+	return fail
+
+
+func _respawn_follow_case(label: String, death: Vector2, spawn: Vector2, walk: Vector2,
+		drop_ms: int, prior: int = 0) -> int:
+	## One respawn of a client-owned player over a UDP proxy (60 ms each way).
+	## After the owner respawns it walks `walk` per physics frame; packets from
+	## the owner are dropped for `drop_ms` from that moment. The server's copy
+	## must follow the owner, not stay at the spawn. With `prior` > 0 the owner
+	## has respawned that many times before the server's copy existed (as for
+	## a peer that joined later), and that copy must never show the death spot.
+	var fail := 0
+	await process_frame
+	var port := _free_udp_port()
+	var proxy_port := _free_udp_port()
+	if port == 0 or proxy_port == 0 or port == proxy_port:
+		printerr("FAIL respawn_hold %s found no free UDP ports" % label)
+		return 1
+	var server_root := Node.new()
+	server_root.name = "HoldServer"
+	root.add_child(server_root)
+	var s_world := Node2D.new()
+	s_world.name = "World"
+	server_root.add_child(s_world)
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var smp := SceneMultiplayer.new()
+	var cmp := SceneMultiplayer.new()
+	set_multiplayer(smp, server_root.get_path())
+	set_multiplayer(cmp, scene.get_path())
+	var speer := ENetMultiplayerPeer.new()
+	speer.create_server(port)
+	smp.multiplayer_peer = speer
+	const DELAY_MS := 60
+	var listen := UDPServer.new()
+	listen.listen(proxy_port, "127.0.0.1")
+	var upstream := PacketPeerUDP.new()
+	upstream.connect_to_host("127.0.0.1", port)
+	var link := {"down": null, "up_q": [], "down_q": [], "drop_until": 0}
+	var pump := func() -> void:
+		var now := Time.get_ticks_msec()
+		listen.poll()
+		if listen.is_connection_available():
+			link.down = listen.take_connection()
+		if link.down:
+			while link.down.get_available_packet_count() > 0:
+				var packet: PackedByteArray = link.down.get_packet()
+				if now >= link.drop_until:
+					link.up_q.append([now + DELAY_MS, packet])
+		while upstream.get_available_packet_count() > 0:
+			link.down_q.append([now + DELAY_MS, upstream.get_packet()])
+		while not link.up_q.is_empty() and link.up_q[0][0] <= now:
+			upstream.put_packet(link.up_q.pop_front()[1])
+		while link.down and not link.down_q.is_empty() and link.down_q[0][0] <= now:
+			link.down.put_packet(link.down_q.pop_front()[1])
+	process_frame.connect(pump)
+	physics_frame.connect(pump)
+	var cpeer := ENetMultiplayerPeer.new()
+	cpeer.create_client("127.0.0.1", proxy_port)
+	cmp.multiplayer_peer = cpeer
+	if not await _client_connected(smp, cpeer):
+		printerr("FAIL respawn_hold %s client did not connect" % label)
+		fail += 1
+	else:
+		var player_scene := load("res://Player/character_body_2d.tscn")
+		var id := str(cpeer.get_unique_id())
+		var s_copy = player_scene.instantiate()
+		s_copy.name = id
+		s_copy.position = death
+		s_world.add_child(s_copy)
+		var owner_copy = player_scene.instantiate()
+		owner_copy.name = id
+		owner_copy.position = death
+		scene.get_node("World").add_child(owner_copy)
+		owner_copy.set_physics_process(false)  # the test moves the owner
+		for i in prior:
+			owner_copy.health._do_respawn(death, i + 1)  # unseen by the server's copy
+		s_copy.health.respawn_count = prior  # the server numbered those respawns
+		var shown_death := []
+		var watch := func() -> void:
+			var at: Vector2 = s_copy.position
+			if prior > 0 and shown_death.is_empty() and at.distance_to(death) < at.distance_to(spawn):
+				shown_death.append(at)
+		s_copy.health.respawn_delay = 1000.0
+		for i in 20:
+			await physics_frame
+		s_copy.health.take_damage(s_copy.health.max_health)
+		var until := Time.get_ticks_msec() + 5000
+		while Time.get_ticks_msec() < until and not owner_copy.health.is_dead():
+			await physics_frame
+		for i in 10:
+			await physics_frame
+		s_copy.health._do_respawn.rpc(spawn, s_copy.health.respawn_count + 1)
+		# Drop from now until drop_ms after the respawn reaches the owner.
+		link.drop_until = Time.get_ticks_msec() + DELAY_MS + drop_ms if drop_ms > 0 else 0
+		until = Time.get_ticks_msec() + 5000
+		while Time.get_ticks_msec() < until and owner_copy.health.is_dead():
+			watch.call()
+			await physics_frame
+		var started := Time.get_ticks_msec()
+		while Time.get_ticks_msec() - started < 450:
+			watch.call()
+			owner_copy.position += walk
+			await physics_frame
+		if not shown_death.is_empty():
+			printerr("FAIL respawn_hold %s: server copy showed the death spot after the respawn (%s)"
+					% [label, shown_death[0]])
+			fail += 1
+		var gap: float = s_copy.position.distance_to(owner_copy.position)
+		if gap > 40.0:
+			printerr("FAIL respawn_hold %s: server copy at %s, %d px behind the owner at %s"
+					% [label, s_copy.position, gap, owner_copy.position])
+			fail += 1
+		cpeer.close()
+		for i in 3:
+			await physics_frame
+		s_copy.queue_free()
+		owner_copy.queue_free()
+		await process_frame
+	process_frame.disconnect(pump)
+	physics_frame.disconnect(pump)
+	cpeer.close()
+	speer.close()
+	upstream.close()
+	listen.stop()
+	set_multiplayer(null, scene.get_path())
+	set_multiplayer(null, server_root.get_path())
+	scene.queue_free()
+	server_root.queue_free()
+	await process_frame
+	return fail
+
+
 func _test_sword_only_hits_mid_swing() -> int:
 	## Two real players on the spawn point with physics running: an idle sword
-	## overlap deals no damage, a swing still hits, a player respawning onto
+	## overlap deals no damage, a swing still hits, a player respawning beside
 	## the other deals no damage, and a dead body does not block movement.
 	print("-- test_sword_only_hits_mid_swing")
 	var fail := 0
@@ -953,13 +1682,16 @@ func _test_sword_only_hits_mid_swing() -> int:
 	a.collision_layer = 1
 	b.collision_mask = 1
 
-	# Respawn onto the other player: no free hit, and the body blocks again.
+	# Respawn while the other player stands on the spawn: a lands on the free
+	# spot next to it (sword in reach), takes no free hit, and blocks again.
 	b.position = spawn
 	a.position = spawn + Vector2(300, 0)
 	await settle.call()
 	a.health.advance(a.health.respawn_delay + 0.01)
 	await settle.call()
-	if a.health.is_dead() or a.position != spawn or b.health.health != 6:
+	var next_to: float = a.position.distance_to(spawn)
+	if a.health.is_dead() or next_to < world.get_node("worldMap").SPAWN_CLEARANCE \
+			or next_to > world.get_node("worldMap").SPAWN_RADIUS or b.health.health != 6:
 		printerr("FAIL sword_mid_swing respawn hit: b %s, a at %s (spawn %s)" % [b.health.health, a.position, spawn])
 		fail += 1
 	if a.body_shape.disabled:
@@ -1316,7 +2048,7 @@ func _test_flowers() -> int:
 	root.add_child(scene)
 	var world = scene.get_node("World/worldMap")
 
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	params.altitude_seed = 2
 	params.moisture_seed = 7
 	params.temperature_seed = 12
@@ -1398,7 +2130,7 @@ func _test_island_falloff() -> int:
 	root.add_child(scene)
 	var world = scene.get_node("World/worldMap")
 
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	params.altitude_seed = 2
 	params.moisture_seed = 7
 	params.temperature_seed = 12
@@ -1449,7 +2181,7 @@ func _test_archipelago() -> int:
 	root.add_child(scene)
 	var world = scene.get_node("World/worldMap")
 
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	params.altitude_seed = 2
 	params.moisture_seed = 7
 	params.temperature_seed = 12
@@ -1501,7 +2233,7 @@ func _test_archipelago_count() -> int:
 	root.add_child(scene)
 	var world = scene.get_node("World/worldMap")
 
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	params.altitude_seed = 2
 	params.moisture_seed = 7
 	params.temperature_seed = 12
@@ -1638,7 +2370,7 @@ func _test_archipelago_count_land_masses() -> int:
 	var scene = load("res://flagoria_main.tscn").instantiate()
 	root.add_child(scene)
 	var world = scene.get_node("World/worldMap")
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	params.altitude_seed = 42
 	params.moisture_seed = 7
 	params.temperature_seed = 12
@@ -1701,7 +2433,7 @@ func _test_biomes() -> int:
 	root.add_child(scene)
 	var world = scene.get_node("World/worldMap")
 
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	params.altitude_seed = 2
 	params.moisture_seed = 7
 	params.temperature_seed = 12
@@ -1783,7 +2515,7 @@ func _test_biomes() -> int:
 
 
 func _biome_terrain_params(arch: bool) -> MapGenParams:
-	var p := MapGenParams.make_defaults()
+	var p := _pre_biome_defaults()
 	p.altitude_seed = 2
 	p.moisture_seed = 7
 	p.temperature_seed = 12
@@ -2259,7 +2991,7 @@ func _test_water_blocks_player() -> int:
 	var space: PhysicsDirectSpaceState2D = world.get_world_2d().direct_space_state
 
 	for case in cases:
-		var params = MapGenParams.make_defaults()
+		var params = _pre_biome_defaults()
 		params.altitude_seed = case["alt"]
 		params.moisture_seed = case["moist"]
 		params.temperature_seed = case["temp"]
@@ -2305,7 +3037,7 @@ func _test_map_settings_covers_params() -> int:
 	## have a Map Settings control.
 	print("-- test_map_settings_covers_params")
 	var hand_wired := ["altitude_seed", "moisture_seed", "temperature_seed", "items_seed", "biome_seed", "noise_type"]
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	var keys: Dictionary = params.to_dict()
 	var panel = load("res://map_admin_panel.tscn").instantiate()
 	root.add_child(panel)
@@ -2453,13 +3185,71 @@ func _test_new_param_needs_no_ui_code() -> int:
 		print("PASS test_new_param_needs_no_ui_code")
 	return fail
 
+func _test_new_world_biomes_on() -> int:
+	## A new world has biomes on: default params give a world with every biome
+	## in a wide area. A map save written before biomes existed (no
+	## biome_frequency) still loads with biomes off, so it regenerates unchanged.
+	print("-- test_new_world_biomes_on")
+	var fail := 0
+	var params := MapGenParams.make_defaults()
+	if params.biome_frequency <= 0.0:
+		printerr("FAIL new_world_biomes_on: default biome_frequency=%s" % params.biome_frequency)
+		fail += 1
+	params.altitude_seed = 11
+	params.moisture_seed = 12
+	params.temperature_seed = 13
+	params.items_seed = 14
+	params.biome_seed = 15
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	world.apply_map_params(params)
+	var seen := {}
+	for x in range(-2048, 2048, 64):
+		for y in range(-2048, 2048, 64):
+			seen[world.biome_at(Vector2i(x, y))] = true
+	scene.queue_free()
+	for b in [BiomeCatalog.OCEANIC, BiomeCatalog.TEMPERATE, BiomeCatalog.CONTINENTAL, BiomeCatalog.ARCHIPELAGO_DENSE]:
+		if not seen.has(b):
+			printerr("FAIL new_world_biomes_on: biome %s missing from a 4096-tile area" % b)
+			fail += 1
+
+	var legacy := _pre_biome_defaults()
+	legacy.biome_frequency = 0.01
+	legacy.ensure_seeds()
+	var data: Dictionary = legacy.to_dict()
+	data.erase("biome_frequency")
+	var path := MapSave.path_for("test_pre_biome_save")
+	DirAccess.make_dir_recursive_absolute(MapSave.SAVE_DIR)
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	file.store_string(JSON.stringify({"format_version": MapSave.FORMAT_VERSION, "params": data}))
+	file.close()
+	var loaded = MapSave.load_map(path)
+	DirAccess.remove_absolute(path)
+	if loaded["error"] != "" or loaded["params"].biome_frequency != 0.0:
+		printerr("FAIL new_world_biomes_on: pre-biome save loaded error=%s biome_frequency=%s" % [loaded["error"], loaded["params"].biome_frequency if loaded["params"] else null])
+		fail += 1
+
+	var current := MapGenParams.make_defaults()
+	current.ensure_seeds()
+	var saved = MapSave.save_map(current, "test_biome_save")
+	var reloaded = MapSave.load_map(saved["path"])
+	DirAccess.remove_absolute(saved["path"])
+	if reloaded["error"] != "" or reloaded["params"].biome_frequency != current.biome_frequency:
+		printerr("FAIL new_world_biomes_on: biome save reloaded error=%s" % reloaded["error"])
+		fail += 1
+	if fail == 0:
+		print("PASS test_new_world_biomes_on (%s biomes seen)" % seen.size())
+	return fail
+
+
 func _test_biome_seed_panel_round_trip() -> int:
 	## A biome_seed above 2^31 - 1 (randi() returns up to 2^32 - 1) survives the
 	## Map Settings panel unchanged and has its own seed row, not a SpinBox.
 	print("-- test_biome_seed_panel_round_trip")
 	var fail := 0
 	var big := 4000000000
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	params.biome_seed = big
 	var map_gen = root.get_node("MapGen")
 	var saved_params = map_gen.params
@@ -2474,7 +3264,7 @@ func _test_biome_seed_panel_round_trip() -> int:
 	if panel.seed_biome.text != str(big):
 		printerr("FAIL biome_seed_panel: row shows %s want %s" % [panel.seed_biome.text, big])
 		fail += 1
-	var out = MapGenParams.make_defaults()
+	var out = _pre_biome_defaults()
 	panel.apply_to_params(out)
 	if out.biome_seed != big:
 		printerr("FAIL biome_seed_panel: round-trip %s want %s" % [out.biome_seed, big])
@@ -2508,7 +3298,7 @@ func _test_chunk_refresh_frames() -> int:
 
 	var fail := 0
 	for frames in [15, 4]:
-		var params = MapGenParams.make_defaults()
+		var params = _pre_biome_defaults()
 		params.chunk_refresh_frames = frames
 		world.apply_map_params(params)
 		world.count = 0
@@ -2534,7 +3324,7 @@ func _test_map_save_round_trip() -> int:
 	## use all 17 significant digits.
 	print("-- test_map_save_round_trip")
 	var fail := 0
-	var params = MapGenParams.make_defaults()
+	var params = _pre_biome_defaults()
 	var defaults: Dictionary = params.to_dict()
 	for key in defaults.keys():
 		if typeof(defaults[key]) == TYPE_INT:
@@ -2559,16 +3349,17 @@ func _test_map_save_round_trip() -> int:
 	var world = scene.get_node("World/worldMap")
 	var map_gen = root.get_node("MapGen")
 	var active_params = map_gen.params
-	var original = MapGenParams.make_defaults()
+	var original = _pre_biome_defaults()
 	original.altitude_seed = 4242
 	original.moisture_seed = 5252
 	original.temperature_seed = 6262
 	original.items_seed = 7272
+	original.biome_seed = 8282
 	original.water_max_alt = 0.4
 	original.sand_max_alt = 0.48
 	map_gen.params = original
 	var save_error: String = map_gen.save_map_inputs("test_same_map")
-	map_gen.params = MapGenParams.make_defaults()
+	map_gen.params = _pre_biome_defaults()
 	var load_error: String = map_gen.load_map_inputs(MapSave.path_for("test_same_map"))
 	var reloaded: MapGenParams = map_gen.params
 	map_gen.params = active_params
@@ -2601,7 +3392,7 @@ func _test_map_save_rejects_bad_files() -> int:
 	## Unknown versions, malformed files and unresolved seeds give clear errors.
 	print("-- test_map_save_rejects_bad_files")
 	var fail := 0
-	var unresolved = MapSave.save_map(MapGenParams.make_defaults(), "test_unresolved")
+	var unresolved = MapSave.save_map(_pre_biome_defaults(), "test_unresolved")
 	if not "unresolved" in unresolved["error"] or FileAccess.file_exists(MapSave.path_for("test_unresolved")):
 		printerr("FAIL map_save_rejects_bad_files unresolved seeds: %s" % unresolved["error"])
 		fail += 1
@@ -2686,6 +3477,46 @@ func _test_server_port_from_args() -> int:
 	return fail
 
 
+func _test_server_params_from_args() -> int:
+	## `--params <file>` gives the dedicated server a map save to host; no
+	## --params means the active params (null); a bad value is an error.
+	print("-- test_server_params_from_args")
+	var main_script = load("res://flagoria_main.gd")
+	var params := MapGenParams.make_defaults()
+	params.altitude_seed = 1101
+	params.moisture_seed = 1102
+	params.temperature_seed = 1103
+	params.items_seed = 1104
+	params.biome_seed = 1105
+	params.water_max_alt = 0.125
+	var saved := MapSave.save_map(params, "test_server_params")
+	var path: String = saved["path"]
+	var fail := 0
+	for case in [
+		[["--server"], ""],
+		[["--server", "--params", path], ""],
+		[["--server", "--params=" + ProjectSettings.globalize_path(path)], ""],
+		[["--server", "--params"], "needs a map save"],
+		[["--server", "--params", "--port=9799"], "needs a map save"],
+		[["--server", "--params="], "needs a map save"],
+		[["--server", "--params", "user://no_such_save.json"], "no map save"],
+	]:
+		var got: Dictionary = main_script.server_params_from_args(PackedStringArray(case[0]))
+		var has_file: bool = case[0].size() > 1 and case[1] == ""
+		var ok: bool = (got["error"] == "" if case[1] == "" else case[1] in got["error"])
+		if ok and has_file:
+			ok = got["params"] != null and got["params"].to_dict() == params.to_dict()
+		elif ok:
+			ok = got["params"] == null
+		if not ok:
+			printerr("FAIL server_params_from_args %s = %s" % [case[0], got])
+			fail += 1
+	DirAccess.remove_absolute(path)
+	if fail == 0:
+		print("PASS test_server_params_from_args")
+	return fail
+
+
 func _free_udp_port() -> int:
 	## A random UDP port in 20000-59999 that ENet can bind right now, or 0.
 	## Fixed ports fail when another run or service holds them.
@@ -2697,6 +3528,26 @@ func _free_udp_port() -> int:
 		if err == OK:
 			return port
 	return 0
+
+
+func _client_connected(smp: SceneMultiplayer, cpeer: ENetMultiplayerPeer) -> bool:
+	## Waits up to 10 s for the server to admit the client and the client to
+	## see itself connected. A single frame counts for at most 250 ms of that
+	## budget, so a pause of the whole process or machine (a VM snapshot, a
+	## long scheduler stall) does not use the budget up while ENet, which
+	## rides out pauses shorter than its 30 s peer timeout, is still
+	## mid-handshake.
+	var waited := 0
+	var last := Time.get_ticks_msec()
+	while (smp.get_peers().is_empty()
+			or cpeer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED):
+		if waited >= 10000:
+			return false
+		await process_frame
+		var now := Time.get_ticks_msec()
+		waited += mini(now - last, 250)
+		last = now
+	return true
 
 
 func _test_dedicated_server_join() -> int:
@@ -2755,6 +3606,67 @@ func _test_dedicated_server_join() -> int:
 	scene.queue_free()
 	if fail == 0:
 		print("PASS test_dedicated_server_join (client %s)" % client_id)
+	return fail
+
+
+func _test_dedicated_server_params_file() -> int:
+	## `-- --server --params <file>` hosts the map in that save: a client that
+	## joins gets exactly its params. A missing file stops the server with
+	## exit 1 before it listens. Both server runs have a hard `timeout`.
+	print("-- test_dedicated_server_params_file")
+	var fail := 0
+	var exe := OS.get_executable_path()
+	var project := ProjectSettings.globalize_path("res://")
+	await process_frame
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL dedicated_server_params_file found no free UDP port")
+		return 1
+	var out := []
+	var code := OS.execute("timeout", ["-k", "5", "30", exe, "--headless", "--path", project,
+		"--", "--server", "--port=%d" % port, "--params=user://no_such_save.json"], out, true)
+	if code != 1 or not "no map save" in "".join(out):
+		printerr("FAIL dedicated_server_params_file missing file: exit %s, want 1 and 'no map save'" % code)
+		fail += 1
+
+	var params := MapGenParams.make_defaults()
+	params.altitude_seed = 2201
+	params.moisture_seed = 2202
+	params.temperature_seed = 2203
+	params.items_seed = 2204
+	params.biome_seed = 2205
+	params.water_max_alt = 0.125
+	var saved := MapSave.save_map(params, "test_dedicated_server_params")
+	if saved["error"] != "":
+		printerr("FAIL dedicated_server_params_file save: %s" % saved["error"])
+		return fail + 1
+	# `timeout` forwards the TERM below to the server and kills it after 90 s
+	# whatever happens to this run.
+	var pid := OS.create_process("timeout", ["-k", "5", "90", exe, "--headless", "--path", project,
+		"--", "--server", "--port=%d" % port, "--params=" + ProjectSettings.globalize_path(saved["path"])])
+	if pid <= 0:
+		printerr("FAIL dedicated_server_params_file could not start the server process")
+		return fail + 1
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	scene.add_player_joined(port)
+	var deadline := Time.get_ticks_msec() + 30000
+	while Time.get_ticks_msec() < deadline and OS.is_process_running(pid):
+		if scene.world_params != null and scene.world_params.altitude_seed != 0:
+			break
+		await process_frame
+	var got: MapGenParams = scene.world_params
+	if got == null or got.to_dict() != params.to_dict():
+		printerr("FAIL dedicated_server_params_file client got %s, want %s" % [
+			got.to_dict() if got != null else null, params.to_dict()])
+		fail += 1
+	OS.execute("kill", ["-TERM", str(pid)])
+	scene.enet_peer.close()
+	scene.multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	scene.queue_free()
+	DirAccess.remove_absolute(saved["path"])
+	if fail == 0:
+		print("PASS test_dedicated_server_params_file")
 	return fail
 
 
@@ -3542,8 +4454,7 @@ func _test_map_zoom() -> int:
 	await process_frame
 	var scene = load("res://flagoria_main.tscn").instantiate()
 	root.add_child(scene)
-	# In play: menu hidden, HUD shown. The menu's quit check would log on every
-	# unhandled synthetic event (no "quit" action is mapped), so it is paused.
+	# In play: menu hidden, HUD shown, and the menu's input handling paused.
 	var menu: Node = scene.get_node("CanvasLayer2/MainMenu")
 	menu.hide()
 	menu.set_process_unhandled_input(false)
@@ -3667,4 +4578,878 @@ func _test_map_zoom() -> int:
 	await process_frame
 	if fail == 0:
 		print("PASS test_map_zoom")
+	return fail
+
+
+func _test_mob_hidden_on_uncharted() -> int:
+	## A mob is drawn only where this peer has generated the ground under it:
+	## visible on a loaded tile, hidden on an unloaded one, visible again once
+	## that tile loads. A type flagged visible_in_uncharted (final bosses)
+	## always shows. Hiding never changes the mob's position, state or hurt box.
+	print("-- test_mob_hidden_on_uncharted")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world: TileMap = scene.get_node("World/worldMap")
+	world.apply_map_params(_spawn_params(42, 0.003))
+	world.generate_chunk(Vector2.ZERO)
+	var mobs_node: Node = scene.get_node("World/Mobs")
+	var far := Vector2i(400, 400)  # far outside the loaded chunk
+	var add_mob := func(cell: Vector2i, boss: bool) -> Mob:
+		var m: Mob = load("res://Mobs/mob.tscn").instantiate()
+		m.setup(MobCatalog.SLIME, world.map_to_local(cell), 7)
+		m.visible_in_uncharted = boss
+		mobs_node.add_child(m, true)
+		return m
+	var near_mob: Mob = add_mob.call(Vector2i(0, 0), false)
+	var far_mob: Mob = add_mob.call(far, false)
+	var boss: Mob = add_mob.call(far + Vector2i(2, 0), true)
+	var fail := 0
+	if world.get_cell_source_id(0, far) != -1 or world.get_cell_source_id(0, Vector2i.ZERO) == -1:
+		printerr("FAIL mob_hidden_on_uncharted setup: far tile loaded or near tile missing")
+		scene.queue_free()
+		return 1
+	var before := {}
+	for m in [near_mob, far_mob, boss]:
+		before[m] = [m.position, m.state, m.facing, m.hp, m.hurt_box.monitoring]
+	var tick := func() -> void:
+		for m in [near_mob, far_mob, boss]:
+			m._process(0.01)
+	tick.call()
+	if not near_mob.visible:
+		printerr("FAIL mob_hidden_on_uncharted mob on a loaded tile is hidden")
+		fail += 1
+	if far_mob.visible:
+		printerr("FAIL mob_hidden_on_uncharted mob on an unloaded tile is visible")
+		fail += 1
+	if not boss.visible:
+		printerr("FAIL mob_hidden_on_uncharted visible_in_uncharted mob is hidden")
+		fail += 1
+	world.generate_chunk(world.map_to_local(far))
+	tick.call()
+	if not far_mob.visible:
+		printerr("FAIL mob_hidden_on_uncharted mob still hidden after its tile loaded")
+		fail += 1
+	for m in [near_mob, far_mob, boss]:
+		var now := [m.position, m.state, m.facing, m.hp, m.hurt_box.monitoring]
+		if now != before[m]:
+			printerr("FAIL mob_hidden_on_uncharted %s changed: %s -> %s" % [m.name, before[m], now])
+			fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_mob_hidden_on_uncharted")
+	return fail
+
+
+func _test_mob_shown_when_ground_drawn() -> int:
+	## A player respawns (or joins) next to a mob on ground this peer has not
+	## generated yet. The mob must become visible in the same frame the chunk
+	## under it is drawn, not on a later visibility check.
+	print("-- test_mob_shown_when_ground_drawn")
+	# Let earlier tests' queue_free() run so this instance is /root/Flagoria,
+	# the path TileMap._process uses to find the player.
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	if scene.get_path() != NodePath("/root/Flagoria"):
+		printerr("FAIL mob_shown_when_ground_drawn scene at %s, not /root/Flagoria" % scene.get_path())
+		scene.queue_free()
+		return 1
+	var world: TileMap = scene.get_node("World/worldMap")
+	world.apply_map_params(_spawn_params(42, 0.003))
+	world.generate_chunk(Vector2.ZERO)
+	var player := Node2D.new()
+	player.name = str(world.multiplayer.get_unique_id())
+	scene.get_node("World").add_child(player)
+	world.player_spawned = true
+	var mob_cell := Vector2i(400, 400)  # far outside the loaded chunk
+	var mob: Mob = load("res://Mobs/mob.tscn").instantiate()
+	mob.setup(MobCatalog.SLIME, world.map_to_local(mob_cell), 7)
+	scene.get_node("World/Mobs").add_child(mob, true)
+	var fail := 0
+	for i in 3:
+		await process_frame
+	if mob.visible or world.get_cell_source_id(0, mob_cell) != -1:
+		printerr("FAIL mob_shown_when_ground_drawn setup: mob visible %s, its tile loaded %s"
+				% [mob.visible, world.get_cell_source_id(0, mob_cell) != -1])
+		fail += 1
+	else:
+		player.position = world.map_to_local(mob_cell + Vector2i(1, 0))  # respawned beside it
+		var drawn_at := -1
+		for f in world.chunk_refresh_frames * 3:
+			await process_frame
+			if world.get_cell_source_id(0, mob_cell) != -1:
+				drawn_at = f
+				break
+		if drawn_at < 0:
+			printerr("FAIL mob_shown_when_ground_drawn the chunk under the mob was never drawn")
+			fail += 1
+		elif not mob.visible:
+			printerr("FAIL mob_shown_when_ground_drawn ground drawn on frame %d but the mob is still hidden" % drawn_at)
+			fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_mob_shown_when_ground_drawn")
+	return fail
+
+
+func _test_mob_sfx_clips() -> int:
+	## Every mob type has every MobSfx event, each mapped to clips that load
+	## and are not empty, with a volume, a cooldown and a per-mob offset. Each
+	## mob's sound players use the SFX bus and fade out with distance.
+	print("-- test_mob_sfx_clips")
+	var fail := 0
+	for t in MobCatalog.names():
+		if not MobSfx.SOUNDS.has(t) or not MobSfx.MOB_VOLUME_DB.has(t):
+			printerr("FAIL mob_sfx_clips: %s has no sounds or no volume offset" % t)
+			fail += 1
+			continue
+		for event in MobSfx.EVENTS:
+			var clips: Array = MobSfx.SOUNDS[t].get(event, [])
+			if clips.is_empty():
+				printerr("FAIL mob_sfx_clips: %s has no %s clips" % [t, event])
+				fail += 1
+			for clip in clips:
+				var wav := clip as AudioStreamWAV
+				if wav == null or wav.get_length() <= 0.05 or not ResourceLoader.exists(wav.resource_path):
+					printerr("FAIL mob_sfx_clips: %s %s clip %s missing or empty" % [t, event, clip])
+					fail += 1
+				elif not wav.resource_path.get_file().begins_with("%s_%s_" % [t, event]):
+					printerr("FAIL mob_sfx_clips: %s %s maps to %s" % [t, event, wav.resource_path])
+					fail += 1
+	# The crab clips are 1-3.6 dB quieter than the others; its offset makes up some of it.
+	if not (MobSfx.MOB_VOLUME_DB.get(MobCatalog.CRAB, 0.0) >= 1.0 and MobSfx.MOB_VOLUME_DB.get(MobCatalog.CRAB, 0.0) <= 3.6):
+		printerr("FAIL mob_sfx_clips: crab offset %s dB, want 1..3.6" % MobSfx.MOB_VOLUME_DB.get(MobCatalog.CRAB))
+		fail += 1
+	for t in MobSfx.SOUNDS:
+		if not MobCatalog.TYPES.has(t):
+			printerr("FAIL mob_sfx_clips: sounds for unknown mob %s" % t)
+			fail += 1
+	for event in MobSfx.EVENTS:
+		if not MobSfx.VOLUME_DB.has(event) or not MobSfx.COOLDOWN.has(event) or not MobSfx.new().plays.has(event):
+			printerr("FAIL mob_sfx_clips: %s lacks a volume, cooldown or counter" % event)
+			fail += 1
+	for t in MobCatalog.names():
+		var mob: Mob = load("res://Mobs/mob.tscn").instantiate()
+		mob.setup(t, Vector2.ZERO, 1)
+		root.add_child(mob)
+		for event in MobSfx.EVENTS:
+			var p: AudioStreamPlayer2D = mob.sfx.get_node(event)
+			var want: float = MobSfx.VOLUME_DB[event] + MobSfx.MOB_VOLUME_DB[t]
+			if p.bus != &"SFX" or not is_equal_approx(p.volume_db, want) or p.max_distance != MobSfx.MAX_DISTANCE:
+				printerr("FAIL mob_sfx_clips: %s %s on %s at %s dB, max %s" % [t, event, p.bus, p.volume_db, p.max_distance])
+				fail += 1
+		mob.free()
+	if fail == 0:
+		print("PASS test_mob_sfx_clips")
+	return fail
+
+
+func _test_mob_sfx_events() -> int:
+	## Each mob event plays once per event on this peer from the real hooks:
+	## notice on a new chase (not the chase straight after a hit), attack when
+	## a contact hit lands, hurt per sword hit, hurt and death on the last
+	## hit. A peer that only receives the synced values (state, attacks)
+	## plays the same, and nothing for values in the spawn packet. Hidden
+	## mobs play nothing. Idle is rare, randomised per mob and only while
+	## idling or wandering.
+	print("-- test_mob_sfx_events")
+	var fail := 0
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world: TileMap = scene.get_node("World/worldMap")
+	world.apply_map_params(_spawn_params(42, 0.003))
+	world.generate_chunk(Vector2.ZERO)
+	var mobs_node: Node = scene.get_node("World/Mobs")
+	var add_mob := func(type: String, n: String) -> Mob:
+		var m: Mob = load("res://Mobs/mob.tscn").instantiate()
+		m.name = n
+		m.setup(type, Vector2.ZERO, 7)
+		mobs_node.add_child(m)
+		m.set_physics_process(false)  # this test drives the behaviour
+		m.sfx.idle_enabled = false
+		return m
+	var want := func(m: Mob, label: String, expect: Dictionary) -> int:
+		var got := {}
+		for e in MobSfx.EVENTS:
+			got[e] = m.sfx.plays[e]
+			m.sfx._last_ms.clear()  # steps are not about cooldowns
+		for e in MobSfx.EVENTS:
+			if got[e] != expect.get(e, 0):
+				printerr("FAIL mob_sfx_events %s %s: plays %s, want %s" % [m.mob_type, label, got, expect])
+				return 1
+		return 0
+
+	for t in MobCatalog.names():
+		var mob: Mob = add_mob.call(t, "server_" + t)
+		var player = load("res://Player/character_body_2d.tscn").instantiate()
+		player.name = "1"
+		player.position = Vector2(400, 400)
+		scene.get_node("World").add_child(player)
+		player.health.max_health = 1000
+		player.health.set_health_now(1000)
+		# The same events as the server's behaviour sets them.
+		var history: Array = []  # [state, attacks] after each step, for the client copy
+		var expect := {}
+		var step := func(label: String, adds: Dictionary) -> void:
+			for e in adds:
+				expect[e] = expect.get(e, 0) + adds[e]
+			fail += want.call(mob, label, expect)
+			history.append([mob.state, mob.attacks, label, expect.duplicate()])
+		mob.state = Mob.State.WALK
+		step.call("walk", {})
+		mob.state = Mob.State.CHASE
+		step.call("chase", {"notice": 1})
+		player.position = mob.position
+		mob._touch_players()
+		step.call("contact", {"attack": 1})
+		mob._touch_players()  # player still invulnerable: no hit, no sound
+		step.call("contact_blocked", {})
+		mob.hp = 2
+		mob.take_hit()
+		step.call("hit", {"hurt": 1})
+		mob.take_hit()  # ignored during HURT
+		step.call("hit_during_hurt", {})
+		mob.state = Mob.State.IDLE
+		step.call("hurt_over", {})
+		mob.state = Mob.State.CHASE
+		step.call("chase_after_hit", {})
+		mob.state = Mob.State.IDLE  # gave up
+		step.call("give_up", {})
+		mob.state = Mob.State.CHASE
+		step.call("chase_again", {"notice": 1})
+		mob.take_hit()
+		step.call("last_hit", {"hurt": 1, "death": 1})
+		player.position = Vector2(400, 400)
+		player.free()
+
+		# A late peer: the spawn packet sets state and attacks before ready.
+		var late: Mob = load("res://Mobs/mob.tscn").instantiate()
+		late.setup(t, Vector2.ZERO, 7)
+		late.state = Mob.State.CHASE
+		late.attacks = 3
+		mobs_node.add_child(late)
+		late.set_physics_process(false)
+		fail += want.call(late, "spawn_packet", {})
+		late.free()
+		# A peer that receives each synced change: same plays as the server.
+		var client: Mob = add_mob.call(t, "client_" + t)
+		for entry in history:
+			client.set("state", entry[0])
+			client.set("attacks", entry[1])
+			fail += want.call(client, "synced " + entry[2], entry[3])
+		client.free()
+		# Coalesced sync: the client sees HURT -> CHASE with no IDLE between.
+		var coalesced: Mob = add_mob.call(t, "coalesced_" + t)
+		coalesced.set("state", Mob.State.WALK)
+		coalesced.set("state", Mob.State.HURT)
+		coalesced.set("state", Mob.State.CHASE)
+		fail += want.call(coalesced, "hurt_then_chase", {"hurt": 1})
+		coalesced.free()
+		# Hidden (uncharted ground on this peer): silent.
+		var hidden: Mob = add_mob.call(t, "hidden_" + t)
+		hidden.visible = false
+		hidden.state = Mob.State.WALK
+		hidden.state = Mob.State.CHASE
+		hidden.attacks += 1
+		hidden.take_hit()
+		hidden.sfx.idle_enabled = true
+		hidden.state = Mob.State.IDLE
+		hidden.sfx.idle_left = 0.0
+		hidden.sfx._process(0.1)
+		fail += want.call(hidden, "hidden", {})
+		hidden.free()
+		mob.free()
+
+	# Idle: on a random timer per mob, only while idling or wandering.
+	var a: Mob = add_mob.call(MobCatalog.SLIME, "idle_a")
+	var b: Mob = add_mob.call(MobCatalog.SLIME, "idle_b")
+	if is_equal_approx(a.sfx.idle_left, b.sfx.idle_left):
+		printerr("FAIL mob_sfx_events idle timers match: %s" % a.sfx.idle_left)
+		fail += 1
+	for i in 200:
+		var d: float = a.sfx.next_idle_delay()
+		if d < MobSfx.IDLE_INTERVAL.x or d > MobSfx.IDLE_INTERVAL.y:
+			printerr("FAIL mob_sfx_events idle delay %s outside %s" % [d, MobSfx.IDLE_INTERVAL])
+			fail += 1
+			break
+	a.sfx.idle_enabled = true
+	a.state = Mob.State.CHASE
+	a.sfx.idle_left = 0.05
+	a.sfx._process(0.1)
+	fail += want.call(a, "idle_while_chasing", {"notice": 1})
+	a.state = Mob.State.IDLE
+	a.sfx._process(0.04)
+	fail += want.call(a, "idle_early", {"notice": 1})
+	a.sfx._process(0.02)
+	fail += want.call(a, "idle_due", {"notice": 1, "idle": 1})
+	if a.sfx.idle_left < MobSfx.IDLE_INTERVAL.x:
+		printerr("FAIL mob_sfx_events next idle in %s s" % a.sfx.idle_left)
+		fail += 1
+	# A minute of idling: a few idle sounds, never more than the interval allows.
+	a.state = Mob.State.WALK
+	for i in 600:
+		a.sfx._process(0.1)
+		a.sfx._last_ms.clear()
+	var idles: int = a.sfx.plays["idle"] - 1
+	if idles < 2 or idles > 5:
+		printerr("FAIL mob_sfx_events %s idle sounds in 60 s, want 2..5" % idles)
+		fail += 1
+
+	# The hooks reach every peer only if both values are synced on change.
+	var cfg: SceneReplicationConfig = a.get_node("MultiplayerSynchronizer").replication_config
+	for prop in [NodePath(".:state"), NodePath(".:attacks")]:
+		if not cfg.has_property(prop) or cfg.property_get_replication_mode(prop) != SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE or not cfg.property_get_spawn(prop):
+			printerr("FAIL mob_sfx_events %s is not synced on change and at spawn" % prop)
+			fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_mob_sfx_events")
+	return fail
+
+
+func _test_ui_sfx_clips() -> int:
+	## Every UI event maps to a clip that exists and loads, with a volume, a
+	## cooldown and a counter, on a local (non-positional) SFX player; every
+	## clip under art/audio/sfx/ui/ is used.
+	print("-- test_ui_sfx_clips")
+	var fail := 0
+	var ui = root.get_node_or_null("UiSfx")
+	if ui == null:
+		printerr("FAIL ui_sfx_clips: no UiSfx autoload")
+		return 1
+	var want := ["click", "back", "menu_open", "menu_close", "saved"]
+	if ui.SOUNDS.keys() != want:
+		printerr("FAIL ui_sfx_clips: events %s, want %s" % [ui.SOUNDS.keys(), want])
+		fail += 1
+	var used := []
+	for event in ui.SOUNDS:
+		var clips: Array = ui.SOUNDS[event]
+		if clips.is_empty():
+			printerr("FAIL ui_sfx_clips: %s has no clips" % event)
+			fail += 1
+		for clip in clips:
+			var wav := clip as AudioStreamWAV
+			if wav == null or wav.get_length() <= 0.03 or not ResourceLoader.exists(wav.resource_path):
+				printerr("FAIL ui_sfx_clips: %s clip %s missing or empty" % [event, clip])
+				fail += 1
+				continue
+			used.append(wav.resource_path.get_file())
+			if not wav.resource_path.get_file().begins_with(event + "_"):
+				printerr("FAIL ui_sfx_clips: %s maps to %s" % [event, wav.resource_path])
+				fail += 1
+		if not ui.VOLUME_DB.has(event) or not ui.COOLDOWN.has(event) or not ui.plays.has(event):
+			printerr("FAIL ui_sfx_clips: %s lacks a volume, cooldown or counter" % event)
+			fail += 1
+			continue
+		var p = ui.players().get(event)
+		if not p is AudioStreamPlayer or p.bus != &"SFX" or not is_equal_approx(p.volume_db, ui.VOLUME_DB[event]):
+			printerr("FAIL ui_sfx_clips: %s player %s on %s" % [event, p, p.bus if p else ""])
+			fail += 1
+	for file in DirAccess.get_files_at("res://art/audio/sfx/ui"):
+		if file.ends_with(".wav") and file not in used:
+			printerr("FAIL ui_sfx_clips: %s is not used" % file)
+			fail += 1
+	if ui.process_mode != Node.PROCESS_MODE_ALWAYS:
+		printerr("FAIL ui_sfx_clips: UiSfx stops when the game pauses")
+		fail += 1
+	if FileAccess.get_file_as_string("res://Scripts/ui_sfx.gd").contains("rpc"):
+		printerr("FAIL ui_sfx_clips: UI sounds must stay local (no RPCs)")
+		fail += 1
+	if fail == 0:
+		print("PASS test_ui_sfx_clips")
+	return fail
+
+
+func _ui_plays_since(ui, before: Dictionary) -> Dictionary:
+	## Events that played since `before` (a copy of ui.plays), with counts.
+	var delta := {}
+	for event in ui.plays:
+		if ui.plays[event] != before[event]:
+			delta[event] = ui.plays[event] - before[event]
+	return delta
+
+
+func _test_ui_sfx_presses() -> int:
+	## Each press plays exactly once: click on every button in the main menu
+	## and map settings panel, back on Back. The sound starts before the
+	## button's own handler and outlives the button. A "ui_menu" Control
+	## plays menu_open/menu_close when it shows or hides; a map save that
+	## succeeds plays saved, a failed one nothing. (Cooldowns are cleared
+	## between steps; they only guard against a double fire.)
+	print("-- test_ui_sfx_presses")
+	var fail := 0
+	var ui = root.get_node("UiSfx")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	await process_frame  # the map settings panel is added deferred
+	var layer: Node = scene.get_node("CanvasLayer2")
+	var buttons := layer.find_children("*", "BaseButton", true, false)
+	var names := []
+	for b in buttons:
+		names.append(str(b.name))
+		var first: Callable = b.pressed.get_connections()[0]["callable"] if b.pressed.get_connections().size() > 0 else Callable()
+		if first.get_object() != ui:
+			printerr("FAIL ui_sfx_presses: %s press sound is not connected first" % b.name)
+			fail += 1
+		var want := "back" if b.name == "Back" else "click"
+		if ui.sound_for(b) != want:
+			printerr("FAIL ui_sfx_presses: %s plays %s, want %s" % [b.name, ui.sound_for(b), want])
+			fail += 1
+	for n in ["MapSettingsButton", "HostButton", "JoinButton", "RandomSeed", "Reset", "Back", "Start", "NoiseType"]:
+		if n not in names:
+			printerr("FAIL ui_sfx_presses: no %s button found" % n)
+			fail += 1
+	# Real presses that stay local (Host and Join start networking).
+	var menu = layer.get_node("MainMenu")
+	var panel = menu.admin_panel
+	var presses := [
+		[menu.get_node("MarginContainer/VBoxContainer/MapSettingsButton"), "click"],
+		[panel.get_node("Margin/VBox/Buttons/RandomSeed"), "click"],
+		[panel.get_node("Margin/VBox/Buttons/Reset"), "click"],
+		[panel.get_node("Margin/VBox/Buttons2/Back"), "back"],
+	]
+	for press in presses:
+		ui._last_ms.clear()  # cooldowns are wall-clock; each step is a new press
+		var before: Dictionary = ui.plays.duplicate()
+		press[0].pressed.emit()
+		await process_frame
+		var got := _ui_plays_since(ui, before)
+		if got != {press[1]: 1}:
+			printerr("FAIL ui_sfx_presses: %s press played %s, want {%s: 1}" % [press[0].name, got, press[1]])
+			fail += 1
+	if not menu.visible or panel.visible:
+		printerr("FAIL ui_sfx_presses: Back did not return to the main menu")
+		fail += 1
+	scene.queue_free()
+	await process_frame
+
+	# A handler that blocks, then frees the button's scene (like a scene
+	# change): the click has already started and keeps playing.
+	var fake := Node.new()
+	var button := Button.new()
+	fake.add_child(button)
+	var seen := {}
+	button.pressed.connect(func() -> void:
+		seen["click"] = ui.plays["click"]
+		seen["playing"] = ui.players()["click"].playing
+		OS.delay_msec(100)
+		fake.queue_free())
+	root.add_child(fake)
+	ui._last_ms.clear()  # cooldowns are wall-clock; each step is a new press
+	var start: int = ui.plays["click"]
+	button.pressed.emit()
+	await process_frame
+	await process_frame
+	if seen.get("click", start) != start + 1 or ui.plays["click"] != start + 1:
+		printerr("FAIL ui_sfx_presses: click %s before the handler, %s after; want %s" % [seen.get("click"), ui.plays["click"], start + 1])
+		fail += 1
+	if not seen.get("playing", false) or is_instance_valid(fake) or not ui.players()["click"].is_inside_tree():
+		printerr("FAIL ui_sfx_presses: click not playing before the handler, or gone with the button's scene")
+		fail += 1
+
+	# A button that leaves and re-enters the tree still plays once per press.
+	var holder := Node.new()
+	root.add_child(holder)
+	var again := Button.new()
+	holder.add_child(again)
+	holder.remove_child(again)
+	holder.add_child(again)
+	for i in 2:
+		ui._last_ms.clear()  # cooldowns are wall-clock; each step is a new press
+		var before: Dictionary = ui.plays.duplicate()
+		again.pressed.emit()
+		if _ui_plays_since(ui, before) != {"click": 1}:
+			printerr("FAIL ui_sfx_presses: re-added button press %d played %s" % [i, _ui_plays_since(ui, before)])
+			fail += 1
+
+	# Menu open and close follow visibility in the tree, once per change.
+	var parent := Control.new()
+	holder.add_child(parent)
+	var menu_panel := Control.new()
+	menu_panel.add_to_group(&"ui_menu")
+	var steps := [
+		["add visible", func() -> void: parent.add_child(menu_panel), {}],
+		["hide", func() -> void: menu_panel.hide(), {"menu_close": 1}],
+		["hide again", func() -> void: menu_panel.hide(), {}],
+		["show", func() -> void: menu_panel.show(), {"menu_open": 1}],
+		["parent hidden", func() -> void: parent.hide(), {"menu_close": 1}],
+		["parent shown", func() -> void: parent.show(), {"menu_open": 1}],
+		["parent hidden again", func() -> void: parent.hide(), {"menu_close": 1}],
+		["hidden under hidden parent", func() -> void: menu_panel.hide(), {}],
+		["shown under hidden parent", func() -> void: menu_panel.show(), {}],
+		["parent shown again", func() -> void: parent.show(), {"menu_open": 1}],
+	]
+	for step in steps:
+		ui._last_ms.clear()
+		var before: Dictionary = ui.plays.duplicate()
+		step[1].call()
+		if _ui_plays_since(ui, before) != step[2]:
+			printerr("FAIL ui_sfx_presses: menu %s played %s, want %s" % [step[0], _ui_plays_since(ui, before), step[2]])
+			fail += 1
+	holder.queue_free()
+
+	# Saved: once for a map save that succeeds, nothing for one that fails.
+	var map_gen = root.get_node("MapGen")
+	var kept: MapGenParams = map_gen.params
+	map_gen.params = kept.duplicate_params()
+	map_gen.params.ensure_seeds()
+	var before_save: Dictionary = ui.plays.duplicate()
+	var err: String = map_gen.save_map_inputs("test_ui_saved")
+	DirAccess.remove_absolute(MapSave.path_for("test_ui_saved"))
+	if err != "" or _ui_plays_since(ui, before_save) != {"saved": 1}:
+		printerr("FAIL ui_sfx_presses: save (%s) played %s, want {saved: 1}" % [err, _ui_plays_since(ui, before_save)])
+		fail += 1
+	ui._last_ms.clear()
+	map_gen.params.altitude_seed = 0
+	before_save = ui.plays.duplicate()
+	err = map_gen.save_map_inputs("test_ui_saved")
+	if err == "" or _ui_plays_since(ui, before_save) != {}:
+		printerr("FAIL ui_sfx_presses: failed save (%s) played %s" % [err, _ui_plays_since(ui, before_save)])
+		fail += 1
+	map_gen.params = kept
+	await process_frame
+	if fail == 0:
+		print("PASS test_ui_sfx_presses (%d buttons)" % buttons.size())
+	return fail
+
+
+func _test_respawn_teleport_ghosts() -> int:
+	## A respawn moves a body, and the physics server only moves it at its
+	## next step: for one tick a player who also just respawned still stands
+	## where it died. The player respawning onto that spot must stay on the
+	## spot it was sent to, not be pushed off it, or carried along when the
+	## other body (its top taken for a floor) jumps to its own spot. A player
+	## standing where a dead player lay must not be shoved when that one
+	## respawns elsewhere. Real player scenes, the local one the owner.
+	print("-- test_respawn_teleport_ghosts")
+	var fail := 0
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world: Node = scene.get_node("World")
+	var spot := Vector2(4000, 4000)  # off the map: no walls, only the two bodies
+	# [label, where the local player died (null: it stays alive there),
+	#  where the other died, where each respawns]
+	var cases := [
+		["onto the other's death spot", spot + Vector2(-32, 0), spot, spot, spot + Vector2(32, 0)],
+		["just above the other's death spot", spot + Vector2(-32, 0), spot + Vector2(0, 6), spot, spot + Vector2(32, 6)],
+		["side by side with it", spot + Vector2(-32, 0), spot + Vector2(5, 0), spot, spot + Vector2(32, 0)],
+		["standing where it lay dead", null, spot, spot, spot + Vector2(32, 0)],
+	]
+	for c in cases:
+		var label: String = c[0]
+		var me = load("res://Player/character_body_2d.tscn").instantiate()
+		me.name = str(scene.multiplayer.get_unique_id())
+		var other = load("res://Player/character_body_2d.tscn").instantiate()
+		other.name = "2"  # a copy: only its owner would move it
+		world.add_child(me)
+		world.add_child(other)
+		for p in [me, other]:
+			p.health.respawn_delay = 1000.0  # respawned by hand below
+		me.position = c[1] if c[1] != null else c[3]
+		other.position = c[2]
+		for i in 2:
+			await physics_frame
+		other.health.set_health_now(0)
+		if c[1] != null:
+			me.health.set_health_now(0)
+		for i in 3:
+			await physics_frame
+		if c[1] == null:
+			me.position = c[3]  # walks onto the dead body's spot (no collision)
+			for i in 3:
+				await physics_frame
+		# The server's batch: both in one frame, as one packet delivers them.
+		await process_frame
+		if c[1] != null:
+			me.health._do_respawn(c[3], 1)
+		other.health._do_respawn(c[4], 1)
+		var worst := 0.0
+		for i in 10:
+			await physics_frame
+			worst = maxf(worst, (me.position as Vector2).distance_to(c[3]))
+		if worst > 0.5 or not (other.position as Vector2).is_equal_approx(c[4]):
+			printerr("FAIL respawn_teleport_ghosts %s: the local player ends at %s, up to %.1f px off its spot %s; the other at %s, sent to %s"
+					% [label, me.position, worst, c[3], other.position, c[4]])
+			fail += 1
+		if me.body_shape.disabled or other.body_shape.disabled:
+			printerr("FAIL respawn_teleport_ghosts %s: collision still off after the respawn (%s, %s)"
+					% [label, me.body_shape.disabled, other.body_shape.disabled])
+			fail += 1
+		me.free()
+		other.free()
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_respawn_teleport_ghosts")
+	return fail
+
+
+func _test_rejoin_sees_every_death() -> int:
+	## A joiner's process dies with no goodbye and starts again, so it joins
+	## under a new peer id while the server still holds the old one until
+	## ENet times it out. Every death the server then deals the new player
+	## reaches its own client, followed by the respawn (#171), each time, and
+	## nothing meant for the old peer reaches the new one.
+	print("-- test_rejoin_sees_every_death")
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL rejoin_sees_every_death found no free UDP port")
+		return 1
+	var dir := OS.get_user_data_dir().path_join("rejoin_%d_%d" % [OS.get_process_id(), port])
+	_remove_dir(dir)
+	DirAccess.make_dir_recursive_absolute(dir)
+	var pids: Array[int] = []
+	var outs: Array[String] = []
+	var start := func(extra: Array) -> void:
+		var out := dir.path_join("p%d.json" % outs.size())
+		var args := ["--headless", "--path", ProjectSettings.globalize_path("res://"),
+				"--script", "res://tests/late_join_probe.gd", "--", "--port=%d" % port, "--out=" + out]
+		args.append_array(extra)
+		pids.append(OS.create_process(OS.get_executable_path(), args))
+		outs.append(out)
+	var read := func(i: int) -> Dictionary:
+		var text := FileAccess.get_file_as_string(outs[i])
+		var data = JSON.parse_string(text) if text != "" else null
+		return data if data is Dictionary else {}
+	var wait_for := func(cond: Callable, ms: int) -> bool:
+		var until := Time.get_ticks_msec() + ms
+		while Time.get_ticks_msec() < until and not cond.call():
+			await process_frame
+		return cond.call()
+	var joined := func(i: int) -> bool:
+		var s: Dictionary = read.call(i)
+		return s.get("origin") != null and s.get("players", {}).has(s.get("id")) \
+				and read.call(0).get("players", {}).has(s.get("id"))
+
+	var fail := 0
+	start.call(["--host"])
+	if not await wait_for.call(func() -> bool: return read.call(0).get("origin") != null, 30000):
+		printerr("FAIL rejoin_sees_every_death the host did not start")
+		fail += 1
+	if fail == 0:
+		start.call([])
+		if not await wait_for.call(joined.bind(1), 30000):
+			printerr("FAIL rejoin_sees_every_death the first joiner did not join: %s" % read.call(1))
+			fail += 1
+	var old_id: String = read.call(1).get("id", "") if fail == 0 else ""
+	if fail == 0:
+		OS.kill(pids[1])
+		pids[1] = 0
+		start.call([])
+		if not await wait_for.call(joined.bind(2), 30000):
+			printerr("FAIL rejoin_sees_every_death the restarted joiner did not join: %s" % read.call(2))
+			fail += 1
+	if fail == 0:
+		var new_id: String = read.call(2)["id"]
+		var stale: bool = read.call(0).get("players", {}).has(old_id)
+		for k in range(1, 4):
+			FileAccess.open(outs[0] + ".kill", FileAccess.WRITE).store_string(str(k))
+			var seen := func() -> bool:
+				var own: Dictionary = read.call(2)
+				return own.get("deaths", 0) >= k and own.get("players", {}).get(new_id, {}).get("respawns", 0) >= k
+			if not await wait_for.call(seen, 10000):
+				var own: Dictionary = read.call(2)
+				printerr("FAIL rejoin_sees_every_death death %d: its own client saw %s deaths and %s respawns, the server %s respawns"
+						% [k, own.get("deaths"), own.get("players", {}).get(new_id, {}).get("respawns"),
+						read.call(0).get("players", {}).get(new_id, {}).get("respawns")])
+				fail += 1
+				break
+		if fail == 0 and not read.call(2).get("errors", []).is_empty():
+			printerr("FAIL rejoin_sees_every_death the restarted joiner logged errors, so traffic for the old peer reached it: %s"
+					% [read.call(2)["errors"]])
+			fail += 1
+		if fail == 0:
+			print("PASS test_rejoin_sees_every_death (3 deaths and respawns; old peer %s)"
+					% ("still held at the first" if stale else "already gone"))
+
+	for out in outs:
+		FileAccess.open(out + ".stop", FileAccess.WRITE).close()
+	await wait_for.call(func() -> bool:
+		for pid in pids:
+			if pid > 0 and OS.is_process_running(pid):
+				return false
+		return true, 10000)
+	for pid in pids:
+		if pid > 0 and OS.is_process_running(pid):
+			OS.kill(pid)
+	_remove_dir(dir)
+	return fail
+
+
+func _test_discovery_messages() -> int:
+	## A misnamed test, and an indented copy of a real test's name, are
+	## reported by line, and `--only=` points at the WARNING for them instead
+	## of saying there is no such test (or that a test that runs is skipped).
+	print("-- test_discovery_messages")
+	var fail := 0
+	var source := "\n".join([
+		"func _test_ok() -> int:",
+		"func test_qa_x() -> int:",
+		"class Inner:",
+		"\tfunc _test_ok() -> int:",
+	])
+	var skipped := {}
+	var names := _registered_tests(source, skipped)
+	if names.size() != 1 or names[0] != "_test_ok":
+		printerr("FAIL discovery_messages: registered %s, want [_test_ok]" % [names])
+		fail += 1
+	var want := {
+		"test_qa_x (line 2)": "the name must start with `_test_`",
+		"_test_ok (line 4)": "it is indented; tests must be top-level; the top-level _test_ok is the one that runs",
+	}
+	if skipped != want:
+		printerr("FAIL discovery_messages: skipped %s, want %s" % [skipped, want])
+		fail += 1
+	for case in [
+		["qa_x", "Test qa_x is not run: see the WARNING for test_qa_x (line 2) above."],
+		["test_qa_x", "Test test_qa_x is not run: see the WARNING for test_qa_x (line 2) above."],
+		["ok", ""],
+		["nope", "No test named nope."],
+	]:
+		var got := _only_problem(names, case[0], skipped)
+		if got != case[1]:
+			printerr("FAIL discovery_messages: --only=%s says %s, want %s" % [case[0], got, case[1]])
+			fail += 1
+	if fail == 0:
+		print("PASS test_discovery_messages")
+	return fail
+
+
+func _test_main_menu_input_no_log_spam() -> int:
+	## Unhandled input on the main menu must not log InputMap errors (the menu
+	## checks a "quit" action that is not mapped). Runs tests/menu_input_probe.gd
+	## in a separate headless process, because engine errors cannot be read back
+	## in-process. --quit-after bounds the run.
+	print("-- test_main_menu_input_no_log_spam")
+	var output := []
+	var code := OS.execute(
+		OS.get_executable_path(),
+		[
+			"--headless", "--path", ProjectSettings.globalize_path("res://"),
+			"--quit-after", "600", "--script", "res://tests/menu_input_probe.gd",
+		],
+		output,
+		true
+	)
+	var log_text: String = "".join(output)
+	var fail := 0
+	if code != 0 or not log_text.contains("MENU_INPUT_PROBE_OK"):
+		printerr("FAIL main_menu_input_no_log_spam probe exit=%s" % code)
+		fail += 1
+	var errors := 0
+	for line in log_text.split("\n"):
+		if line.contains("InputMap action"):
+			errors += 1
+	if errors > 0:
+		printerr("FAIL main_menu_input_no_log_spam: %s InputMap errors in the log" % errors)
+		fail += 1
+	if fail == 0:
+		print("PASS test_main_menu_input_no_log_spam")
+	return fail
+
+
+func _test_map_save_needs_every_seed() -> int:
+	## A save must hold every seed the world used. Any MapGenParams seed left
+	## at 0 would be re-rolled on load, so saving refuses it and writes no file.
+	print("-- test_map_save_needs_every_seed")
+	var fail := 0
+	var seed_keys: Array[String] = []
+	for key in MapGenParams.make_defaults().to_dict().keys():
+		if key.ends_with("_seed"):
+			seed_keys.append(key)
+	if not "biome_seed" in seed_keys:
+		printerr("FAIL map_save_needs_every_seed: biome_seed not among %s" % [seed_keys])
+		fail += 1
+	for unset_key in seed_keys:
+		var params := MapGenParams.make_defaults()
+		for key in seed_keys:
+			params.set(key, 0 if key == unset_key else 17)
+		var save_name: String = "test_unset_" + unset_key
+		DirAccess.remove_absolute(MapSave.path_for(save_name))
+		var result = MapSave.save_map(params, save_name)
+		var written := FileAccess.file_exists(MapSave.path_for(save_name))
+		DirAccess.remove_absolute(MapSave.path_for(save_name))
+		if not unset_key in result["error"] or written:
+			printerr("FAIL map_save_needs_every_seed %s=0: error=%s file written=%s" % [unset_key, result["error"], written])
+			fail += 1
+	if fail == 0:
+		print("PASS test_map_save_needs_every_seed (%s seeds)" % seed_keys.size())
+	return fail
+
+
+func _test_saved_maps_list_rename_delete() -> int:
+	## The saved-maps list shows each save's name and date, newest first, and
+	## rename and delete act on the right file, and a name that points outside
+	## the saves folder is refused. Runs in a temporary directory.
+	print("-- test_saved_maps_list_rename_delete")
+	var fail := 0
+	var base := OS.get_temp_dir().path_join("flagoria_test_saved_maps_%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()])
+	var dir := base + "/saves/"
+	if MapSave.list_saves(dir) != []:
+		printerr("FAIL saved_maps: missing directory lists %s, want []" % [MapSave.list_saves(dir)])
+		fail += 1
+	DirAccess.make_dir_recursive_absolute(dir)
+	# [name, modified time]; a non-save file must not be listed.
+	var files := [["Alpha", 1000], ["beta", 3000], ["Gamma", 2000]]
+	for entry in files:
+		var file := FileAccess.open(dir + entry[0] + ".json", FileAccess.WRITE)
+		file.store_string('{"format_version": 1, "params": {}}')
+		file.close()
+		# Godot cannot set a file's modified time; touch sets it to the second.
+		OS.execute("touch", ["-d", "@%d" % entry[1], ProjectSettings.globalize_path(dir + entry[0] + ".json")])
+	FileAccess.open(dir + "notes.txt", FileAccess.WRITE).close()
+
+	var listed: Array[Dictionary] = MapSave.list_saves(dir)
+	var names: Array = listed.map(func(row): return row["name"])
+	if names != ["beta", "Gamma", "Alpha"] or listed[0]["modified"] != 3000 or listed[0]["path"] != dir + "beta.json":
+		printerr("FAIL saved_maps: listed %s, want beta, Gamma, Alpha newest first" % [listed])
+		fail += 1
+
+	var cases := [
+		[["Gamma", "Delta"], "", ["beta", "Delta", "Alpha"]],
+		[["Delta", "Alpha"], "already", null],
+		[["missing", "Other"], "no map save", null],
+		[["Delta", "  "], "name", null],
+	]
+	for case in cases:
+		var err: String = MapSave.rename_save(case[0][0], case[0][1], dir)
+		var after: Array = MapSave.list_saves(dir).map(func(row): return row["name"])
+		if (err != "" if case[1] == "" else not case[1] in err) or (case[2] != null and after != case[2]):
+			printerr("FAIL saved_maps: rename %s -> %s gave error=%s list=%s" % [case[0][0], case[0][1], err, after])
+			fail += 1
+	if FileAccess.get_file_as_string(dir + "Delta.json") != '{"format_version": 1, "params": {}}':
+		printerr("FAIL saved_maps: renamed save lost its contents")
+		fail += 1
+
+	var delete_error: String = MapSave.delete_save("beta", dir)
+	var missing_error: String = MapSave.delete_save("beta", dir)
+	var left: Array = MapSave.list_saves(dir).map(func(row): return row["name"])
+	if delete_error != "" or not "no map save" in missing_error or left != ["Delta", "Alpha"]:
+		printerr("FAIL saved_maps: delete gave %s / %s, list %s" % [delete_error, missing_error, left])
+		fail += 1
+
+	# A decoy save beside the saves folder: "../x" must not reach it.
+	var decoy := base + "/x.json"
+	FileAccess.open(decoy, FileAccess.WRITE).close()
+	var escapes := {
+		"delete ../x": MapSave.delete_save("../x", dir),
+		"rename ../x": MapSave.rename_save("../x", "y", dir),
+	}
+	for what in escapes:
+		if not "not a map save name" in escapes[what] or not FileAccess.file_exists(decoy) or FileAccess.file_exists(dir + "y.json"):
+			printerr("FAIL saved_maps: %s gave error=%s, decoy kept=%s" % [what, escapes[what], FileAccess.file_exists(decoy)])
+			fail += 1
+
+	for name in DirAccess.get_files_at(dir):
+		DirAccess.remove_absolute(dir + name)
+	DirAccess.remove_absolute(dir)
+	DirAccess.remove_absolute(decoy)
+	DirAccess.remove_absolute(base)
+	if fail == 0:
+		print("PASS test_saved_maps_list_rename_delete")
 	return fail

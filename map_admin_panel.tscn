@@ -146,7 +146,7 @@ layout_mode = 2
 theme_override_constants/separation = 4
 alignment = 1
 
-[node name="Back" type="Button" parent="Margin/VBox/Buttons2"]
+[node name="Back" type="Button" parent="Margin/VBox/Buttons2" groups=["ui_back"]]
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Back"

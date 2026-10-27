@@ -5,7 +5,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 ## Baseline preconditions
 
 - Working directory is the Flagoria repo root (`project.godot` present).
-- `GODOT` points at a Godot **4.7.x** editor binary (`$GODOT --version`).
+- Godot is the version in `project.godot` (currently **4.7.x**, check with `$GODOT --version`). `GODOT` points at the editor binary; when it is unset, `doctor.sh`, `drive-verify.sh` and `tools/verify.sh` use `godot` on `PATH`.
 - Run `./.cursor/skills/verify-flagoria/bin/doctor.sh` and require exit `0`.
 - Prefer disposable evidence under `.cursor/skills/verify-flagoria/artifacts/`.
 - Never drive a long-lived game instance that was not started for this verification run.

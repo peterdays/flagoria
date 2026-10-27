@@ -20,6 +20,7 @@ config/icon="res://art/icon/icon.png"
 MapGen="*res://Scripts/map_gen.gd"
 AudioSettings="*res://Scripts/audio_settings.gd"
 MusicPlayer="*res://Scripts/music_player.gd"
+UiSfx="*res://Scripts/ui_sfx.gd"
 
 [display]
 

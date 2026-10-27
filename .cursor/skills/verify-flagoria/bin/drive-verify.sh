@@ -7,9 +7,11 @@ ART=".cursor/skills/verify-flagoria/artifacts"
 RUN=".cursor/skills/verify-flagoria/.run"
 mkdir -p "$ART" "$RUN"
 
-if [[ -z "${GODOT:-}" ]]; then
-  echo "drive-verify: set GODOT to the Godot 4.7 editor binary" >&2
-  exit 1
+# Same lookup as tools/verify.sh and doctor.sh: GODOT if set, else `godot` on PATH.
+export GODOT="${GODOT:-godot}"
+if [[ ! -x "$GODOT" ]] && ! command -v "$GODOT" >/dev/null 2>&1; then
+  echo "drive-verify: Godot not found: ${GODOT} (put godot on PATH or set GODOT to the editor binary)" >&2
+  exit 127
 fi
 
 log="${ART}/verify.log"

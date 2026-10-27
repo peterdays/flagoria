@@ -1,5 +1,10 @@
 extends TileMap
 
+## Layer-0 ground was drawn in `cells`, or (an empty Rect2i) cleared everywhere.
+## Emitted on every peer right after the cells are set, so local visuals that
+## depend on the ground (hidden mobs) update in the same frame.
+signal ground_changed(cells: Rect2i)
+
 var rng = RandomNumberGenerator.new()
 var count = 0
 var moisture = FastNoiseLite.new()
@@ -58,6 +63,16 @@ const SPAWN_NEIGHBORS := [
 const SPAWN_STEPS := [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]
 # A spawn must reach at least this many clear-ground cells on foot.
 const SPAWN_MIN_REACHABLE := 200
+## Players spawn and respawn at a free spot at most this far (px) from the
+## spawn point, so several of them never stand on one another. 64 px is four
+## 16 px tiles: room for dozens of players, all on screen around the spawn.
+const SPAWN_RADIUS := 64.0
+# Two players closer than this (px, centre to centre) would touch; one tile
+# apart keeps their 8 x 10 bodies from overlapping.
+const SPAWN_CLEARANCE := 16.0
+# Clear cells walked from the spawn point when looking for a free spot, at
+# least (more when many players stand around it, see free_spawn_position).
+const SPAWN_SEARCH_LIMIT := 400
 
 
 func _ready():
@@ -109,6 +124,7 @@ func apply_map_params(p: MapGenParams) -> void:
 	clear()
 	_predict_cache.clear()
 	spawn_point = Vector2i(0, 0)
+	ground_changed.emit(Rect2i())
 
 
 func _configure_noise(noise: FastNoiseLite, seed_value: int, frequency: float, p: MapGenParams) -> void:
@@ -146,6 +162,8 @@ func generate_chunk(position):
 
 			set_tile_type_z0(cell, alt, moist, temp, chance, b)
 			set_tile_type_z1(cell, alt, moist, temp, chance, b)
+	var corner := Vector2i(tile_pos.x - chunk_width / 2, tile_pos.y - chunk_height / 2)
+	ground_changed.emit(Rect2i(corner, Vector2i(chunk_width, chunk_height)))
 
 
 func cell_altitude(cell: Vector2i, biome_id: int) -> float:
@@ -514,3 +532,44 @@ func resolve_player_spawn(origin_cell: Vector2i = Vector2i(0, 0), max_radius: in
 
 	spawn_point = best
 	return best
+
+
+func spawn_spots(origin_cell: Vector2i, limit: int = SPAWN_SEARCH_LIMIT) -> Array[Vector2]:
+	## Centres of up to limit clear cells a player can walk to from
+	## origin_cell, nearest first (ties by y, then x), so every peer gets the
+	## same order.
+	var origin := map_to_local(origin_cell)
+	var spots: Array[Vector2] = []
+	for cell in reachable_clear_cells(origin_cell, limit):
+		spots.append(map_to_local(cell))
+	spots.sort_custom(func(a: Vector2, b: Vector2) -> bool:
+		var da := a.distance_squared_to(origin)
+		var db := b.distance_squared_to(origin)
+		if da != db:
+			return da < db
+		if a.y != b.y:
+			return a.y < b.y
+		return a.x < b.x)
+	return spots
+
+
+func free_spawn_position(origin_cell: Vector2i, taken: Array[Vector2]) -> Vector2:
+	## The nearest spot to origin_cell clear of every position in taken. That
+	## is within SPAWN_RADIUS unless the area is full; then the nearest free
+	## spot further out. One position blocks at most per_taken cell centres,
+	## so the search walks enough cells that taken cannot cover them all.
+	## Only when all the ground reachable from origin_cell is taken does it
+	## fall back to origin_cell itself.
+	var span := 2 * ceili(SPAWN_CLEARANCE / tile_set.tile_size.x) + 1
+	var per_taken := span * span
+	for spot in spawn_spots(origin_cell, maxi(SPAWN_SEARCH_LIMIT, per_taken * taken.size() + 1)):
+		if _clear_of(spot, taken):
+			return spot
+	return map_to_local(origin_cell)
+
+
+func _clear_of(at: Vector2, taken: Array[Vector2]) -> bool:
+	for other in taken:
+		if at.distance_to(other) < SPAWN_CLEARANCE:
+			return false
+	return true

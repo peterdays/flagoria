@@ -98,7 +98,13 @@ After import, start a dedicated server from the repo root:
 "$GODOT" --headless --path . -- --server --port 9799
 ```
 
-`--port N` and `--port=N` are accepted. The default is UDP `9786`. On success the log shows:
+`--port N` and `--port=N` are accepted. The default is UDP `9786`. `--params <file>` (or `--params=<file>`) hosts the map in a map save (`MapSave`, `.json`; `user://`, `res://` or an absolute path):
+
+```bash
+"$GODOT" --headless --path . -- --server --params /srv/flagoria/island.json
+```
+
+Without `--params` the server uses the current `MapGen.params`. On success the log shows:
 
 ```text
 Dedicated server listening on UDP port 9786
@@ -107,17 +113,17 @@ Dedicated server listening on UDP port 9786
 What the boot does (`start_dedicated_server` in `flagoria_main.gd`):
 
 - Hides the main menu and spawns no local player (no node `1` under `World`).
-- Calls `setup_server` with the current `MapGen.params`, the same path as Main Menu Host. Seeds left at 0 are randomized.
+- Calls `setup_server` with the `--params` map save, or else the current `MapGen.params`, the same path as Main Menu Host. Seeds left at 0 are randomized.
 - Generates the origin chunk.
 - Joining clients get a player and the full map params through the existing Join path (`receive_map_params`).
 
-A port outside 1 to 65535, or a port that cannot be bound, logs an error and exits `1`. A launch without `--server` behaves as before.
+A port outside 1 to 65535, a port that cannot be bound, or a `--params` file that is missing or not a map save logs an error and exits `1`. A launch without `--server` behaves as before.
 
 The server runs until it is stopped. SIGTERM ends the process without a graceful shutdown (exit `143`). There is no quit command yet.
 
 Clients join with Main Menu Join. Join always uses port `9786`, so a server on another port cannot be reached from the GUI yet.
 
-`test_dedicated_server_join` in `tests/run_tests.gd` starts a `-- --server` process, joins it through the main scene's Join path, and checks that the client gets map params and its own player and that the host has no node `1`. Waits are bounded at 30 seconds, and the server process is killed at the end.
+`test_dedicated_server_join` in `tests/run_tests.gd` starts a `-- --server` process, joins it through the main scene's Join path, and checks that the client gets map params and its own player and that the host has no node `1`. Waits are bounded at 30 seconds, and the server process is killed at the end. `test_dedicated_server_params_file` starts one with `--params` and checks that the joining client gets exactly the saved params, and that a missing file exits `1`.
 
 ## 5. CPU and memory (rough)
 

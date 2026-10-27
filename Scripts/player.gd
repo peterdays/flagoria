@@ -28,8 +28,18 @@ const RESPAWN_HOLD_MS := 1000  ## longest a copy waits for its owner to catch up
 ## On copies the owner moves: the respawn spot to hold while the owner's
 ## synced position is still the one from before it saw the respawn.
 var _respawn_hold := Vector2.INF
-var _respawn_from := Vector2.ZERO
 var _respawn_hold_until := 0
+## The owner's health.respawn_count when it sent an update, synced with
+## its position. A copy holds the spawn until this reaches the number the
+## server gave the respawn, so it needs no baseline of its own.
+var owner_respawns := 0
+## Physics frames left with the body's collision off after a respawn moved
+## it. The physics server moves a body to a new position only at its next
+## step, so for one tick the bodies of players who also just respawned still
+## stand where they died. Colliding then pushes the owner off the server's
+## spot, or (taking a body's top for a floor) carries it along when that
+## body jumps to its own spot (found in a multi-peer play-test).
+var _respawn_ghost_ticks := 0
 
 var lastAnimDirection: String = "Down"
 var isAttacking: bool = false
@@ -61,6 +71,10 @@ func _process(_delta):
 	sprite.modulate.a = 0.3 if faded else 1.0
 
 func _physics_process(delta):
+	if _respawn_ghost_ticks > 0:
+		_respawn_ghost_ticks -= 1
+		if _respawn_ghost_ticks == 0:
+			_apply_dead_state()
 	if not is_multiplayer_authority(): return
 	if health.is_dead():
 		velocity = Vector2.ZERO
@@ -140,10 +154,11 @@ func updateAnimation():
 
 
 func spawn_position() -> Vector2:
-	## Where this player respawns: the map's land spawn, as on joining.
+	## Where this player respawns: a free spot near the map's land spawn, as
+	## on joining.
 	var main = get_node_or_null("/root/Flagoria")
 	if main and main.has_method("_land_spawn_position"):
-		return main._land_spawn_position()
+		return main._land_spawn_position(self)
 	return position
 
 
@@ -161,29 +176,33 @@ func _apply_dead_state():
 	# respawn, or a late copy's state reply): a dead player neither blocks
 	# movement nor hits until it respawns. The sprite hides in _process.
 	var dead := health.is_dead()
-	body_shape.set_deferred("disabled", dead)
+	body_shape.set_deferred("disabled", dead or _respawn_ghost_ticks > 0)
 	if dead:
 		weapon.visible = false
 		sword_shape.set_deferred("disabled", true)
 
 
 func _on_respawned(at: Vector2):
-	if not is_multiplayer_authority():
-		_respawn_from = position
+	if is_multiplayer_authority():
+		owner_respawns = health.respawn_count
+	else:
 		_respawn_hold = at
 		_respawn_hold_until = Time.get_ticks_msec() + RESPAWN_HOLD_MS
 	position = at
 	velocity = Vector2.ZERO
+	# On every peer: this body neither pushes nor is pushed until the
+	# physics server has every respawned body at its new spot.
+	_respawn_ghost_ticks = 1
+	body_shape.set_deferred("disabled", true)
 
 
 func _on_synchronized():
 	# The owner keeps sending its pre-respawn position until the respawn
-	# reaches it; keep the copy at the spawn until an update is nearer the
-	# spawn than the old spot (or the hold runs out), then follow again.
+	# reaches it; keep the copy at the spawn until an update the owner sent
+	# after it respawned (or the hold runs out), then follow again.
 	if _respawn_hold == Vector2.INF:
 		return
-	var caught_up := position.distance_to(_respawn_hold) < position.distance_to(_respawn_from)
-	if caught_up or Time.get_ticks_msec() > _respawn_hold_until:
+	if owner_respawns >= health.respawn_count or Time.get_ticks_msec() > _respawn_hold_until:
 		_respawn_hold = Vector2.INF
 	else:
 		position = _respawn_hold

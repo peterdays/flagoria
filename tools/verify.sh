@@ -23,10 +23,45 @@ GODOT="${GODOT:-godot}"
 # play session, cannot leak into the checks. An XDG var the caller already set
 # is kept.
 verify_tmp="$(mktemp -d)"
-trap 'rm -rf "${verify_tmp}"' EXIT
+# Tests start servers and clients with OS.create_process, which puts each one
+# in its own session, so Ctrl-C on this script never reaches them and a failed
+# or interrupted run would leave them running. Tag the run in the environment,
+# which every child inherits, and on exit kill any Godot process that still
+# carries the tag. Needs /proc (Linux); elsewhere this is a no-op.
+export FLAGORIA_VERIFY_RUN="${verify_tmp}"
+kill_tagged_godots() {
+  local godot_exe env pid pids=()
+  godot_exe="$(readlink -f "$(command -v "$GODOT" 2>/dev/null)" 2>/dev/null)" || return 0
+  [[ -n "${godot_exe}" ]] || return 0
+  for env in /proc/[0-9]*/environ; do
+    pid="${env#/proc/}"
+    pid="${pid%/environ}"
+    [[ "$(readlink "/proc/${pid}/exe" 2>/dev/null)" == "${godot_exe}" ]] || continue
+    if grep -qzxF "FLAGORIA_VERIFY_RUN=${verify_tmp}" "${env}" 2>/dev/null; then
+      pids+=("${pid}")
+    fi
+  done
+  [[ ${#pids[@]} -eq 0 ]] && return 0
+  echo "Stopping ${#pids[@]} Godot process(es) left by this run:" >&2
+  for pid in "${pids[@]}"; do
+    echo "  ${pid} $(tr '\0' ' ' <"/proc/${pid}/cmdline" 2>/dev/null | cut -c1-200)" >&2
+  done
+  kill -TERM "${pids[@]}" 2>/dev/null || true
+  local _ alive
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    alive=()
+    for pid in "${pids[@]}"; do
+      kill -0 "${pid}" 2>/dev/null && alive+=("${pid}")
+    done
+    [[ ${#alive[@]} -eq 0 ]] && return 0
+    sleep 0.2
+  done
+  kill -KILL "${alive[@]}" 2>/dev/null || true
+}
+trap 'kill_tagged_godots; rm -rf "${verify_tmp}"' EXIT
 # Ctrl-C or kill must fail the run. Without these traps bash keeps going after
 # the current Godot step and can still print "Verification passed." and exit 0.
-# The EXIT trap above still removes the temp dirs.
+# The EXIT trap above still stops tagged Godots and removes the temp dirs.
 trap 'echo "error: interrupted (SIGINT)" >&2; exit 130' INT
 trap 'echo "error: terminated (SIGTERM)" >&2; exit 143' TERM
 export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-${verify_tmp}/config}"
@@ -66,7 +101,7 @@ run_editor() {
 }
 
 echo "== Import project (--headless --editor --quit) =="
-import_log="$(mktemp)"
+import_log="$(mktemp -p "${verify_tmp}")"
 if ! run_editor "${import_log}"; then
   echo "error: Godot editor exited non-zero during import" >&2
   rm -f "${import_log}"
@@ -75,7 +110,7 @@ fi
 rm -f "${import_log}"
 
 echo "== Load project again, after resources have been imported =="
-load_log="$(mktemp)"
+load_log="$(mktemp -p "${verify_tmp}")"
 load_status=0
 run_editor "${load_log}" || load_status=$?
 
@@ -104,7 +139,7 @@ while IFS= read -r f; do
   found=1
   rel="res://${f#./}"
   echo "-- ${rel}"
-  slog="$(mktemp)"
+  slog="$(mktemp -p "${verify_tmp}")"
   set +e
   "$GODOT" --headless --path "$ROOT" --check-only --script "${rel}" >"${slog}" 2>&1
   status=$?
@@ -132,7 +167,7 @@ echo "Script parse: ok"
 # Separate step so later verify.sh additions merge cleanly.
 # ---------------------------------------------------------------------------
 echo "== Tests (godot --headless --script res://tests/run_tests.gd) =="
-test_log="$(mktemp)"
+test_log="$(mktemp -p "${verify_tmp}")"
 set +e
 "$GODOT" --headless --path "$ROOT" --script res://tests/run_tests.gd >"${test_log}" 2>&1
 test_status=$?
@@ -152,7 +187,7 @@ rm -f "${test_log}"
 echo "Tests: ok"
 
 echo "== Biome coverage (res://tools/render_biomes.gd) =="
-biome_log="$(mktemp)"
+biome_log="$(mktemp -p "${verify_tmp}")"
 set +e
 "$GODOT" --headless --path "$ROOT" --script res://tools/render_biomes.gd -- --seed=42 --size=4096 --step=16 \
   --out=res://artifacts/out/verify_biomes >"${biome_log}" 2>&1
@@ -168,7 +203,7 @@ rm -f "${biome_log}"
 echo "Biome coverage: ok"
 
 echo "== Audio check (res://tools/audio_check.gd, Dummy audio driver) =="
-audio_log="$(mktemp)"
+audio_log="$(mktemp -p "${verify_tmp}")"
 set +e
 "$GODOT" --headless --audio-driver Dummy --path "$ROOT" --script res://tools/audio_check.gd >"${audio_log}" 2>&1
 audio_status=$?
@@ -183,7 +218,7 @@ rm -f "${audio_log}"
 echo "Audio check: ok"
 
 echo "== Generator smoke (res://tools/generator_smoke.gd) =="
-gen_log="$(mktemp)"
+gen_log="$(mktemp -p "${verify_tmp}")"
 gen_args=()
 # Regenerate the hero sheet when Pillow is available and compare it with the
 # committed one; without Pillow only the committed art is checked.
@@ -205,5 +240,24 @@ if [[ "${gen_status}" -ne 0 ]] || log_has_project_error "${gen_log}" || ! grep -
 fi
 rm -f "${gen_log}"
 echo "Generator smoke: ok"
+
+echo "== Map render golden (res://tools/cli.gd) =="
+# Fails when generation changes. If the change is intended, regenerate with
+# the same command (--out tests/golden/map_render_seed42.txt) and commit it.
+cli_log="$(mktemp -p "${verify_tmp}")"
+cli_out="${verify_tmp}/map_render_seed42.txt"
+set +e
+"$GODOT" --headless --path "$ROOT" --script res://tools/cli.gd -- map render --seed 42 --out "${cli_out}" >"${cli_log}" 2>&1
+cli_status=$?
+set -e
+cat "${cli_log}"
+if [[ "${cli_status}" -ne 0 ]] || log_has_project_error "${cli_log}" || ! cmp -s "${cli_out}" "$ROOT/tests/golden/map_render_seed42.txt"; then
+  echo "error: map render golden failed (exit ${cli_status}); diff against tests/golden/map_render_seed42.txt:" >&2
+  diff "$ROOT/tests/golden/map_render_seed42.txt" "${cli_out}" >&2 || true
+  rm -f "${cli_log}"
+  exit 1
+fi
+rm -f "${cli_log}"
+echo "Map render golden: ok"
 
 echo "Verification passed."
