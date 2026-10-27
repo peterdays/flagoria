@@ -49,8 +49,8 @@ modified time.
 
 **Save** in the in-game menu writes the world being played, named after the
 date and time (`2026-10-27 22-15-03`; a second save in the same second gets
-` 2`). The panel stays open and shows the name, so the player can resume or
-leave. Until player state (#197) and object changes (#198) land, the file holds
+` 2`). The panel stays open and confirms it on one line ("Saved: 10-27 22:15"),
+so the player can resume or leave. Until player state (#197) and object changes (#198) land, the file holds
 the generation inputs and empty change sections.
 
 ## Loading

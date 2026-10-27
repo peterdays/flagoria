@@ -4,8 +4,8 @@ extends Control
 ## paused, locally or for other players.
 ##
 ## Resume closes the panel. Save writes the current world as a world save
-## (docs/world-saves.md) named after the date and time, and says so under the
-## buttons; the panel stays open, so the player can resume or leave. Main menu
+## (docs/world-saves.md) named after the date and time, and says so on a line
+## kept under the buttons, so the panel never changes height; it stays open, so the player can resume or leave. Main menu
 ## leaves the match: Flagoria closes the network session and reloads the main
 ## scene, which frees the world and brings back the main menu and its music.
 
@@ -36,7 +36,7 @@ func open() -> void:
 
 func close() -> void:
 	panel.hide()
-	_show_status("")
+	status_label.text = ""
 	menu_button.show()
 
 
@@ -57,15 +57,16 @@ func save_world() -> Dictionary:
 		var save_name := unused_save_name(auto_save_name(Time.get_datetime_dict_from_system()))
 		result = get_node("/root/MapGen").save_world(WorldSave.new(params), save_name)
 	if result["error"] == "":
-		_show_status("Saved as %s" % result["path"].get_file().get_basename())
+		status_label.text = saved_text(result["path"].get_file().get_basename())
 	else:
-		_show_status("Not saved: %s" % result["error"])
+		status_label.text = "Not saved: %s" % result["error"]
 	return result
 
 
-func _show_status(text: String) -> void:
-	status_label.text = text
-	status_label.visible = text != ""
+static func saved_text(save_name: String) -> String:
+	## "Saved: 10-27 22:15" for "2026-10-27 22-15-03" (" 2" and the like
+	## dropped): one line in the panel at the theme's label size.
+	return "Saved: %s %s" % [save_name.substr(5, 5), save_name.substr(11, 5).replace("-", ":")]
 
 
 static func auto_save_name(now: Dictionary) -> String:

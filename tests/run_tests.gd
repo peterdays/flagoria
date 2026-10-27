@@ -915,10 +915,8 @@ func _test_ingame_menu_save() -> int:
 	var before_saves := MapSave.list_saves().size()
 
 	menu.menu_button.pressed.emit()
-	var early: Dictionary = menu.save_world()
-	if early["error"] == "" or MapSave.list_saves().size() != before_saves or not menu.status_label.text.begins_with("Not saved"):
-		printerr("FAIL ingame_menu_save: save before the world loaded error=%s status=%s" % [early["error"], menu.status_label.text])
-		fail += 1
+	var panel: Control = menu.get_node("Pause/Panel")
+	var empty_height: float = panel.get_combined_minimum_size().y
 
 	# The world as Host or Join leaves it: resolved seeds in world_params.
 	var params := MapGenParams.make_defaults()
@@ -943,8 +941,16 @@ func _test_ingame_menu_save() -> int:
 			printerr("FAIL ingame_menu_save: load_world error=%s version=%s same inputs=%s"
 					% [loaded["error"], loaded["version"], loaded["world"] != null and loaded["world"].params.to_dict() == params.to_dict()])
 			fail += 1
-		if menu.status_label.text != "Saved as %s" % saves[0]["name"] or not menu.status_label.is_visible_in_tree():
-			printerr("FAIL ingame_menu_save: status '%s' for save %s" % [menu.status_label.text, saves[0]["name"]])
+		var save_name: String = saves[0]["name"]
+		var want := "Saved: %s %s" % [save_name.substr(5, 5), save_name.substr(11, 5).replace("-", ":")]
+		if menu.status_label.text != want or not menu.status_label.is_visible_in_tree():
+			printerr("FAIL ingame_menu_save: status '%s' for save %s, want '%s'" % [menu.status_label.text, save_name, want])
+			fail += 1
+		# One line, and the panel keeps the height it had before the save.
+		var height: float = panel.get_combined_minimum_size().y
+		if menu.status_label.get_line_count() != 1 or height != empty_height:
+			printerr("FAIL ingame_menu_save: status on %d lines, panel %s tall, %s before the save"
+					% [menu.status_label.get_line_count(), height, empty_height])
 			fail += 1
 	if not menu.is_open() or _ui_plays_since(ui, before_sfx).get("saved", 0) != 1:
 		printerr("FAIL ingame_menu_save: menu open=%s, sounds %s" % [menu.is_open(), _ui_plays_since(ui, before_sfx)])
@@ -961,8 +967,15 @@ func _test_ingame_menu_save() -> int:
 		printerr("FAIL ingame_menu_save: auto name %s" % stamp)
 		fail += 1
 
+	# Before the world has loaded nothing is written.
+	scene.world_params = null
+	var early: Dictionary = menu.save_world()
+	if early["error"] == "" or MapSave.list_saves().size() != before_saves + 2 or not menu.status_label.text.begins_with("Not saved"):
+		printerr("FAIL ingame_menu_save: save before the world loaded error=%s status=%s" % [early["error"], menu.status_label.text])
+		fail += 1
+
 	menu.resume_button.pressed.emit()
-	if menu.status_label.visible or menu.status_label.text != "":
+	if menu.status_label.text != "":
 		printerr("FAIL ingame_menu_save: status '%s' kept after Resume" % menu.status_label.text)
 		fail += 1
 	for path in paths:

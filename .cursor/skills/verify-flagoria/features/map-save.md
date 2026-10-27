@@ -10,7 +10,7 @@ A world's generation inputs (params and seeds) can be saved to and loaded from v
 
 ## How to get to it (user POV)
 
-- During a match: Menu (top right), then Save. The panel shows "Saved as <name>".
+- During a match: Menu (top right), then Save. The panel shows "Saved: MM-DD HH:MM".
 - Otherwise through the `MapGen` autoload API.
 
 ## Driving it with verify-flagoria helpers

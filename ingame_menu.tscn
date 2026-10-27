@@ -73,7 +73,6 @@ layout_mode = 2
 text = "Main menu"
 
 [node name="Status" type="Label" parent="Pause/Panel/Margin/VBox"]
-visible = false
 custom_minimum_size = Vector2(140, 0)
 layout_mode = 2
 horizontal_alignment = 1
