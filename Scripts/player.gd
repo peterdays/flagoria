@@ -3,6 +3,10 @@ extends CharacterBody2D
 const MAX_SPEED = 130
 const ACCEL = 120
 const FRICTION = 95
+## Top speed with the touch joystick, in px/s. The joystick has always moved
+## the player at ACCEL * 0.5 = 60 px/s, under the keyboard's MAX_SPEED; kept
+## as is because matching MAX_SPEED would change how touch play feels.
+const JOYSTICK_MAX_SPEED = 60
 
 var input = Vector2.ZERO
 
@@ -42,6 +46,11 @@ var owner_respawns := 0
 var _respawn_ghost_ticks := 0
 
 var lastAnimDirection: String = "Down"
+## The walk facing this player last sent with updateAnimation; the owner sends
+## a new one only when the facing changes, not every physics frame.
+var _sent_walk_direction := ""
+## The walk facing the owner last sent; replayed when an attack ends.
+var _walk_direction := "Down"
 var isAttacking: bool = false
 
 
@@ -56,10 +65,11 @@ func _ready():
 		sync.synchronized.connect(_on_synchronized)
 	if not is_multiplayer_authority(): return
 	camera.make_current()
+	# A peer that joins later gets the current walk facing on the next frame.
+	multiplayer.peer_connected.connect(func(_id): _sent_walk_direction = "")
 	var map_zoom := MapZoom.new()  # local camera only; zoom is never synced
 	map_zoom.name = "MapZoom"
 	camera.add_child(map_zoom)
-	joystick.connect("analogic_change", _on_player_joystick_analogic_change)
 	var hud = get_node_or_null(HUD_PATH)
 	if hud:
 		hud.bind(health)
@@ -80,7 +90,10 @@ func _physics_process(delta):
 		velocity = Vector2.ZERO
 		return
 	player_movement(delta)
-	updateAnimation.rpc()
+	var direction := walk_direction()
+	if direction != _sent_walk_direction:
+		_sent_walk_direction = direction
+		updateAnimation.rpc(direction)
 	
 
 func _unhandled_input(event):
@@ -116,8 +129,21 @@ func get_input_axis():
 	input.y = int(Input.is_action_pressed("ui_down")) - int(Input.is_action_pressed("ui_up"))
 	return input.normalized()
 
+func get_joystick_axis() -> Vector2:
+	## The touch joystick's direction while a finger holds it, read every
+	## physics frame: the joystick only signals on touch and drag events, so a
+	## finger held still sends nothing.
+	if not is_instance_valid(joystick) or joystick.ongoing_drag == -1:
+		return Vector2.ZERO
+	return joystick.get_button_pos().normalized()
+
 func player_movement(delta):
 	input = get_input_axis()
+	var max_speed := MAX_SPEED
+	if input == Vector2.ZERO:
+		input = get_joystick_axis()
+		if input != Vector2.ZERO:
+			max_speed = JOYSTICK_MAX_SPEED
 
 	if input == Vector2.ZERO:  # no input
 		if velocity.length() > (FRICTION * delta):
@@ -127,27 +153,21 @@ func player_movement(delta):
 			velocity = Vector2.ZERO
 	else:  # moving the player
 		velocity += (input * ACCEL * delta)
-		velocity = velocity.limit_length(MAX_SPEED)
+		velocity = velocity.limit_length(max_speed)
 		
 	move_and_slide()
-	
-func _on_player_joystick_analogic_change(move: Vector2) -> void:
-	updateVelocityFromJoystick.rpc(move)
+
+func walk_direction() -> String:
+	## The walk animation's facing for the owner's current velocity.
+	if velocity.x < 0: return "Left"
+	if velocity.x > 0: return "Right"
+	if velocity.y < 0: return "Up"
+	return "Down"
 
 @rpc("call_local")
-func updateVelocityFromJoystick(move: Vector2):
-	if health.is_dead(): return
-	velocity = move * ACCEL * 0.5
-	velocity = velocity.limit_length(MAX_SPEED)
-
-@rpc("call_local")
-func updateAnimation():
-	if isAttacking: return 
-
-	var direction = "Down"
-	if velocity.x < 0: direction = "Left"
-	elif velocity.x > 0: direction = "Right"
-	elif velocity.y < 0: direction = "Up"
+func updateAnimation(direction: String):
+	_walk_direction = direction
+	if isAttacking: return
 
 	lastAnimDirection = direction
 	animations.play("walk" + direction)
@@ -208,7 +228,10 @@ func _on_synchronized():
 		position = _respawn_hold
 
 func _on_animation_player_animation_finished(anim_name):
-	animations.play("walkDown")
+	# An attack ended: back to the walk facing the owner last sent, which no
+	# longer arrives every frame.
+	lastAnimDirection = _walk_direction
+	animations.play("walk" + _walk_direction)
 
 
 func _on_regen_timer_timeout():
