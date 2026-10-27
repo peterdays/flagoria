@@ -899,6 +899,81 @@ func _test_ingame_menu_leave() -> int:
 	return 0
 
 
+func _test_ingame_menu_save() -> int:
+	## Save in the in-game menu writes the world being played as a world save
+	## that load_world reads back with the same generation inputs, says so
+	## under the buttons and keeps the menu open. A second save never
+	## replaces the first; before the world has loaded nothing is written.
+	print("-- test_ingame_menu_save")
+	var fail := 0
+	var ui = root.get_node("UiSfx")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	await process_frame
+	var menu = scene.get_node("CanvasLayer1/InGameMenu")
+	scene.get_node("CanvasLayer1").show()  # as Host and Join do
+	var before_saves := MapSave.list_saves().size()
+
+	menu.menu_button.pressed.emit()
+	var early: Dictionary = menu.save_world()
+	if early["error"] == "" or MapSave.list_saves().size() != before_saves or not menu.status_label.text.begins_with("Not saved"):
+		printerr("FAIL ingame_menu_save: save before the world loaded error=%s status=%s" % [early["error"], menu.status_label.text])
+		fail += 1
+
+	# The world as Host or Join leaves it: resolved seeds in world_params.
+	var params := MapGenParams.make_defaults()
+	params.altitude_seed = 4242
+	params.ensure_seeds()
+	params.water_max_alt = 0.37
+	scene.world_params = params
+	ui._last_ms.clear()
+	var before_sfx: Dictionary = ui.plays.duplicate()
+	menu.save_button.pressed.emit()
+	var saves := MapSave.list_saves()
+	var paths: Array[String] = []
+	for row in saves:
+		paths.append(row["path"])
+	if saves.size() != before_saves + 1:
+		printerr("FAIL ingame_menu_save: Save wrote %d files, want 1" % (saves.size() - before_saves))
+		fail += 1
+	else:
+		var loaded := MapSave.load_world(saves[0]["path"])
+		if loaded["error"] != "" or loaded["version"] != MapSave.FORMAT_VERSION \
+				or loaded["world"].params.to_dict() != params.to_dict():
+			printerr("FAIL ingame_menu_save: load_world error=%s version=%s same inputs=%s"
+					% [loaded["error"], loaded["version"], loaded["world"] != null and loaded["world"].params.to_dict() == params.to_dict()])
+			fail += 1
+		if menu.status_label.text != "Saved as %s" % saves[0]["name"] or not menu.status_label.is_visible_in_tree():
+			printerr("FAIL ingame_menu_save: status '%s' for save %s" % [menu.status_label.text, saves[0]["name"]])
+			fail += 1
+	if not menu.is_open() or _ui_plays_since(ui, before_sfx).get("saved", 0) != 1:
+		printerr("FAIL ingame_menu_save: menu open=%s, sounds %s" % [menu.is_open(), _ui_plays_since(ui, before_sfx)])
+		fail += 1
+
+	# A second save in the same second gets its own name.
+	var again: Dictionary = menu.save_world()
+	paths.append(again["path"])
+	if again["error"] != "" or MapSave.list_saves().size() != before_saves + 2:
+		printerr("FAIL ingame_menu_save: second save error=%s, %d files" % [again["error"], MapSave.list_saves().size() - before_saves])
+		fail += 1
+	var stamp: String = menu.auto_save_name({"year": 2026, "month": 3, "day": 4, "hour": 5, "minute": 6, "second": 7})
+	if stamp != "2026-03-04 05-06-07" or stamp.validate_filename() != stamp:
+		printerr("FAIL ingame_menu_save: auto name %s" % stamp)
+		fail += 1
+
+	menu.resume_button.pressed.emit()
+	if menu.status_label.visible or menu.status_label.text != "":
+		printerr("FAIL ingame_menu_save: status '%s' kept after Resume" % menu.status_label.text)
+		fail += 1
+	for path in paths:
+		DirAccess.remove_absolute(path)
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_ingame_menu_save")
+	return fail
+
+
 func _test_quit_prompt_on_back() -> int:
 	## Back (Android) or closing the window asks "Do you want to quit?"
 	## instead of exiting, on the main menu and in a match. Cancel, Esc or a

@@ -4,7 +4,7 @@ extends Node
 const SAVE_PATH := "user://map_gen_params.cfg"
 const SAVE_SECTION := "map_gen"
 
-## A map save succeeded (save_map_inputs); UiSfx plays "saved".
+## A map save succeeded (save_map_inputs or save_world); UiSfx plays "saved".
 signal map_saved(path: String)
 
 var params: MapGenParams = MapGenParams.make_defaults()
@@ -45,10 +45,15 @@ func load_from_disk() -> void:
 func save_map_inputs(save_name: String) -> String:
 	## Saves the active params to MapSave.path_for(save_name); returns "" or an error.
 	## After hosting, the active params hold the resolved seeds.
-	var result := MapSave.save_map(params, save_name)
+	return save_world(WorldSave.new(params), save_name)["error"]
+
+
+func save_world(world: WorldSave, save_name: String) -> Dictionary:
+	## MapSave.save_world, then map_saved on success. {"path", "error"}.
+	var result := MapSave.save_world(world, save_name)
 	if result["error"] == "":
 		map_saved.emit(result["path"])
-	return result["error"]
+	return result
 
 
 func load_map_inputs(path: String) -> String:
