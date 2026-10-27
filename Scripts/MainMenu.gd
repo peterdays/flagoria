@@ -42,7 +42,9 @@ static func percent(v: float) -> String:
 
 
 func _unhandled_input(_event):
-	if Input.is_action_just_pressed("quit"):
+	# No "quit" action is mapped in project.godot. Without this guard the check
+	# logs an InputMap error for every unhandled event.
+	if InputMap.has_action("quit") and Input.is_action_just_pressed("quit"):
 		get_tree().quit()
 
 
