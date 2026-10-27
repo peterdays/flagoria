@@ -47,6 +47,7 @@ var isAttacking: bool = false
 
 func _ready():
 	health.damaged.connect(_on_damaged)
+	health.healed.connect(_on_healed)
 	health.died.connect(_on_died)
 	health.respawned.connect(_on_respawned)
 	health.health_changed.connect(_apply_dead_state.unbind(2))
@@ -165,6 +166,13 @@ func spawn_position() -> Vector2:
 func _on_damaged(_amount: int):
 	combat_sfx.play_event("hit")
 	combat_sfx.play_event("hurt")
+
+
+func _on_healed(_amount: int):
+	# Regen only runs after damage, so this ticks only while recovering. Only
+	# the peer that controls this player hears it.
+	if is_multiplayer_authority():
+		combat_sfx.play_event("regen")
 
 
 func _on_died():

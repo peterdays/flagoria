@@ -14,6 +14,9 @@ signal health_changed(current: int, maximum: int)
 signal state_received(current: int, maximum: int)
 ## A hit landed and took `amount` half-hearts (fires on every peer).
 signal damaged(amount: int)
+## heal() raised health by `amount` half-hearts (fires on every peer; not for
+## set_health_now or a respawn).
+signal healed(amount: int)
 signal died
 signal respawned(at: Vector2)
 
@@ -71,7 +74,7 @@ func heal(amount: int) -> bool:
 	## a dead player is not healed (respawn restores health).
 	if not is_multiplayer_authority() or amount <= 0 or is_dead() or health >= max_health:
 		return false
-	_set_health.rpc(mini(health + amount, max_health), _invulnerable_left)
+	_apply_heal.rpc(mini(health + amount, max_health))
 	return true
 
 
@@ -123,6 +126,14 @@ func _apply_damage(new_health: int) -> void:
 	health_changed.emit(health, max_health)
 	if health == 0:
 		died.emit()
+
+
+@rpc("authority", "call_local", "reliable")
+func _apply_heal(new_health: int) -> void:
+	var gained := new_health - health
+	health = new_health
+	healed.emit(gained)
+	health_changed.emit(health, max_health)
 
 
 @rpc("authority", "call_local", "reliable")

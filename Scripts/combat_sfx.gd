@@ -1,6 +1,6 @@
 class_name CombatSfx
 extends Node2D
-## Combat sounds for one player instance.
+## Combat and health sounds for one player instance.
 ##
 ## Every trigger already runs once on each peer: attack_animation is a
 ## call_local RPC, and health changes arrive through PlayerHealth's
@@ -12,6 +12,9 @@ extends Node2D
 ##   hit   - a hit lands on this player (played with hurt).
 ##   hurt  - this player loses health.
 ##   sting - accent when a hit takes this player's health to 0.
+##   regen - health regeneration heals this player; the player script plays
+##           it only on the peer that controls the player, so only the
+##           healing player hears it.
 
 const SOUNDS := {
 	"swing": [
@@ -31,15 +34,19 @@ const SOUNDS := {
 	"sting": [
 		preload("res://art/audio/sfx/combat/hit_sting_01.wav"),
 	],
+	"regen": [
+		preload("res://art/audio/sfx/world/regen_tick_01.wav"),
+	],
 }
-const VOLUME_DB := {"swing": -10.0, "hit": -8.0, "hurt": -9.0, "sting": -8.0}
+## regen uses the hurt level; its clip is mastered about 10 dB under the others.
+const VOLUME_DB := {"swing": -10.0, "hit": -8.0, "hurt": -9.0, "sting": -8.0, "regen": -9.0}
 ## Minimum seconds between two plays of the same event.
-const COOLDOWN := {"swing": 0.15, "hit": 0.1, "hurt": 0.25, "sting": 0.5}
+const COOLDOWN := {"swing": 0.15, "hit": 0.1, "hurt": 0.25, "sting": 0.5, "regen": 0.5}
 const PITCH_MIN := 0.93
 const PITCH_MAX := 1.07
 
 ## Plays started per event (tests read this; playback is not observable headless).
-var plays := {"swing": 0, "hit": 0, "hurt": 0, "sting": 0}
+var plays := {"swing": 0, "hit": 0, "hurt": 0, "sting": 0, "regen": 0}
 var _players := {}
 var _last_ms := {}
 

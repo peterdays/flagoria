@@ -919,7 +919,9 @@ func _test_combat_sfx() -> int:
 func _test_player_regen() -> int:
 	## The regen timer: every 5 s it heals half a heart, and skips players who
 	## are dead or already full. Ticks are fired by hand through the scene's
-	## own timeout connection, so the test does not wait 5 s per tick.
+	## own timeout connection, so the test does not wait 5 s per tick. Each
+	## heal plays the regen tick for the local player only; a full or dead
+	## player, set_health_now, and another peer's player play nothing.
 	print("-- test_player_regen")
 	var fail := 0
 	await process_frame
@@ -938,28 +940,44 @@ func _test_player_regen() -> int:
 	if not timer.timeout.is_connected(me._on_regen_timer_timeout):
 		printerr("FAIL player_regen timer timeout is not connected to the player")
 		fail += 1
+	var c: CombatSfx = me.combat_sfx
 	# Hurt: one tick heals half a heart (1 point), the next another.
 	h.set_health_now(3)
-	timer.timeout.emit()
-	if h.health != 4:
-		printerr("FAIL player_regen tick at 3 -> %s, want 4" % h.health)
+	if c.plays.get("regen", 0) != 0:
+		printerr("FAIL player_regen set_health_now played the regen tick")
 		fail += 1
 	timer.timeout.emit()
-	if h.health != 5:
-		printerr("FAIL player_regen second tick -> %s, want 5" % h.health)
+	if h.health != 4 or c.plays.get("regen", 0) != 1:
+		printerr("FAIL player_regen tick at 3 -> %s, regen plays %s, want 4 and 1" % [h.health, c.plays.get("regen", 0)])
 		fail += 1
-	# Full: a tick changes nothing.
+	c._last_ms.clear()  # ticks are 5 s apart in play, past the cooldown
+	timer.timeout.emit()
+	if h.health != 5 or c.plays.get("regen", 0) != 2:
+		printerr("FAIL player_regen second tick -> %s, regen plays %s, want 5 and 2" % [h.health, c.plays.get("regen", 0)])
+		fail += 1
+	# Full: a tick changes nothing and plays nothing.
+	c._last_ms.clear()
 	h.set_health_now(h.max_health)
 	timer.timeout.emit()
-	if h.health != h.max_health:
-		printerr("FAIL player_regen full player -> %s" % h.health)
+	if h.health != h.max_health or c.plays.get("regen", 0) != 2:
+		printerr("FAIL player_regen full player -> %s, regen plays %s" % [h.health, c.plays.get("regen", 0)])
 		fail += 1
-	# Dead: a tick does not heal (respawn restores health).
+	# Another peer's player heals on this peer too, but only its owner hears it.
+	var other = load("res://Player/character_body_2d.tscn").instantiate()
+	other.name = "2"
+	scene.get_node("World").add_child(other)
+	other.health.set_health_now(3)
+	other.get_node("regen_timer").timeout.emit()
+	if other.health.health != 4 or other.combat_sfx.plays.get("regen", 0) != 0:
+		printerr("FAIL player_regen other peer's player -> %s, regen plays %s, want 4 and 0"
+				% [other.health.health, other.combat_sfx.plays.get("regen", 0)])
+		fail += 1
+	# Dead: a tick does not heal (respawn restores health) and plays nothing.
 	h.respawn_delay = 1000.0
 	h.set_health_now(0)
 	timer.timeout.emit()
-	if h.health != 0 or not h.is_dead():
-		printerr("FAIL player_regen dead player -> %s" % h.health)
+	if h.health != 0 or not h.is_dead() or c.plays.get("regen", 0) != 2:
+		printerr("FAIL player_regen dead player -> %s, regen plays %s" % [h.health, c.plays.get("regen", 0)])
 		fail += 1
 	scene.queue_free()
 	await process_frame
