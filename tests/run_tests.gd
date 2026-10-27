@@ -5126,10 +5126,12 @@ func _test_map_save_needs_every_seed() -> int:
 
 func _test_saved_maps_list_rename_delete() -> int:
 	## The saved-maps list shows each save's name and date, newest first, and
-	## rename and delete act on the right file. Runs in a temporary directory.
+	## rename and delete act on the right file, and a name that points outside
+	## the saves folder is refused. Runs in a temporary directory.
 	print("-- test_saved_maps_list_rename_delete")
 	var fail := 0
-	var dir := "user://test_saved_maps_%d/" % OS.get_process_id()
+	var base := OS.get_temp_dir().path_join("flagoria_test_saved_maps_%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()])
+	var dir := base + "/saves/"
 	if MapSave.list_saves(dir) != []:
 		printerr("FAIL saved_maps: missing directory lists %s, want []" % [MapSave.list_saves(dir)])
 		fail += 1
@@ -5173,9 +5175,23 @@ func _test_saved_maps_list_rename_delete() -> int:
 		printerr("FAIL saved_maps: delete gave %s / %s, list %s" % [delete_error, missing_error, left])
 		fail += 1
 
+	# A decoy save beside the saves folder: "../x" must not reach it.
+	var decoy := base + "/x.json"
+	FileAccess.open(decoy, FileAccess.WRITE).close()
+	var escapes := {
+		"delete ../x": MapSave.delete_save("../x", dir),
+		"rename ../x": MapSave.rename_save("../x", "y", dir),
+	}
+	for what in escapes:
+		if not "not a map save name" in escapes[what] or not FileAccess.file_exists(decoy) or FileAccess.file_exists(dir + "y.json"):
+			printerr("FAIL saved_maps: %s gave error=%s, decoy kept=%s" % [what, escapes[what], FileAccess.file_exists(decoy)])
+			fail += 1
+
 	for name in DirAccess.get_files_at(dir):
 		DirAccess.remove_absolute(dir + name)
 	DirAccess.remove_absolute(dir)
+	DirAccess.remove_absolute(decoy)
+	DirAccess.remove_absolute(base)
 	if fail == 0:
 		print("PASS test_saved_maps_list_rename_delete")
 	return fail

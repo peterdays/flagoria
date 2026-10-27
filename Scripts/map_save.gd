@@ -95,6 +95,9 @@ static func list_saves(dir: String = SAVE_DIR) -> Array[Dictionary]:
 static func rename_save(save_name: String, new_name: String, dir: String = SAVE_DIR) -> String:
 	## Renames a save in dir; returns "" or an error. The new name goes through
 	## validate_filename like save_map's, and an existing save is never replaced.
+	var bad := _bad_name_error(save_name)
+	if bad != "":
+		return bad
 	var path := dir + save_name + ".json"
 	var clean := new_name.strip_edges().validate_filename()
 	if not FileAccess.file_exists(path):
@@ -110,8 +113,19 @@ static func rename_save(save_name: String, new_name: String, dir: String = SAVE_
 
 static func delete_save(save_name: String, dir: String = SAVE_DIR) -> String:
 	## Deletes a save in dir; returns "" or an error.
+	var bad := _bad_name_error(save_name)
+	if bad != "":
+		return bad
 	var path := dir + save_name + ".json"
 	if not FileAccess.file_exists(path):
 		return "no map save named %s" % save_name
 	var err := DirAccess.remove_absolute(path)
 	return "" if err == OK else "cannot delete %s (error %s)" % [save_name, err]
+
+
+static func _bad_name_error(save_name: String) -> String:
+	## A save name names one file in the saves folder; anything that could
+	## reach another folder ("../x", "a/b") is refused rather than resolved.
+	if save_name == "" or save_name != save_name.validate_filename() or "/" in save_name or "\\" in save_name or ".." in save_name:
+		return "not a map save name: %s" % save_name
+	return ""
