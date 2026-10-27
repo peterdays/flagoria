@@ -952,10 +952,7 @@ func _test_player_health_sync() -> int:
 	var cpeer := ENetMultiplayerPeer.new()
 	cpeer.create_client("127.0.0.1", port)
 	cmp.multiplayer_peer = cpeer
-	var deadline := Time.get_ticks_msec() + 10000
-	while Time.get_ticks_msec() < deadline and smp.get_peers().is_empty():
-		await process_frame
-	if smp.get_peers().is_empty():
+	if not await _client_connected(smp, cpeer):
 		printerr("FAIL player_health_sync client did not connect")
 		fail += 1
 	else:
@@ -1060,11 +1057,7 @@ func _test_player_health_join_while_dead() -> int:
 	server_health.call("5").take_damage(6)
 	server_health.call(me_id).take_damage(2)
 	cmp.multiplayer_peer = cpeer
-	var deadline := Time.get_ticks_msec() + 10000
-	while Time.get_ticks_msec() < deadline and (smp.get_peers().is_empty()
-			or cpeer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED):
-		await process_frame
-	if smp.get_peers().is_empty():
+	if not await _client_connected(smp, cpeer):
 		printerr("FAIL health_join_dead client did not connect")
 		fail += 1
 	else:
@@ -1179,11 +1172,7 @@ func _test_player_respawn_no_snapback() -> int:
 	var cpeer := ENetMultiplayerPeer.new()
 	cpeer.create_client("127.0.0.1", proxy_port)
 	cmp.multiplayer_peer = cpeer
-	var deadline := Time.get_ticks_msec() + 10000
-	while Time.get_ticks_msec() < deadline and (smp.get_peers().is_empty()
-			or cpeer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED):
-		await process_frame
-	if smp.get_peers().is_empty():
+	if not await _client_connected(smp, cpeer):
 		printerr("FAIL respawn_snapback client did not connect")
 		fail += 1
 	else:
@@ -1372,11 +1361,7 @@ func _respawn_follow_case(label: String, death: Vector2, spawn: Vector2, walk: V
 	var cpeer := ENetMultiplayerPeer.new()
 	cpeer.create_client("127.0.0.1", proxy_port)
 	cmp.multiplayer_peer = cpeer
-	var deadline := Time.get_ticks_msec() + 10000
-	while Time.get_ticks_msec() < deadline and (smp.get_peers().is_empty()
-			or cpeer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED):
-		await process_frame
-	if smp.get_peers().is_empty():
+	if not await _client_connected(smp, cpeer):
 		printerr("FAIL respawn_hold %s client did not connect" % label)
 		fail += 1
 	else:
@@ -3322,6 +3307,26 @@ func _free_udp_port() -> int:
 		if err == OK:
 			return port
 	return 0
+
+
+func _client_connected(smp: SceneMultiplayer, cpeer: ENetMultiplayerPeer) -> bool:
+	## Waits up to 10 s for the server to admit the client and the client to
+	## see itself connected. A single frame counts for at most 250 ms of that
+	## budget, so a pause of the whole process or machine (a VM snapshot, a
+	## long scheduler stall) does not use the budget up while ENet, which
+	## rides out pauses shorter than its 30 s peer timeout, is still
+	## mid-handshake.
+	var waited := 0
+	var last := Time.get_ticks_msec()
+	while (smp.get_peers().is_empty()
+			or cpeer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED):
+		if waited >= 10000:
+			return false
+		await process_frame
+		var now := Time.get_ticks_msec()
+		waited += mini(now - last, 250)
+		last = now
+	return true
 
 
 func _test_dedicated_server_join() -> int:
