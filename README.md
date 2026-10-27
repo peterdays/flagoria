@@ -22,11 +22,26 @@ Features:
 ./tools/verify.sh
 ```
 
-This imports the project, opens it again in the headless editor to check that it loads without errors, parses every script, runs the headless tests in `tests/run_tests.gd` (several of them instantiate the main scene), and runs the biome-coverage, audio and generator smoke checks. It ends with `Verification passed.` and exits `0`. CI runs the same script on every pull request. `GODOT` selects the Godot binary (default `godot`).
+This imports the project, opens it again in the headless editor to check that it loads without errors, parses every script, runs the headless tests in `tests/run_tests.gd` (several of them instantiate the main scene), runs the biome-coverage, audio and generator smoke checks, and compares a seed-42 map render with `tests/golden/map_render_seed42.txt`. It ends with `Verification passed.` and exits `0`. CI runs the same script on every pull request. `GODOT` selects the Godot binary (default `godot`).
 
 - Per-feature recipes, including manual checks for things the headless run cannot see, are in [.cursor/skills/verify-flagoria/features/](.cursor/skills/verify-flagoria/features/README.md).
 - Multiplayer changes also need the two-player checklist below.
 - Contributor and agent rules, including the pull request size cap, are in [AGENTS.md](AGENTS.md).
+
+## Map command line
+
+Render or measure a generated map without opening the game:
+
+```bash
+godot --headless --path . --script res://tools/cli.gd -- map render --seed 42
+godot --headless --path . --script res://tools/cli.gd -- map stats --seed 42 --out stats.json
+```
+
+- `map render` prints the origin chunk as ASCII, one character per tile type: `~` water, `.` sand, `%` swamp, `&` special swamp, `,` grass, `T` tree, `b` bush, `*` flower, `o` stones. A plant or stones replaces the ground under it.
+- `map stats` prints JSON: tile counts, water/land ratio, island count, and tree and bush density per land cell.
+- `--params <file>` reads a map save (`MapSave`); the default is `default`, the default map settings. `--seed n` sets the altitude, moisture, temperature, items and biome seeds to n to n+4. Without `--seed`, every seed must come from the map save, so output never depends on a random seed.
+- `--out <path>` writes a file instead of stdout. The same inputs give byte-identical output.
+- Exit codes: `0` ok, `1` error (for example, a missing map save), `2` bad usage.
 
 ## Android test builds
 
