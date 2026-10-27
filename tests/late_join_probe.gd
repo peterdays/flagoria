@@ -7,19 +7,42 @@ extends SceneTree
 ## Every 100 ms it writes PATH (JSON): its peer id, the spawn point, every
 ## player's position and respawn count as this peer sees them, the last
 ## respawn spot its own player was sent and, on the server, the spot it
-## picked for each player that joined. It quits once PATH.stop exists. The
-## server also kills every player in one frame once PATH.kill exists, so
-## they all respawn together.
+## picked for each player that joined, how many deaths its own player had
+## and the first engine errors this process logged. It quits once PATH.stop exists. The server also kills every player
+## in one frame once PATH.kill exists, so they all respawn together, and
+## again each time the text in PATH.kill changes.
 
 var _out := ""
 var _id := 0
 var _picked := {}
 var _respawned_at := Vector2.INF
 var _origin := Vector2.INF
-var _killed := false
+var _kill_text = null
+var _deaths := 0
+var _errors := _ErrorLog.new()
+
+
+class _ErrorLog extends Logger:
+	## Keeps the first few errors; Godot may log from any thread.
+	var lines: Array[String] = []
+	var _lock := Mutex.new()
+
+	func _log_error(function: String, _file: String, _line: int, code: String, rationale: String,
+			_editor_notify: bool, _error_type: int, _script_backtraces: Array[ScriptBacktrace]) -> void:
+		_lock.lock()
+		if lines.size() < 5:
+			lines.append("%s: %s" % [function, rationale if rationale != "" else code])
+		_lock.unlock()
+
+	func snapshot() -> Array[String]:
+		_lock.lock()
+		var copy := lines.duplicate()
+		_lock.unlock()
+		return copy
 
 
 func _initialize() -> void:
+	OS.add_logger(_errors)
 	call_deferred("_run")
 
 
@@ -60,8 +83,10 @@ func _run() -> void:
 		var me: Node = world.get_node_or_null(str(_id))
 		if me and not me.health.respawned.is_connected(_on_respawned):
 			me.health.respawned.connect(_on_respawned)
-		if mode != "join" and not _killed and FileAccess.file_exists(_out + ".kill"):
-			_killed = true
+			me.health.health_changed.connect(_on_health_changed)
+		if mode != "join" and FileAccess.file_exists(_out + ".kill") \
+				and FileAccess.get_file_as_string(_out + ".kill") != _kill_text:
+			_kill_text = FileAccess.get_file_as_string(_out + ".kill")
 			for child in world.get_children():
 				if child is CharacterBody2D:
 					child.health.set_health_now(0)
@@ -75,6 +100,11 @@ func _run() -> void:
 
 func _on_respawned(at: Vector2) -> void:
 	_respawned_at = at
+
+
+func _on_health_changed(current: int, _maximum: int) -> void:
+	if current == 0:
+		_deaths += 1
 
 
 func _write(main: Node, world: Node) -> void:
@@ -93,6 +123,8 @@ func _write(main: Node, world: Node) -> void:
 		"origin": [_origin.x, _origin.y] if _origin != Vector2.INF else null,
 		"picked": _picked,
 		"respawned_at": [_respawned_at.x, _respawned_at.y] if _respawned_at != Vector2.INF else null,
+		"deaths": _deaths,
+		"errors": _errors.snapshot(),
 		"players": players,
 	}
 	var tmp := _out + ".tmp"

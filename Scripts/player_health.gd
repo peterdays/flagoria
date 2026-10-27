@@ -27,7 +27,8 @@ var health := 6
 var _invulnerable_left := 0.0
 var _respawn_left := -1.0
 ## How many times the server has respawned this player node: the server
-## numbers each respawn and every peer stores the number it was sent.
+## numbers each respawn and every peer that saw it stores the number it was
+## sent. A copy that joined later starts at 0 (see _receive_state).
 var respawn_count := 0
 
 
@@ -148,6 +149,9 @@ func _request_state() -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func _receive_state(new_health: int, invulnerable_left: float) -> void:
+	# Leaves respawn_count out on purpose: at 0 a late copy never holds a
+	# respawn (Player.owner_respawns is never below it), and the next
+	# _do_respawn sends the full number anyway.
 	health = new_health
 	_invulnerable_left = invulnerable_left
 	state_received.emit(health, max_health)
