@@ -4,10 +4,30 @@ extends SceneTree
 ## Run some: godot --headless --path . --script res://tests/run_tests.gd -- --only=map_zoom[,mob_chase]
 ## List:     godot --headless --path . --script res://tests/run_tests.gd -- --list
 ## Every `func _test_*() -> int` below is registered automatically, in source order.
-## Exit 0 on success, 1 on failure or an unknown test name.
+## Exit 0 on success, 1 on failure or an unknown test name. A SCRIPT ERROR
+## logged while a test runs, even inside a helper it goes on past, fails it.
 
 func _initialize() -> void:
 	call_deferred("_run")
+
+
+class _ScriptErrorCount extends Logger:
+	## Godot may log from any thread.
+	var _count := 0
+	var _lock := Mutex.new()
+
+	func _log_error(_function: String, _file: String, _line: int, _code: String, _rationale: String,
+			_editor_notify: bool, error_type: int, _script_backtraces: Array[ScriptBacktrace]) -> void:
+		if error_type == ERROR_TYPE_SCRIPT:
+			_lock.lock()
+			_count += 1
+			_lock.unlock()
+
+	func count() -> int:
+		_lock.lock()
+		var n := _count
+		_lock.unlock()
+		return n
 
 
 func _run() -> void:
@@ -37,8 +57,15 @@ func _run() -> void:
 			quit(1)
 			return
 	var failures := 0
+	var script_errors := _ScriptErrorCount.new()
+	OS.add_logger(script_errors)
 	for test_name in picked:
-		failures += await call(test_name)
+		var before := script_errors.count()
+		var result = await call(test_name)
+		var raised := script_errors.count() - before
+		if raised > 0:
+			printerr("FAIL %s logged %d SCRIPT ERROR(s)" % [test_name.trim_prefix("_"), raised])
+		failures += (result if result is int else 1) + raised
 	print("Ran %d of %d tests." % [picked.size(), names.size()])
 	if failures == 0:
 		print("All tests passed.")
@@ -948,10 +975,7 @@ func _test_player_health_sync() -> int:
 	var cpeer := ENetMultiplayerPeer.new()
 	cpeer.create_client("127.0.0.1", port)
 	cmp.multiplayer_peer = cpeer
-	var deadline := Time.get_ticks_msec() + 10000
-	while Time.get_ticks_msec() < deadline and smp.get_peers().is_empty():
-		await process_frame
-	if smp.get_peers().is_empty():
+	if not await _client_connected(smp, cpeer):
 		printerr("FAIL player_health_sync client did not connect")
 		fail += 1
 	else:
@@ -1056,11 +1080,7 @@ func _test_player_health_join_while_dead() -> int:
 	server_health.call("5").take_damage(6)
 	server_health.call(me_id).take_damage(2)
 	cmp.multiplayer_peer = cpeer
-	var deadline := Time.get_ticks_msec() + 10000
-	while Time.get_ticks_msec() < deadline and (smp.get_peers().is_empty()
-			or cpeer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED):
-		await process_frame
-	if smp.get_peers().is_empty():
+	if not await _client_connected(smp, cpeer):
 		printerr("FAIL health_join_dead client did not connect")
 		fail += 1
 	else:
@@ -1175,11 +1195,7 @@ func _test_player_respawn_no_snapback() -> int:
 	var cpeer := ENetMultiplayerPeer.new()
 	cpeer.create_client("127.0.0.1", proxy_port)
 	cmp.multiplayer_peer = cpeer
-	var deadline := Time.get_ticks_msec() + 10000
-	while Time.get_ticks_msec() < deadline and (smp.get_peers().is_empty()
-			or cpeer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED):
-		await process_frame
-	if smp.get_peers().is_empty():
+	if not await _client_connected(smp, cpeer):
 		printerr("FAIL respawn_snapback client did not connect")
 		fail += 1
 	else:
@@ -1368,11 +1384,7 @@ func _respawn_follow_case(label: String, death: Vector2, spawn: Vector2, walk: V
 	var cpeer := ENetMultiplayerPeer.new()
 	cpeer.create_client("127.0.0.1", proxy_port)
 	cmp.multiplayer_peer = cpeer
-	var deadline := Time.get_ticks_msec() + 10000
-	while Time.get_ticks_msec() < deadline and (smp.get_peers().is_empty()
-			or cpeer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED):
-		await process_frame
-	if smp.get_peers().is_empty():
+	if not await _client_connected(smp, cpeer):
 		printerr("FAIL respawn_hold %s client did not connect" % label)
 		fail += 1
 	else:
@@ -3320,6 +3332,26 @@ func _free_udp_port() -> int:
 	return 0
 
 
+func _client_connected(smp: SceneMultiplayer, cpeer: ENetMultiplayerPeer) -> bool:
+	## Waits up to 10 s for the server to admit the client and the client to
+	## see itself connected. A single frame counts for at most 250 ms of that
+	## budget, so a pause of the whole process or machine (a VM snapshot, a
+	## long scheduler stall) does not use the budget up while ENet, which
+	## rides out pauses shorter than its 30 s peer timeout, is still
+	## mid-handshake.
+	var waited := 0
+	var last := Time.get_ticks_msec()
+	while (smp.get_peers().is_empty()
+			or cpeer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED):
+		if waited >= 10000:
+			return false
+		await process_frame
+		var now := Time.get_ticks_msec()
+		waited += mini(now - last, 250)
+		last = now
+	return true
+
+
 func _test_dedicated_server_join() -> int:
 	## Boot `-- --server` as a second headless process, join it through the
 	## main scene's normal Join path, and check that the client gets the map
@@ -4896,6 +4928,98 @@ func _test_respawn_teleport_ghosts() -> int:
 	await process_frame
 	if fail == 0:
 		print("PASS test_respawn_teleport_ghosts")
+	return fail
+
+
+func _test_rejoin_sees_every_death() -> int:
+	## A joiner's process dies with no goodbye and starts again, so it joins
+	## under a new peer id while the server still holds the old one until
+	## ENet times it out. Every death the server then deals the new player
+	## reaches its own client, followed by the respawn (#171), each time, and
+	## nothing meant for the old peer reaches the new one.
+	print("-- test_rejoin_sees_every_death")
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL rejoin_sees_every_death found no free UDP port")
+		return 1
+	var dir := OS.get_user_data_dir().path_join("rejoin_%d_%d" % [OS.get_process_id(), port])
+	_remove_dir(dir)
+	DirAccess.make_dir_recursive_absolute(dir)
+	var pids: Array[int] = []
+	var outs: Array[String] = []
+	var start := func(extra: Array) -> void:
+		var out := dir.path_join("p%d.json" % outs.size())
+		var args := ["--headless", "--path", ProjectSettings.globalize_path("res://"),
+				"--script", "res://tests/late_join_probe.gd", "--", "--port=%d" % port, "--out=" + out]
+		args.append_array(extra)
+		pids.append(OS.create_process(OS.get_executable_path(), args))
+		outs.append(out)
+	var read := func(i: int) -> Dictionary:
+		var text := FileAccess.get_file_as_string(outs[i])
+		var data = JSON.parse_string(text) if text != "" else null
+		return data if data is Dictionary else {}
+	var wait_for := func(cond: Callable, ms: int) -> bool:
+		var until := Time.get_ticks_msec() + ms
+		while Time.get_ticks_msec() < until and not cond.call():
+			await process_frame
+		return cond.call()
+	var joined := func(i: int) -> bool:
+		var s: Dictionary = read.call(i)
+		return s.get("origin") != null and s.get("players", {}).has(s.get("id")) \
+				and read.call(0).get("players", {}).has(s.get("id"))
+
+	var fail := 0
+	start.call(["--host"])
+	if not await wait_for.call(func() -> bool: return read.call(0).get("origin") != null, 30000):
+		printerr("FAIL rejoin_sees_every_death the host did not start")
+		fail += 1
+	if fail == 0:
+		start.call([])
+		if not await wait_for.call(joined.bind(1), 30000):
+			printerr("FAIL rejoin_sees_every_death the first joiner did not join: %s" % read.call(1))
+			fail += 1
+	var old_id: String = read.call(1).get("id", "") if fail == 0 else ""
+	if fail == 0:
+		OS.kill(pids[1])
+		pids[1] = 0
+		start.call([])
+		if not await wait_for.call(joined.bind(2), 30000):
+			printerr("FAIL rejoin_sees_every_death the restarted joiner did not join: %s" % read.call(2))
+			fail += 1
+	if fail == 0:
+		var new_id: String = read.call(2)["id"]
+		var stale: bool = read.call(0).get("players", {}).has(old_id)
+		for k in range(1, 4):
+			FileAccess.open(outs[0] + ".kill", FileAccess.WRITE).store_string(str(k))
+			var seen := func() -> bool:
+				var own: Dictionary = read.call(2)
+				return own.get("deaths", 0) >= k and own.get("players", {}).get(new_id, {}).get("respawns", 0) >= k
+			if not await wait_for.call(seen, 10000):
+				var own: Dictionary = read.call(2)
+				printerr("FAIL rejoin_sees_every_death death %d: its own client saw %s deaths and %s respawns, the server %s respawns"
+						% [k, own.get("deaths"), own.get("players", {}).get(new_id, {}).get("respawns"),
+						read.call(0).get("players", {}).get(new_id, {}).get("respawns")])
+				fail += 1
+				break
+		if fail == 0 and not read.call(2).get("errors", []).is_empty():
+			printerr("FAIL rejoin_sees_every_death the restarted joiner logged errors, so traffic for the old peer reached it: %s"
+					% [read.call(2)["errors"]])
+			fail += 1
+		if fail == 0:
+			print("PASS test_rejoin_sees_every_death (3 deaths and respawns; old peer %s)"
+					% ("still held at the first" if stale else "already gone"))
+
+	for out in outs:
+		FileAccess.open(out + ".stop", FileAccess.WRITE).close()
+	await wait_for.call(func() -> bool:
+		for pid in pids:
+			if pid > 0 and OS.is_process_running(pid):
+				return false
+		return true, 10000)
+	for pid in pids:
+		if pid > 0 and OS.is_process_running(pid):
+			OS.kill(pid)
+	_remove_dir(dir)
 	return fail
 
 
