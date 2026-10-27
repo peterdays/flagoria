@@ -241,4 +241,23 @@ fi
 rm -f "${gen_log}"
 echo "Generator smoke: ok"
 
+echo "== Map render golden (res://tools/cli.gd) =="
+# Fails when generation changes. If the change is intended, regenerate with
+# the same command (--out tests/golden/map_render_seed42.txt) and commit it.
+cli_log="$(mktemp -p "${verify_tmp}")"
+cli_out="${verify_tmp}/map_render_seed42.txt"
+set +e
+"$GODOT" --headless --path "$ROOT" --script res://tools/cli.gd -- map render --seed 42 --out "${cli_out}" >"${cli_log}" 2>&1
+cli_status=$?
+set -e
+cat "${cli_log}"
+if [[ "${cli_status}" -ne 0 ]] || log_has_project_error "${cli_log}" || ! cmp -s "${cli_out}" "$ROOT/tests/golden/map_render_seed42.txt"; then
+  echo "error: map render golden failed (exit ${cli_status}); diff against tests/golden/map_render_seed42.txt:" >&2
+  diff "$ROOT/tests/golden/map_render_seed42.txt" "${cli_out}" >&2 || true
+  rm -f "${cli_log}"
+  exit 1
+fi
+rm -f "${cli_log}"
+echo "Map render golden: ok"
+
 echo "Verification passed."
