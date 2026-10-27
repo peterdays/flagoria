@@ -4647,6 +4647,62 @@ func _test_map_zoom() -> int:
 	return fail
 
 
+func _test_joystick_hold_keeps_moving() -> int:
+	## Touch joystick: a finger held still at one offset, with no further
+	## touch or drag events, keeps the player moving at the joystick's top
+	## speed every physics frame; letting go brings the player to rest.
+	print("-- test_joystick_hold_keeps_moving")
+	var fail := 0
+	await process_frame
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var menu: Node = scene.get_node("CanvasLayer2/MainMenu")
+	menu.hide()
+	menu.set_process_unhandled_input(false)
+	scene.get_node("CanvasLayer1").show()
+	var local = load("res://Player/character_body_2d.tscn").instantiate()
+	local.name = str(scene.multiplayer.get_unique_id())
+	scene.get_node("World").add_child(local)
+	local.collision_mask = 0  # input to velocity only; terrain is not under test
+	await process_frame
+	var joystick = scene.get_node("CanvasLayer1/player_joystick")
+	var vp: Viewport = scene.get_viewport()
+	var touch := InputEventScreenTouch.new()
+	touch.index = 0
+	touch.position = joystick.global_position
+	touch.pressed = true
+	vp.push_input(touch, true)
+	var drag := InputEventScreenDrag.new()
+	drag.index = 0
+	drag.position = joystick.global_position + Vector2(40, 0) * joystick.global_scale
+	vp.push_input(drag, true)
+	var top: float = local.JOYSTICK_MAX_SPEED
+	for i in range(60):
+		await physics_frame
+	var held: Vector2 = local.velocity
+	if not (held.x > top * 0.9 and held.length() <= top + 0.01 and absf(held.y) < 0.01):
+		printerr("FAIL joystick_hold velocity after 60 frames held still: %s (want ~%s, +x)" % [held, top])
+		fail += 1
+	if local.lastAnimDirection != "Right":
+		printerr("FAIL joystick_hold facing %s, want Right" % local.lastAnimDirection)
+		fail += 1
+	touch.pressed = false
+	touch.position = drag.position
+	vp.push_input(touch, true)
+	for i in range(60):
+		await physics_frame
+	var at: Vector2 = local.position
+	await physics_frame
+	if local.velocity != Vector2.ZERO or local.position != at:
+		printerr("FAIL joystick_hold still moving after release: v %s" % local.velocity)
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_joystick_hold_keeps_moving (held %s)" % held)
+	return fail
+
+
 func _test_mob_hidden_on_uncharted() -> int:
 	## A mob is drawn only where this peer has generated the ground under it:
 	## visible on a loaded tile, hidden on an unloaded one, visible again once
