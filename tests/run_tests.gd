@@ -3353,6 +3353,35 @@ func _test_map_settings_number_pad_touch_tap() -> int:
 		print("PASS test_map_settings_number_pad_touch_tap (%s orders)" % orders.size())
 	return fail
 
+func _test_map_settings_uses_menu_theme() -> int:
+	## Map Settings uses the menu theme at its root, so its text uses the game
+	## font and its bottom buttons look like the main menu's.
+	print("-- test_map_settings_uses_menu_theme")
+	var theme: Theme = load("res://art/ui/main_menu_theme.tres")
+	var panel = load("res://map_admin_panel.tscn").instantiate()
+	root.add_child(panel)
+	await process_frame
+	var fail := 0
+	if panel.theme != theme:
+		printerr("FAIL map_settings_uses_menu_theme panel root theme is %s" % panel.theme)
+		fail += 1
+	for button_name in ["RandomSeed", "Reset", "Back", "Start"]:
+		var b: Button = panel.find_child(button_name)
+		if b.get_theme_stylebox("normal") != theme.get_stylebox("normal", "Button") \
+				or b.get_theme_font("font") != theme.default_font \
+				or b.get_theme_font_size("font_size") != theme.get_font_size("font_size", "Button"):
+			printerr("FAIL map_settings_uses_menu_theme %s does not use the menu button style" % button_name)
+			fail += 1
+	for node_name in ["Title", "AltitudeSeed", "NoiseType"]:
+		var c: Control = panel.find_child(node_name)
+		if c.get_theme_font("font") != theme.default_font:
+			printerr("FAIL map_settings_uses_menu_theme %s does not use the game font" % node_name)
+			fail += 1
+	panel.queue_free()
+	if fail == 0:
+		print("PASS test_map_settings_uses_menu_theme")
+	return fail
+
 func _tap_sequence(pos: Vector2, steps: Array) -> void:
 	## Pushes one tap at pos as the given mix of mouse and touch events.
 	## "input_touch_*" goes through Input, which adds the emulated mouse
