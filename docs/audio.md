@@ -33,6 +33,16 @@ Sounds live under `art/audio/sfx/<group>/<name>_NN.wav`, credited in
 `art/audio/CREDITS.md`. `Scripts/footsteps.gd` and `Scripts/combat_sfx.gd`
 play them from the player scene.
 
+### Regen tick
+
+`CombatSfx` event `regen` plays `art/audio/sfx/world/regen_tick_01.wav` each
+time health regeneration heals the player (`PlayerHealth.healed`, from
+`heal()` only; `set_health_now` and a respawn do not fire it). Regen only
+heals a hurt, living player, so the tick plays only while recovering. Only
+the peer that controls the player plays it, so other players do not hear
+someone else heal. Volume is -9 dB, the `hurt` level; the clip itself is
+mastered about 10 dB under the other sounds.
+
 ### Mob sounds
 
 `Scripts/mob_sfx.gd` (the `Sfx` child of `Mobs/mob.tscn`) plays
@@ -94,7 +104,8 @@ godot --headless --audio-driver Dummy --path . --script res://tools/audio_check.
 
 It resets the volumes to their defaults without saving, loads the real main
 and player scenes, and runs a timeline: idle, walk on
-grass, sand and swamp, swing, damage, kill, then one mob of each type
+grass, sand and swamp, swing, damage, kill, a regen heal on this peer's own
+player, then one mob of each type
 noticing, attacking, getting hurt, dying, idling and staying silent while
 hidden, then a Map settings click, its Back, a `ui_menu` panel opening and
 closing, and a map save. It records the mixer output
@@ -116,7 +127,8 @@ It fails (exit 1) when:
   covers a sound that is unwired or plays twice;
 - a logged sound is quieter than -50 dBFS on its own probe within 0.25 s of
   starting. This covers volume -80, an empty stream, or a player out of
-  earshot;
+  earshot. Clips mastered quieter on purpose (`QUIET_DB`, the regen tick
+  at 10 dB) get a floor that much lower, for this and the step RMS below;
 - a step with sounds has a Master RMS outside -50..-6 dBFS. This covers a
   muted or -80 dB bus;
 - the last 0.35 s after a step is not silent (peak above -60 dBFS), or a

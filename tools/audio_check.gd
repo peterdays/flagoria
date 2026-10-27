@@ -44,6 +44,8 @@ const TIMELINE := [
 	{"name": "swing", "action": "swing", "duration": 0.6, "expect": {"sword_swing": 1}},
 	{"name": "damage", "action": "damage", "duration": 0.6, "expect": {"hit_land": 1, "player_hurt": 1}},
 	{"name": "kill", "action": "kill", "duration": 0.8, "expect": {"hit_land": 1, "player_hurt": 1, "hit_sting": 1}},
+	# One regen heal on this peer's own player; other players' heals are silent here.
+	{"name": "regen", "action": "regen", "duration": 0.6, "expect": {"regen_tick": 1}},
 	# SFX slider at 0: the swing still starts, but nothing reaches Master.
 	{"name": "swing_sfx_off", "action": "swing", "sfx_volume": 0.0, "audible": false, "duration": 0.6, "expect": {"sword_swing": 1}},
 	{"name": "music", "action": "idle", "music": "GAME_TRACK", "duration": 2.0, "expect": {"4 - Village": 1}},
@@ -76,6 +78,10 @@ const SILENCE_DB := -60.0
 const RMS_RANGE_DB := Vector2(-50.0, -6.0)
 ## A logged sound must reach this RMS on its probe bus within ONSET_WINDOW s.
 const ONSET_DB := -50.0
+## Sounds mastered quieter than the -20 dBFS norm (see art/audio/CREDITS.md),
+## by this many dB: their onset floor, and the RMS floor of a step that
+## expects them, drop by the same amount. Still far above silence.
+const QUIET_DB := {"regen_tick": 10.0}
 const ONSET_WINDOW := 0.25
 ## Log times are only as fine as one mix chunk (about 0.1 s).
 const ONSET_SLACK := 0.15
@@ -88,6 +94,7 @@ var _scene: Node
 var _world: TileMap
 var _walker: Node2D
 var _attacker: Node2D
+var _local: Node2D  # this peer's own player, for sounds only its owner hears
 var _mobs: Array[Mob] = []
 var _ui_menu: Control
 var _rate := 44100.0
@@ -126,6 +133,7 @@ func _setup() -> void:
 	_paint_strips()
 	_walker = _spawn_player("2", Vector2.ZERO)
 	_attacker = _spawn_player("3", Vector2(12, 0))
+	_local = _spawn_player(str(_scene.multiplayer.get_unique_id()), Vector2(0, 12))
 	_walker.get_node("Camera2D").make_current()
 	for t in MOB_OFFSETS:
 		var mob: Mob = load("res://Mobs/mob.tscn").instantiate()
@@ -139,7 +147,7 @@ func _setup() -> void:
 	_master_cap = AudioEffectCapture.new()
 	_master_cap.buffer_length = 1.0
 	AudioServer.add_bus_effect(0, _master_cap)
-	for player in [_walker, _attacker] + _mobs:
+	for player in [_walker, _attacker, _local] + _mobs:
 		for node in _sound_players(player):
 			_add_probe(node)
 	for node in music.players():
@@ -272,6 +280,10 @@ func _begin_step(i: int, t: float) -> void:
 		"kill":
 			_walker.health.set_health_now(1)
 			_sword_hit()
+		"regen":
+			_local.global_position = _walker.global_position + Vector2(0, 12)
+			_local.health.set_health_now(_local.health.max_health - 1)
+			_local.get_node("regen_timer").timeout.emit()
 		"ui_click":
 			_scene.get_node("CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/MapSettingsButton").pressed.emit()
 		"ui_back":
@@ -419,6 +431,16 @@ func _probe_rms(key: String, start: float, end: float) -> float:
 	return sqrt(sum / maxi(1, b - a))
 
 
+func _step_quiet_db(step_name: String) -> float:
+	## The largest QUIET_DB among the sounds the named step expects.
+	var most := 0.0
+	for step in TIMELINE:
+		if step["name"] == step_name:
+			for sound in step["expect"]:
+				most = maxf(most, float(QUIET_DB.get(sound, 0.0)))
+	return most
+
+
 func _fail(msg: String) -> void:
 	_failures.append(msg)
 	printerr("FAIL audio_check: " + msg)
@@ -438,8 +460,9 @@ func _finish() -> void:
 				_fail("%s should be silent, peak %.1f dBFS" % [w["name"], _db(s.x)])
 		else:
 			var rms := _db(s.y)
-			if rms < RMS_RANGE_DB.x or rms > RMS_RANGE_DB.y:
-				_fail("%s rms %.1f dBFS outside %s" % [w["name"], rms, RMS_RANGE_DB])
+			var floor_db := RMS_RANGE_DB.x - _step_quiet_db(w["name"])
+			if rms < floor_db or rms > RMS_RANGE_DB.y:
+				_fail("%s rms %.1f dBFS outside (%.1f, %.1f)" % [w["name"], rms, floor_db, RMS_RANGE_DB.y])
 		print(line)
 		report.append(line)
 
@@ -461,7 +484,7 @@ func _finish() -> void:
 	for e in _events:
 		var rms := _db(_probe_rms(e["probe"], e["t"] - ONSET_SLACK, e["t"] + ONSET_WINDOW))
 		e["onset_rms_db"] = snappedf(rms, 0.1)
-		if rms < ONSET_DB:
+		if rms < ONSET_DB - float(QUIET_DB.get(e["sound"], 0.0)):
 			_fail("%s (%s, player %s) at %.2f s not heard: %.1f dBFS on its own bus" % [e["sound"], e["file"], e["player"], e["t"], rms])
 		print("event %6.2f s  %-14s %-22s player %s  onset rms %6.1f dBFS" % [e["t"], e["sound"], e["file"], e["player"], rms])
 
