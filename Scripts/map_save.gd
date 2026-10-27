@@ -5,7 +5,6 @@ extends RefCounted
 
 const FORMAT_VERSION := 1
 const SAVE_DIR := "user://saves/"
-const SEED_KEYS := ["altitude_seed", "moisture_seed", "temperature_seed", "items_seed"]
 
 
 static func path_for(save_name: String) -> String:
@@ -15,8 +14,9 @@ static func path_for(save_name: String) -> String:
 static func save_map(params: MapGenParams, save_name: String) -> Dictionary:
 	## Returns {"path": String, "error": String}; error is "" on success.
 	var data := params.to_dict()
-	for key in SEED_KEYS:
-		if data[key] == 0:
+	# Every *_seed value, so a seed added to MapGenParams is checked too.
+	for key in data.keys():
+		if key.ends_with("_seed") and data[key] == 0:
 			return {"path": "", "error": "%s is 0 (unresolved); save the seeds the world used" % key}
 	var err := DirAccess.make_dir_recursive_absolute(SAVE_DIR)
 	if err != OK:
