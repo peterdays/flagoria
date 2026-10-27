@@ -7,7 +7,7 @@ description: "Verify Flagoria (Godot 4.7 island PvP): headless project load/pars
 
 Project-local verification for Flagoria. Read this cold mid-task. Prefer the feature map under `features/` for user-facing recipes. Always run **Doctor** before trusting a drive.
 
-**Engine:** Godot **4.7.x** only, the version in `project.godot` (`config/features`). Set `GODOT` to the editor binary (must report `4.7.*` from `$GODOT --version`). Do not use a newer editor: it can migrate `project.godot`.
+**Engine:** the latest stable Godot, which is the version in `project.godot` (`config/features`, currently `4.7`). When a newer stable Godot ships, move the project to it; older editors are not supported. The tools use `GODOT` if it is set, else `godot` on `PATH`, and refuse a binary whose `--version` does not match `project.godot`.
 
 **Repo root:** every command below assumes the current working directory is the Flagoria checkout root (the directory that contains `project.godot` and `tools/verify.sh`).
 
@@ -22,10 +22,10 @@ Project-local verification for Flagoria. Read this cold mid-task. Prefer the fea
 
 Flagoria is not a long-lived server for most checks. Launch means: confirm the engine, ensure the project can open headless, then start each drive as a short-lived process.
 
-1. Require `GODOT` on the environment and version `4.7.*`:
+1. Find Godot (`GODOT` if set, else `godot` on `PATH`) and check that its version matches `project.godot` (currently `4.7.*`):
 
 ```bash
-test -n "${GODOT:-}" && "$GODOT" --version
+export GODOT="${GODOT:-godot}" && "$GODOT" --version
 ```
 
 2. Create run dirs:
