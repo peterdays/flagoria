@@ -32,6 +32,9 @@ var archipelago_world_extent: int = 0
 var archipelago_island_count: int = 0
 # predict_cell results by cell; cleared when the params change.
 var _predict_cache: Dictionary = {}
+# Cells whose tree was cut (Vector2i -> true). Drawing the chunk again puts a
+# STUMP there instead of the tree. Cleared when the params change.
+var _cut_cells: Dictionary = {}
 # Kept Vector2i squares when archipelago_island_count > 0.
 var _archipelago_active_squares: Dictionary = {}
 var _archipelago_count_limited: bool = false
@@ -123,6 +126,7 @@ func apply_map_params(p: MapGenParams) -> void:
 
 	clear()
 	_predict_cache.clear()
+	_cut_cells.clear()
 	spawn_point = Vector2i(0, 0)
 	ground_changed.emit(Rect2i())
 
@@ -362,6 +366,9 @@ func get_random_ground_vec(chance):
 func set_tile_type_z1(pos_vec, alt, moist, _temp, chance, biome_id: int = BiomeCatalog.TEMPERATE):
 	if not is_walkable_land(pos_vec):
 		return
+	if _cut_cells.has(pos_vec):
+		set_cell(GROUND_DECOR_LAYER, pos_vec, TileCatalog.SOURCE_ID, TileCatalog.STUMP)
+		return
 	var tile := NO_PLANT
 	# Biomes can widen beaches into the foliage bands; beaches get no plants.
 	if biome_frequency <= 0.0 or get_cell_atlas_coords(0, pos_vec) != TileCatalog.SAND:
@@ -423,6 +430,8 @@ func predict_cell(cell: Vector2i) -> Array:
 			top = plant_tile(alt, moist, chance, b)
 		if top == NO_PLANT:
 			top = structure_tile(chance, b)
+		if _cut_cells.has(cell):
+			top = TileCatalog.STUMP
 	var out := [ground, top]
 	_predict_cache[cell] = out
 	return out
@@ -433,7 +442,28 @@ func predicted_clear(cell: Vector2i) -> bool:
 	var p := predict_cell(cell)
 	if not ground_is_walkable(p[0]):
 		return false
-	return p[1] == NO_PLANT or p[1] == TileCatalog.FLOWER
+	return p[1] == NO_PLANT or p[1] == TileCatalog.FLOWER or p[1] == TileCatalog.STUMP
+
+
+static func is_tree(atlas: Vector2i) -> bool:
+	## True for the foliage-layer tiles interact mode cuts.
+	return atlas == TileCatalog.TREE or atlas == TileCatalog.TREE_PINE_SMALL
+
+
+func has_tree(cell: Vector2i) -> bool:
+	return get_cell_source_id(1, cell) != -1 and is_tree(get_cell_atlas_coords(1, cell))
+
+
+func cut_tree(cell: Vector2i) -> bool:
+	## Replace the tree at `cell` with a walkable STUMP, for good: the cell
+	## stays a stump when its chunk is drawn again. False when there is no tree.
+	if not has_tree(cell):
+		return false
+	_cut_cells[cell] = true
+	_predict_cache.erase(cell)
+	erase_cell(1, cell)
+	set_cell(GROUND_DECOR_LAYER, cell, TileCatalog.SOURCE_ID, TileCatalog.STUMP)
+	return true
 
 
 func ground_is_walkable(atlas: Vector2i) -> bool:

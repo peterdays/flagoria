@@ -4637,6 +4637,52 @@ func _test_mob_predict_matches_chunks() -> int:
 	return fail
 
 
+func _test_cut_tree_stays_stump() -> int:
+	## A cut tree stays a stump when its chunk is drawn again, and predict_cell
+	## and predicted_clear see the stump, so mobs treat the cell as open ground.
+	print("-- test_cut_tree_stays_stump")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var fail := 0
+	var tree := Vector2i(1 << 20, 0)
+	var seed_value := 0
+	for s in [11, 42, 7, 1, 99, 3, 5]:
+		world.apply_map_params(_spawn_params(s, 0.0))
+		world.generate_chunk(Vector2(0, 0))
+		for cell in world.get_used_cells(1):
+			if world.has_tree(cell):
+				tree = cell
+				seed_value = s
+				break
+		if seed_value != 0:
+			break
+	if tree.x == 1 << 20:
+		printerr("FAIL cut_tree_stays_stump: no tree near the origin on any seed")
+		scene.queue_free()
+		return 1
+	world.predict_cell(tree)  # cached before the cut
+	if not world.cut_tree(tree) or world.cut_tree(tree):
+		printerr("FAIL cut_tree_stays_stump: cut_tree did not cut %s exactly once" % tree)
+		fail += 1
+	world.generate_chunk(Vector2(0, 0))
+	if world.has_tree(tree) or world.get_cell_atlas_coords(world.GROUND_DECOR_LAYER, tree) != TileCatalog.STUMP:
+		printerr("FAIL cut_tree_stays_stump: %s grew back after the chunk was drawn again" % tree)
+		fail += 1
+	if world.predict_cell(tree)[1] != TileCatalog.STUMP or not world.predicted_clear(tree) or not world.is_clear_ground(tree):
+		printerr("FAIL cut_tree_stays_stump: predict_cell %s for the stump" % [world.predict_cell(tree)])
+		fail += 1
+	world.apply_map_params(_spawn_params(seed_value, 0.0))
+	world.generate_chunk(Vector2(0, 0))
+	if not world.has_tree(tree):
+		printerr("FAIL cut_tree_stays_stump: a new map kept the stump at %s" % tree)
+		fail += 1
+	scene.queue_free()
+	if fail == 0:
+		print("PASS test_cut_tree_stays_stump")
+	return fail
+
+
 func _test_mob_plan() -> int:
 	## Mob placement is the same for a seed, places a few mobs on home ground
 	## (crabs on sand, the rest on grass) away from the player spawn and apart

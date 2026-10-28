@@ -164,6 +164,8 @@ const TREE_OAK_TALL_BOTTOM := Vector2i(12, 1)
 const TREE_BIG_OAK_BL := Vector2i(13, 1)
 const TREE_BIG_OAK_BR := Vector2i(14, 1)
 const TREE_PINE_SMALL := Vector2i(7, 2)
+## What a cut tree leaves: walkable ground decor, no collision.
+const STUMP := Vector2i(8, 2)
 
 ## Props and floating rocks
 const ROCK_FLOAT_S := Vector2i(0, 7)
@@ -353,6 +355,7 @@ const TILES := {
 	"TREE_BIG_OAK_BL": {"source_id": SOURCE_ID, "atlas": TREE_BIG_OAK_BL},
 	"TREE_BIG_OAK_BR": {"source_id": SOURCE_ID, "atlas": TREE_BIG_OAK_BR},
 	"TREE_PINE_SMALL": {"source_id": SOURCE_ID, "atlas": TREE_PINE_SMALL},
+	"STUMP": {"source_id": SOURCE_ID, "atlas": STUMP},
 	"ROCK_FLOAT_S": {"source_id": SOURCE_ID, "atlas": ROCK_FLOAT_S},
 	"ROCK_FLOAT_M": {"source_id": SOURCE_ID, "atlas": ROCK_FLOAT_M},
 	"PROP_FLAG_BLUE": {"source_id": SOURCE_ID, "atlas": PROP_FLAG_BLUE},
