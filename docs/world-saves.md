@@ -45,6 +45,14 @@ floats, so each entry's reader converts its own integers.
 There are no timestamps in the file: the saved maps list uses the file's
 modified time.
 
+## Saving during play
+
+**Save** in the in-game menu writes the world being played, named after the
+date and time (`2026-10-27 22-15-03`; a second save in the same second gets
+` 2`). The panel stays open and confirms it on one line ("Saved: 10-27 22:15"),
+so the player can resume or leave. Until player state (#197) and object changes (#198) land, the file holds
+the generation inputs and empty change sections.
+
 ## Loading
 
 `MapSave.load_world(path)` returns `{"world", "error", "version"}`:

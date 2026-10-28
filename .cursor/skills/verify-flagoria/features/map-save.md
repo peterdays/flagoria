@@ -5,11 +5,13 @@ A world's generation inputs (params and seeds) can be saved to and loaded from v
 ## Sub-features
 
 - `save-round-trip` `MapGen.save_map_inputs` / `load_map_inputs` (`Scripts/map_gen.gd`, format in `Scripts/map_save.gd`).
+- `save-from-menu` the in-game menu's Save button (`Scripts/ingame_menu.gd`), `test_ingame_menu_save`.
 - `save-reject` unknown versions, malformed files and unresolved seeds give clear errors.
 
 ## How to get to it (user POV)
 
-- No menu entry yet; reached through the `MapGen` autoload API.
+- During a match: Menu (top right), then Save. The panel shows "Saved: MM-DD HH:MM".
+- Otherwise through the `MapGen` autoload API.
 
 ## Driving it with verify-flagoria helpers
 
