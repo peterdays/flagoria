@@ -31,7 +31,7 @@ so they regenerate unchanged.
 
 - `<out>_seed_<seed>.png`: biome map on the left, terrain in the middle
   (water, sand, swamp, grass, hills), plants next to it (trees dark green,
-  bushes amber, flowers pink, stones slate grey, bare land light grey), legend swatches at the
+  pines cyan, bushes amber, flowers pink, stones slate grey, bare land light grey), legend swatches at the
   far right in the order OCEANIC, TEMPERATE, CONTINENTAL, ARCHIPELAGO_DENSE.
   Below them, one 256-tile close-up per biome at 1 tile per pixel, in the same
   order, centred where that biome has the most land, with plants drawn over
@@ -40,9 +40,9 @@ so they regenerate unchanged.
   the close-ups are where per-biome terrain is visible.
 - `<out>_seed_<seed>_legend.txt`: seed, settings, colors, coverage, each
   biome's land mix (share of its land samples that are sand, swamp, grass)
-  and plant mix (share of its land samples with a tree, bush, flower or
-  stones), plus
-  each biome's tree + bush count on its wide land samples and on its
+  and plant mix (share of its land samples with a tree, pine, bush, flower
+  or stones), plus
+  each biome's tree + pine + bush count on its wide land samples and on its
   close-up land cells.
 - stdout: the same legend.
 
@@ -90,19 +90,41 @@ and `bush_min_chance`, so higher means fewer plants:
 and the render tool share it. With `biome_frequency = 0` none of this
 applies and the plants are unchanged.
 
+### Pines
+
+With biomes on, `TileMap.plant_tile` also grows small pines
+(`TileCatalog.PINE`, blocking like trees) on dry high ground: altitude above
+`pine_min_alt`, moisture at or below 0 and above `pine_min_moist`. Broadleaf
+trees need moisture above 0, so pines fill land that was bare before. The
+moisture floor never goes below the biome's swamp threshold, so pines never
+grow on swamp. A cell gets a pine when its plant chance is above
+`pine_min_chance` plus the biome's `pine_chance`:
+
+| Biome             | Pines (`pine_chance`) | Share of land (seeds 11, 42, 99) |
+|-------------------|-----------------------|----------------------------------|
+| OCEANIC           | +0.3 (a few)          | about 0-0.1 %                    |
+| TEMPERATE         | 2.0 (none)            | 0 %                              |
+| CONTINENTAL       | -0.25 (conifer stands)| about 10 %                       |
+| ARCHIPELAGO_DENSE | 2.0 (none)            | 0 %                              |
+
+TEMPERATE and ARCHIPELAGO_DENSE dry land is swamp, so they get none, and
+TEMPERATE with biomes on still matches the map with biomes off. Saves from
+before pines load with `pine_min_chance = 2.0` (no pines), so they regenerate
+unchanged.
+
 ## Per-biome structures
 
 With biomes on, `BiomeCatalog.STRUCTURES` scatters walkable stones
 (`TileCatalog.STONES`) on `GROUND_DECOR_LAYER`, like flowers. A walkable land
-cell gets stones when it has no plant (beaches included, since they get no
+cell gets stones when it has no plant (pines win over stones; beaches included, since they get no
 plants with biomes on) and its items chance is above the biome's
 `stone_chance`. Values above 1 mean no stones:
 
 | Biome             | Stones (`stone_chance`) | Share of land (seeds 11, 42, 99) |
 |-------------------|-------------------------|----------------------------------|
-| OCEANIC           | 0.3 (rocky cays)        | about 8-10 %                     |
+| OCEANIC           | 0.3 (rocky cays)        | about 7.6-10 %                   |
 | TEMPERATE         | 2.0 (none)              | 0 %                              |
-| CONTINENTAL       | 0.35 (dry, stony)       | about 3 %                        |
+| CONTINENTAL       | 0.35 (dry, stony)       | about 1.6-1.7 %                  |
 | ARCHIPELAGO_DENSE | 2.0 (none)              | 0 %                              |
 
 TEMPERATE has none, so with biomes on it still matches the map with biomes

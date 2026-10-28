@@ -2614,13 +2614,14 @@ func _test_tile_catalog() -> int:
 		"SWAMP_SPECIAL": Vector2i(27, 7), "GRASS_A": Vector2i(5, 0), "GRASS_B": Vector2i(5, 1),
 		"GRASS_C": Vector2i(6, 0), "GRASS_D": Vector2i(6, 1), "BUSH": Vector2i(7, 3),
 		"TREE": Vector2i(7, 0), "FLOWER": Vector2i(9, 3), "STONES": Vector2i(0, 7),
+		"PINE": Vector2i(7, 2),
 	}
 	for n in pinned:
 		if not TileCatalog.TILES.has(n) or TileCatalog.TILES[n]["atlas"] != pinned[n]:
 			printerr("FAIL tile_catalog: %s moved from %s" % [n, pinned[n]])
 			fail += 1
-	## STONES reuses the small-rocks art cell on purpose.
-	var aliases := {"STONES": "ROCK_FLOAT_S"}
+	## STONES reuses the small-rocks art cell and PINE the small pine on purpose.
+	var aliases := {"STONES": "ROCK_FLOAT_S", "PINE": "TREE_PINE_SMALL"}
 	var cells := {}
 	for n in TileCatalog.TILES:
 		var a: Vector2i = TileCatalog.TILES[n]["atlas"]
@@ -2630,7 +2631,7 @@ func _test_tile_catalog() -> int:
 		cells[a] = n
 	## Collision drives walkability: water blocks, ground fill does not.
 	var src0: TileSetAtlasSource = tile_set.get_source(TileCatalog.SOURCE_ID)
-	for n in ["WATER", "TREE", "BUSH"]:
+	for n in ["WATER", "TREE", "BUSH", "PINE"]:
 		if src0.get_tile_data(TileCatalog.TILES[n]["atlas"], 0).get_collision_polygons_count(0) == 0:
 			printerr("FAIL tile_catalog: %s has no collision polygon" % n)
 			fail += 1
@@ -3330,6 +3331,10 @@ func _test_biome_plants() -> int:
 				if world.plant_tile(alt, 0.5, chance, b) != want:
 					printerr("FAIL biome_plants: frequency 0 biome %s changed plant at alt=%s chance=%s" % [b, alt, chance])
 					fail += 1
+		# No pines with biomes off, even on dry high ground.
+		if world.plant_tile(0.8, -0.1, 0.9, b) != NONE:
+			printerr("FAIL biome_plants: frequency 0 biome %s grew a pine" % b)
+			fail += 1
 
 	# Biomes on: same altitude / moisture / chance, different plant per biome.
 	var on := _biome_terrain_params(true)
@@ -3355,6 +3360,24 @@ func _test_biome_plants() -> int:
 		var got: Vector2i = world.plant_tile(c[1], 0.5, c[2], c[3])
 		if got != c[4]:
 			printerr("FAIL biome_plants case=%s got %s want %s" % [c[0], got, c[4]])
+			fail += 1
+	# Pines: dry high ground only, never on swamp, per-biome chance.
+	# [name, alt, moist, chance, biome, expected plant]
+	var pine_cases := [
+		["continental_pine", 0.6, -0.1, 0.1, cont, TileCatalog.PINE],
+		["continental_pine_low", 0.45, -0.1, 0.9, cont, NONE],
+		["continental_pine_wet_is_tree", 0.6, 0.1, 0.9, cont, TileCatalog.TREE],
+		["continental_swamp_no_pine", 0.6, -0.3, 0.9, cont, NONE],
+		["continental_pine_rare_chance", 0.6, -0.1, 0.0, cont, NONE],
+		["oceanic_sparse_pines", 0.6, -0.1, 0.4, ocean, NONE],
+		["oceanic_pine", 0.6, -0.1, 0.7, ocean, TileCatalog.PINE],
+		["temperate_no_pine", 0.6, -0.1, 0.9, T, NONE],
+		["dense_no_pine", 0.6, -0.1, 0.9, dense, NONE],
+	]
+	for c in pine_cases:
+		var got: Vector2i = world.plant_tile(c[1], c[2], c[3], c[4])
+		if got != c[5]:
+			printerr("FAIL biome_plants case=%s got %s want %s" % [c[0], got, c[5]])
 			fail += 1
 
 	# Generated chunks place the plant that plant_tile picks (beaches stay bare).
@@ -3386,10 +3409,12 @@ func _test_biome_plants() -> int:
 	var land := {}
 	var trees := {}
 	var bushes := {}
+	var pines := {}
 	for b in BiomeCatalog.PLANTS:
 		land[b] = 0
 		trees[b] = 0
 		bushes[b] = 0
+		pines[b] = 0
 	for x in range(-2048, 2048, 16):
 		for y in range(-2048, 2048, 16):
 			var cell := Vector2i(x, y)
@@ -3408,6 +3433,8 @@ func _test_biome_plants() -> int:
 				trees[b] += 1
 			elif plant == TileCatalog.BUSH:
 				bushes[b] += 1
+			elif plant == TileCatalog.PINE:
+				pines[b] += 1
 	var share := func(d: Dictionary, b: int) -> float: return float(d[b]) / maxf(1.0, float(land[b]))
 	for b in land:
 		if land[b] < 20:
@@ -3419,9 +3446,40 @@ func _test_biome_plants() -> int:
 	if not (share.call(bushes, dense) > share.call(bushes, T) and share.call(bushes, T) > share.call(bushes, ocean)):
 		printerr("FAIL biome_plants: bush shares dense=%s temperate=%s oceanic=%s" % [share.call(bushes, dense), share.call(bushes, T), share.call(bushes, ocean)])
 		fail += 1
+	if not (share.call(pines, cont) > share.call(pines, ocean) and pines[T] == 0 and pines[dense] == 0):
+		printerr("FAIL biome_plants: pine shares continental=%s oceanic=%s temperate=%s dense=%s" % [share.call(pines, cont), share.call(pines, ocean), share.call(pines, T), share.call(pines, dense)])
+		fail += 1
+
+	# A save from before pines (no pine_min_chance) loads with pines off, so
+	# its world regenerates unchanged; a current save keeps its pine chance.
+	var older := on.duplicate_params()
+	older.ensure_seeds()
+	var data: Dictionary = older.to_dict()
+	data.erase("pine_min_chance")
+	var path := MapSave.path_for("test_pre_pine_save")
+	DirAccess.make_dir_recursive_absolute(MapSave.SAVE_DIR)
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	file.store_string(JSON.stringify({"format_version": 1, "params": data}))
+	file.close()
+	var loaded = MapSave.load_map(path)
+	DirAccess.remove_absolute(path)
+	if loaded["error"] != "":
+		printerr("FAIL biome_plants: pre-pine save error=%s" % loaded["error"])
+		fail += 1
+	else:
+		world.apply_map_params(loaded["params"])
+		if world.plant_tile(0.6, -0.1, 0.9, cont) != NONE:
+			printerr("FAIL biome_plants: pre-pine save grew pines")
+			fail += 1
+	var saved = MapSave.save_map(older, "test_pine_save")
+	var reloaded = MapSave.load_map(saved["path"])
+	DirAccess.remove_absolute(saved["path"])
+	if reloaded["error"] != "" or reloaded["params"].pine_min_chance != older.pine_min_chance:
+		printerr("FAIL biome_plants: pine save reloaded error=%s" % reloaded["error"])
+		fail += 1
 
 	if fail == 0:
-		print("PASS test_biome_plants land=%s trees=%s bushes=%s" % [land, trees, bushes])
+		print("PASS test_biome_plants land=%s trees=%s bushes=%s pines=%s" % [land, trees, bushes, pines])
 	scene.queue_free()
 	return 1 if fail > 0 else 0
 
@@ -3536,7 +3594,7 @@ func _test_biome_structures() -> int:
 
 
 func _test_forest_walls() -> int:
-	## A row or column of adjacent TREE or BUSH cells is a wall: sweep the
+	## A row or column of adjacent TREE, BUSH or PINE cells is a wall: sweep the
 	## player's shape across it in half-pixel lanes and require every lane to
 	## stop. Half pixels matter: a gap 1 px wider than the player only opens
 	## between whole-pixel lanes. With one free cell between plants the
@@ -3553,7 +3611,7 @@ func _test_forest_walls() -> int:
 	root.add_child(scene)
 	var world = scene.get_node("World/worldMap")
 	var fail := 0
-	for tile_name in ["TREE", "BUSH"]:
+	for tile_name in ["TREE", "BUSH", "PINE"]:
 		var tile: Vector2i = TileCatalog.TILES[tile_name]["atlas"]
 		world.clear()
 		for x in range(-2, 50):

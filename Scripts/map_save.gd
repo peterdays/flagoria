@@ -105,6 +105,9 @@ static func load_world(path: String) -> Dictionary:
 	# Saves written before biomes existed have no biome_frequency; they load
 	# with biomes off so the saved world regenerates as it was.
 	params.biome_frequency = 0.0
+	# Saves written before pines existed have no pine_min_chance; they load
+	# with pines off (a chance threshold no cell reaches) for the same reason.
+	params.pine_min_chance = 2.0
 	params.from_dict(parsed["params"])
 	var world := WorldSave.new(params)
 	var section_error := world.world_from_dict(parsed["world"])
