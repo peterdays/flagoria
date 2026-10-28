@@ -36,7 +36,7 @@ The first 11 names kept their cells when the Solaria atlas was replaced. STONES 
 | PINE | Small pine on dry high ground (biomes on only, see `docs/biomes.md`) | 1 | (7, 2) | 1×1 | Same polygon as TREE |
 | FLOWER | Walkable flower in the flower altitude band | 2 (`GROUND_DECOR_LAYER`) | (9, 3) | 1×1 | None |
 | STONES | Walkable stones on bare land and beaches in some biomes (`BiomeCatalog.STRUCTURES`, biomes on only) | 2 (`GROUND_DECOR_LAYER`) | (0, 7) | 1×1 | None |
-| STUMP | What a tree cut in interact mode leaves (`cut_tree` in `Scripts/TileMap.gd`); the map keeps it when the chunk is drawn again | 2 (`GROUND_DECOR_LAYER`) | (8, 2) | 1×1 | None |
+| STUMP | What a tree cut in interact mode leaves (`cut_tree` in `Scripts/TileMap.gd`); the map keeps it when the chunk is drawn again, until the tree regrows after `regrow_delay` | 2 (`GROUND_DECOR_LAYER`) | (8, 2) | 1×1 | None |
 
 With Solaria, TREE was 3×3 cells and BUSH 1×2. Both are now 1×1, so they draw smaller and their collision polygons were redrawn. The TREE and BUSH polygons are wide and tall enough that adjacent plants leave no gap the player (8×10 box) fits through. On the 16 px grid, trees and pines leave 2 px side to side and 5 px top to bottom, and bushes leave 4 px and 5 px. So a row, column or block of trees or bushes is a wall (`test_forest_walls` sweeps half-pixel lanes). One free cell between two plants is still passable.
 
