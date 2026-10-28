@@ -80,13 +80,17 @@ func _refresh_button() -> void:
 
 
 func multiplayer_active() -> bool:
+	return multiplayer_on(multiplayer)
+
+
+static func multiplayer_on(api: MultiplayerAPI) -> bool:
 	## True for a client (connecting or connected) and for a host with at
 	## least one peer connected; false offline or when hosting alone.
-	var peer := multiplayer.multiplayer_peer
+	var peer := api.multiplayer_peer
 	if peer == null or peer is OfflineMultiplayerPeer \
 			or peer.get_connection_status() == MultiplayerPeer.CONNECTION_DISCONNECTED:
 		return false
-	return not multiplayer.is_server() or not multiplayer.get_peers().is_empty()
+	return not api.is_server() or not api.get_peers().is_empty()
 
 
 func interact_allowed() -> bool:

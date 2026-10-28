@@ -32,9 +32,14 @@ var archipelago_world_extent: int = 0
 var archipelago_island_count: int = 0
 # predict_cell results by cell; cleared when the params change.
 var _predict_cache: Dictionary = {}
-# Cells whose tree was cut (Vector2i -> true). Drawing the chunk again puts a
-# STUMP there instead of the tree. Cleared when the params change.
+# Cells whose tree was cut (Vector2i -> play_time at the cut). Drawing the
+# chunk again puts a STUMP there instead of the tree, until the tree regrows
+# (regrow_due). Cleared when the params change.
 var _cut_cells: Dictionary = {}
+## Seconds of play after a cut before the stump turns back into its tree.
+var regrow_delay: float = 300.0
+## Seconds this map has been played; advanced in _process, cut times use it.
+var play_time: float = 0.0
 # Kept Vector2i squares when archipelago_island_count > 0.
 var _archipelago_active_squares: Dictionary = {}
 var _archipelago_count_limited: bool = false
@@ -146,8 +151,11 @@ func _configure_noise(noise: FastNoiseLite, seed_value: int, frequency: float, p
 	noise.fractal_gain = p.fractal_gain
 
 
-func _process(_delta):
+func _process(delta):
+	play_time += delta
 	count += 1
+	if (count % chunk_refresh_frames) == 0 and not _cut_cells.is_empty():
+		regrow_due()
 	if (count % chunk_refresh_frames) == 0 and player_spawned:
 		var current_player_id = str(multiplayer.get_unique_id())
 		count = 0
@@ -467,15 +475,52 @@ func has_tree(cell: Vector2i) -> bool:
 
 
 func cut_tree(cell: Vector2i) -> bool:
-	## Replace the tree at `cell` with a walkable STUMP, for good: the cell
-	## stays a stump when its chunk is drawn again. False when there is no tree.
+	## Replace the tree at `cell` with a walkable STUMP: the cell stays a
+	## stump when its chunk is drawn again, until regrow_due grows the tree
+	## back. False when there is no tree.
 	if not has_tree(cell):
 		return false
-	_cut_cells[cell] = true
+	_cut_cells[cell] = play_time
 	_predict_cache.erase(cell)
 	erase_cell(1, cell)
 	set_cell(GROUND_DECOR_LAYER, cell, TileCatalog.SOURCE_ID, TileCatalog.STUMP)
 	return true
+
+
+func regrow_due() -> int:
+	## Stumps cut at least regrow_delay seconds ago turn back into the tree
+	## the map generates there; a stump under a player waits until the cell
+	## is free. Single-player only (cuts are not synced, #223): nothing
+	## regrows while multiplayer is active. Returns how many trees regrew.
+	if Interaction.multiplayer_on(multiplayer):
+		return 0
+	var grown := 0
+	for cell in _cut_cells.keys():
+		if play_time - _cut_cells[cell] < regrow_delay or player_on_cell(cell):
+			continue
+		_cut_cells.erase(cell)
+		_predict_cache.erase(cell)
+		if get_cell_source_id(0, cell) == -1:
+			continue  # not drawn yet: generate_chunk draws the tree
+		erase_cell(GROUND_DECOR_LAYER, cell)
+		var b := biome_at(cell)
+		set_tile_type_z1(cell, cell_altitude(cell, b), moisture.get_noise_2d(cell.x, cell.y),
+				temperature.get_noise_2d(cell.x, cell.y), items_chance.get_noise_2d(cell.x, cell.y), b)
+		grown += 1
+	return grown
+
+
+func player_on_cell(cell: Vector2i) -> bool:
+	## True when a player's body box (a CharacterBody2D next to this map)
+	## overlaps the cell.
+	var cell_rect := Rect2(to_global(map_to_local(cell) - Vector2(8, 8)), Vector2(16, 16) * global_scale)
+	for node in get_parent().get_children():
+		if not node is CharacterBody2D:
+			continue
+		var body := node.get_node_or_null("CollisionShape2D") as CollisionShape2D
+		if body and body.shape and (body.global_transform * body.shape.get_rect()).intersects(cell_rect):
+			return true
+	return false
 
 
 func ground_is_walkable(atlas: Vector2i) -> bool:
