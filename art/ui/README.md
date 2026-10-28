@@ -44,6 +44,26 @@ The wood counter (top centre of the HUD) shows `ui_wood_icon.png`, a 9x9
 log end-on, followed by the count. It uses the hearts' pixel scale and top
 margin, so the two rows line up.
 
+## Touch controls
+
+The move stick and the attack button use the Castle Stone UI set in `touch/`.
+Positions are in the 480x270 UI space, at scale 1.
+
+| file | size | shown |
+|---|---|---|
+| `ui_joystick_base.png` | 56x56 | the stick base, centred on (77, 201); a drag may start within 28 px |
+| `ui_joystick_knob.png` | 24x24 | the knob, travel 20 px from the centre |
+| `ui_joystick_knob_active.png` | 24x24 | the knob while a finger drags the stick |
+| `ui_attack_idle.png` | 40x40 | the attack button, centred on (398, 202), hit circle radius 24 |
+| `ui_attack_pressed.png` | 40x40 | a finger on the button, inside the aim dead zone |
+| `ui_attack_aim.png` | 40x40 | that finger dragged past the dead zone: aiming |
+
+The textures are set on the `player_joystick` (`border`, `stick`,
+`stick_active`) and `TouchScreenButton` (`texture_idle`, `texture_down`,
+`texture_aim`) nodes in `flagoria_main.tscn`. The aim cone is drawn in code;
+its colours, pulse and line widths are the `AimConeStyle` resource
+(`Scripts/aim_cone_style.gd`).
+
 ## Credits
 
 - Font: `NormalFont.ttf` from the Ninja Adventure asset pack
@@ -65,3 +85,6 @@ margin, so the two rows line up.
 - Mode icons: `ui_mode_combat.png` and `ui_mode_interact.png` are original
   pixel art made in-house for this project, drawn in code in the theme
   palette. Repository licence (`LICENSE.md`).
+- Touch controls: `touch/ui_*.png` (Castle Stone UI set) are original pixel
+  art made in-house for this project, drawn in code in the flagoria palette.
+  Repository licence (`LICENSE.md`).

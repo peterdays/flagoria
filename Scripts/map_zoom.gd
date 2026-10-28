@@ -124,7 +124,7 @@ func _hits(node: Node, pos: Vector2) -> bool:
 		if child.has_signal("analogic_change"):
 			# Virtual joystick: the circle it claims touches in. It reads touches
 			# even while hidden, so this check ignores visibility.
-			var reach: float = child.boundary * child.global_scale.x + HUD_MARGIN_PX
+			var reach: float = child.start_reach() + HUD_MARGIN_PX
 			if pos.distance_to(child.global_position) <= reach:
 				return true
 			continue
