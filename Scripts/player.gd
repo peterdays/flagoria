@@ -24,6 +24,8 @@ var input = Vector2.ZERO
 const HUD_PATH := "/root/Flagoria/CanvasLayer1/HeartsHud"
 const SCORE_HUD_PATH := "/root/Flagoria/CanvasLayer1/ScoreHud"
 const POINTS_PATH := "/root/Flagoria/Points"
+const RESOURCE_HUD_PATH := "/root/Flagoria/CanvasLayer1/ResourceHud"
+const INVENTORY_PATH := "/root/Flagoria/Inventory"
 const MapZoom := preload("res://Scripts/map_zoom.gd")
 const SWORD_DAMAGE := 1  ## half-hearts per sword hit
 const REGEN_AMOUNT := 1  ## half-hearts per regen_timer tick
@@ -80,6 +82,10 @@ func _ready():
 	var points = get_node_or_null(POINTS_PATH)
 	if score_hud and points:
 		score_hud.bind(points, str(name).to_int())
+	var resource_hud = get_node_or_null(RESOURCE_HUD_PATH)
+	var inventory = get_node_or_null(INVENTORY_PATH)
+	if resource_hud and inventory:
+		resource_hud.bind(inventory)
 
 func _process(_delta):
 	# Hidden while dead; blinks while invulnerable after a hit or a respawn.
