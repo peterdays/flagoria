@@ -31,6 +31,12 @@ The in-game menu button (top-right corner of the HUD) shows
 with a 1 px ink shadow like the theme's labels. The button is an 18 px
 square (48 screen px at 1280x720) using the theme's button styles.
 
+## Resource counter
+
+The wood counter (top centre of the HUD) shows `ui_wood_icon.png`, a 9x9
+log end-on, followed by the count. It uses the hearts' pixel scale and top
+margin, so the two rows line up.
+
 ## Credits
 
 - Font: `NormalFont.ttf` from the Ninja Adventure asset pack
@@ -45,4 +51,7 @@ square (48 screen px at 1280x720) using the theme's button styles.
   Repository licence (`LICENSE.md`).
 - Menu icon: `ui_menu_icon.png` is original pixel art made in-house for this
   project, drawn in code in the theme palette. Repository licence
+  (`LICENSE.md`).
+- Wood icon: `ui_wood_icon.png` is original pixel art made in-house for this
+  project, drawn in code in the flagoria palette. Repository licence
   (`LICENSE.md`).

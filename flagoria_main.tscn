@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3 uid="uid://cxtnu53ko1bon"]
+[gd_scene load_steps=19 format=3 uid="uid://cxtnu53ko1bon"]
 
 [ext_resource type="Script" path="res://flagoria_main.gd" id="1_p55uv"]
 [ext_resource type="Script" path="res://addons/virtual_joystick/scripts/virtual_joystick.gd" id="2_54anv"]
@@ -15,6 +15,8 @@
 [ext_resource type="Script" path="res://Scripts/points.gd" id="10_points"]
 [ext_resource type="Script" path="res://Scripts/score_hud.gd" id="11_score_hud"]
 [ext_resource type="Script" path="res://Scripts/discovery_points.gd" id="12_discovery"]
+[ext_resource type="Script" path="res://Scripts/inventory.gd" id="13_inventory"]
+[ext_resource type="Script" path="res://Scripts/resource_hud.gd" id="14_resource_hud"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_bm55c"]
 radius = 250.0
@@ -62,7 +64,20 @@ theme = ExtResource("6_menu")
 text = "0 pts"
 script = ExtResource("11_score_hud")
 
+[node name="ResourceHud" type="HBoxContainer" parent="CanvasLayer1"]
+visible = false
+offset_left = 220.0
+offset_top = 4.0
+offset_right = 260.0
+offset_bottom = 16.0
+mouse_filter = 2
+theme = ExtResource("6_menu")
+script = ExtResource("14_resource_hud")
+
 [node name="InGameMenu" parent="CanvasLayer1" instance=ExtResource("9_ingame_menu")]
+
+[node name="Inventory" type="Node" parent="."]
+script = ExtResource("13_inventory")
 
 [node name="Points" type="Node" parent="."]
 script = ExtResource("10_points")
