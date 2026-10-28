@@ -1,13 +1,13 @@
 extends SceneTree
 ## Headless biome render: a wide biome map next to a terrain map and a plant
 ## map, plus a legend with each biome's coverage, land mix (sand / swamp /
-## grass) and plant mix (tree / bush / flower / stones).
+## grass) and plant mix (tree / pine / bush / flower / stones).
 ##
 ## Samples one cell every `step` tiles over a `size` x `size` tile square
 ## centred on the origin, so the area spans several biome noise wavelengths.
 ## Prints per-biome coverage and exits 1 when any biome covers 0 % of the
 ## area, so a render that shows a single biome cannot pass silently. Also
-## exits 1 when a biome's land grows no trees or bushes (BiomeCatalog.PLANTS)
+## exits 1 when a biome's land grows no trees, pines or bushes (BiomeCatalog.PLANTS)
 ## across the wide samples and its full-resolution close-up, so an emptied
 ## plant row cannot pass silently either.
 ##
@@ -32,9 +32,10 @@ const SAND := Color("e3d08a")
 const SWAMP := Color("7b4f2a")
 const GRASS := Color("58a64a")
 const HILL := Color("2f6b33")
-## Plant map: bare land, trees, bushes, flowers, stones (water uses WATER).
+## Plant map: bare land, trees, pines, bushes, flowers, stones (water uses WATER).
 const PLANT_LAND := Color("cfc9b0")
 const TREE := Color("0b2e12")
+const PINE := Color("00e0c0")
 const BUSH := Color("d9a521")
 const FLOWER := Color("ff4fd8")
 const STONES := Color("6e6a80")
@@ -95,7 +96,7 @@ func _run() -> void:
 	var land := {}
 	for b in BIOME_NAMES:
 		counts[b] = 0
-		land[b] = {"land": 0, "sand": 0, "swamp": 0, "tree": 0, "bush": 0, "flower": 0, "stones": 0}
+		land[b] = {"land": 0, "sand": 0, "swamp": 0, "tree": 0, "pine": 0, "bush": 0, "flower": 0, "stones": 0}
 	for ix in range(n):
 		for iy in range(n):
 			var cell := Vector2i(ix * step - size / 2, iy * step - size / 2)
@@ -113,6 +114,8 @@ func _run() -> void:
 				pc = _plant_color(world, cell, b, c)
 				if pc == TREE:
 					land[b]["tree"] += 1
+				elif pc == PINE:
+					land[b]["pine"] += 1
 				elif pc == BUSH:
 					land[b]["bush"] += 1
 				elif pc == FLOWER:
@@ -131,7 +134,7 @@ func _run() -> void:
 	var close_img := Image.create(row_w, CLOSE_UP, false, Image.FORMAT_RGB8)
 	close_img.fill(Color.BLACK)
 	var k := 0
-	# Per biome: land cells of that biome in its close-up, and trees + bushes on them.
+	# Per biome: land cells of that biome in its close-up, and trees, pines and bushes on them.
 	var close_land := {}
 	var close_plants := {}
 	for b in BIOME_NAMES:
@@ -148,7 +151,7 @@ func _run() -> void:
 					c = _plant_color(world, cell, cb, c)
 					if cb == b:
 						close_land[b] += 1
-						if c == TREE or c == BUSH:
+						if c == TREE or c == PINE or c == BUSH:
 							close_plants[b] += 1
 				if cb != b:
 					c = c.lerp(Color.BLACK, 0.65)
@@ -177,8 +180,8 @@ func _run() -> void:
 
 	var total := n * n
 	var legend := "seed=%d biome_frequency=%s area=%dx%d tiles step=%d\n" % [seed_v, str(freq), size, size, step]
-	legend += "left to right: biome map, terrain (water/sand/swamp/grass/hills), plants (tree #%s, bush #%s, flower #%s, stones #%s, bare land #%s), swatches top to bottom\n" % [
-		TREE.to_html(false), BUSH.to_html(false), FLOWER.to_html(false), STONES.to_html(false), PLANT_LAND.to_html(false)]
+	legend += "left to right: biome map, terrain (water/sand/swamp/grass/hills), plants (tree #%s, pine #%s, bush #%s, flower #%s, stones #%s, bare land #%s), swatches top to bottom\n" % [
+		TREE.to_html(false), PINE.to_html(false), BUSH.to_html(false), FLOWER.to_html(false), STONES.to_html(false), PLANT_LAND.to_html(false)]
 	legend += "bottom row: %d-tile close-up per biome with plants drawn, left to right in swatch order (other biomes dimmed)\n" % CLOSE_UP
 	var missing: Array[String] = []
 	for b in BIOME_NAMES:
@@ -198,13 +201,13 @@ func _run() -> void:
 	for b in BIOME_NAMES:
 		var l: Dictionary = land[b]
 		var n_land := maxi(1, l["land"])
-		legend += "%-18s tree=%5.1f%% bush=%5.1f%% flower=%5.1f%% stones=%5.1f%%\n" % [
-			BIOME_NAMES[b], 100.0 * l["tree"] / n_land,
+		legend += "%-18s tree=%5.1f%% pine=%5.1f%% bush=%5.1f%% flower=%5.1f%% stones=%5.1f%%\n" % [
+			BIOME_NAMES[b], 100.0 * l["tree"] / n_land, 100.0 * l["pine"] / n_land,
 			100.0 * l["bush"] / n_land, 100.0 * l["flower"] / n_land, 100.0 * l["stones"] / n_land]
-	legend += "trees + bushes per biome (wide samples + close-up land cells):\n"
+	legend += "trees + pines + bushes per biome (wide samples + close-up land cells):\n"
 	var bare: Array[String] = []
 	for b in BIOME_NAMES:
-		var wide: int = land[b]["tree"] + land[b]["bush"]
+		var wide: int = land[b]["tree"] + land[b]["pine"] + land[b]["bush"]
 		legend += "%-18s wide=%d of %d land  close_up=%d of %d land\n" % [
 			BIOME_NAMES[b], wide, land[b]["land"], close_plants[b], close_land[b]]
 		if wide + close_plants[b] == 0:
@@ -245,7 +248,7 @@ func _terrain_color(world, p: MapGenParams, cell: Vector2i, b: int) -> Color:
 
 
 func _plant_color(world, cell: Vector2i, b: int, ground: Color) -> Color:
-	## Same decoration as set_tile_type_z1 on a land cell: TREE, BUSH, FLOWER or
+	## Same decoration as set_tile_type_z1 on a land cell: TREE, PINE, BUSH, FLOWER or
 	## STONES, or `ground` when there is none. Beaches get no plants with biomes
 	## on, only stones (BiomeCatalog.STRUCTURES).
 	var chance: float = world.items_chance.get_noise_2d(cell.x, cell.y)
@@ -257,6 +260,8 @@ func _plant_color(world, cell: Vector2i, b: int, ground: Color) -> Color:
 		plant = world.structure_tile(chance, b)
 	if plant == TileCatalog.TREE:
 		return TREE
+	if plant == TileCatalog.PINE:
+		return PINE
 	if plant == TileCatalog.BUSH:
 		return BUSH
 	if plant == TileCatalog.FLOWER:
