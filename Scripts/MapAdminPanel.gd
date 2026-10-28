@@ -72,40 +72,36 @@ func _label_for(key: String) -> String:
 
 
 func _add_float(key: String, label_text: String, min_v: float, max_v: float, step: float, default_v: float) -> void:
-	var row = HBoxContainer.new()
-	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var label = Label.new()
-	label.text = label_text
-	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	label.custom_minimum_size = Vector2(140, 0)
-	var spin = SpinBox.new()
+	var spin := SpinBox.new()
 	spin.min_value = min_v
 	spin.max_value = max_v
 	spin.step = step
 	spin.value = default_v
-	spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	spin.custom_minimum_size = Vector2(100, 22)
-	row.add_child(label)
-	row.add_child(spin)
-	form.add_child(row)
-	_spin_boxes[key] = spin
+	_add_spin_row(key, label_text, spin)
 
 
 func _add_int(key: String, label_text: String, min_v: int, max_v: int, default_v: int) -> void:
-	var row = HBoxContainer.new()
-	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var label = Label.new()
-	label.text = label_text
-	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	label.custom_minimum_size = Vector2(140, 0)
-	var spin = SpinBox.new()
+	var spin := SpinBox.new()
 	spin.min_value = min_v
 	spin.max_value = max_v
 	spin.step = 1
 	spin.rounded = true
 	spin.value = default_v
-	spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	spin.custom_minimum_size = Vector2(100, 22)
+	_add_spin_row(key, label_text, spin)
+
+
+func _add_spin_row(key: String, label_text: String, spin: SpinBox) -> void:
+	## Same layout as the seed rows in map_admin_panel.tscn: a centered row of a
+	## 140 px centered label and a 140 px field.
+	var row := HBoxContainer.new()
+	row.name = key
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var label := Label.new()
+	label.text = label_text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.custom_minimum_size = Vector2(140, 0)
+	spin.custom_minimum_size = Vector2(140, 22)
+	spin.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	row.add_child(label)
 	row.add_child(spin)
 	form.add_child(row)

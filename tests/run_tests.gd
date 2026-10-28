@@ -3731,6 +3731,45 @@ func _test_map_settings_uses_menu_theme() -> int:
 		print("PASS test_map_settings_uses_menu_theme")
 	return fail
 
+func _test_map_settings_rows_centered() -> int:
+	## Below the seeds, the noise type and numeric rows are centered rows of a
+	## fixed width like the seed rows, in the game font, and the bottom buttons
+	## are a centered block instead of spanning the screen.
+	print("-- test_map_settings_rows_centered")
+	var theme: Theme = load("res://art/ui/main_menu_theme.tres")
+	var panel = load("res://map_admin_panel.tscn").instantiate()
+	root.add_child(panel)
+	for i in 3:
+		await process_frame
+	var fail := 0
+	var view_w: float = root.get_visible_rect().size.x
+	var form: Control = panel.find_child("Form")
+	var rows: Array = [panel.find_child("NoiseTypeRow")]
+	for spin in panel._spin_boxes.values():
+		rows.append(spin.get_parent())
+	rows.append(panel.find_child("Buttons"))
+	rows.append(panel.find_child("Buttons2"))
+	for row in rows:
+		# Extent of the row's children, which is what the player sees.
+		var left := INF
+		var right := -INF
+		for c in row.get_children():
+			left = minf(left, c.get_global_rect().position.x)
+			right = maxf(right, c.get_global_rect().end.x)
+			if c.get_theme_font("font") != theme.default_font:
+				printerr("FAIL map_settings_rows_centered %s/%s does not use the game font" % [row.name, c.name])
+				fail += 1
+		var parent_rect: Rect2 = form.get_global_rect() if row.get_parent() == form else row.get_global_rect()
+		var off_center := absf((left + right) / 2.0 - parent_rect.get_center().x)
+		if right - left > 0.7 * view_w or off_center > 1.0:
+			printerr("FAIL map_settings_rows_centered %s spans %.0f of %.0f px, %.0f px off center" % [
+					row.name, right - left, view_w, off_center])
+			fail += 1
+	panel.queue_free()
+	if fail == 0:
+		print("PASS test_map_settings_rows_centered (%s rows)" % rows.size())
+	return fail
+
 func _tap_sequence(pos: Vector2, steps: Array) -> void:
 	## Pushes one tap at pos as the given mix of mouse and touch events.
 	## "input_touch_*" goes through Input, which adds the emulated mouse
