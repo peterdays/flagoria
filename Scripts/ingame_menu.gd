@@ -22,14 +22,14 @@ const ICON_BUTTON_PAD := 2  ## px left and right of the icon at 1x
 
 
 func _ready() -> void:
-	_fit_icon_button(menu_button)
+	fit_icon_button(menu_button)
 	menu_button.pressed.connect(open)
 	resume_button.pressed.connect(close)
 	save_button.pressed.connect(save_world)
 	main_menu_button.pressed.connect(_on_main_menu_pressed)
 
 
-func _fit_icon_button(button: Button) -> void:
+static func fit_icon_button(button: Button) -> void:
 	## The theme's button styles, with side padding sized for an icon, not text.
 	for state in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
 		var style := button.get_theme_stylebox(state).duplicate() as StyleBox

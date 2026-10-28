@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3 uid="uid://cxtnu53ko1bon"]
+[gd_scene load_steps=20 format=3 uid="uid://cxtnu53ko1bon"]
 
 [ext_resource type="Script" path="res://flagoria_main.gd" id="1_p55uv"]
 [ext_resource type="Script" path="res://addons/virtual_joystick/scripts/virtual_joystick.gd" id="2_54anv"]
@@ -17,6 +17,7 @@
 [ext_resource type="Script" path="res://Scripts/discovery_points.gd" id="12_discovery"]
 [ext_resource type="Script" path="res://Scripts/inventory.gd" id="13_inventory"]
 [ext_resource type="Script" path="res://Scripts/resource_hud.gd" id="14_resource_hud"]
+[ext_resource type="Script" path="res://Scripts/interaction.gd" id="15_interaction"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_bm55c"]
 radius = 250.0
@@ -74,6 +75,20 @@ mouse_filter = 2
 theme = ExtResource("6_menu")
 script = ExtResource("14_resource_hud")
 
+[node name="ModeButton" type="Button" parent="CanvasLayer1"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -44.0
+offset_top = 4.0
+offset_right = -26.0
+offset_bottom = 22.0
+grow_horizontal = 0
+focus_mode = 0
+theme = ExtResource("6_menu")
+toggle_mode = true
+icon_alignment = 1
+
 [node name="InGameMenu" parent="CanvasLayer1" instance=ExtResource("9_ingame_menu")]
 
 [node name="Inventory" type="Node" parent="."]
@@ -107,6 +122,9 @@ layer_2/y_sort_origin = 0
 layer_2/z_index = -1
 layer_2/tile_data = PackedInt32Array()
 script = ExtResource("7_n5hto")
+
+[node name="Interaction" type="Node2D" parent="World"]
+script = ExtResource("15_interaction")
 
 [node name="Mobs" type="Node2D" parent="World"]
 y_sort_enabled = true
