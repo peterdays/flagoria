@@ -24,6 +24,13 @@ To restyle the hearts, replace the PNGs (keep the names) or point the
 `ICON_*` constants in `Scripts/hearts_hud.gd` at new files. That is the only
 place the icons are referenced. The row lays out from the icon width.
 
+## Menu button
+
+The in-game menu button (top-right corner of the HUD) shows
+`ui_menu_icon.png`: an 11x11 three-bar icon, bars in the button text colour
+with a 1 px ink shadow like the theme's labels. The button is an 18 px
+square (48 screen px at 1280x720) using the theme's button styles.
+
 ## Credits
 
 - Font: `NormalFont.ttf` from the Ninja Adventure asset pack
@@ -36,3 +43,6 @@ place the icons are referenced. The row lays out from the icon width.
   this project, drawn in code from text grids in the flagoria palette (1 px
   outline in the project ink colour `#2a2238`), with no third-party pixels.
   Repository licence (`LICENSE.md`).
+- Menu icon: `ui_menu_icon.png` is original pixel art made in-house for this
+  project, drawn in code in the theme palette. Repository licence
+  (`LICENSE.md`).

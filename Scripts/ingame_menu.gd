@@ -1,13 +1,17 @@
 extends Control
-## In-game menu: a Menu button in the HUD corner (or Esc on desktop) opens a
-## small panel over the game. The game keeps running underneath; nothing is
-## paused, locally or for other players.
+## In-game menu: a three-bar menu button in the HUD corner (or Esc on
+## desktop) opens a small panel over the game. The game keeps running
+## underneath; nothing is paused, locally or for other players.
 ##
 ## Resume closes the panel. Save writes the current world as a world save
 ## (docs/world-saves.md) named after the date and time, and says so on a line
 ## kept under the buttons, so the panel never changes height; it stays open, so the player can resume or leave. Main menu
 ## leaves the match: Flagoria closes the network session and reloads the main
 ## scene, which frees the world and brings back the main menu and its music.
+
+## The HUD menu button is an 18 px square (48 screen px at 1280x720): big
+## enough to tap, small enough to keep the corner clear.
+const ICON_BUTTON_PAD := 2  ## px left and right of the icon at 1x
 
 @onready var menu_button: Button = $MenuButton
 @onready var panel: Control = $Pause
@@ -18,10 +22,20 @@ extends Control
 
 
 func _ready() -> void:
+	_fit_icon_button(menu_button)
 	menu_button.pressed.connect(open)
 	resume_button.pressed.connect(close)
 	save_button.pressed.connect(save_world)
 	main_menu_button.pressed.connect(_on_main_menu_pressed)
+
+
+func _fit_icon_button(button: Button) -> void:
+	## The theme's button styles, with side padding sized for an icon, not text.
+	for state in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
+		var style := button.get_theme_stylebox(state).duplicate() as StyleBox
+		style.content_margin_left = ICON_BUTTON_PAD
+		style.content_margin_right = ICON_BUTTON_PAD
+		button.add_theme_stylebox_override(state, style)
 
 
 func is_open() -> bool:

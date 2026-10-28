@@ -812,7 +812,7 @@ func _test_map_settings_water_reopen() -> int:
 
 
 func _test_ingame_menu_open_resume() -> int:
-	## During a match the HUD's Menu button, or Esc, opens the in-game menu
+	## During a match the HUD's three-bar menu button, or Esc, opens the in-game menu
 	## and Resume, or Esc again, closes it. On the main menu Esc does nothing.
 	## A closed menu leaves the open map to pinch zoom; an open one covers it.
 	print("-- test_ingame_menu_open_resume")
@@ -845,6 +845,20 @@ func _test_ingame_menu_open_resume() -> int:
 	var corner: Vector2 = menu.menu_button.get_global_rect().get_center()
 	if not menu.menu_button.is_visible_in_tree() or not zoom.starts_on_hud(corner) or zoom.starts_on_hud(centre):
 		printerr("FAIL ingame_menu_open_resume: Menu button not shown, or the closed menu covers the map")
+		fail += 1
+	# A compact three-bar icon button, still a phone-sized tap target at
+	# 1280x720, clear of the hearts and points in the other corner.
+	var button_rect: Rect2 = menu.menu_button.get_global_rect()
+	var tap_px: float = button_rect.size.x * 1280.0 / scene.get_viewport().get_visible_rect().size.x
+	var hearts_rect: Rect2 = scene.get_node("CanvasLayer1/HeartsHud").get_global_rect()
+	var score_rect: Rect2 = scene.get_node("CanvasLayer1/ScoreHud").get_global_rect()
+	if menu.menu_button.text != "" or menu.menu_button.icon == null \
+			or button_rect.size.x != button_rect.size.y or tap_px < 40.0 or tap_px > 48.5 \
+			or button_rect.intersects(hearts_rect) or button_rect.intersects(score_rect):
+		printerr(
+			"FAIL ingame_menu_open_resume: menu button text=%s icon=%s rect=%s (%s px at 1280x720)"
+			% [menu.menu_button.text, menu.menu_button.icon, button_rect, tap_px]
+		)
 		fail += 1
 	menu.menu_button.pressed.emit()
 	if not menu.is_open() or not zoom.starts_on_hud(centre):
