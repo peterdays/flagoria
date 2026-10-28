@@ -1,19 +1,25 @@
 extends TouchScreenButton
+## The on-screen attack button: only how it looks and where it is. The touch
+## handling (tap to swing, drag to aim) lives in AttackAim (#231), which finds
+## this node by its "attack_button" group and asks it two things below. A new
+## look - another texture, or a whole new scene - only has to join that group
+## and answer these.
 
 
-# Called when the node enters the scene tree for the first time.
-func _ready():
-	pass # Replace with function body.
+func hits(screen_pos: Vector2) -> bool:
+	## True when a touch at this viewport position presses the button.
+	var local := get_global_transform_with_canvas().affine_inverse() * screen_pos
+	if shape is CircleShape2D:
+		return local.distance_to(_shape_center()) <= (shape as CircleShape2D).radius
+	var size := texture_normal.get_size() if texture_normal else Vector2.ZERO
+	return Rect2(Vector2.ZERO, size).has_point(local)
 
 
-# Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta):
-	pass
+func aim_center() -> Vector2:
+	## The viewport position a drag is measured from.
+	return get_global_transform_with_canvas() * _shape_center()
 
 
-func _on_pressed():
-	var current_player_id = str(multiplayer.get_unique_id())
-
-	var curr_player = get_node_or_null("/root/Flagoria/World/" + str(current_player_id))
-	if curr_player:		
-		curr_player.attack_animation.rpc()
+func _shape_center() -> Vector2:
+	var size := texture_normal.get_size() if texture_normal else Vector2.ZERO
+	return size / 2.0 if shape_centered else Vector2.ZERO

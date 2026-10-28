@@ -1,9 +1,23 @@
 class_name AttackAim
 extends Node2D
-## Mouse aim for the local player's attack (#231). In combat mode, holding
-## the left mouse button on the map aims: a translucent cone from the hero
-## shows the swing the attack will make, and releasing the button attacks in
-## that direction. Right-click cancels. The sword swings in one of four
+## Aim for the local player's attack (#231), by mouse or by dragging the
+## on-screen attack button. In combat mode, holding the left mouse button on
+## the map aims: a translucent cone from the hero shows the swing the attack
+## will make, and releasing the button attacks in that direction.
+## Right-click cancels.
+
+## Touch: a finger that lands on the attack button aims once it has moved
+## more than TOUCH_DEAD_ZONE from the button's centre; the cone points the way
+## the finger is from that centre, and lifting the finger swings that way. A
+## tap (lifted without leaving the dead zone) swings the way the hero faces,
+## as before. Dragging back into the dead zone cancels: the cone goes and
+## lifting there does not swing; dragging out again aims again. The finger is
+## tracked by its touch index, so the move stick can be held meanwhile.
+
+## The button is found by group: any CanvasItem in ATTACK_BUTTON_GROUP with
+## `hits(screen_pos) -> bool` and `aim_center() -> Vector2` works, so its look
+## (texture, scene) can change without touching this script. The cone's look
+## is `style` (AimConeStyle). The sword swings in one of four
 ## directions, so the aim snaps to the nearest one and the cone shows that
 ## swing, never an angle the hit will not land on. The aim is local only; the
 ## attack goes out through the player's attack_animation RPC with its
@@ -12,17 +26,20 @@ extends Node2D
 ## attacks at once in the facing direction.
 
 const DIRECTIONS := ["Up", "Down", "Left", "Right"]
-const RANGE := 22.0  ## world px: past the sword's hitbox at mid-swing
 const ARC := PI * 0.75  ## the swing's sweep, centred on the aim direction
 const ORIGIN := Vector2(0, -3)  ## where the cone starts, in the player's space
 const ARC_POINTS := 16
-const FILL_COLOR := Color(0.949, 0.918, 0.945, 0.3)
-const LINE_COLOR := Color(0.949, 0.918, 0.945, 0.9)
+const TOUCH_DEAD_ZONE := 8.0  ## screen px from the button's centre: inside is a tap, or a cancel
+const ATTACK_BUTTON_GROUP := "attack_button"
 const INTERACTION_PATH := "/root/Flagoria/World/Interaction"
 
 var player: Node2D  ## the local player; this node is its child
 var aiming := false
 var _pointer := Vector2.ZERO  ## viewport position of the cursor while aiming
+var style: AimConeStyle = AimConeStyle.new()
+var _touch_index := -1  ## the finger on the attack button, or -1
+var _touch_offset := Vector2.ZERO  ## that finger's position from the button's centre
+var _touch_aimed := false  ## the finger has left the dead zone since it landed
 
 
 func _ready() -> void:
@@ -50,7 +67,12 @@ static func direction_vector(direction: String) -> Vector2:
 
 
 func aim_direction() -> String:
-	## The direction the attack goes if the button is released now.
+	## The direction the attack goes if the button is released now; "" when
+	## nothing is aimed (a touch still inside the dead zone).
+	if _touch_index != -1:
+		if _touch_offset.length() <= TOUCH_DEAD_ZONE:
+			return ""
+		return direction_name(_touch_offset)
 	var target := get_canvas_transform().affine_inverse() * _pointer
 	return direction_name(target - to_global(ORIGIN))
 
@@ -63,8 +85,62 @@ func can_aim() -> bool:
 
 
 func cancel() -> void:
+	## Drops the aim; a finger on the button stays tracked but cannot swing.
+	aiming = false
+	if _touch_index != -1:
+		_touch_aimed = true
+		_touch_offset = Vector2.ZERO
+	queue_redraw()
+
+
+func attack_button():
+	## The on-screen attack button (untyped: any node with hits/aim_center).
+	return get_tree().get_first_node_in_group(ATTACK_BUTTON_GROUP)
+
+
+func _offset_from_button(pos: Vector2) -> Vector2:
+	var button = attack_button()
+	return pos - button.aim_center() if button != null else Vector2.ZERO
+
+
+func _input(event: InputEvent) -> void:
+	# Touches go here, not to _unhandled_input: the move stick and the map
+	# zoom read touches in _input too, and a finger on the button must be seen
+	# whatever they do with the other fingers.
+	if event is InputEventScreenTouch:
+		_on_touch(event)
+	elif event is InputEventScreenDrag and event.index == _touch_index:
+		_touch_offset = _offset_from_button(event.position)
+		if _touch_offset.length() > TOUCH_DEAD_ZONE and can_aim():
+			_touch_aimed = true
+			aiming = true
+		elif aiming:
+			aiming = false  # back in the dead zone: cancelled until it leaves again
+		queue_redraw()
+
+
+func _on_touch(event: InputEventScreenTouch) -> void:
+	if event.pressed:
+		var button = attack_button()
+		if _touch_index == -1 and button != null and button.is_visible_in_tree() \
+				and button.hits(event.position):
+			_touch_index = event.index
+			_touch_offset = event.position - button.aim_center()
+			_touch_aimed = false
+		return
+	if event.index != _touch_index:
+		return
+	_touch_offset = _offset_from_button(event.position)
+	var direction := aim_direction() if aiming else ""
+	var tap := not _touch_aimed
+	_touch_index = -1
+	_touch_aimed = false
 	aiming = false
 	queue_redraw()
+	if direction != "" and can_aim():
+		player.attack_toward(direction)
+	elif tap:
+		player.attack_toward("")  # a tap swings the way the hero faces, as before
 
 
 func _process(_delta: float) -> void:
@@ -75,7 +151,8 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not (event is InputEventMouse) or event.device == InputEvent.DEVICE_ID_EMULATION:
+	if not (event is InputEventMouse) or event.device == InputEvent.DEVICE_ID_EMULATION \
+			or _touch_index != -1:
 		return
 	if event is InputEventMouseMotion:
 		if aiming:
@@ -113,7 +190,7 @@ func cone_points() -> PackedVector2Array:
 	var angle := direction_vector(aim_direction()).angle()
 	for i in ARC_POINTS + 1:
 		var a := angle - ARC / 2.0 + ARC * i / ARC_POINTS
-		points.append(ORIGIN + Vector2.from_angle(a) * RANGE)
+		points.append(ORIGIN + Vector2.from_angle(a) * style.range)
 	return points
 
 
@@ -121,6 +198,8 @@ func _draw() -> void:
 	if not aiming or aim_direction() == "":
 		return
 	var points := cone_points()
-	draw_colored_polygon(points, FILL_COLOR)
-	points.append(ORIGIN)
-	draw_polyline(points, LINE_COLOR, 1.0)
+	draw_colored_polygon(points, style.fill_color)
+	var outline := points.duplicate()
+	outline.append(ORIGIN)
+	draw_polyline(outline, style.outline_color, style.outline_width + style.rim_width)
+	draw_polyline(points.slice(1), style.rim_color, style.rim_width)

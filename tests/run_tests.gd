@@ -2474,6 +2474,159 @@ func _test_attack_aim_mouse() -> int:
 	return fail
 
 
+func _test_attack_aim_touch() -> int:
+	## Touch aim (#231): a finger on the attack button that drags past the
+	## dead zone shows the cone the way it is from the button's centre, snapped
+	## to the four swings, and lifting swings that way. A tap, or a drag that
+	## stays in the dead zone, swings the way the hero faces. Dragging back
+	## into the dead zone cancels (lifting there does not swing); dragging out
+	## again aims again. The finger is tracked by index, so the move stick can
+	## be held meanwhile. The cone's look and length come from its style.
+	print("-- test_attack_aim_touch")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var menu: Node = scene.get_node("CanvasLayer2/MainMenu")
+	menu.hide()
+	menu.set_process_unhandled_input(false)
+	scene.get_node("CanvasLayer1").show()
+	var player = load("res://Player/character_body_2d.tscn").instantiate()
+	player.name = str(scene.multiplayer.get_unique_id())
+	scene.get_node("World").add_child(player)
+	player.position = player.spawn_position()
+	await process_frame
+	await process_frame
+	var aim: AttackAim = player.get_node("AttackAim")
+	var button = aim.attack_button()
+	var joystick = scene.get_node("CanvasLayer1/player_joystick")
+	if button != scene.get_node("CanvasLayer1/TouchScreenButton"):
+		printerr("FAIL attack_aim_touch the attack button is not found by its group")
+		scene.queue_free()
+		await process_frame
+		return fail + 1
+	var c: Vector2 = button.aim_center()
+	var vp: Viewport = scene.get_viewport()
+	var touch := func(index: int, pos: Vector2, pressed: bool) -> void:
+		var e := InputEventScreenTouch.new()
+		e.index = index
+		e.position = pos
+		e.pressed = pressed
+		vp.push_input(e, true)
+	var drag := func(index: int, pos: Vector2) -> void:
+		var e := InputEventScreenDrag.new()
+		e.index = index
+		e.position = pos
+		vp.push_input(e, true)
+	var wait_swing := func() -> void:
+		var until := Time.get_ticks_msec() + 3000
+		while player.isAttacking and Time.get_ticks_msec() < until:
+			await process_frame
+	var dz := AttackAim.TOUCH_DEAD_ZONE
+
+	# A tap swings the way the hero faces, on lift, with no cone.
+	player.lastAnimDirection = "Left"
+	touch.call(1, c, true)
+	if aim.aiming or player.isAttacking:
+		printerr("FAIL attack_aim_touch a finger landing on the button aimed or swung")
+		fail += 1
+	touch.call(1, c + Vector2(1, 1), false)
+	if aim.aiming or player.animations.current_animation != "attackLeft":
+		printerr("FAIL attack_aim_touch tap swung %s, want attackLeft" % player.animations.current_animation)
+		fail += 1
+	await wait_swing.call()
+	# A wobble inside the dead zone is still a tap.
+	player.lastAnimDirection = "Left"
+	touch.call(1, c, true)
+	drag.call(1, c + Vector2(dz * 0.6, -dz * 0.6))
+	if aim.aiming:
+		printerr("FAIL attack_aim_touch a drag inside the dead zone aimed")
+		fail += 1
+	touch.call(1, c + Vector2(dz * 0.6, -dz * 0.6), false)
+	if player.animations.current_animation != "attackLeft":
+		printerr("FAIL attack_aim_touch a dead-zone drag swung %s, want attackLeft" % player.animations.current_animation)
+		fail += 1
+	await wait_swing.call()
+
+	# Move stick held with finger 0 while finger 1 aims on the button.
+	touch.call(0, joystick.global_position, true)
+	drag.call(0, joystick.global_position + Vector2(0, 20))
+	touch.call(1, c, true)
+	drag.call(1, c + Vector2(-4, -30))
+	if not aim.aiming or aim.aim_direction() != "Up" or player.isAttacking:
+		printerr("FAIL attack_aim_touch drag up: aiming %s toward %s" % [aim.aiming, aim.aim_direction()])
+		fail += 1
+	if aim.cone_points().size() < 3:
+		printerr("FAIL attack_aim_touch no cone while aiming")
+		fail += 1
+	drag.call(1, c + Vector2(30, 6))
+	drag.call(0, joystick.global_position + Vector2(-20, 0))  # the stick finger moves; the aim stays
+	if aim.aim_direction() != "Right" or joystick.ongoing_drag != 0:
+		printerr("FAIL attack_aim_touch with the stick held: toward %s, stick finger %s"
+				% [aim.aim_direction(), joystick.ongoing_drag])
+		fail += 1
+	touch.call(0, joystick.global_position, false)  # lifting the stick finger does not fire
+	if not aim.aiming or player.isAttacking:
+		printerr("FAIL attack_aim_touch lifting the stick finger ended the aim")
+		fail += 1
+	touch.call(1, c + Vector2(30, 6), false)
+	if aim.aiming or player.lastAnimDirection != "Right" or player.animations.current_animation != "attackRight":
+		printerr("FAIL attack_aim_touch release swung %s facing %s, want attackRight"
+				% [player.animations.current_animation, player.lastAnimDirection])
+		fail += 1
+	await wait_swing.call()
+
+	# Back into the dead zone cancels: the cone goes and lifting does not swing.
+	touch.call(1, c, true)
+	drag.call(1, c + Vector2(-30, 0))
+	drag.call(1, c + Vector2(2, 1))
+	if aim.aiming or aim.aim_direction() != "":
+		printerr("FAIL attack_aim_touch back in the dead zone still aims %s" % aim.aim_direction())
+		fail += 1
+	touch.call(1, c + Vector2(2, 1), false)
+	if player.isAttacking:
+		printerr("FAIL attack_aim_touch a cancelled drag swung %s" % player.animations.current_animation)
+		fail += 1
+	# ...and dragging out again aims again.
+	touch.call(1, c, true)
+	drag.call(1, c + Vector2(-30, 0))
+	drag.call(1, c)
+	drag.call(1, c + Vector2(3, 30))
+	touch.call(1, c + Vector2(3, 30), false)
+	if player.animations.current_animation != "attackDown":
+		printerr("FAIL attack_aim_touch re-aim after cancel swung %s, want attackDown" % player.animations.current_animation)
+		fail += 1
+	await wait_swing.call()
+	# A finger elsewhere on the map never aims through the button.
+	touch.call(2, c + Vector2(-150, -80), true)
+	drag.call(2, c + Vector2(-150, -40))
+	touch.call(2, c + Vector2(-150, -40), false)
+	if aim.aiming or player.isAttacking:
+		printerr("FAIL attack_aim_touch a map touch aimed or swung")
+		fail += 1
+
+	# The cone's length and look come from its style, swappable in one place.
+	var far := 0.0
+	for p in aim.cone_points():
+		far = maxf(far, (p - AttackAim.ORIGIN).length())
+	if not is_equal_approx(far, aim.style.range):
+		printerr("FAIL attack_aim_touch cone length %s, style says %s" % [far, aim.style.range])
+		fail += 1
+	var longer := AimConeStyle.new()
+	longer.range = 40.0
+	aim.style = longer
+	far = 0.0
+	for p in aim.cone_points():
+		far = maxf(far, (p - AttackAim.ORIGIN).length())
+	if not is_equal_approx(far, 40.0):
+		printerr("FAIL attack_aim_touch a swapped style did not change the cone (%s)" % far)
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_attack_aim_touch")
+	return fail
+
+
 func _test_footsteps() -> int:
 	## Footsteps: none while idle or on a teleport; walking at top speed in
 	## simulated 60 Hz frames plays exactly one step per STEP_DISTANCE on every
