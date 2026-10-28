@@ -46,6 +46,9 @@ var tree_min_chance: float = 0.3
 var flower_min_alt: float = 0.25
 var flower_max_alt: float = 0.3
 var flower_min_chance: float = 0.3
+var pine_min_alt: float = 0.5
+var pine_min_moist: float = -0.25
+var pine_min_chance: float = 0.3
 var biome_frequency: float = 0.0
 var biome_seed: int = 0
 
@@ -120,6 +123,9 @@ func apply_map_params(p: MapGenParams) -> void:
 	flower_min_alt = working.flower_min_alt
 	flower_max_alt = working.flower_max_alt
 	flower_min_chance = working.flower_min_chance
+	pine_min_alt = working.pine_min_alt
+	pine_min_moist = working.pine_min_moist
+	pine_min_chance = working.pine_min_chance
 
 	clear()
 	_predict_cache.clear()
@@ -375,10 +381,10 @@ func set_tile_type_z1(pos_vec, alt, moist, _temp, chance, biome_id: int = BiomeC
 
 
 func plant_tile(alt: float, moist: float, chance: float, biome_id: int = BiomeCatalog.TEMPERATE) -> Vector2i:
-	## Bush, tree or flower for one walkable cell, or NO_PLANT. With biomes on,
-	## BiomeCatalog.PLANTS shifts the tree and bush chance thresholds and
-	## BiomeCatalog.TERRAIN the flower threshold; with biomes off the Map
-	## Settings thresholds apply unchanged.
+	## Bush, tree, pine or flower for one walkable cell, or NO_PLANT. With
+	## biomes on, BiomeCatalog.PLANTS shifts the tree, bush and pine chance
+	## thresholds and BiomeCatalog.TERRAIN the flower threshold; with biomes
+	## off there are no pines and the Map Settings thresholds apply unchanged.
 	var bush_chance := bush_min_chance
 	var tree_chance := tree_min_chance
 	var flower_chance := flower_min_chance
@@ -390,6 +396,12 @@ func plant_tile(alt: float, moist: float, chance: float, biome_id: int = BiomeCa
 		return TileCatalog.BUSH
 	if moist > 0 and alt > tree_min_alt and chance > tree_chance:
 		return TileCatalog.TREE
+	if biome_frequency > 0.0 and moist <= 0 and alt > pine_min_alt:
+		# Dry high ground; the moisture floor never goes below the biome's
+		# swamp threshold, so pines stay off swamp.
+		var pine_moist := maxf(pine_min_moist, BiomeCatalog.terrain(biome_id, "swamp_moisture"))
+		if moist > pine_moist and chance > pine_min_chance + BiomeCatalog.plants(biome_id, "pine_chance"):
+			return TileCatalog.PINE
 	if moist > 0 and alt > flower_min_alt and alt <= flower_max_alt and chance > flower_chance:
 		return TileCatalog.FLOWER
 	return NO_PLANT

@@ -27,6 +27,9 @@ const FLOWER := Vector2i(9, 3)
 ## Walkable small stones (ground decor, no collision). Same art cell as
 ## ROCK_FLOAT_S.
 const STONES := Vector2i(0, 7)
+## Small pine on dry high ground (biomes on only). Same art cell as
+## TREE_PINE_SMALL; collision like TREE.
+const PINE := Vector2i(7, 2)
 
 ## Island edges (flat top-down coast around grass)
 const GRASS_EDGE_N := Vector2i(0, 0)
@@ -224,6 +227,7 @@ const TILES := {
 	"TREE": {"source_id": SOURCE_ID, "atlas": TREE},
 	"FLOWER": {"source_id": SOURCE_ID, "atlas": FLOWER},
 	"STONES": {"source_id": SOURCE_ID, "atlas": STONES},
+	"PINE": {"source_id": SOURCE_ID, "atlas": PINE},
 	"GRASS_EDGE_N": {"source_id": SOURCE_ID, "atlas": GRASS_EDGE_N},
 	"GRASS_EDGE_E": {"source_id": SOURCE_ID, "atlas": GRASS_EDGE_E},
 	"GRASS_EDGE_S": {"source_id": SOURCE_ID, "atlas": GRASS_EDGE_S},
