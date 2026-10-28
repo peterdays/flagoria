@@ -67,6 +67,13 @@ extends Resource
 @export_range(-1.0, 1.0, 0.01) var flower_min_alt: float = 0.25
 @export_range(-1.0, 1.0, 0.01) var flower_max_alt: float = 0.3
 @export_range(-1.0, 1.0, 0.05) var flower_min_chance: float = 0.3
+# Pines (TileCatalog.PINE) on dry high ground, where moisture is too low for
+# trees: altitude above pine_min_alt, moisture in (pine_min_moist, 0] and
+# chance above pine_min_chance. Biomes on only; BiomeCatalog.PLANTS shifts
+# the chance per biome, and pines never grow on swamp.
+@export_range(-1.0, 2.0, 0.01) var pine_min_alt: float = 0.5
+@export_range(-1.0, 0.0, 0.01) var pine_min_moist: float = -0.25
+@export_range(-1.0, 2.0, 0.05) var pine_min_chance: float = 0.3
 
 
 static func make_defaults() -> MapGenParams:
