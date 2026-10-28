@@ -2333,6 +2333,147 @@ func _test_sword_only_hits_mid_swing() -> int:
 	return fail
 
 
+func _test_attack_aim_mouse() -> int:
+	## Mouse aim (#231): holding the left button on the map in combat mode
+	## shows the cone toward the cursor, snapped to the four swing directions,
+	## and releasing swings that way. The cone covers the sword's hitbox at
+	## mid-swing in every direction. Right-click cancels; mouse events made
+	## from touches, clicks on the HUD, interact mode and a dead player never
+	## aim; an unknown RPC direction swings in the facing direction.
+	print("-- test_attack_aim_mouse")
+	var fail := 0
+	if AttackAim.direction_name(Vector2(-3, 1)) != "Left" or AttackAim.direction_name(Vector2(1, -3)) != "Up" \
+			or AttackAim.direction_name(Vector2(2, 2)) != "Right" or AttackAim.direction_name(Vector2(0, 5)) != "Down" \
+			or AttackAim.direction_name(Vector2.ZERO) != "":
+		printerr("FAIL attack_aim_mouse direction_name snaps wrong")
+		fail += 1
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var menu: Node = scene.get_node("CanvasLayer2/MainMenu")
+	menu.hide()
+	menu.set_process_unhandled_input(false)
+	scene.get_node("CanvasLayer1").show()
+	var player = load("res://Player/character_body_2d.tscn").instantiate()
+	player.name = str(scene.multiplayer.get_unique_id())
+	scene.get_node("World").add_child(player)
+	player.position = player.spawn_position()
+	await process_frame
+	await process_frame
+	var aim: AttackAim = player.get_node_or_null("AttackAim")
+	if aim == null:
+		printerr("FAIL attack_aim_mouse the local player has no AttackAim")
+		scene.queue_free()
+		await process_frame
+		return fail + 1
+	var vp: Viewport = scene.get_viewport()
+	var at := func(offset: Vector2) -> Vector2:  # world offset from the player to viewport px
+		return aim.get_canvas_transform() * (player.global_position + offset)
+	var mouse := func(button: MouseButton, pos: Vector2, pressed: bool, device := 0) -> void:
+		var e := InputEventMouseButton.new()
+		e.button_index = button
+		e.position = pos
+		e.pressed = pressed
+		e.device = device
+		vp.push_input(e, true)
+	var move := func(pos: Vector2) -> void:
+		var e := InputEventMouseMotion.new()
+		e.position = pos
+		vp.push_input(e, true)
+	var wait_swing := func() -> void:
+		var until := Time.get_ticks_msec() + 3000
+		while player.isAttacking and Time.get_ticks_msec() < until:
+			await process_frame
+
+	# Hold, move the cursor round, release: the cone follows and the swing
+	# goes the last way it showed.
+	player.lastAnimDirection = "Down"
+	mouse.call(MOUSE_BUTTON_LEFT, at.call(Vector2(-60, 5)), true)
+	if not aim.aiming or aim.aim_direction() != "Left" or player.isAttacking:
+		printerr("FAIL attack_aim_mouse press: aiming %s toward %s, attacking %s"
+				% [aim.aiming, aim.aim_direction(), player.isAttacking])
+		fail += 1
+	move.call(at.call(Vector2(10, -70)))
+	if aim.aim_direction() != "Up":
+		printerr("FAIL attack_aim_mouse cone did not follow the cursor up (%s)" % aim.aim_direction())
+		fail += 1
+	mouse.call(MOUSE_BUTTON_LEFT, at.call(Vector2(10, -70)), false)
+	if aim.aiming or not player.isAttacking or player.lastAnimDirection != "Up" \
+			or player.animations.current_animation != "attackUp":
+		printerr("FAIL attack_aim_mouse release: aiming %s, attacking %s, facing %s, anim %s"
+				% [aim.aiming, player.isAttacking, player.lastAnimDirection, player.animations.current_animation])
+		fail += 1
+	await wait_swing.call()
+
+	# The cone covers the sword's hitbox at mid-swing, every direction.
+	for direction in AttackAim.DIRECTIONS:
+		aim._pointer = at.call(AttackAim.direction_vector(direction) * 50.0)
+		var cone := aim.cone_points()
+		player.attack_animation(direction)
+		player.animations.seek(0.1, true)
+		var blade: Vector2 = aim.to_local(player.sword_shape.global_position)
+		if not Geometry2D.is_point_in_polygon(blade, cone):
+			printerr("FAIL attack_aim_mouse %s cone misses the blade at %s" % [direction, blade])
+			fail += 1
+		await wait_swing.call()
+
+	# Right-click cancels: no swing.
+	mouse.call(MOUSE_BUTTON_LEFT, at.call(Vector2(60, 0)), true)
+	mouse.call(MOUSE_BUTTON_RIGHT, at.call(Vector2(60, 0)), true)
+	mouse.call(MOUSE_BUTTON_LEFT, at.call(Vector2(60, 0)), false)
+	if aim.aiming or player.isAttacking:
+		printerr("FAIL attack_aim_mouse right-click did not cancel (aiming %s, attacking %s)" % [aim.aiming, player.isAttacking])
+		fail += 1
+	# A touch's emulated mouse press never aims.
+	mouse.call(MOUSE_BUTTON_LEFT, at.call(Vector2(60, 0)), true, InputEvent.DEVICE_ID_EMULATION)
+	if aim.aiming:
+		printerr("FAIL attack_aim_mouse a mouse event made from a touch aimed")
+		fail += 1
+	mouse.call(MOUSE_BUTTON_LEFT, at.call(Vector2(60, 0)), false, InputEvent.DEVICE_ID_EMULATION)
+	# A click on the attack button (HUD) does not aim.
+	var button: TouchScreenButton = scene.get_node("CanvasLayer1/TouchScreenButton")
+	var on_button := button.get_global_transform_with_canvas() * (button.shape.get_rect().get_center())
+	mouse.call(MOUSE_BUTTON_LEFT, on_button, true)
+	if aim.aiming:
+		printerr("FAIL attack_aim_mouse a click on the attack button aimed")
+		fail += 1
+	mouse.call(MOUSE_BUTTON_LEFT, on_button, false)
+	await wait_swing.call()
+	# Interact mode: clicks cut trees, not aim; switching modes mid-aim cancels.
+	var interaction: Interaction = scene.get_node("World/Interaction")
+	mouse.call(MOUSE_BUTTON_LEFT, at.call(Vector2(60, 0)), true)
+	interaction.set_mode(Interaction.Mode.INTERACT)
+	await process_frame
+	mouse.call(MOUSE_BUTTON_LEFT, at.call(Vector2(60, 0)), false)
+	if aim.aiming or player.isAttacking:
+		printerr("FAIL attack_aim_mouse switching to interact mode did not cancel the aim")
+		fail += 1
+	mouse.call(MOUSE_BUTTON_LEFT, at.call(Vector2(60, 0)), true)
+	if aim.aiming:
+		printerr("FAIL attack_aim_mouse aimed in interact mode")
+		fail += 1
+	mouse.call(MOUSE_BUTTON_LEFT, at.call(Vector2(60, 0)), false)
+	interaction.set_mode(Interaction.Mode.COMBAT)
+	# An unknown direction from the RPC swings in the facing direction.
+	player.lastAnimDirection = "Left"
+	player.attack_animation("Sideways")
+	if player.lastAnimDirection != "Left" or player.animations.current_animation != "attackLeft":
+		printerr("FAIL attack_aim_mouse unknown direction swung %s" % player.animations.current_animation)
+		fail += 1
+	await wait_swing.call()
+	# A dead player does not aim.
+	player.health.take_damage(player.health.health)
+	mouse.call(MOUSE_BUTTON_LEFT, at.call(Vector2(60, 0)), true)
+	if aim.aiming:
+		printerr("FAIL attack_aim_mouse a dead player aimed")
+		fail += 1
+	mouse.call(MOUSE_BUTTON_LEFT, at.call(Vector2(60, 0)), false)
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_attack_aim_mouse")
+	return fail
+
+
 func _test_footsteps() -> int:
 	## Footsteps: none while idle or on a teleport; walking at top speed in
 	## simulated 60 Hz frames plays exactly one step per STEP_DISTANCE on every
