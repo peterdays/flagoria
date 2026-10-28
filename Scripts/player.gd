@@ -28,6 +28,7 @@ const RESOURCE_HUD_PATH := "/root/Flagoria/CanvasLayer1/ResourceHud"
 const INVENTORY_PATH := "/root/Flagoria/Inventory"
 const INTERACTION_PATH := "/root/Flagoria/World/Interaction"
 const MapZoom := preload("res://Scripts/map_zoom.gd")
+const AttackAimScript := preload("res://Scripts/attack_aim.gd")
 const SWORD_DAMAGE := 1  ## half-hearts per sword hit
 const REGEN_AMOUNT := 1  ## half-hearts per regen_timer tick
 const BLINK_PERIOD_MS := 100  ## invulnerability blink: this long shown, this long faded
@@ -76,6 +77,9 @@ func _ready():
 	var map_zoom := MapZoom.new()  # local camera only; zoom is never synced
 	map_zoom.name = "MapZoom"
 	camera.add_child(map_zoom)
+	var aim := AttackAimScript.new()  # local mouse aim; only the attack is sent
+	aim.name = "AttackAim"
+	add_child(aim)
 	var hud = get_node_or_null(HUD_PATH)
 	if hud:
 		hud.bind(health)
@@ -120,8 +124,18 @@ func _unhandled_input(event):
 	if Input.is_action_just_pressed("attack"):
 		attack_animation.rpc()
 
+func attack_toward(direction: String):
+	## An aimed attack (AttackAim): swing toward `direction` on every peer.
+	attack_animation.rpc(direction)
+
 @rpc("call_local")  # the call local calls in all remotes and the local too
-func attack_animation():
+func attack_animation(direction: String = ""):
+	# `direction` is Up, Down, Left or Right from an aimed attack; anything
+	# else, or none (Space, the touch button), swings in the facing direction.
+	# Every peer, the server included, swings the way the attacker aimed, and
+	# the server's copy still decides what the sword hits.
+	if direction in AttackAimScript.DIRECTIONS:
+		lastAnimDirection = direction
 	animations.stop()
 	combat_sfx.play_event("swing")
 	animations.play("attack" + lastAnimDirection)
