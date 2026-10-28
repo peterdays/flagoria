@@ -41,11 +41,13 @@ const TERRAIN := {
 ## so it matches the plants with biomes off. Higher = fewer plants.
 ## tree_chance: added to tree_min_chance.
 ## bush_chance: added to bush_min_chance.
+## pine_chance: added to pine_min_chance. TEMPERATE and ARCHIPELAGO_DENSE dry
+## land is swamp, so they get none (2.0); TEMPERATE still matches biomes off.
 const PLANTS := {
-	OCEANIC: {"tree_chance": 0.3, "bush_chance": 0.2},
-	TEMPERATE: {"tree_chance": 0.0, "bush_chance": 0.0},
-	CONTINENTAL: {"tree_chance": -0.25, "bush_chance": 0.0},
-	ARCHIPELAGO_DENSE: {"tree_chance": 0.15, "bush_chance": -0.25},
+	OCEANIC: {"tree_chance": 0.3, "bush_chance": 0.2, "pine_chance": 0.3},
+	TEMPERATE: {"tree_chance": 0.0, "bush_chance": 0.0, "pine_chance": 2.0},
+	CONTINENTAL: {"tree_chance": -0.25, "bush_chance": 0.0, "pine_chance": -0.25},
+	ARCHIPELAGO_DENSE: {"tree_chance": 0.15, "bush_chance": -0.25, "pine_chance": 2.0},
 }
 
 ## Per-biome structures: walkable stones on GROUND_DECOR_LAYER. A walkable land
