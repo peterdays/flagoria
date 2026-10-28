@@ -31,6 +31,13 @@ The in-game menu button (top-right corner of the HUD) shows
 with a 1 px ink shadow like the theme's labels. The button is an 18 px
 square (48 screen px at 1280x720) using the theme's button styles.
 
+## Mode button
+
+The mode button, just left of the menu button and the same 18 px square,
+switches between combat and interact mode. It shows the current mode:
+`ui_mode_combat.png` (a sword) or `ui_mode_interact.png` (an axe), 11x11
+icons in the menu icon's style, and looks pressed in interact mode.
+
 ## Resource counter
 
 The wood counter (top centre of the HUD) shows `ui_wood_icon.png`, a 9x9
@@ -55,3 +62,6 @@ margin, so the two rows line up.
 - Wood icon: `ui_wood_icon.png` is original pixel art made in-house for this
   project, drawn in code in the flagoria palette. Repository licence
   (`LICENSE.md`).
+- Mode icons: `ui_mode_combat.png` and `ui_mode_interact.png` are original
+  pixel art made in-house for this project, drawn in code in the theme
+  palette. Repository licence (`LICENSE.md`).

@@ -1678,6 +1678,45 @@ func _test_resource_hud_in_scene() -> int:
 	return fail
 
 
+func _test_interact_mode_toggle() -> int:
+	## The HUD mode button, the menu button's size and just left of it,
+	## switches between combat (the default) and interact mode and shows the
+	## current mode's icon.
+	print("-- test_interact_mode_toggle")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	await process_frame
+	scene.add_player(scene.multiplayer.get_unique_id())
+	scene.get_node("CanvasLayer1").show()
+	await process_frame
+	var interaction: Interaction = scene.get_node("World/Interaction")
+	var button: Button = scene.get_node("CanvasLayer1/ModeButton")
+	var menu_rect: Rect2 = scene.get_node("CanvasLayer1/InGameMenu").menu_button.get_global_rect()
+	if interaction.mode != Interaction.Mode.COMBAT or button.icon != Interaction.ICONS[Interaction.Mode.COMBAT]:
+		printerr("FAIL interact_mode_toggle: does not start in combat mode with its icon")
+		fail += 1
+	var rect := button.get_global_rect()
+	if rect.size != menu_rect.size or rect.intersects(menu_rect) or rect.end.x > menu_rect.position.x \
+			or not interaction.player.get_node("Camera2D/MapZoom").starts_on_hud(rect.get_center()):
+		printerr("FAIL interact_mode_toggle: mode button at %s, menu button at %s" % [rect, menu_rect])
+		fail += 1
+	button.pressed.emit()
+	if interaction.mode != Interaction.Mode.INTERACT or button.icon != Interaction.ICONS[Interaction.Mode.INTERACT] \
+			or not button.button_pressed:
+		printerr("FAIL interact_mode_toggle: the button did not switch to interact mode")
+		fail += 1
+	button.pressed.emit()
+	if interaction.mode != Interaction.Mode.COMBAT or button.icon != Interaction.ICONS[Interaction.Mode.COMBAT]:
+		printerr("FAIL interact_mode_toggle: the button did not switch back to combat mode")
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_interact_mode_toggle")
+	return fail
+
+
 func _test_points_sync() -> int:
 	## Two peers over ENet loopback: totals awarded before the client joins
 	## reach it as it connects (late join), later awards reach it with their
@@ -3556,6 +3595,126 @@ func _test_forest_walls() -> int:
 	await process_frame
 	if fail == 0:
 		print("PASS test_forest_walls")
+	return fail
+
+
+func _test_interact_cut_trees() -> int:
+	## In interact mode a drag across a row of trees cuts the trees in the range
+	## that are within reach of the player, and only those: bushes and trees
+	## out of reach or outside the range stay. Each cut tree becomes a walkable
+	## stump and gives one wood, shown on the HUD. A tap cuts the nearest tree
+	## next to it, a pinch cuts nothing, and combat mode cuts nothing.
+	print("-- test_interact_cut_trees")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var menu: Node = scene.get_node("CanvasLayer2/MainMenu")
+	menu.hide()
+	menu.set_process_unhandled_input(false)
+	scene.get_node("CanvasLayer1").show()
+	var world = scene.get_node("World/worldMap")
+	world.clear()
+	for x in range(-2, 30):
+		for y in range(-2, 20):
+			world.set_cell(0, Vector2i(x, y), TileCatalog.SOURCE_ID, TileCatalog.GRASS_A)
+	for x in range(4, 21):
+		world.set_cell(1, Vector2i(x, 8), TileCatalog.SOURCE_ID, TileCatalog.TREE)
+	world.set_cell(1, Vector2i(12, 8), TileCatalog.SOURCE_ID, TileCatalog.BUSH)
+	world.set_cell(1, Vector2i(13, 8), TileCatalog.SOURCE_ID, TileCatalog.TREE_PINE_SMALL)
+	world.set_cell(1, Vector2i(10, 6), TileCatalog.SOURCE_ID, TileCatalog.TREE)
+	var player = load("res://Player/character_body_2d.tscn").instantiate()
+	player.name = str(scene.multiplayer.get_unique_id())
+	player.position = world.to_global(world.map_to_local(Vector2i(10, 10)))
+	scene.get_node("World").add_child(player)
+	await process_frame
+	var interaction: Interaction = scene.get_node("World/Interaction")
+	var inventory: Inventory = scene.get_node("Inventory")
+	var vp: Viewport = scene.get_viewport()
+	var at := func(cell: Vector2) -> Vector2:  # cell units (0.5 = centre) to viewport px
+		return interaction.get_canvas_transform() * world.to_global(cell * 16.0)
+	var touch := func(index: int, pos: Vector2, pressed: bool) -> void:
+		var e := InputEventScreenTouch.new()
+		e.index = index
+		e.position = pos
+		e.pressed = pressed
+		vp.push_input(e, true)
+	var drag := func(index: int, pos: Vector2) -> void:
+		var e := InputEventScreenDrag.new()
+		e.index = index
+		e.position = pos
+		vp.push_input(e, true)
+	var row := func() -> Array:  # x of the cells in row 8 that still have a tree
+		var out := []
+		for x in range(4, 21):
+			if world.has_tree(Vector2i(x, 8)):
+				out.append(x)
+		return out
+	var swipe := func() -> void:  # drag from the right end of row 8 to x=5
+		touch.call(0, at.call(Vector2(16.5, 8.4)), true)
+		drag.call(0, at.call(Vector2(11.0, 8.6)))
+		drag.call(0, at.call(Vector2(5.5, 8.6)))
+		touch.call(0, at.call(Vector2(5.5, 8.6)), false)
+
+	# Combat mode: the same drag cuts nothing.
+	swipe.call()
+	if row.call().size() != 16 or inventory.count_of(Inventory.WOOD) != 0:
+		printerr("FAIL interact_cut_trees: combat mode cut %s" % [row.call()])
+		fail += 1
+	interaction.set_mode(Interaction.Mode.INTERACT)
+	# A pinch is not a selection.
+	touch.call(0, at.call(Vector2(16.5, 8.4)), true)
+	touch.call(1, at.call(Vector2(6.5, 8.4)), true)
+	drag.call(0, at.call(Vector2(5.5, 8.6)))
+	touch.call(0, at.call(Vector2(5.5, 8.6)), false)
+	touch.call(1, at.call(Vector2(6.5, 8.4)), false)
+	if row.call().size() != 16:
+		printerr("FAIL interact_cut_trees: a pinch cut %s" % [row.call()])
+		fail += 1
+	# Reach is 80 px: from (10, 10) that is x 6..14 on row 8 (12 is a bush).
+	swipe.call()
+	var want_cut := [6, 7, 8, 9, 10, 11, 13, 14]
+	var left: Array = row.call()
+	for x in want_cut:
+		var cell := Vector2i(x, 8)
+		if left.has(x) or world.get_cell_atlas_coords(world.GROUND_DECOR_LAYER, cell) != TileCatalog.STUMP:
+			printerr("FAIL interact_cut_trees: %s is not a stump after the drag" % cell)
+			fail += 1
+	if left != [4, 5, 15, 16, 17, 18, 19, 20] or world.get_cell_atlas_coords(1, Vector2i(12, 8)) != TileCatalog.BUSH \
+			or not world.has_tree(Vector2i(10, 6)):
+		printerr("FAIL interact_cut_trees: trees left after the drag %s" % [left])
+		fail += 1
+	var hud: ResourceHud = scene.get_node("CanvasLayer1/ResourceHud")
+	if inventory.count_of(Inventory.WOOD) != want_cut.size() or hud.label.text != str(want_cut.size()):
+		printerr("FAIL interact_cut_trees: wood %s, HUD '%s' after cutting %s trees"
+				% [inventory.count_of(Inventory.WOOD), hud.label.text, want_cut.size()])
+		fail += 1
+	# Stumps are walkable; an uncut tree still blocks.
+	await physics_frame
+	await physics_frame
+	var body: CollisionShape2D = player.get_node("CollisionShape2D")
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = body.shape
+	query.collision_mask = player.collision_mask
+	query.exclude = [player.get_rid()]
+	var space: PhysicsDirectSpaceState2D = world.get_world_2d().direct_space_state
+	for x in [8, 17]:
+		query.transform = Transform2D(0, world.to_global(world.map_to_local(Vector2i(x, 6))) + body.position)
+		query.motion = Vector2(0, 64)
+		var passes: bool = space.cast_motion(query)[0] >= 1.0
+		if passes != (x == 8):
+			printerr("FAIL interact_cut_trees: walking through column %s passes=%s" % [x, passes])
+			fail += 1
+	# A tap on the empty cell next to the tree at (10, 6) cuts it.
+	touch.call(0, at.call(Vector2(11.3, 6.5)), true)
+	touch.call(0, at.call(Vector2(11.3, 6.5)), false)
+	if world.has_tree(Vector2i(10, 6)) or inventory.count_of(Inventory.WOOD) != want_cut.size() + 1:
+		printerr("FAIL interact_cut_trees: the tap did not cut the tree at (10, 6)")
+		fail += 1
+	player.queue_free()
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_interact_cut_trees")
 	return fail
 
 
