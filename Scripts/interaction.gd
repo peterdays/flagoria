@@ -8,7 +8,10 @@ extends Node2D
 ## a stump and gives WOOD_PER_TREE wood. Mouse clicks and drags count as
 ## touches (pointing/emulate_touch_from_mouse). Touches that start on a HUD
 ## control, and two-finger pinches, select nothing. Cuts are local to this
-## game: they are not synced to other players.
+## game and not synced to other players, so interact mode is single-player
+## only: while multiplayer is active (a client, or a host with a peer
+## connected) the mode button is hidden and disabled, the mode is forced to
+## combat and map input cuts nothing. Hosting alone counts as single-player.
 
 signal mode_changed(mode: Mode)
 
@@ -34,6 +37,7 @@ var _touch := -1  ## index of the touch being followed, or -1
 var _start := Vector2.ZERO  ## viewport position where it went down
 var _end := Vector2.ZERO
 var _dragging := false
+var _allowed := true  ## interact mode is available (not in multiplayer)
 
 @onready var world_map: TileMap = get_node("../worldMap")
 
@@ -44,6 +48,7 @@ func _ready() -> void:
 	if button:
 		InGameMenu.fit_icon_button(button)
 		button.pressed.connect(toggle_mode)
+	_update_allowed()
 	_refresh_button()
 
 
@@ -56,6 +61,8 @@ func toggle_mode() -> void:
 
 
 func set_mode(value: Mode) -> void:
+	if value == Mode.INTERACT and not interact_allowed():
+		value = Mode.COMBAT
 	mode = value
 	_cancel()
 	_refresh_button()
@@ -68,15 +75,44 @@ func _refresh_button() -> void:
 		button.icon = ICONS[mode]
 		button.tooltip_text = TOOLTIPS[mode]
 		button.set_pressed_no_signal(mode == Mode.INTERACT)
+		button.visible = _allowed
+		button.disabled = not _allowed
+
+
+func multiplayer_active() -> bool:
+	## True for a client (connecting or connected) and for a host with at
+	## least one peer connected; false offline or when hosting alone.
+	var peer := multiplayer.multiplayer_peer
+	if peer == null or peer is OfflineMultiplayerPeer \
+			or peer.get_connection_status() == MultiplayerPeer.CONNECTION_DISCONNECTED:
+		return false
+	return not multiplayer.is_server() or not multiplayer.get_peers().is_empty()
+
+
+func interact_allowed() -> bool:
+	return not multiplayer_active()
+
+
+func _update_allowed() -> void:
+	## Follow multiplayer starting or ending: force combat mode and hide the
+	## button while it is active, show the button again when it ends.
+	var allowed := interact_allowed()
+	if allowed == _allowed:
+		return
+	_allowed = allowed
+	if not allowed and mode == Mode.INTERACT:
+		set_mode(Mode.COMBAT)
+	_refresh_button()
 
 
 func _process(_delta: float) -> void:
+	_update_allowed()
 	if mode == Mode.INTERACT:
 		queue_redraw()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if mode != Mode.INTERACT or player == null:
+	if mode != Mode.INTERACT or player == null or not interact_allowed():
 		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
@@ -169,7 +205,7 @@ func interact_at(world_pos: Vector2) -> bool:
 
 
 func _cut(cell: Vector2i) -> bool:
-	if not world_map.cut_tree(cell):
+	if not interact_allowed() or not world_map.cut_tree(cell):
 		return false
 	var inventory := get_node_or_null(INVENTORY_PATH) as Inventory
 	if inventory:
