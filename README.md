@@ -13,7 +13,11 @@ Features:
 - Android debug builds (below)
 
 
-![Alt Text](./demo.gif)
+## Gameplay
+
+![Gameplay: the hero walks to a clump of trees, cuts them in interact mode for wood, then fights a slime](docs/media/gameplay-v1.4.0-test.9.gif)
+
+Recorded from [v1.4.0-test.9](https://github.com/peterdays/flagoria/releases/tag/v1.4.0-test.9) on desktop: walking the island, cutting trees in interact mode (the wood counter goes from 0 to 12), and a slime fight that adds kill points to the points counter.
 
 
 ## How to check a change
