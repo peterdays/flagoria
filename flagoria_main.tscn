@@ -34,7 +34,7 @@ position = Vector2(77, 201)
 scale = Vector2(0.4, 0.4)
 script = ExtResource("2_54anv")
 
-[node name="TouchScreenButton" type="TouchScreenButton" parent="CanvasLayer1"]
+[node name="TouchScreenButton" type="TouchScreenButton" parent="CanvasLayer1" groups=["attack_button"]]
 position = Vector2(373, 177)
 scale = Vector2(0.1, 0.1)
 texture_normal = ExtResource("3_rrhbk")
@@ -228,7 +228,6 @@ layer = 10
 
 [node name="QuitPrompt" parent="QuitLayer" instance=ExtResource("10_quit_prompt")]
 
-[connection signal="pressed" from="CanvasLayer1/TouchScreenButton" to="CanvasLayer1/TouchScreenButton" method="_on_pressed"]
 [connection signal="pressed" from="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/MapSettingsButton" to="CanvasLayer2/MainMenu" method="_on_map_settings_pressed"]
 [connection signal="pressed" from="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/HostButton" to="CanvasLayer2/MainMenu" method="_on_host_button_pressed"]
 [connection signal="pressed" from="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/JoinButton" to="CanvasLayer2/MainMenu" method="_on_join_button_pressed"]
