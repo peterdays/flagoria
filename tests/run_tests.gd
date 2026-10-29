@@ -2627,6 +2627,167 @@ func _test_attack_aim_touch() -> int:
 	return fail
 
 
+func _test_attack_aim_touch_guards() -> int:
+	## Touch aim (#231), found in play testing: a tap on the attack button, or
+	## a wobble inside its dead zone, swings only when an aim could (combat
+	## mode, alive), like a drag. Losing focus or pausing the app forgets the
+	## finger on the button and drops its aim, so a lift that never arrives
+	## cannot leave the button stuck: the next finger is tracked again.
+	print("-- test_attack_aim_touch_guards")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var menu: Node = scene.get_node("CanvasLayer2/MainMenu")
+	menu.hide()
+	menu.set_process_unhandled_input(false)
+	scene.get_node("CanvasLayer1").show()
+	var player = load("res://Player/character_body_2d.tscn").instantiate()
+	player.name = str(scene.multiplayer.get_unique_id())
+	scene.get_node("World").add_child(player)
+	player.position = player.spawn_position()
+	await process_frame
+	await process_frame
+	var aim: AttackAim = player.get_node("AttackAim")
+	var c: Vector2 = aim.attack_button().aim_center()
+	var vp: Viewport = scene.get_viewport()
+	var touch := func(index: int, pos: Vector2, pressed: bool) -> void:
+		var e := InputEventScreenTouch.new()
+		e.index = index
+		e.position = pos
+		e.pressed = pressed
+		vp.push_input(e, true)
+	var drag := func(index: int, pos: Vector2) -> void:
+		var e := InputEventScreenDrag.new()
+		e.index = index
+		e.position = pos
+		vp.push_input(e, true)
+	var wobble := Vector2(AttackAim.TOUCH_DEAD_ZONE * 0.5, 0)
+
+	var interaction: Interaction = scene.get_node("World/Interaction")
+	interaction.set_mode(Interaction.Mode.INTERACT)
+	touch.call(1, c, true)
+	touch.call(1, c, false)
+	touch.call(1, c, true)
+	drag.call(1, c + wobble)
+	touch.call(1, c + wobble, false)
+	if player.isAttacking:
+		printerr("FAIL attack_aim_touch_guards a tap swung in interact mode")
+		fail += 1
+	interaction.set_mode(Interaction.Mode.COMBAT)
+
+	for what in [Node.NOTIFICATION_APPLICATION_FOCUS_OUT, Node.NOTIFICATION_APPLICATION_PAUSED]:
+		touch.call(1, c, true)
+		drag.call(1, c + Vector2(30, 0))
+		aim.notification(what)
+		if aim.aiming or aim.touch_state() != AttackAim.TOUCH_IDLE:
+			printerr("FAIL attack_aim_touch_guards notification %d kept the finger (state %d, aiming %s)"
+					% [what, aim.touch_state(), aim.aiming])
+			fail += 1
+		touch.call(1, c + Vector2(30, 0), false)  # a late lift does nothing
+		touch.call(3, c, true)  # a new finger on the button is tracked again
+		drag.call(3, c + Vector2(0, -30))
+		if aim.aim_direction() != "Up" or not aim.aiming or player.isAttacking:
+			printerr("FAIL attack_aim_touch_guards after notification %d: aiming %s toward %s, attacking %s"
+					% [what, aim.aiming, aim.aim_direction(), player.isAttacking])
+			fail += 1
+		aim.cancel()
+		touch.call(3, c, false)
+
+	player.health.take_damage(player.health.health)
+	touch.call(1, c, true)
+	touch.call(1, c, false)
+	if player.isAttacking:
+		printerr("FAIL attack_aim_touch_guards a dead player's tap swung")
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_attack_aim_touch_guards")
+	return fail
+
+
+func _test_touch_controls_look() -> int:
+	## Castle Stone touch controls (#231): the attack button shows its idle,
+	## pressed and aim art as the finger lands, leaves the dead zone and comes
+	## back; the move stick shows its active knob only while dragged. The cone
+	## fill pulses 0.40 -> 0.55 -> 0.40 alpha every 0.8 s, and its lines are
+	## one screen pixel at any camera zoom.
+	print("-- test_touch_controls_look")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var menu: Node = scene.get_node("CanvasLayer2/MainMenu")
+	menu.hide()
+	menu.set_process_unhandled_input(false)
+	scene.get_node("CanvasLayer1").show()
+	var player = load("res://Player/character_body_2d.tscn").instantiate()
+	player.name = str(scene.multiplayer.get_unique_id())
+	scene.get_node("World").add_child(player)
+	player.position = player.spawn_position()
+	await process_frame
+	await process_frame
+	var aim: AttackAim = player.get_node("AttackAim")
+	var button = aim.attack_button()
+	var stick = scene.get_node("CanvasLayer1/player_joystick")
+	var c: Vector2 = button.aim_center()
+	var vp: Viewport = scene.get_viewport()
+	var touch := func(index: int, pos: Vector2, pressed: bool) -> void:
+		var e := InputEventScreenTouch.new()
+		e.index = index
+		e.position = pos
+		e.pressed = pressed
+		vp.push_input(e, true)
+	var drag := func(index: int, pos: Vector2) -> void:
+		var e := InputEventScreenDrag.new()
+		e.index = index
+		e.position = pos
+		vp.push_input(e, true)
+
+	if c.distance_to(Vector2(398, 202)) > 0.5:
+		printerr("FAIL touch_controls_look attack button centre %s, want (398, 202)" % c)
+		fail += 1
+	var steps := [
+		["idle", func(): pass, button.texture_idle],
+		["down", func(): touch.call(1, c, true), button.texture_down],
+		["aim", func(): drag.call(1, c + Vector2(-30, 0)), button.texture_aim],
+		["back in the dead zone", func(): drag.call(1, c), button.texture_down],
+		["lifted", func(): touch.call(1, c, false), button.texture_idle],
+	]
+	for step in steps:
+		step[1].call()
+		if step[2] == null or button.texture_normal != step[2]:
+			printerr("FAIL touch_controls_look attack button %s shows %s" % [step[0], button.texture_normal])
+			fail += 1
+	var knob: TouchScreenButton = stick.touch
+	touch.call(0, stick.global_position + Vector2(25, 0), true)  # on the base's rim: starts a drag
+	if stick.ongoing_drag != 0 or knob.texture_normal != stick.stick_active:
+		printerr("FAIL touch_controls_look stick dragged: finger %s, knob %s" % [stick.ongoing_drag, knob.texture_normal])
+		fail += 1
+	touch.call(0, stick.global_position, false)
+	if knob.texture_normal != stick.stick:
+		printerr("FAIL touch_controls_look stick released still shows %s" % knob.texture_normal)
+		fail += 1
+
+	var style := aim.style
+	for t in [[0.0, 0.40], [0.2, 0.475], [0.4, 0.55], [0.8, 0.40]]:
+		var fill: Color = style.fill_at(t[0])
+		if not is_equal_approx(fill.a, t[1]) or fill.to_html(false) != "3d3a5c":
+			printerr("FAIL touch_controls_look fill at %.1f s is %s, want 3d3a5c at %.3f" % [t[0], fill, t[1]])
+			fail += 1
+	var camera: Camera2D = player.get_node("Camera2D")
+	for z in [0.7, 1.4]:
+		camera.zoom = Vector2(z, z)
+		await process_frame
+		if not is_equal_approx(aim.screen_px() * z, 1.0):
+			printerr("FAIL touch_controls_look at zoom %s a screen px is %s world px" % [z, aim.screen_px()])
+			fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_touch_controls_look")
+	return fail
+
+
 func _test_footsteps() -> int:
 	## Footsteps: none while idle or on a teleport; walking at top speed in
 	## simulated 60 Hz frames plays exactly one step per STEP_DISTANCE on every

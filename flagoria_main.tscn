@@ -1,8 +1,13 @@
-[gd_scene load_steps=20 format=3 uid="uid://cxtnu53ko1bon"]
+[gd_scene load_steps=25 format=3 uid="uid://cxtnu53ko1bon"]
 
 [ext_resource type="Script" path="res://flagoria_main.gd" id="1_p55uv"]
 [ext_resource type="Script" path="res://addons/virtual_joystick/scripts/virtual_joystick.gd" id="2_54anv"]
-[ext_resource type="Texture2D" uid="uid://ch2ofsrmxbvo6" path="res://art/kenney_particle-pack/PNG (Transparent)/magic_03.png" id="3_rrhbk"]
+[ext_resource type="Texture2D" uid="uid://cfqsv7a48sfy3" path="res://art/ui/touch/ui_joystick_base.png" id="3_stick_base"]
+[ext_resource type="Texture2D" uid="uid://4s0d44qgx601" path="res://art/ui/touch/ui_joystick_knob.png" id="3_stick_knob"]
+[ext_resource type="Texture2D" uid="uid://bxg4ah68coqie" path="res://art/ui/touch/ui_joystick_knob_active.png" id="3_stick_knob_on"]
+[ext_resource type="Texture2D" uid="uid://jp6ls4b2ll4" path="res://art/ui/touch/ui_attack_idle.png" id="3_attack_idle"]
+[ext_resource type="Texture2D" uid="uid://dl5tgn6b0syk7" path="res://art/ui/touch/ui_attack_pressed.png" id="3_attack_down"]
+[ext_resource type="Texture2D" uid="uid://c6xsqfbrqc2b2" path="res://art/ui/touch/ui_attack_aim.png" id="3_attack_aim"]
 [ext_resource type="TileSet" path="res://art/flagoria/flagoria_tiles_v3.tres" id="4_tiles"]
 [ext_resource type="Script" path="res://Scripts/MainMenu.gd" id="5_u0yu1"]
 [ext_resource type="Theme" path="res://art/ui/main_menu_theme.tres" id="6_menu"]
@@ -20,7 +25,7 @@
 [ext_resource type="Script" path="res://Scripts/interaction.gd" id="15_interaction"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_bm55c"]
-radius = 250.0
+radius = 24.0
 
 [node name="Flagoria" type="Node2D"]
 script = ExtResource("1_p55uv")
@@ -31,15 +36,22 @@ visible = false
 [node name="player_joystick" type="Node2D" parent="CanvasLayer1"]
 z_index = 4
 position = Vector2(77, 201)
-scale = Vector2(0.4, 0.4)
 script = ExtResource("2_54anv")
+border = ExtResource("3_stick_base")
+stick = ExtResource("3_stick_knob")
+stick_active = ExtResource("3_stick_knob_on")
+radius = Vector2(12, 12)
+boundary = 20
+start_radius = 28.0
 
 [node name="TouchScreenButton" type="TouchScreenButton" parent="CanvasLayer1" groups=["attack_button"]]
-position = Vector2(373, 177)
-scale = Vector2(0.1, 0.1)
-texture_normal = ExtResource("3_rrhbk")
+position = Vector2(378, 182)
+texture_normal = ExtResource("3_attack_idle")
 shape = SubResource("CircleShape2D_bm55c")
 script = ExtResource("7_vw8yj")
+texture_idle = ExtResource("3_attack_idle")
+texture_down = ExtResource("3_attack_down")
+texture_aim = ExtResource("3_attack_aim")
 
 [node name="HeartsHud" type="Control" parent="CanvasLayer1"]
 visible = false
