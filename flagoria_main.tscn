@@ -235,6 +235,29 @@ layout_mode = 2
 text = "100%"
 horizontal_alignment = 2
 
+[node name="MobRateRow" type="HBoxContainer" parent="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/MobRateRow"]
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+text = "Mob spawns"
+
+[node name="MobRate" type="HSlider" parent="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/MobRateRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+min_value = 0.5
+max_value = 3.0
+step = 0.25
+value = 2.0
+
+[node name="MobRateValue" type="Label" parent="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/MobRateRow"]
+custom_minimum_size = Vector2(28, 0)
+layout_mode = 2
+text = "2x"
+horizontal_alignment = 2
+
 [node name="QuitLayer" type="CanvasLayer" parent="."]
 layer = 10
 

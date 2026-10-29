@@ -5742,6 +5742,103 @@ func _test_mob_plan() -> int:
 	return fail
 
 
+func _test_mob_spawn_rate() -> int:
+	## The host's saved mob spawn rate: defaults above the old 1x, the menu
+	## slider saves it and it reloads, it changes how many mobs a world gets,
+	## and a client never spawns mobs from its own rate.
+	print("-- test_mob_spawn_rate")
+	var fail := 0
+	var game = root.get_node("GameSettings")
+	var saved_path: String = game.save_path
+	game.save_path = "user://test_game_settings.cfg"
+	DirAccess.remove_absolute(game.save_path)
+	game.load_from_disk()
+	if game.mob_rate != game.MOB_RATE_DEFAULT or game.MOB_RATE_DEFAULT <= 1.0:
+		printerr("FAIL mob_spawn_rate: fresh rate %s, default %s (must be above 1x)" % [game.mob_rate, game.MOB_RATE_DEFAULT])
+		fail += 1
+	# Corrupt or hand-edited values: default or clamp, never a crash.
+	for pair in [["abc", 2.0], [NAN, 2.0], [INF, 2.0], [-1, 0.5], [9, 3.0], [1.1, 1.0]]:
+		var cfg := ConfigFile.new()
+		cfg.set_value(game.SECTION, "mob_rate", pair[0])
+		cfg.save(game.save_path)
+		game.load_from_disk()
+		if not is_equal_approx(game.mob_rate, pair[1]):
+			printerr("FAIL mob_spawn_rate: saved %s loads as %s, want %s" % [pair[0], game.mob_rate, pair[1]])
+			fail += 1
+	DirAccess.remove_absolute(game.save_path)
+	game.load_from_disk()
+
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var menu = scene.get_node("CanvasLayer2/MainMenu")
+	if not is_equal_approx(menu.mob_rate.value, game.MOB_RATE_DEFAULT) or menu.mob_rate_value.text != "2x":
+		printerr("FAIL mob_spawn_rate: slider starts at %s (%s)" % [menu.mob_rate.value, menu.mob_rate_value.text])
+		fail += 1
+	menu.mob_rate.value = 0.75
+	if menu.mob_rate_value.text != "0.75x":
+		printerr("FAIL mob_spawn_rate: label shows %s at 0.75" % menu.mob_rate_value.text)
+		fail += 1
+	game.mob_rate = game.MOB_RATE_DEFAULT  # reload from disk, as on the next launch
+	game.load_from_disk()
+	if not is_equal_approx(game.mob_rate, 0.75):
+		printerr("FAIL mob_spawn_rate: slider at 0.75 reloads as %s" % game.mob_rate)
+		fail += 1
+
+	# The host spawns more mobs at a higher rate, within that rate's cap.
+	var world = scene.get_node("World/worldMap")
+	var mobs_node: MobSpawner = scene.get_node("World/Mobs")
+	var want_caps := {1.0: [300, 3, 10], 2.0: [150, 6, 20], 3.0: [100, 9, 30]}
+	for rate in want_caps:
+		var c: Dictionary = MobSpawner.caps(rate)
+		if [c["cells_per_mob"], c["per_island"], c["total"]] != want_caps[rate]:
+			printerr("FAIL mob_spawn_rate: caps at %sx are %s, want %s" % [rate, c, want_caps[rate]])
+			fail += 1
+	var counts := {}
+	var most := 0
+	for rate in [1.0, game.MOB_RATE_DEFAULT, game.MOB_RATE_MAX]:
+		game.set_mob_rate(rate, false)
+		counts[rate] = 0
+		for seed_value in [1, 7, 42]:
+			scene.world_params = _spawn_params(seed_value, 0.003)
+			world.apply_map_params(scene.world_params)
+			var n: int = scene.spawn_mobs()
+			if n != mobs_node.mobs().size() or n > MobSpawner.caps(rate)["total"]:
+				printerr("FAIL mob_spawn_rate: rate %s seed %s spawned %s, %s in the tree" % [rate, seed_value, n, mobs_node.mobs().size()])
+				fail += 1
+			counts[rate] += n
+			most = maxi(most, n)
+	if not (counts[game.MOB_RATE_DEFAULT] >= counts[1.0] * 3 / 2 and counts[game.MOB_RATE_MAX] > counts[game.MOB_RATE_DEFAULT]):
+		printerr("FAIL mob_spawn_rate: mobs over 3 maps by rate %s" % counts)
+		fail += 1
+	if most <= MobSpawner.MAX_MOBS:
+		printerr("FAIL mob_spawn_rate: no map got more than the 1x cap of %s mobs" % MobSpawner.MAX_MOBS)
+		fail += 1
+
+	# A client with its own rate spawns nothing; it only gets the host's mobs.
+	mobs_node.clear_mobs()
+	var cmp := SceneMultiplayer.new()
+	set_multiplayer(cmp, scene.get_path())
+	var cpeer := ENetMultiplayerPeer.new()
+	cpeer.create_client("127.0.0.1", _free_udp_port())
+	cmp.multiplayer_peer = cpeer
+	game.set_mob_rate(game.MOB_RATE_MAX, false)
+	var client_count: int = scene.spawn_mobs()
+	if client_count != 0 or mobs_node.mobs().size() != 0:
+		printerr("FAIL mob_spawn_rate: client spawned %s mobs (%s in the tree)" % [client_count, mobs_node.mobs().size()])
+		fail += 1
+	cpeer.close()
+	set_multiplayer(null, scene.get_path())
+
+	scene.queue_free()
+	await process_frame
+	DirAccess.remove_absolute(game.save_path)
+	game.save_path = saved_path
+	game.load_from_disk()
+	if fail == 0:
+		print("PASS test_mob_spawn_rate (mobs over 3 maps by rate %s)" % counts)
+	return fail
+
+
 func _test_mob_wander() -> int:
 	## Offline host: spawn the map's mobs, run 40 s of wander, and check every
 	## mob moves, never leaves its home ground or wander radius, and shows the
@@ -5827,8 +5924,11 @@ func _test_mob_sheet_swap() -> int:
 func _test_mobs_sync_to_peer() -> int:
 	## Two players: a dedicated server places the mobs and a client that joins
 	## gets the same set (names, types, near the planned cells), and sees them
-	## move as the server wanders them.
+	## move as the server wanders them. The client's own mob spawn rate differs
+	## from the server's and changes nothing: the server's rate is used.
 	print("-- test_mobs_sync_to_peer")
+	var game = root.get_node("GameSettings")
+	var host_rate: float = game.mob_rate  # the server process loads the same saved settings
 	var timeout_ms := 30000
 	await process_frame
 	var port := _free_udp_port()
@@ -5842,6 +5942,7 @@ func _test_mobs_sync_to_peer() -> int:
 	if pid <= 0:
 		printerr("FAIL mobs_sync_to_peer could not start the server process")
 		return 1
+	game.set_mob_rate(game.MOB_RATE_MIN if host_rate == game.MOB_RATE_MAX else game.MOB_RATE_MAX, false)
 	var scene = load("res://flagoria_main.tscn").instantiate()
 	root.add_child(scene)
 	var fail := 0
@@ -5853,7 +5954,7 @@ func _test_mobs_sync_to_peer() -> int:
 	while Time.get_ticks_msec() < deadline and OS.is_process_running(pid):
 		var params: MapGenParams = scene.world_params
 		if plan.is_empty() and params != null and params.altitude_seed != 0:
-			plan = MobSpawner.plan(world, world.resolve_player_spawn(), params.altitude_seed)
+			plan = MobSpawner.plan(world, world.resolve_player_spawn(), params.altitude_seed, host_rate)
 		if not plan.is_empty() and mobs_node.mobs().size() >= plan.size():
 			break
 		await process_frame
@@ -5891,6 +5992,7 @@ func _test_mobs_sync_to_peer() -> int:
 	scene.enet_peer.close()
 	scene.multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	scene.queue_free()
+	game.set_mob_rate(host_rate, false)
 	if fail == 0:
 		print("PASS test_mobs_sync_to_peer (%s mobs)" % plan.size())
 	return fail

@@ -7,6 +7,8 @@ extends PanelContainer
 @onready var sfx_volume: HSlider = $MarginContainer/VBoxContainer/SFXVolumeRow/SFXVolume
 @onready var music_value: Label = $MarginContainer/VBoxContainer/MusicVolumeRow/MusicValue
 @onready var sfx_value: Label = $MarginContainer/VBoxContainer/SFXVolumeRow/SFXValue
+@onready var mob_rate: HSlider = $MarginContainer/VBoxContainer/MobRateRow/MobRate
+@onready var mob_rate_value: Label = $MarginContainer/VBoxContainer/MobRateRow/MobRateValue
 
 var admin_panel: PanelContainer
 
@@ -29,6 +31,17 @@ func _ready() -> void:
 	sfx_volume.value_changed.connect(func(v: float) -> void:
 		audio.set_volume("SFX", v)
 		sfx_value.text = percent(v))
+	# Mob spawn rate: used when this game hosts; a joining client gets the
+	# host's mobs.
+	var game = get_node("/root/GameSettings")
+	mob_rate.min_value = game.MOB_RATE_MIN
+	mob_rate.max_value = game.MOB_RATE_MAX
+	mob_rate.step = game.MOB_RATE_STEP
+	mob_rate.value = game.mob_rate
+	mob_rate_value.text = game.rate_label(game.mob_rate)
+	mob_rate.value_changed.connect(func(v: float) -> void:
+		game.set_mob_rate(v)
+		mob_rate_value.text = game.rate_label(game.mob_rate))
 	admin_panel = preload("res://map_admin_panel.tscn").instantiate()
 	admin_panel.visible = false
 	admin_panel.closed.connect(_on_admin_closed)
