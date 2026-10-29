@@ -101,10 +101,12 @@ func setup_server(params: MapGenParams, port: int = PORT) -> Error:
 
 
 func spawn_mobs() -> int:
-	## Server only: place this map's mobs around the player spawn.
+	## Server only: place this map's mobs around the player spawn, at this
+	## host's saved mob spawn rate.
 	var world = get_node("World/worldMap")
 	var origin: Vector2i = world.resolve_player_spawn()
-	return get_node("World/Mobs").spawn_for_world(world, origin, world_params.altitude_seed)
+	var rate: float = get_node("/root/GameSettings").mob_rate
+	return get_node("World/Mobs").spawn_for_world(world, origin, world_params.altitude_seed, rate)
 
 
 func _apply_params_to_world(params: MapGenParams) -> void:

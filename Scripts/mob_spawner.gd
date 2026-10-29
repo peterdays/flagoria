@@ -12,12 +12,14 @@ const MOB_SCENE_PATH := "res://Mobs/mob.tscn"
 
 const SCAN_RADIUS := 40  ## cells each side of the spawn cell
 const MIN_ISLAND_CELLS := 40  ## smaller islands get no mobs
-const CELLS_PER_MOB := 300  ## one mob per this many island cells...
-const MAX_PER_ISLAND := 3  ## ...up to this many
-const MAX_MOBS := 10
+const CELLS_PER_MOB := 300  ## rate: one mob per this many island cells...
+const MAX_PER_ISLAND := 3  ## rate: ...up to this many
+const MAX_MOBS := 10  ## rate
 const SAFE_RADIUS := 6  ## cells: no mob starts this close to the player spawn
 const MIN_GAP := 4  ## cells between two mobs' start cells
 const MIN_BEACH_CELLS := 12  ## sand cells an island needs for a crab
+## Constants marked "rate" are the 1x density. `rate` (the host's
+## GameSettings.mob_rate) divides CELLS_PER_MOB and multiplies both caps.
 
 const GRASS := [TileCatalog.GRASS_A, TileCatalog.GRASS_B, TileCatalog.GRASS_C, TileCatalog.GRASS_D]
 
@@ -38,9 +40,20 @@ static func is_home_cell(world: TileMap, cell: Vector2i, home: int) -> bool:
 	return GRASS.has(ground)
 
 
-static func plan(world: TileMap, origin: Vector2i, seed_value: int) -> Array:
+static func caps(rate: float) -> Dictionary:
+	## Density and caps for a spawn rate: {cells_per_mob, per_island, total}.
+	return {
+		"cells_per_mob": maxi(1, roundi(CELLS_PER_MOB / rate)),
+		"per_island": maxi(1, ceili(MAX_PER_ISLAND * rate)),
+		"total": maxi(1, roundi(MAX_MOBS * rate)),
+	}
+
+
+static func plan(world: TileMap, origin: Vector2i, seed_value: int, rate := 1.0) -> Array:
 	## [{type, cell}] for this map, largest island first. Same inputs,
 	## same plan.
+	var cap := caps(rate)
+	var max_mobs: int = cap["total"]
 	var clear := {}
 	for x in range(-SCAN_RADIUS, SCAN_RADIUS + 1):
 		for y in range(-SCAN_RADIUS, SCAN_RADIUS + 1):
@@ -53,9 +66,9 @@ static func plan(world: TileMap, origin: Vector2i, seed_value: int) -> Array:
 	var out: Array = []
 	var taken: Array[Vector2i] = []
 	for island in islands:
-		if island.size() < MIN_ISLAND_CELLS or out.size() >= MAX_MOBS:
+		if island.size() < MIN_ISLAND_CELLS or out.size() >= max_mobs:
 			break
-		var want := clampi(island.size() / CELLS_PER_MOB, 1, MAX_PER_ISLAND)
+		var want := clampi(island.size() / int(cap["cells_per_mob"]), 1, cap["per_island"])
 		var order: Array = island.filter(func(c: Vector2i) -> bool:
 			return maxi(absi(c.x - origin.x), absi(c.y - origin.y)) > SAFE_RADIUS)
 		order.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
@@ -63,7 +76,7 @@ static func plan(world: TileMap, origin: Vector2i, seed_value: int) -> Array:
 		var sand: Array = order.filter(func(c: Vector2i) -> bool: return is_home_cell(world, c, MobCatalog.HOME_SAND))
 		var grass: Array = order.filter(func(c: Vector2i) -> bool: return is_home_cell(world, c, MobCatalog.HOME_GRASS))
 		for slot in want:
-			if out.size() >= MAX_MOBS:
+			if out.size() >= max_mobs:
 				break
 			var type := MobCatalog.CRAB
 			var pool := sand
@@ -116,12 +129,13 @@ static func _first_free(pool: Array, taken: Array[Vector2i]) -> Variant:
 	return null
 
 
-func spawn_for_world(world: TileMap, origin: Vector2i, seed_value: int) -> int:
-	## Server only: replace any mobs with this map's plan. Returns the count.
+func spawn_for_world(world: TileMap, origin: Vector2i, seed_value: int, rate := 1.0) -> int:
+	## Server only: replace any mobs with this map's plan at `rate`. Returns
+	## the count. Clients get the server's mobs and never plan their own.
 	if not multiplayer.is_server():
 		return 0
 	clear_mobs()
-	var plans := plan(world, origin, seed_value)
+	var plans := plan(world, origin, seed_value, rate)
 	for i in plans.size():
 		var p: Dictionary = plans[i]
 		spawner.spawn({
