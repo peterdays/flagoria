@@ -17,6 +17,7 @@ var input = Vector2.ZERO
 @onready var combat_sfx: CombatSfx = $CombatSfx
 @onready var health: PlayerHealth = $Health
 @onready var sprite: Sprite2D = $Sprite2D
+@onready var chop_sprite: Sprite2D = $ChopSprite
 @onready var sword: Area2D = $weapon/sword
 @onready var sword_shape: CollisionShape2D = $weapon/sword/CollisionShape2D
 @onready var body_shape: CollisionShape2D = $CollisionShape2D
@@ -32,6 +33,7 @@ const AttackAimScript := preload("res://Scripts/attack_aim.gd")
 const SWORD_DAMAGE := 1  ## half-hearts per sword hit
 const REGEN_AMOUNT := 1  ## half-hearts per regen_timer tick
 const BLINK_PERIOD_MS := 100  ## invulnerability blink: this long shown, this long faded
+const CHOP_ROWS := {"Down": 0, "Left": 1, "Right": 2, "Up": 3}  ## rows of the chop sheet
 
 const RESPAWN_HOLD_MS := 1000  ## longest a copy waits for its owner to catch up with a respawn
 
@@ -97,9 +99,19 @@ func _ready():
 
 func _process(_delta):
 	# Hidden while dead; blinks while invulnerable after a hit or a respawn.
-	sprite.visible = not health.is_dead()
+	sprite.visible = not health.is_dead() and not chop_sprite.visible
 	var faded := health.is_invulnerable() and (Time.get_ticks_msec() / BLINK_PERIOD_MS) % 2 == 1
 	sprite.modulate.a = 0.3 if faded else 1.0
+	chop_sprite.modulate.a = sprite.modulate.a
+
+func set_chop_pose(direction: String, col: int) -> void:
+	## Interaction's chop (local only): show chop sheet column `col` facing
+	## `direction` in place of the walk sprite, or the walk sprite again for -1.
+	chop_sprite.visible = col >= 0 and not health.is_dead()
+	if col >= 0:
+		lastAnimDirection = direction
+		chop_sprite.frame_coords = Vector2i(col, CHOP_ROWS[direction])
+	sprite.visible = not health.is_dead() and not chop_sprite.visible
 
 func _physics_process(delta):
 	if _respawn_ghost_ticks > 0:
