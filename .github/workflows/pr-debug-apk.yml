@@ -156,7 +156,8 @@ jobs:
         run: |
           set -euo pipefail
           tools="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}"
-          "$tools/aapt" dump badging "$APK" | grep -E "^(package|application-label):" | tee "$RUNNER_TEMP/badging.txt"
+          # aapt2: the old aapt cannot parse Godot's manifest ("android:required").
+          "$tools/aapt2" dump badging "$APK" | grep -E "^(package|application-label):" | tee "$RUNNER_TEMP/badging.txt"
           grep -q "^package: name='org.flagoria.game.debug' versionCode='$GITHUB_RUN_NUMBER' " "$RUNNER_TEMP/badging.txt"
           "$tools/apksigner" verify --print-certs "$APK" | tee "$RUNNER_TEMP/certs.txt"
           grep -q '^Signer #1 certificate DN: C=US, O=Android, CN=Android Debug$' "$RUNNER_TEMP/certs.txt"
