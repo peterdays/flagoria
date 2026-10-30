@@ -18,3 +18,13 @@ Builds published before the stable key was introduced were each signed with a di
 ## Run a build manually
 
 Open **Actions > android-apk > Run workflow** on `main`. Pull requests that touch the workflow or `export_presets.cfg` run the export only and attach the APK as a workflow artifact, without publishing a release. Pull request runs that cannot read the secrets (for example from forks) sign with a throwaway key and log a warning; that APK cannot update an installed build.
+
+## Pull request debug builds
+
+The `pr-debug-apk` workflow exports a debug APK for each pull request whose change reaches the game: gameplay as `tools/play_review_paths.py` decides it (or the `needs-play-review` label), shipped assets and scripts (`art/`, `Scripts/`, `addons/`, `structures/`, `Player/`, `Mobs/`, top-level `.gd`/`.tscn`/`.tres`), `project.godot`, `export_presets.cfg` or the workflow itself. Docs, tests, tools and other CI changes skip the build.
+
+- **Package:** `org.flagoria.game.debug`, named "Flagoria (debug)". It installs next to the test build instead of replacing it and has its own save data.
+- **Version:** the version code is the workflow run number; the version name is `pr<number>-<short sha>`.
+- **Architecture:** arm64-v8a only, to keep the APK smaller.
+- **Signing:** a standard Android debug keystore generated in the run. No secrets are used, so fork pull requests build the same way. Each run has its own key, so uninstall the previous "Flagoria (debug)" before installing a newer one.
+- **Download:** the APK is a workflow artifact, `flagoria-pr<number>-debug-apk`, kept for 7 days. Open the pull request's **Checks > pr-debug-apk > Summary** while signed in to GitHub, download the zip, unzip it and open the APK. No release is created.
