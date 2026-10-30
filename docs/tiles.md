@@ -2,8 +2,8 @@
 
 The map uses the in-house Flagoria tileset v3.1 (Solaria replacement, #97 / #100). All tiles are 16×16 px. Atlas coordinates are `(column, row)` in 16 px cells.
 
-- Atlas: `art/flagoria/flagoria_tiles_v3.png`, 448×240 px, 28×15 cells.
-- TileSet: `art/flagoria/flagoria_tiles_v3.tres`, one `TileSetAtlasSource` (source id `0`) with 179 named cells, one physics layer, and terrain set `0` (Match Corners and Sides) with terrain `0` "Island".
+- Atlas: `art/flagoria/flagoria_tiles_v3.png`, 448×304 px, 28×19 cells. Rows 15-18 hold the wood pieces; the bridge cells there (columns 8-23) are not named yet.
+- TileSet: `art/flagoria/flagoria_tiles_v3.tres`, one `TileSetAtlasSource` (source id `0`) with 210 named cells, one physics layer, and terrain set `0` (Match Corners and Sides) with terrain `0` "Island".
 - Names: `Scripts/tile_catalog.gd` (`TileCatalog`) is the only place that maps names to source id and atlas coords. Credits: `art/flagoria/CREDITS.md`.
 
 ## Where tiles are referenced
@@ -160,6 +160,10 @@ Older single edge tiles, kept for hand-placed maps.
 
 Overlay tiles with a transparent background, placed on top of grass. `END_x`: the open end points to x. `T_x`: the stem points away from x. `CORNER_OUT_*` has its battlements on the outside of the bend, `CORNER_IN_*` on the inside.
 
+Every wall piece blocks (physics layer 0). The rects come from the stone envelope: an H run fills rows 1-14 (`y -7..7`), a V run fills columns 3-12 (`x -5..5`), and each arm reaches the cell edge. `GATE_H_OPEN` keeps only 2 px at each side, a 12 px gap for the 8×10 player.
+
+`Scripts/wall_solver.gd` (`WallSolver.solve`) picks the piece for every wall cell from its N/E/S/W wall neighbours. Stone and palisade cells connect to each other, and each keeps its own family. A `CORNER_OUT_q` becomes `CORNER_IN_q` only in a notch of an enclosure: the cell along both arms is outside and the cell on the other side of the bend is enclosed.
+
 | Name | Cell |
 |---|---|
 | WALL_POST | (16, 0) |
@@ -188,3 +192,41 @@ Overlay tiles with a transparent background, placed on top of grass. `END_x`: th
 | WALL_H_DMG_CRACK | (23, 2) |
 | WALL_H_DMG_CHUNK | (16, 3) |
 | WALL_V_DMG_CRACK | (17, 3) |
+
+## Palisade walls
+
+Wooden walls in the same footprint and order as the stone set: stone `WALL_*` (16 + i % 8, i / 8) is `PALISADE_*` (i % 8, 15 + i / 8), with the same collision. Overlay layer 1, like trees and bushes. Five pieces have no stone counterpart: `GATE_V_OPEN` (12 px gap, like `GATE_H_OPEN`), and `H_JOIN_E`/`H_JOIN_W`/`V_JOIN_N`/`V_JOIN_S`, a straight palisade cell whose E/W/N/S neighbour is a stone wall. The solver picks E before W and N before S.
+
+| Name | Cell |
+|---|---|
+| PALISADE_POST | (0, 15) |
+| PALISADE_END_N | (1, 15) |
+| PALISADE_END_E | (2, 15) |
+| PALISADE_END_S | (3, 15) |
+| PALISADE_END_W | (4, 15) |
+| PALISADE_H | (5, 15) |
+| PALISADE_V | (6, 15) |
+| PALISADE_CORNER_OUT_NW | (7, 15) |
+| PALISADE_CORNER_OUT_NE | (0, 16) |
+| PALISADE_CORNER_OUT_SW | (1, 16) |
+| PALISADE_CORNER_OUT_SE | (2, 16) |
+| PALISADE_CORNER_IN_NW | (3, 16) |
+| PALISADE_CORNER_IN_NE | (4, 16) |
+| PALISADE_CORNER_IN_SW | (5, 16) |
+| PALISADE_CORNER_IN_SE | (6, 16) |
+| PALISADE_T_N | (7, 16) |
+| PALISADE_T_E | (0, 17) |
+| PALISADE_T_S | (1, 17) |
+| PALISADE_T_W | (2, 17) |
+| PALISADE_CROSS | (3, 17) |
+| PALISADE_GATE_H | (4, 17) |
+| PALISADE_GATE_H_OPEN | (5, 17) |
+| PALISADE_GATE_V | (6, 17) |
+| PALISADE_H_DMG_CRACK | (7, 17) |
+| PALISADE_H_DMG_CHUNK | (0, 18) |
+| PALISADE_V_DMG_CRACK | (1, 18) |
+| PALISADE_GATE_V_OPEN | (2, 18) |
+| PALISADE_H_JOIN_E | (3, 18) |
+| PALISADE_H_JOIN_W | (4, 18) |
+| PALISADE_V_JOIN_N | (5, 18) |
+| PALISADE_V_JOIN_S | (6, 18) |
