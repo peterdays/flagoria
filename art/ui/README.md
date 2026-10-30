@@ -110,3 +110,12 @@ its colours, pulse and line widths are the `AimConeStyle` resource
 - Map panel: `map/ui_map_*.png` are original pixel art made in-house for this
   project, drawn in code in the flagoria palette. Repository licence
   (`LICENSE.md`).
+
+## In-game keyboard
+
+The in-game number pad and letter keyboard (`number_pad.tscn`) use their own
+keycap styles from `main_menu_theme.tres`, as theme type variations:
+`KeyCap` for character keys (tan wood face, ink outline, deeper bottom edge
+that moves to the top when pressed), `KeyCapDelete` (muted red) and
+`KeyCapOK` (gold, ink text) for the action keys, and `KeyboardPanel` for the
+frame around the keys. Restyle the keys by editing those entries.
