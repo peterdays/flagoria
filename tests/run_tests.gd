@@ -5502,10 +5502,18 @@ func _test_server_params_from_args() -> int:
 
 
 func _free_udp_port() -> int:
-	## A random UDP port in 20000-59999 that ENet can bind right now, or 0.
+	## A random UDP port that ENet can bind right now, or 0. The range is
+	## 20000-59999, or FLAGORIA_TEST_PORTS ("LO-HI") when set, so runs in
+	## parallel (tools/stress_netcode.py) each pick from their own block.
 	## Fixed ports fail when another run or service holds them.
+	var lo := 20000
+	var hi := 59999
+	var pair := OS.get_environment("FLAGORIA_TEST_PORTS").split("-")
+	if pair.size() == 2 and pair[0].is_valid_int() and pair[1].is_valid_int():
+		lo = pair[0].to_int()
+		hi = pair[1].to_int()
 	for attempt in range(50):
-		var port := randi_range(20000, 59999)
+		var port := randi_range(lo, hi)
 		var probe := ENetMultiplayerPeer.new()
 		var err := probe.create_server(port)
 		probe.close()
