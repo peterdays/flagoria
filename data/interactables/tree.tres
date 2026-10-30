@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="InteractableType" format=3]
+
+[ext_resource type="Script" path="res://Scripts/mechanics/interactables/interactable_type.gd" id="1_type"]
+
+[resource]
+script = ExtResource("1_type")
+id = "tree"
+tiles = Array[String](["TREE", "TREE_PINE_SMALL"])
+hits = 2
+yields = Dictionary[StringName, int]({
+&"wood": 3
+})
+leaves = "STUMP"
+fell_puff = true
