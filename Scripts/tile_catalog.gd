@@ -170,6 +170,40 @@ const TREE_PINE_SMALL := Vector2i(7, 2)
 ## What a cut tree leaves: walkable ground decor, no collision.
 const STUMP := Vector2i(8, 2)
 
+## Plank bridges (layer 0, no collision, so walkable). Straight runs only:
+## H runs W->E, V runs N->S. START has land on the W/N side, END on the E/S
+## side, SINGLE on both; TIP_x is an unfinished end open towards x. _WATER
+## pieces are baked over WATER and replace a water cell; the others have a
+## transparent background for sky maps. BROKEN pieces are art only for now.
+const BRIDGE_PLANK_H := Vector2i(8, 15)
+const BRIDGE_PLANK_V := Vector2i(9, 15)
+const BRIDGE_PLANK_H_START := Vector2i(10, 15)
+const BRIDGE_PLANK_H_END := Vector2i(11, 15)
+const BRIDGE_PLANK_V_START := Vector2i(12, 15)
+const BRIDGE_PLANK_V_END := Vector2i(13, 15)
+const BRIDGE_PLANK_H_SINGLE := Vector2i(14, 15)
+const BRIDGE_PLANK_V_SINGLE := Vector2i(15, 15)
+const BRIDGE_PLANK_H_BROKEN := Vector2i(8, 16)
+const BRIDGE_PLANK_V_BROKEN := Vector2i(9, 16)
+const BRIDGE_PLANK_H_TIP_E := Vector2i(10, 16)
+const BRIDGE_PLANK_H_TIP_W := Vector2i(11, 16)
+const BRIDGE_PLANK_V_TIP_S := Vector2i(12, 16)
+const BRIDGE_PLANK_V_TIP_N := Vector2i(13, 16)
+const BRIDGE_PLANK_H_WATER := Vector2i(8, 17)
+const BRIDGE_PLANK_V_WATER := Vector2i(9, 17)
+const BRIDGE_PLANK_H_START_WATER := Vector2i(10, 17)
+const BRIDGE_PLANK_H_END_WATER := Vector2i(11, 17)
+const BRIDGE_PLANK_V_START_WATER := Vector2i(12, 17)
+const BRIDGE_PLANK_V_END_WATER := Vector2i(13, 17)
+const BRIDGE_PLANK_H_SINGLE_WATER := Vector2i(14, 17)
+const BRIDGE_PLANK_V_SINGLE_WATER := Vector2i(15, 17)
+const BRIDGE_PLANK_H_BROKEN_WATER := Vector2i(8, 18)
+const BRIDGE_PLANK_V_BROKEN_WATER := Vector2i(9, 18)
+const BRIDGE_PLANK_H_TIP_E_WATER := Vector2i(10, 18)
+const BRIDGE_PLANK_H_TIP_W_WATER := Vector2i(11, 18)
+const BRIDGE_PLANK_V_TIP_S_WATER := Vector2i(12, 18)
+const BRIDGE_PLANK_V_TIP_N_WATER := Vector2i(13, 18)
+
 ## Props and floating rocks
 const ROCK_FLOAT_S := Vector2i(0, 7)
 const ROCK_FLOAT_M := Vector2i(1, 7)
@@ -360,6 +394,34 @@ const TILES := {
 	"TREE_BIG_OAK_BR": {"source_id": SOURCE_ID, "atlas": TREE_BIG_OAK_BR},
 	"TREE_PINE_SMALL": {"source_id": SOURCE_ID, "atlas": TREE_PINE_SMALL},
 	"STUMP": {"source_id": SOURCE_ID, "atlas": STUMP},
+	"BRIDGE_PLANK_H": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_H},
+	"BRIDGE_PLANK_V": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_V},
+	"BRIDGE_PLANK_H_START": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_H_START},
+	"BRIDGE_PLANK_H_END": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_H_END},
+	"BRIDGE_PLANK_V_START": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_V_START},
+	"BRIDGE_PLANK_V_END": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_V_END},
+	"BRIDGE_PLANK_H_SINGLE": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_H_SINGLE},
+	"BRIDGE_PLANK_V_SINGLE": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_V_SINGLE},
+	"BRIDGE_PLANK_H_BROKEN": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_H_BROKEN},
+	"BRIDGE_PLANK_V_BROKEN": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_V_BROKEN},
+	"BRIDGE_PLANK_H_TIP_E": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_H_TIP_E},
+	"BRIDGE_PLANK_H_TIP_W": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_H_TIP_W},
+	"BRIDGE_PLANK_V_TIP_S": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_V_TIP_S},
+	"BRIDGE_PLANK_V_TIP_N": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_V_TIP_N},
+	"BRIDGE_PLANK_H_WATER": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_H_WATER},
+	"BRIDGE_PLANK_V_WATER": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_V_WATER},
+	"BRIDGE_PLANK_H_START_WATER": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_H_START_WATER},
+	"BRIDGE_PLANK_H_END_WATER": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_H_END_WATER},
+	"BRIDGE_PLANK_V_START_WATER": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_V_START_WATER},
+	"BRIDGE_PLANK_V_END_WATER": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_V_END_WATER},
+	"BRIDGE_PLANK_H_SINGLE_WATER": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_H_SINGLE_WATER},
+	"BRIDGE_PLANK_V_SINGLE_WATER": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_V_SINGLE_WATER},
+	"BRIDGE_PLANK_H_BROKEN_WATER": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_H_BROKEN_WATER},
+	"BRIDGE_PLANK_V_BROKEN_WATER": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_V_BROKEN_WATER},
+	"BRIDGE_PLANK_H_TIP_E_WATER": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_H_TIP_E_WATER},
+	"BRIDGE_PLANK_H_TIP_W_WATER": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_H_TIP_W_WATER},
+	"BRIDGE_PLANK_V_TIP_S_WATER": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_V_TIP_S_WATER},
+	"BRIDGE_PLANK_V_TIP_N_WATER": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_V_TIP_N_WATER},
 	"ROCK_FLOAT_S": {"source_id": SOURCE_ID, "atlas": ROCK_FLOAT_S},
 	"ROCK_FLOAT_M": {"source_id": SOURCE_ID, "atlas": ROCK_FLOAT_M},
 	"PROP_FLAG_BLUE": {"source_id": SOURCE_ID, "atlas": PROP_FLAG_BLUE},

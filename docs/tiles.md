@@ -2,8 +2,8 @@
 
 The map uses the in-house Flagoria tileset v3.1 (Solaria replacement, #97 / #100). All tiles are 16×16 px. Atlas coordinates are `(column, row)` in 16 px cells.
 
-- Atlas: `art/flagoria/flagoria_tiles_v3.png`, 448×240 px, 28×15 cells.
-- TileSet: `art/flagoria/flagoria_tiles_v3.tres`, one `TileSetAtlasSource` (source id `0`) with 179 named cells, one physics layer, and terrain set `0` (Match Corners and Sides) with terrain `0` "Island".
+- Atlas: `art/flagoria/flagoria_tiles_v3.png`, 448×304 px, 28×19 cells. Rows 15–18 hold the wooden walls and bridges.
+- TileSet: `art/flagoria/flagoria_tiles_v3.tres`, one `TileSetAtlasSource` (source id `0`) with 207 named cells, one physics layer, and terrain set `0` (Match Corners and Sides) with terrain `0` "Island".
 - Names: `Scripts/tile_catalog.gd` (`TileCatalog`) is the only place that maps names to source id and atlas coords. Credits: `art/flagoria/CREDITS.md`.
 
 ## Where tiles are referenced
@@ -155,6 +155,43 @@ Older single edge tiles, kept for hand-placed maps.
 | CLOUD_L_3 | (0, 10) |
 | CLOUD_L_4 | (1, 10) |
 | CLOUD_L_5 | (2, 10) |
+
+## Bridges
+
+Plank bridges sit on layer 0, the ground layer, in place of water. They have no collision, so the hero walks on them, and they are not a mob home. `TileMap.build_bridge(from, to)` lays one straight run over generated water and picks the pieces with `bridge_pieces`. Placed bridges stay when a chunk is drawn again and are cleared by a new map.
+
+H runs west to east, V runs north to south. `START` has a land joint on the west (H) or north (V) end, `END` on the east or south end, `SINGLE` on both. `TIP_x` is an unfinished end that points to x. The `_WATER` pieces have water baked in and are the ones placed today. The plain pieces have a transparent background for sky shores. `BROKEN` pieces are art only: nothing places them yet.
+
+| Name | Cell |
+|---|---|
+| BRIDGE_PLANK_H | (8, 15) |
+| BRIDGE_PLANK_V | (9, 15) |
+| BRIDGE_PLANK_H_START | (10, 15) |
+| BRIDGE_PLANK_H_END | (11, 15) |
+| BRIDGE_PLANK_V_START | (12, 15) |
+| BRIDGE_PLANK_V_END | (13, 15) |
+| BRIDGE_PLANK_H_SINGLE | (14, 15) |
+| BRIDGE_PLANK_V_SINGLE | (15, 15) |
+| BRIDGE_PLANK_H_BROKEN | (8, 16) |
+| BRIDGE_PLANK_V_BROKEN | (9, 16) |
+| BRIDGE_PLANK_H_TIP_E | (10, 16) |
+| BRIDGE_PLANK_H_TIP_W | (11, 16) |
+| BRIDGE_PLANK_V_TIP_S | (12, 16) |
+| BRIDGE_PLANK_V_TIP_N | (13, 16) |
+| BRIDGE_PLANK_H_WATER | (8, 17) |
+| BRIDGE_PLANK_V_WATER | (9, 17) |
+| BRIDGE_PLANK_H_START_WATER | (10, 17) |
+| BRIDGE_PLANK_H_END_WATER | (11, 17) |
+| BRIDGE_PLANK_V_START_WATER | (12, 17) |
+| BRIDGE_PLANK_V_END_WATER | (13, 17) |
+| BRIDGE_PLANK_H_SINGLE_WATER | (14, 17) |
+| BRIDGE_PLANK_V_SINGLE_WATER | (15, 17) |
+| BRIDGE_PLANK_H_BROKEN_WATER | (8, 18) |
+| BRIDGE_PLANK_V_BROKEN_WATER | (9, 18) |
+| BRIDGE_PLANK_H_TIP_E_WATER | (10, 18) |
+| BRIDGE_PLANK_H_TIP_W_WATER | (11, 18) |
+| BRIDGE_PLANK_V_TIP_S_WATER | (12, 18) |
+| BRIDGE_PLANK_V_TIP_N_WATER | (13, 18) |
 
 ## Walls
 
