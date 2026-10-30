@@ -5220,6 +5220,122 @@ func _test_map_settings_number_pad_touch_tap() -> int:
 		print("PASS test_map_settings_number_pad_touch_tap (%s orders)" % orders.size())
 	return fail
 
+func _test_map_settings_number_pad_spin_boxes() -> int:
+	## Every other number field in Map Settings (the SpinBox rows) uses the
+	## in-game pad too: no OS keyboard, focus or a tap opens the pad, "-" and
+	## "." keys show only where the field takes them, and closing the pad
+	## commits the text through the SpinBox's own min, max and step.
+	print("-- test_map_settings_number_pad_spin_boxes")
+	var panel = load("res://map_admin_panel.tscn").instantiate()
+	root.add_child(panel)
+	await process_frame
+	var pad = panel.get_node("NumberPad")
+	var fail := 0
+	var spins: Dictionary = panel._spin_boxes
+	if spins.size() < 10:
+		printerr("FAIL number_pad_spin_boxes only %s SpinBox rows" % spins.size())
+		fail += 1
+	for key in spins:
+		var spin: SpinBox = spins[key]
+		var field := spin.get_line_edit()
+		if spin.rounded and not field.text.is_valid_int():
+			printerr("FAIL number_pad_spin_boxes int row %s shows %s" % [key, field.text])
+			fail += 1
+		if field.virtual_keyboard_enabled:
+			printerr("FAIL number_pad_spin_boxes %s still opens the OS keyboard" % key)
+			fail += 1
+		field.grab_focus()
+		await process_frame
+		if not pad.visible or pad.target != field:
+			printerr("FAIL number_pad_spin_boxes focusing %s did not open the pad for it" % key)
+			fail += 1
+		var want_minus := spin.min_value < 0.0
+		var want_point := not spin.rounded and spin.step < 1.0
+		if pad.find_child("Minus", true, false).visible != want_minus \
+				or pad.find_child("Point", true, false).visible != want_point:
+			printerr("FAIL number_pad_spin_boxes %s minus/point keys shown %s/%s want %s/%s" % [
+				key, pad.find_child("Minus", true, false).visible,
+				pad.find_child("Point", true, false).visible, want_minus, want_point])
+			fail += 1
+		pad.close()
+		field.release_focus()
+	var cases := [
+		# [key, pad keys, committed value]
+		["archipelago_island_count", ["Digit3", "Digit0", "Digit0"], 256.0],  # clamped to max
+		["archipelago_spacing", ["Digit9", "Digit6"], 96.0],
+		["ground_chance_a", ["Minus", "Point", "Digit5"], -0.5],
+		["water_max_alt", ["Digit1", "Point", "Digit7"], 1.0],  # clamped to max
+		["fractal_gain", ["Digit0", "Point", "Digit7", "Digit3"], 0.75],  # snapped to step
+	]
+	for c in cases:
+		var spin: SpinBox = spins[c[0]]
+		var field := spin.get_line_edit()
+		field.grab_focus()
+		await process_frame
+		field.text = ""
+		for k in c[1]:
+			pad.find_child(k, true, false).pressed.emit()
+		pad.find_child("OK", true, false).pressed.emit()
+		if pad.visible or not is_equal_approx(spin.value, c[2]):
+			printerr("FAIL number_pad_spin_boxes %s keys %s gave %s (pad open=%s) want %s" % [
+				c[0], c[1], spin.value, pad.visible, c[2]])
+			fail += 1
+		field.release_focus()
+	# A physical keyboard still types, keeping one leading "-" and one ".".
+	var bush: LineEdit = spins["bush_min_alt"].get_line_edit()
+	bush.grab_focus()
+	await process_frame
+	bush.text = ""
+	for ch in "a-0.2-.5":
+		var ev := InputEventKey.new()
+		ev.pressed = true
+		ev.unicode = ch.unicode_at(0)
+		root.push_input(ev)
+	await process_frame  # LineEdit emits text_changed deferred
+	if bush.text != "-0.25":
+		printerr("FAIL number_pad_spin_boxes typed a-0.2-.5 gave %s want -0.25" % bush.text)
+		fail += 1
+	pad.close()
+	bush.release_focus()
+	# An int field takes digits only.
+	var count: LineEdit = spins["archipelago_island_count"].get_line_edit()
+	count.grab_focus()
+	await process_frame
+	count.text = ""
+	for ch in "-1.2":
+		var ev := InputEventKey.new()
+		ev.pressed = true
+		ev.unicode = ch.unicode_at(0)
+		root.push_input(ev)
+	await process_frame
+	if count.text != "12":
+		printerr("FAIL number_pad_spin_boxes int field typed -1.2 gave %s want 12" % count.text)
+		fail += 1
+	pad.close()
+	count.release_focus()
+	# A touch tap on a SpinBox field opens the pad and keeps it open.
+	var tap_spin: SpinBox = spins["archipelago_spacing"]
+	panel.scroll.ensure_control_visible(tap_spin)
+	await process_frame
+	await process_frame
+	_tap_sequence(tap_spin.get_line_edit().get_global_rect().get_center(), ["mouse_down", "touch_down", "mouse_up", "touch_up"])
+	await process_frame
+	if not pad.visible or pad.target != tap_spin.get_line_edit():
+		printerr("FAIL number_pad_spin_boxes android tap on archipelago_spacing did not keep the pad open")
+		fail += 1
+	pad.close()
+	var params = MapGenParams.make_defaults()
+	panel.apply_to_params(params)
+	if params.archipelago_island_count != 12 or not is_equal_approx(params.ground_chance_a, -0.5) \
+			or params.archipelago_spacing != 96:
+		printerr("FAIL number_pad_spin_boxes params count=%s ground_chance_a=%s spacing=%s" % [
+			params.archipelago_island_count, params.ground_chance_a, params.archipelago_spacing])
+		fail += 1
+	panel.queue_free()
+	if fail == 0:
+		print("PASS test_map_settings_number_pad_spin_boxes (%s fields)" % spins.size())
+	return fail
+
 func _test_map_settings_uses_menu_theme() -> int:
 	## Map Settings uses the menu theme at its root, so its text uses the game
 	## font and its bottom buttons look like the main menu's.
