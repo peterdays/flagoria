@@ -42,6 +42,11 @@
 | `sfx/world/player_respawn_01.wav` | Original, generated (`tools/audio/gen_world.py`) | Flagoria project | CC0 1.0 |
 | `sfx/world/regen_tick_01.wav` | Original, generated (`tools/audio/gen_world.py`) | Flagoria project | CC0 1.0 |
 | `sfx/world/player_join_01.wav` | Original, generated (`tools/audio/gen_world.py`) | Flagoria project | CC0 1.0 |
+| `sfx/world/trees/tree_chop_01.wav` … `_03.wav` | Original, generated (`tools/audio/gen_trees.py`) | Flagoria project | CC0 1.0 |
+| `sfx/world/trees/tree_crack_01.wav` | Original, generated (`tools/audio/gen_trees.py`) | Flagoria project | CC0 1.0 |
+| `sfx/world/trees/tree_fall_01.wav` | Original, generated (`tools/audio/gen_trees.py`) | Flagoria project | CC0 1.0 |
+| `sfx/world/trees/wood_pickup_01.wav` … `_02.wav` | Original, generated (`tools/audio/gen_trees.py`) | Flagoria project | CC0 1.0 |
+| `sfx/world/trees/leaf_rustle_01.wav` | Original, generated (`tools/audio/gen_trees.py`) | Flagoria project | CC0 1.0 |
 
 Footstep files are procedural filtered noise (numpy), mono 16-bit 22.05 kHz, 0.22–0.34 s,
 RMS-normalized to about -20 dBFS with peaks below -0.3 dBFS. Regenerate with:
@@ -65,3 +70,8 @@ World files are built by `tools/audio/gen_world.py` (run from the repository roo
 RMS-levelled to about -20 dBFS (regen tick about -30 dBFS). Regenerate with:
 
     python3 tools/audio/gen_world.py art/audio/sfx/world
+
+Tree files are built by `tools/audio/gen_trees.py` (run from the repository root), mono 16-bit 22.05 kHz,
+RMS-levelled to about -20 dBFS (leaf rustle about -26 dBFS, for layering on chops). Regenerate with:
+
+    python3 tools/audio/gen_trees.py art/audio/sfx/world/trees
