@@ -5336,6 +5336,152 @@ func _test_map_settings_number_pad_spin_boxes() -> int:
 		print("PASS test_map_settings_number_pad_spin_boxes (%s fields)" % spins.size())
 	return fail
 
+func _test_number_pad_first_key_replaces() -> int:
+	## Opening the pad selects the field's text, so the first key replaces the
+	## old value instead of adding to it; later keys add as usual. A field left
+	## holding only "-" or "." when the pad closes gets its old value back.
+	print("-- test_number_pad_first_key_replaces")
+	var panel = load("res://map_admin_panel.tscn").instantiate()
+	root.add_child(panel)
+	await process_frame
+	var pad = panel.get_node("NumberPad")
+	var fail := 0
+	var seed_field: LineEdit = panel.find_child("ItemsSeed")
+	for how in ["focus", "tap"]:
+		seed_field.release_focus()
+		pad.close()
+		await process_frame
+		seed_field.text = "4295"
+		if how == "focus":
+			seed_field.grab_focus()
+		else:
+			_tap_sequence(seed_field.get_global_rect().get_center(), ["mouse_down", "touch_down", "mouse_up", "touch_up"])
+		await process_frame
+		await process_frame
+		if not pad.visible or seed_field.get_selected_text() != "4295":
+			printerr("FAIL number_pad_first_key %s: pad open=%s selected=%s" % [how, pad.visible, seed_field.get_selected_text()])
+			fail += 1
+		for key in ["Digit7", "Digit1"]:
+			pad.find_child(key, true, false).pressed.emit()
+		if seed_field.text != "71":
+			printerr("FAIL number_pad_first_key %s: typed 7 1 over 4295 gave %s want 71" % [how, seed_field.text])
+			fail += 1
+	pad.close()
+	seed_field.release_focus()
+	var spin: SpinBox = panel._spin_boxes["ground_chance_a"]
+	var field := spin.get_line_edit()
+	for lone in ["-", "."]:
+		spin.value = 0.25
+		await process_frame  # the SpinBox shows a new value a frame later
+		field.grab_focus()
+		await process_frame
+		var old_text := field.text
+		field.text = lone
+		pad.find_child("OK", true, false).pressed.emit()
+		if field.text != old_text or not is_equal_approx(spin.value, 0.25):
+			printerr("FAIL number_pad_first_key lone %s gave text=%s value=%s want %s" % [lone, field.text, spin.value, old_text])
+			fail += 1
+		field.release_focus()
+		await process_frame
+	panel.queue_free()
+	if fail == 0:
+		print("PASS test_number_pad_first_key_replaces")
+	return fail
+
+func _test_number_pad_keycap_style() -> int:
+	## The pad has its own keyboard look from the menu theme: keycaps for the
+	## digits, a red Delete and a gold OK key, and a framed panel.
+	print("-- test_number_pad_keycap_style")
+	var panel = load("res://map_admin_panel.tscn").instantiate()
+	root.add_child(panel)
+	await process_frame
+	var pad = panel.get_node("NumberPad")
+	var fail := 0
+	var theme: Theme = load("res://art/ui/main_menu_theme.tres")
+	for type in ["KeyCap", "KeyCapDelete", "KeyCapOK"]:
+		if not theme.get_type_variation_list(&"Button").has(StringName(type)):
+			printerr("FAIL number_pad_keycap_style theme has no %s button style" % type)
+			fail += 1
+	panel.find_child("ItemsSeed").grab_focus()
+	await process_frame
+	var want := {"Digit5": &"KeyCap", "Delete": &"KeyCapDelete", "OK": &"KeyCapOK"}
+	for key in want:
+		var b: Button = pad.find_child(key, true, false)
+		if b == null or b.theme_type_variation != want[key]:
+			printerr("FAIL number_pad_keycap_style %s style %s want %s" % [key, b.theme_type_variation if b else "missing", want[key]])
+			fail += 1
+	if pad.get_node("Panel").theme_type_variation != &"KeyboardPanel":
+		printerr("FAIL number_pad_keycap_style panel is not a KeyboardPanel")
+		fail += 1
+	panel.queue_free()
+	if fail == 0:
+		print("PASS test_number_pad_keycap_style")
+	return fail
+
+func _test_main_menu_letter_keyboard() -> int:
+	## The join address field uses the in-game letter keyboard, in the same
+	## keycap style as the number pad, instead of the OS keyboard: its keys
+	## type letters, digits, "." and ":", the first key replaces the old text,
+	## OK closes it, and a physical keyboard still types there.
+	print("-- test_main_menu_letter_keyboard")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	await process_frame
+	var menu = scene.get_node("CanvasLayer2/MainMenu")
+	var field: LineEdit = menu.address_entry
+	var kb = menu.get_node_or_null("LetterKeyboard")
+	var fail := 0
+	if kb == null or field.virtual_keyboard_enabled:
+		printerr("FAIL letter_keyboard address field has no in-game keyboard (os keyboard=%s)" % field.virtual_keyboard_enabled)
+		scene.queue_free()
+		return 1
+	field.text = "old.host"
+	field.grab_focus()
+	await process_frame
+	if not kb.visible or kb.target != field:
+		printerr("FAIL letter_keyboard focusing the address field did not open the keyboard")
+		fail += 1
+	for key in ["Digit1", "Point", "Digit2", "Colon", "Digit9", "Digit0", "Delete", "Digit1"]:
+		var b: Button = kb.find_child(key, true, false)
+		if b == null:
+			printerr("FAIL letter_keyboard no %s key" % key)
+			fail += 1
+			continue
+		b.pressed.emit()
+	if field.text != "1.2:91":
+		printerr("FAIL letter_keyboard keys gave %s want 1.2:91" % field.text)
+		fail += 1
+	field.text = ""
+	for key in ["l", "o", "c", "a", "l", "h", "o", "s", "t"]:
+		kb.find_child(key, true, false).pressed.emit()
+	if field.text != "localhost":
+		printerr("FAIL letter_keyboard letter keys gave %s want localhost" % field.text)
+		fail += 1
+	for key in ["l", "Digit5", "Delete", "OK"]:
+		var want_style: StringName = {"Delete": &"KeyCapDelete", "OK": &"KeyCapOK"}.get(key, &"KeyCap")
+		if kb.find_child(key, true, false).theme_type_variation != want_style:
+			printerr("FAIL letter_keyboard %s key is not styled %s" % [key, want_style])
+			fail += 1
+	kb.find_child("OK", true, false).pressed.emit()
+	if kb.visible:
+		printerr("FAIL letter_keyboard OK did not close the keyboard")
+		fail += 1
+	field.caret_column = field.text.length()
+	for ch in ":7":
+		var ev := InputEventKey.new()
+		ev.pressed = true
+		ev.unicode = ch.unicode_at(0)
+		root.push_input(ev)
+	await process_frame
+	if field.text != "localhost:7":
+		printerr("FAIL letter_keyboard physical keys gave %s want localhost:7" % field.text)
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_main_menu_letter_keyboard")
+	return fail
+
 func _test_map_settings_uses_menu_theme() -> int:
 	## Map Settings uses the menu theme at its root, so its text uses the game
 	## font and its bottom buttons look like the main menu's.

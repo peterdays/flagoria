@@ -42,6 +42,12 @@ func _ready() -> void:
 	mob_rate.value_changed.connect(func(v: float) -> void:
 		game.set_mob_rate(v)
 		mob_rate_value.text = game.rate_label(game.mob_rate))
+	# The join address is typed on the in-game letter keyboard, not the OS one.
+	var keyboard: NumberPad = preload("res://number_pad.tscn").instantiate()
+	keyboard.name = "LetterKeyboard"
+	add_child(keyboard)
+	keyboard.attach_text(address_entry)
+	visibility_changed.connect(keyboard.close)
 	admin_panel = preload("res://map_admin_panel.tscn").instantiate()
 	admin_panel.visible = false
 	admin_panel.closed.connect(_on_admin_closed)
