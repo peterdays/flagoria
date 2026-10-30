@@ -281,7 +281,7 @@ func _begin_step(i: int, t: float) -> void:
 			_walker.health.set_health_now(1)
 			_sword_hit()
 		"regen":
-			_local.global_position = _walker.global_position + Vector2(0, 12)
+			_place_still(_local, _walker.global_position + Vector2(0, 12))
 			_local.health.set_health_now(_local.health.max_health - 1)
 			_local.get_node("regen_timer").timeout.emit()
 		"ui_click":
@@ -320,6 +320,19 @@ func _mob_event(mob: Mob, action: String) -> void:
 			mob.attacks += 1
 			mob.state = Mob.State.DYING
 			mob.sfx.idle_left = 0.0
+
+
+func _place_still(body: Node2D, pos: Vector2) -> void:
+	## Move a player for the check itself: stop its motion and restart its
+	## footstep stride at the new spot, so the jump never counts as a walk.
+	## Footsteps only treats moves over TELEPORT_DISTANCE as teleports; a
+	## shorter jump on top of earlier drift could otherwise reach a stride
+	## and play a step in the next window.
+	body.global_position = pos
+	body.set("velocity", Vector2.ZERO)
+	var steps = body.get_node("Footsteps")
+	steps._travelled = 0.0
+	steps._has_last_pos = false
 
 
 func _sword_hit() -> void:
