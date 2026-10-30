@@ -1,16 +1,21 @@
 class_name NumberPad
 extends Control
 ## Small in-game digit pad for numeric LineEdits, so touch devices do not
-## pop up the OS keyboard. Call attach() on each field; focusing or tapping
-## the field opens the pad, OK or a tap outside the pad closes it. A physical
-## keyboard keeps working, and anything that is not a digit is dropped.
+## pop up the OS keyboard. Call attach() on each field, or attach_spin_box()
+## on each SpinBox; focusing or tapping the field opens the pad, OK or a tap
+## outside the pad closes it. A physical keyboard keeps working, and anything
+## the field does not accept is dropped. Fields that allow a sign or a decimal
+## point also get "-" and "." keys.
 
 ## Used when the field sets no max_length; keeps the text a valid 64-bit int.
 const DEFAULT_MAX_DIGITS := 18
-const KEYS := ["1", "2", "3", "4", "5", "6", "7", "8", "9", "Delete", "0", "OK"]
+const KEYS := ["1", "2", "3", "4", "5", "6", "7", "8", "9", "Delete", "0", "OK", "Minus", "Point"]
+const KEY_TEXT := {"Delete": "Del", "Minus": "-", "Point": "."}
 const KEY_SIZE := Vector2(44, 26)
 
 var target: LineEdit
+## Per field: {"negative": bool, "decimal": bool, "commit": Callable}.
+var _rules := {}
 ## Pointers (mouse left button, touch indexes) held down right now.
 var _held := {}
 ## True while the press that opened the pad is still held. Its release, and the
@@ -26,7 +31,7 @@ func _ready() -> void:
 	for key in KEYS:
 		var b := Button.new()
 		b.name = key if key.length() > 1 else "Digit" + key
-		b.text = "Del" if key == "Delete" else key
+		b.text = KEY_TEXT.get(key, key)
 		b.custom_minimum_size = KEY_SIZE
 		# Keep focus (and the caret) on the field so a keyboard still types there.
 		b.focus_mode = Control.FOCUS_NONE
@@ -34,25 +39,41 @@ func _ready() -> void:
 		_grid.add_child(b)
 
 
-func attach(field: LineEdit) -> void:
+func attach(field: LineEdit, negative := false, decimal := false, commit := Callable()) -> void:
+	_rules[field] = {"negative": negative, "decimal": decimal, "commit": commit}
 	field.virtual_keyboard_enabled = false
 	field.focus_entered.connect(open.bind(field))
 	field.gui_input.connect(func(event: InputEvent) -> void:
 		if _is_tap(event) and not visible:
 			open(field))
-	field.text_changed.connect(func(_t: String) -> void: _keep_digits(field))
+	field.text_changed.connect(func(_t: String) -> void: _keep_digits(field, negative, decimal))
+
+
+func attach_spin_box(spin: SpinBox) -> void:
+	## The pad edits the SpinBox's text; closing the pad commits it, and the
+	## SpinBox clamps and snaps it to its own min, max and step.
+	var decimal := not spin.rounded and not is_equal_approx(spin.step, roundf(spin.step))
+	attach(spin.get_line_edit(), spin.min_value < 0.0, decimal, spin.apply)
 
 
 func open(field: LineEdit) -> void:
 	target = field
 	_opening_tap = not _held.is_empty()
+	var rules: Dictionary = _rules.get(field, {})
+	_grid.get_node("Minus").visible = rules.get("negative", false)
+	_grid.get_node("Point").visible = rules.get("decimal", false)
 	show()
 	_place_beside(field)
 
 
 func close() -> void:
+	var field := target
 	hide()
 	target = null
+	if field != null:
+		var commit: Callable = _rules.get(field, {}).get("commit", Callable())
+		if commit.is_valid():
+			commit.call()
 
 
 func _on_key(key: String) -> void:
@@ -64,9 +85,14 @@ func _on_key(key: String) -> void:
 			return
 		"Delete":
 			target.text = target.text.left(-1)
+		"Minus":
+			target.text = target.text.substr(1) if target.text.begins_with("-") else "-" + target.text
+		"Point":
+			if not target.text.contains("."):
+				target.text += "0." if target.text in ["", "-"] else "."
 		_:
-			if target.text == "0":
-				target.text = ""
+			if target.text in ["0", "-0"]:
+				target.text = target.text.left(-1)
 			if target.text.length() < _max_digits(target):
 				target.text += key
 	target.caret_column = target.text.length()
@@ -118,10 +144,15 @@ func _place_beside(field: LineEdit) -> void:
 	_panel.global_position = Vector2(maxf(x, 0.0), y)
 
 
-static func _keep_digits(field: LineEdit) -> void:
+static func _keep_digits(field: LineEdit, negative := false, decimal := false) -> void:
+	## Keeps digits, plus a leading "-" and one "." when the field allows them.
 	var digits := ""
 	for ch in field.text:
 		if ch >= "0" and ch <= "9":
+			digits += ch
+		elif ch == "-" and negative and digits.is_empty():
+			digits += ch
+		elif ch == "." and decimal and not digits.contains("."):
 			digits += ch
 	digits = digits.left(_max_digits(field))
 	if digits != field.text:

@@ -25,11 +25,13 @@ func _ready() -> void:
 	_build_extra_controls(get_node("/root/MapGen").params)
 	_populate_noise_types()
 	load_from_params(get_node("/root/MapGen").params)
-	# Seeds are typed on an in-game pad instead of the OS keyboard.
+	# Every number field is typed on an in-game pad instead of the OS keyboard.
 	var pad: NumberPad = preload("res://number_pad.tscn").instantiate()
 	add_child(pad)
 	for field in [seed_alt, seed_moist, seed_temp, seed_items, seed_biome]:
 		pad.attach(field)
+	for spin in _spin_boxes.values():
+		pad.attach_spin_box(spin)
 	visibility_changed.connect(pad.close)
 
 
@@ -124,7 +126,8 @@ func load_from_params(p: MapGenParams) -> void:
 		spin.value = p.get(key)
 		# SpinBox leaves LineEdit text unchanged when the numeric value is
 		# already equal, so a typed-but-uncommitted string can survive a reopen.
-		spin.get_line_edit().text = str(spin.value)
+		# Int rows show "24", not "24.0", so the pad's digits append cleanly.
+		spin.get_line_edit().text = str(int(spin.value)) if spin.rounded else str(spin.value)
 
 
 func apply_to_params(p: MapGenParams) -> void:
