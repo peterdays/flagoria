@@ -6,9 +6,11 @@ extends Control
 ## Exploration is local to this client for now (no network traffic); a new
 ## world clears it. M hides or shows the panel.
 ##
-## Each explored 32 x 32 cell chunk is drawn once into a 64 x 64 texture and
-## only redrawn when its explored cells change, so a frame just draws the few
-## chunk textures under the map window.
+## Each explored 32 x 32 cell chunk has a 64 x 64 image and texture. A
+## reveal paints only the newly explored cells and the 1-cell ring around
+## them (whose coast line may change) into the images, then updates those
+## textures in place, so a frame just draws the few chunk textures under the
+## map window. Terrain is looked up once per cell and kept per chunk.
 
 const FRAME := preload("res://art/ui/map/ui_map_panel_open.png")
 const HERO := {
@@ -39,6 +41,13 @@ const CLOUD := Color("ffffff")
 const CLOUD_SHADE := Color("d9e6f2")
 const INK := Color("2a2238")
 
+## Terrain kinds kept per cell (stored + 1, 0 = not looked up yet).
+enum Kind { WATER, SAND, SWAMP, PINE, TREE, BUSH, STONES, FLOWER, GRASS }
+const _SHORE_KNOWN := 0x40
+const _SHORE := 0x80
+const _KIND_BITS := 0x0f
+const _SIDES := [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1)]
+
 const _NEIGHBOURS := [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1), Vector2i(-1, 0),
 		Vector2i(1, 0), Vector2i(-1, 1), Vector2i(0, 1), Vector2i(1, 1)]
 
@@ -48,6 +57,8 @@ var facing := "Down"
 var shown := true  ## false after M hides the panel
 
 var _textures := {}  ## chunk (Vector2i) -> ImageTexture
+var _images := {}  ## chunk (Vector2i) -> Image behind its texture
+var _terrain := {}  ## chunk (Vector2i) -> PackedByteArray, a Kind per cell, see _cell_info
 var _frames := 0
 var _last_sample := Vector2i.MAX  ## hero cell at the previous tick
 var _view: Control
@@ -128,16 +139,38 @@ func tick() -> void:
 	_last_sample = hero_cell
 	if not steady:
 		return
-	var changed := explored.reveal(hero_cell)
+	reveal_around(hero_cell)
+	_view.queue_redraw()
+
+
+func reveal_around(cell: Vector2i) -> void:
+	## Reveals the cells around cell and paints them into the chunk images.
+	var fresh := explored.reveal_cells(cell)
+	if fresh.is_empty():
+		return
+	# A new cell's own pixels, plus the coast line of the explored land beside it.
+	var paint := {}
+	for c in fresh:
+		paint[c] = true
+		for d in _SIDES:
+			paint[c + d] = true
 	var dirty := {}
-	for chunk in changed:
+	for c: Vector2i in paint:
+		if not explored.is_explored(c):
+			continue
+		var chunk := ExploredMap.chunk_of(c)
+		var img: Image = _images.get(chunk)
+		if img == null:
+			img = _blank_image()
+			_images[chunk] = img
+		_paint_cell(img, c)
 		dirty[chunk] = true
-		# Coast lines on a neighbour's edge depend on cells in this chunk.
-		for d in _NEIGHBOURS:
-			if _textures.has(chunk + d):
-				dirty[chunk + d] = true
 	for chunk in dirty:
-		_textures[chunk] = ImageTexture.create_from_image(render_chunk(chunk))
+		var tex: ImageTexture = _textures.get(chunk)
+		if tex:
+			tex.update(_images[chunk])
+		else:
+			_textures[chunk] = ImageTexture.create_from_image(_images[chunk])
 	_view.queue_redraw()
 
 
@@ -152,51 +185,111 @@ func chunk_texture(chunk: Vector2i) -> ImageTexture:
 	return _textures.get(chunk)
 
 
+func chunk_image(chunk: Vector2i) -> Image:
+	## The image behind chunk's texture, as painted so far.
+	return _images.get(chunk)
+
+
 func render_chunk(chunk: Vector2i) -> Image:
-	## The chunk's explored cells, 2 x 2 pixels each; unexplored cells stay
-	## transparent so the mist below shows through.
-	var img := Image.create(ExploredMap.CHUNK * CELL_PX, ExploredMap.CHUNK * CELL_PX, false, Image.FORMAT_RGBA8)
-	var map := _map()
+	## The chunk's explored cells drawn from scratch, 2 x 2 pixels each;
+	## unexplored cells stay transparent so the mist below shows through.
+	## The incremental images from reveal_around match this pixel for pixel.
+	var img := _blank_image()
 	var origin := chunk * ExploredMap.CHUNK
 	for ly in ExploredMap.CHUNK:
 		for lx in ExploredMap.CHUNK:
 			var cell := origin + Vector2i(lx, ly)
-			if not explored.is_explored(cell):
-				continue
-			var p: Array = map.predict_cell(cell)
-			var water: bool = p[0] == TileCatalog.WATER
-			var shore := water and _touches_land(map, cell)
-			for sy in CELL_PX:
-				for sx in CELL_PX:
-					var px := cell.x * CELL_PX + sx
-					var py := cell.y * CELL_PX + sy
-					var colour := cell_colour(p, shore, cell, px, py)
-					if not water and _coast(map, cell, sx, sy):
-						colour = INK
-					img.set_pixel(lx * CELL_PX + sx, ly * CELL_PX + sy, colour)
+			if explored.is_explored(cell):
+				_paint_cell(img, cell)
 	return img
+
+
+func _paint_cell(img: Image, cell: Vector2i) -> void:
+	var info := _cell_info(cell, true)
+	var kind := (info & _KIND_BITS) - 1
+	var shore := info & _SHORE != 0
+	var local := Vector2i(posmod(cell.x, ExploredMap.CHUNK), posmod(cell.y, ExploredMap.CHUNK)) * CELL_PX
+	for sy in CELL_PX:
+		for sx in CELL_PX:
+			var colour := kind_colour(kind, shore, cell, cell.x * CELL_PX + sx, cell.y * CELL_PX + sy)
+			if kind != Kind.WATER and _coast(cell, sx, sy):
+				colour = INK
+			img.set_pixel(local.x + sx, local.y + sy, colour)
+
+
+func _cell_info(cell: Vector2i, need_shore: bool = false) -> int:
+	## Kind + 1 of cell, with _SHORE set on water next to land once
+	## need_shore has asked for it. Looked up from the map once per cell.
+	var chunk := ExploredMap.chunk_of(cell)
+	var bytes: PackedByteArray = _terrain.get(chunk, PackedByteArray())
+	if bytes.is_empty():
+		bytes.resize(ExploredMap.CHUNK * ExploredMap.CHUNK)
+	var i := posmod(cell.y, ExploredMap.CHUNK) * ExploredMap.CHUNK + posmod(cell.x, ExploredMap.CHUNK)
+	var info := bytes[i]
+	var changed := false
+	if info == 0:
+		info = kind_of(_map().predict_cell(cell)) + 1
+		changed = true
+	if need_shore and info & _SHORE_KNOWN == 0:
+		info |= _SHORE_KNOWN
+		if info & _KIND_BITS == Kind.WATER + 1 and _touches_land(cell):
+			info |= _SHORE
+		changed = true
+	if changed:
+		bytes[i] = info
+		_terrain[chunk] = bytes
+	return info
+
+
+func _is_water(cell: Vector2i) -> bool:
+	return _cell_info(cell) & _KIND_BITS == Kind.WATER + 1
+
+
+static func kind_of(p: Array) -> int:
+	## The map Kind of a predicted [ground, top].
+	var ground: Vector2i = p[0]
+	if ground == TileCatalog.WATER:
+		return Kind.WATER
+	if ground == TileCatalog.SAND:
+		return Kind.SAND
+	if ground == TileCatalog.SWAMP or ground == TileCatalog.SWAMP_SPECIAL:
+		return Kind.SWAMP
+	match p[1]:
+		TileCatalog.PINE:
+			return Kind.PINE
+		TileCatalog.TREE:
+			return Kind.TREE
+		TileCatalog.BUSH:
+			return Kind.BUSH
+		TileCatalog.STONES:
+			return Kind.STONES
+		TileCatalog.FLOWER:
+			return Kind.FLOWER
+	return Kind.GRASS
 
 
 static func cell_colour(p: Array, shore: bool, cell: Vector2i, px: int, py: int) -> Color:
 	## Map colour of one pixel of a cell from its predicted [ground, top].
-	var ground: Vector2i = p[0]
-	var top: Vector2i = p[1]
-	if ground == TileCatalog.WATER:
-		return SKY if shore else SKY_DEEP
-	if ground == TileCatalog.SAND:
-		return THATCH
-	if ground == TileCatalog.SWAMP or ground == TileCatalog.SWAMP_SPECIAL:
-		return SKY_DEEP if (px * 2 + py) % 5 == 0 else GRASS_DARK
-	match top:
-		TileCatalog.PINE:
+	return kind_colour(kind_of(p), shore, cell, px, py)
+
+
+static func kind_colour(kind: int, shore: bool, cell: Vector2i, px: int, py: int) -> Color:
+	match kind:
+		Kind.WATER:
+			return SKY if shore else SKY_DEEP
+		Kind.SAND:
+			return THATCH
+		Kind.SWAMP:
+			return SKY_DEEP if (px * 2 + py) % 5 == 0 else GRASS_DARK
+		Kind.PINE:
 			return LEAF_DEEP
-		TileCatalog.TREE:
+		Kind.TREE:
 			return GRASS if posmod(px, CELL_PX) == 0 and posmod(py, CELL_PX) == 0 else GRASS_DARK
-		TileCatalog.BUSH:
+		Kind.BUSH:
 			return GRASS_DARK
-		TileCatalog.STONES:
+		Kind.STONES:
 			return STONE
-		TileCatalog.FLOWER:
+		Kind.FLOWER:
 			if posmod(px, 2) == 0 and posmod(py, 2) == 1:
 				return GOLD
 	return GRASS_HI if _hash01(cell) < 0.12 else GRASS
@@ -224,6 +317,8 @@ func _on_ground_changed(cells: Rect2i) -> void:
 	# A new world: what was explored belongs to the old one.
 	explored.clear()
 	_textures.clear()
+	_images.clear()
+	_terrain.clear()
 	_last_sample = Vector2i.MAX
 	_view.queue_redraw()
 
@@ -249,21 +344,25 @@ func _cell_of(player: Node2D) -> Vector2i:
 	return map.local_to_map(map.to_local(player.global_position))
 
 
-func _touches_land(map: Node, cell: Vector2i) -> bool:
+func _touches_land(cell: Vector2i) -> bool:
 	for d in _NEIGHBOURS:
-		if map.predict_cell(cell + d)[0] != TileCatalog.WATER:
+		if not _is_water(cell + d):
 			return true
 	return false
 
 
-func _coast(map: Node, cell: Vector2i, sx: int, sy: int) -> bool:
+func _coast(cell: Vector2i, sx: int, sy: int) -> bool:
 	## True when this land pixel sits on an edge shared with explored water.
 	var side := [Vector2i(-1 if sx == 0 else 1, 0), Vector2i(0, -1 if sy == 0 else 1)]
 	for d: Vector2i in side:
 		var n := cell + d
-		if explored.is_explored(n) and map.predict_cell(n)[0] == TileCatalog.WATER:
+		if explored.is_explored(n) and _is_water(n):
 			return true
 	return false
+
+
+func _blank_image() -> Image:
+	return Image.create(ExploredMap.CHUNK * CELL_PX, ExploredMap.CHUNK * CELL_PX, false, Image.FORMAT_RGBA8)
 
 
 func _mist_image() -> Image:

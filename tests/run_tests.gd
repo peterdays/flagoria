@@ -1805,6 +1805,56 @@ func _test_minimap_panel_in_scene() -> int:
 	return fail
 
 
+func _test_minimap_incremental_render() -> int:
+	## Painting only the newly revealed cells (and the ring around them) gives
+	## the same chunk images, pixel for pixel, as drawing each chunk from
+	## scratch, across chunk edges and coast lines, and reuses each chunk's
+	## texture.
+	print("-- test_minimap_incremental_render")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	scene.world_params = _spawn_params(42, 0.003)
+	world.apply_map_params(scene.world_params)
+	await process_frame
+	var panel: MinimapPanel = scene.get_node("CanvasLayer1/MinimapPanel")
+	panel.set_physics_process(false)
+	var cell := Vector2i(-40, -40)
+	var first_tex: ImageTexture = null
+	for leg in [Vector2i(3, 0), Vector2i(0, 3), Vector2i(-2, 1), Vector2i(1, -3)]:
+		for i in 25:
+			panel.reveal_around(cell)
+			if first_tex == null:
+				first_tex = panel.chunk_texture(ExploredMap.chunk_of(cell))
+			cell += leg
+	if panel.chunk_texture(ExploredMap.chunk_of(Vector2i(-40, -40))) != first_tex:
+		printerr("FAIL minimap_incremental_render: a chunk texture was replaced, not updated")
+		fail += 1
+	var ink := 0
+	var water := 0
+	for chunk in panel.explored.chunks():
+		var got := panel.chunk_image(chunk)  # the headless renderer keeps no texture pixels
+		var want := panel.render_chunk(chunk)
+		if got.get_data() != want.get_data():
+			printerr("FAIL minimap_incremental_render: chunk %s differs from a full render" % chunk)
+			fail += 1
+		for y in want.get_height():
+			for x in want.get_width():
+				var c := want.get_pixel(x, y)
+				ink += int(c == MinimapPanel.INK)
+				water += int(c == MinimapPanel.SKY or c == MinimapPanel.SKY_DEEP)
+	if ink == 0 or water == 0 or panel.explored.chunks().size() < 6:
+		printerr("FAIL minimap_incremental_render: walk too plain (%d ink, %d water px, %d chunks)"
+				% [ink, water, panel.explored.chunks().size()])
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_minimap_incremental_render")
+	return fail
+
+
 func _test_interact_mode_toggle() -> int:
 	## The HUD mode button, the menu button's size and just left of it,
 	## switches between combat (the default) and interact mode and shows the

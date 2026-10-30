@@ -30,6 +30,16 @@ func reveal(center: Vector2i, radius: int = REVEAL_RADIUS) -> Array[Vector2i]:
 	## Marks every cell within radius of center as explored. Returns the
 	## chunks that gained at least one explored cell.
 	var changed: Array[Vector2i] = []
+	for cell in reveal_cells(center, radius):
+		var chunk := chunk_of(cell)
+		if not chunk in changed:
+			changed.append(chunk)
+	return changed
+
+
+func reveal_cells(center: Vector2i, radius: int = REVEAL_RADIUS) -> Array[Vector2i]:
+	## Like reveal, but returns the cells that were not explored before.
+	var fresh: Array[Vector2i] = []
 	var r2 := radius * radius
 	for dy in range(-radius, radius + 1):
 		for dx in range(-radius, radius + 1):
@@ -48,9 +58,8 @@ func reveal(center: Vector2i, radius: int = REVEAL_RADIUS) -> Array[Vector2i]:
 				continue
 			bits[i >> 3] |= mask
 			_chunks[chunk] = bits
-			if not chunk in changed:
-				changed.append(chunk)
-	return changed
+			fresh.append(cell)
+	return fresh
 
 
 func chunks() -> Array:
