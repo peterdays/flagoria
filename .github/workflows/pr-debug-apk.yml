@@ -1,0 +1,176 @@
+name: pr-debug-apk
+
+# Debug APK for pull requests that change what goes into the game, so it can
+# be tried on a phone. The build uses its own package, org.flagoria.game.debug,
+# named "Flagoria (debug)", so it installs next to the test builds from
+# android-apk.yml instead of replacing them, and keeps its own save data.
+# It is signed with a standard Android debug keystore generated in the run:
+# no repository secrets are read, so pull requests from forks build the same
+# way. The APK is only uploaded as a workflow artifact (7 days); no release
+# is created. android-apk.yml and its tag-based release path are unchanged;
+# the setup steps below are a minimal copy of its steps.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-debug-apk-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: 4.7.2
+  ANDROID_BUILD_TOOLS: 35.0.1
+  ANDROID_PLATFORM: android-35
+  APK: Builds/android/flagoria-pr-debug.apk
+
+jobs:
+  apk:
+    name: PR debug APK
+    if: github.event.action != 'labeled' || github.event.label.name == 'needs-play-review'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Build when the change reaches the APK: gameplay as decided by
+      # tools/play_review_paths.py (or the needs-play-review label), shipped
+      # assets and scripts, the export preset, or this workflow itself.
+      # Docs, tests, tools and other CI changes do not build.
+      - name: Change reaches the APK?
+        id: gate
+        env:
+          LABELED: ${{ contains(github.event.pull_request.labels.*.name, 'needs-play-review') }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          mb="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          git diff --name-only "$mb" "$HEAD_SHA" > "$RUNNER_TEMP/paths.txt"
+          git show "$mb:project.godot" > "$RUNNER_TEMP/base.godot" || rm -f "$RUNNER_TEMP/base.godot"
+          git show "$HEAD_SHA:project.godot" > "$RUNNER_TEMP/head.godot" || rm -f "$RUNNER_TEMP/head.godot"
+          labeled=()
+          if [ "$LABELED" = "true" ]; then labeled=(--labeled); fi
+          GITHUB_OUTPUT="$RUNNER_TEMP/classify.txt" python3 tools/play_review_paths.py \
+            --files "$RUNNER_TEMP/paths.txt" "${labeled[@]}" \
+            --base-project "$RUNNER_TEMP/base.godot" --head-project "$RUNNER_TEMP/head.godot"
+          shipped='^(art|Scripts|addons|structures|Player|Mobs)/|^[^/]+\.(gd|tscn|tres)$|^(project\.godot|export_presets\.cfg|\.github/workflows/pr-debug-apk\.yml)$'
+          if grep -qx 'gameplay=true' "$RUNNER_TEMP/classify.txt"; then
+            build=true
+          elif grep -E "$shipped" "$RUNNER_TEMP/paths.txt" | sed 's/^/shipped: /' | grep .; then
+            build=true
+          else
+            build=false
+          fi
+          echo "build=$build"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+
+      - name: Set up JDK 17
+        if: steps.gate.outputs.build == 'true'
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android SDK packages
+        if: steps.gate.outputs.build == 'true'
+        run: |
+          set -euo pipefail
+          (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" "build-tools;${ANDROID_BUILD_TOOLS}" "platforms;${ANDROID_PLATFORM}"
+
+      - name: Install Godot and export templates
+        if: steps.gate.outputs.build == 'true'
+        run: |
+          set -euo pipefail
+          base=https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable
+          curl -fsSL -o /tmp/godot.zip "$base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q -o /tmp/godot.zip -d /tmp/godot
+          sudo install -m 755 "/tmp/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" /usr/local/bin/godot
+          curl -fsSL -o /tmp/templates.tpz "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          dest="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$dest"
+          unzip -q -j /tmp/templates.tpz 'templates/android_*' 'templates/version.txt' -d "$dest"
+
+      - name: Generate debug keystore and editor settings
+        if: steps.gate.outputs.build == 'true'
+        run: |
+          set -euo pipefail
+          # The standard Android debug key: alias androiddebugkey, password
+          # "android". A new one per run, so a build only updates over one
+          # signed in the same run; uninstall the old debug build first.
+          keystore="$RUNNER_TEMP/debug.keystore"
+          keytool -genkeypair -keystore "$keystore" -storepass android -alias androiddebugkey \
+            -keypass android -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+          {
+            echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$keystore"
+            echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey"
+            echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android"
+          } >> "$GITHUB_ENV"
+          mkdir -p "$HOME/.config/godot"
+          cat > "$HOME/.config/godot/editor_settings-${GODOT_VERSION%.*}.tres" <<TRES
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/java_sdk_path = "$JAVA_HOME"
+          TRES
+
+      # Only the checkout's copy of the preset is edited; nothing is committed.
+      - name: Point the preset at the debug package
+        if: steps.gate.outputs.build == 'true'
+        env:
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          sed -i \
+            -e 's|^package/unique_name=.*|package/unique_name="org.flagoria.game.debug"|' \
+            -e 's|^package/name=.*|package/name="Flagoria (debug)"|' \
+            -e "s|^version/code=.*|version/code=$GITHUB_RUN_NUMBER|" \
+            -e "s|^version/name=.*|version/name=\"pr$PR-${HEAD_SHA::7}\"|" \
+            -e 's|^architectures/armeabi-v7a=.*|architectures/armeabi-v7a=false|' \
+            export_presets.cfg
+          grep -nE '^(package/unique_name|package/name|version/code|version/name|architectures/)' export_presets.cfg
+          test "$(grep -c '^package/unique_name="org.flagoria.game.debug"$' export_presets.cfg)" = 1
+
+      - name: Export APK
+        if: steps.gate.outputs.build == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "$APK")"
+          godot --headless --editor --quit-after 200 --path . || true
+          godot --headless --path . --export-debug "Android" "$APK"
+          test -s "$APK"
+          ls -l "$APK"
+
+      - name: Check package, version and signature
+        if: steps.gate.outputs.build == 'true'
+        run: |
+          set -euo pipefail
+          tools="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}"
+          # aapt2: the old aapt cannot parse Godot's manifest ("android:required").
+          "$tools/aapt2" dump badging "$APK" | grep -E "^(package|application-label):" | tee "$RUNNER_TEMP/badging.txt"
+          grep -q "^package: name='org.flagoria.game.debug' versionCode='$GITHUB_RUN_NUMBER' " "$RUNNER_TEMP/badging.txt"
+          "$tools/apksigner" verify --print-certs "$APK" | tee "$RUNNER_TEMP/certs.txt"
+          grep -q '^Signer #1 certificate DN: CN=Android Debug, O=Android, C=US$' "$RUNNER_TEMP/certs.txt"
+
+      - name: Check APK audio assets
+        if: steps.gate.outputs.build == 'true'
+        run: ./tools/check_apk_audio.sh "$APK"
+
+      - name: Upload artifact
+        if: steps.gate.outputs.build == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: flagoria-pr${{ github.event.pull_request.number }}-debug-apk
+          path: ${{ env.APK }}
+          retention-days: 7
+          if-no-files-found: error
