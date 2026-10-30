@@ -44,6 +44,25 @@ The wood counter (top centre of the HUD) shows `ui_wood_icon.png`, a 9x9
 log end-on, followed by the count. It uses the hearts' pixel scale and top
 margin, so the two rows line up.
 
+## Map panel
+
+The explored map in play is a wood panel in the top-right corner, below the
+mode and menu buttons, 4 px from the right edge (224x144 at (252, 28) in the
+480x270 UI space). It uses the files in `map/`:
+
+| file | size | shown |
+|---|---|---|
+| `ui_map_panel_open.png` | 224x144 | the wood frame; its map window is the transparent 216x124 area at (4, 16) |
+| `ui_map_marker_hero_{up,right,down,left}.png` | 16x16 | the local hero, pointing the way it faces; pixel (8, 8) sits on the hero's cell |
+
+The window shows the world at 2 px per cell, centred on the hero. Explored
+cells use the map colours in `Scripts/minimap_panel.gd` (water, shore,
+sand, swamp, grass, trees, stones, flowers), with a 1 px ink line where
+explored land meets explored water. Cells nobody has been near show as mist,
+a 1 px dither of `#ffffff` and `#d9e6f2`. The panel is drawn at a whole
+number of screen pixels per art pixel, rounding down, so at fractional
+window stretches it stays clear of the attack button.
+
 ## Touch controls
 
 The move stick and the attack button use the Castle Stone UI set in `touch/`.
@@ -88,3 +107,6 @@ its colours, pulse and line widths are the `AimConeStyle` resource
 - Touch controls: `touch/ui_*.png` (Castle Stone UI set) are original pixel
   art made in-house for this project, drawn in code in the flagoria palette.
   Repository licence (`LICENSE.md`).
+- Map panel: `map/ui_map_*.png` are original pixel art made in-house for this
+  project, drawn in code in the flagoria palette. Repository licence
+  (`LICENSE.md`).
