@@ -32,9 +32,10 @@ var archipelago_world_extent: int = 0
 var archipelago_island_count: int = 0
 # predict_cell results by cell; cleared when the params change.
 var _predict_cache: Dictionary = {}
-# Cells whose tree was cut (Vector2i -> play_time at the cut). Drawing the
-# chunk again puts a STUMP there instead of the tree, until the tree regrows
-# (regrow_due). Cleared when the params change.
+# Cells whose tree or bush was cut (Vector2i -> [play_time at the cut, atlas
+# of what it left]). Drawing the chunk again puts that STUMP or BUSH_STUMP
+# there instead of the plant, until it regrows (regrow_due). Cleared when the
+# params change.
 var _cut_cells: Dictionary = {}
 ## Plank bridge cells (build_bridge) -> layer-0 piece. generate_chunk draws
 ## the piece instead of the generated water; a new map clears them.
@@ -388,7 +389,7 @@ func set_tile_type_z1(pos_vec, alt, moist, _temp, chance, biome_id: int = BiomeC
 	if not is_walkable_land(pos_vec) or _bridge_cells.has(pos_vec):
 		return
 	if _cut_cells.has(pos_vec):
-		set_cell(GROUND_DECOR_LAYER, pos_vec, TileCatalog.SOURCE_ID, TileCatalog.STUMP)
+		set_cell(GROUND_DECOR_LAYER, pos_vec, TileCatalog.SOURCE_ID, _cut_cells[pos_vec][1])
 		return
 	var tile := NO_PLANT
 	# Biomes can widen beaches into the foliage bands; beaches get no plants.
@@ -458,7 +459,7 @@ func predict_cell(cell: Vector2i) -> Array:
 		if top == NO_PLANT:
 			top = structure_tile(chance, b)
 		if _cut_cells.has(cell):
-			top = TileCatalog.STUMP
+			top = _cut_cells[cell][1]
 	var out := [ground, top]
 	_predict_cache[cell] = out
 	return out
@@ -469,41 +470,46 @@ func predicted_clear(cell: Vector2i) -> bool:
 	var p := predict_cell(cell)
 	if not ground_is_walkable(p[0]):
 		return false
-	return p[1] == NO_PLANT or p[1] == TileCatalog.FLOWER or p[1] == TileCatalog.STUMP
+	return p[1] == NO_PLANT or p[1] == TileCatalog.FLOWER or InteractableCatalog.is_leftover(p[1])
 
 
-static func is_tree(atlas: Vector2i) -> bool:
-	## True for the foliage-layer tiles interact mode cuts.
-	return atlas == TileCatalog.TREE or atlas == TileCatalog.TREE_PINE_SMALL
+func choppable(cell: Vector2i) -> InteractableType:
+	## The choppable type (tree, bush) on `cell`'s foliage layer, or null.
+	if get_cell_source_id(1, cell) == -1:
+		return null
+	return InteractableCatalog.type_at(get_cell_atlas_coords(1, cell))
 
 
 func has_tree(cell: Vector2i) -> bool:
-	return get_cell_source_id(1, cell) != -1 and is_tree(get_cell_atlas_coords(1, cell))
+	var type := choppable(cell)
+	return type != null and type.id == "tree"
 
 
-func cut_tree(cell: Vector2i) -> bool:
-	## Replace the tree at `cell` with a walkable STUMP: the cell stays a
-	## stump when its chunk is drawn again, until regrow_due grows the tree
-	## back. False when there is no tree.
-	if not has_tree(cell):
-		return false
-	_cut_cells[cell] = play_time
+func cut_choppable(cell: Vector2i) -> InteractableType:
+	## Replace the tree or bush at `cell` with what its type leaves (a
+	## walkable STUMP or BUSH_STUMP): the cell keeps it when its chunk is
+	## drawn again, until regrow_due grows the plant back. Returns the type
+	## that was cut, or null when there is nothing to cut.
+	var type := choppable(cell)
+	if type == null:
+		return null
+	_cut_cells[cell] = [play_time, type.leaves_atlas()]
 	_predict_cache.erase(cell)
 	erase_cell(1, cell)
-	set_cell(GROUND_DECOR_LAYER, cell, TileCatalog.SOURCE_ID, TileCatalog.STUMP)
-	return true
+	set_cell(GROUND_DECOR_LAYER, cell, TileCatalog.SOURCE_ID, type.leaves_atlas())
+	return type
 
 
 func regrow_due() -> int:
 	## Stumps cut at least regrow_delay seconds ago turn back into the tree
-	## the map generates there; a stump under a player waits until the cell
+	## or bush the map generates there; a stump under a player waits until the cell
 	## is free. Single-player only (cuts are not synced, #223): nothing
-	## regrows while multiplayer is active. Returns how many trees regrew.
+	## regrows while multiplayer is active. Returns how many plants regrew.
 	if Interaction.multiplayer_on(multiplayer):
 		return 0
 	var grown := 0
 	for cell in _cut_cells.keys():
-		if play_time - _cut_cells[cell] < regrow_delay or player_on_cell(cell):
+		if play_time - _cut_cells[cell][0] < regrow_delay or player_on_cell(cell):
 			continue
 		_cut_cells.erase(cell)
 		_predict_cache.erase(cell)
