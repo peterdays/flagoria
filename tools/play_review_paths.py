@@ -6,8 +6,13 @@ map generation parameters, and the input map in project.godot. A
 project.godot change counts only when its [input] section differs; with no
 before/after copies given, any project.godot change counts.
 
+Also picks the netcode stress tier (runs per scenario): 20 on a push to main
+or when netcode changes (see NETCODE and NETCODE_MIXED), 5 for other gameplay
+changes. Without --diff, any NETCODE_MIXED file counts as netcode.
+
 Reads changed paths, one per line, from --files (or stdin). Prints the
-matching paths and writes `gameplay=true|false` to $GITHUB_OUTPUT when set.
+matching paths and the tier, and writes `gameplay=true|false` and
+`stress_runs=N` to $GITHUB_OUTPUT when set.
 It only reads its inputs and never runs project code, so the label workflow
 can run it from the base branch on any pull request.
 
@@ -20,6 +25,7 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import os
+import re
 import sys
 
 # fnmatch's "*" also matches "/", so "Player/*" covers the whole folder.
@@ -36,6 +42,53 @@ GAMEPLAY = [
     "Scripts/hearts_hud.gd", "Scripts/map_zoom.gd",
     "Scripts/MainMenu.gd", "Scripts/MapAdminPanel.gd",
 ]
+
+# Netcode files: spawners, RPC-only scripts, the multiplayer test probes and
+# the stress runner. Any change to them gets the full stress tier.
+NETCODE = [
+    "Scripts/mob_spawner.gd", "Scripts/points.gd", "Scripts/discovery_points.gd",
+    "tilemap_dynamic.tscn", "tests/late_join_probe.gd", "tests/ingame_menu_probe.gd",
+    "tools/stress_netcode.py",
+]
+# Files that mix netcode with other gameplay. They get the full tier only when
+# a changed line names netcode (RPCs, peers, authority, synchronizers).
+NETCODE_MIXED = [
+    "flagoria_main.gd", "flagoria_main.tscn",
+    "Player/character_body_2d.tscn", "Mobs/mob.tscn",
+    "Scripts/player.gd", "Scripts/player_health.gd", "Scripts/mob.gd", "Scripts/TileMap.gd",
+]
+NET_LINE = re.compile(r"rpc|multiplayer|peer|authority|replicat|synchroniz|spawner|is_server|enet", re.I)
+FULL_RUNS, LIGHT_RUNS = 20, 5
+
+
+def net_lines(diff: str) -> dict[str, int]:
+    """Changed lines that name netcode, per NETCODE_MIXED file, from `git diff -U0`."""
+    hits: dict[str, int] = {}
+    path = None
+    for line in diff.splitlines():
+        if line.startswith("diff --git "):
+            path = None
+        elif line.startswith(("--- a/", "+++ b/")):
+            if line[6:] in NETCODE_MIXED:
+                path = line[6:]
+        elif path and line[:1] in "+-" and not line.startswith(("+++", "---")) \
+                and NET_LINE.search(line[1:]):
+            hits[path] = hits.get(path, 0) + 1
+    return hits
+
+
+def stress_tier(event: str, paths: list[str], diff: str | None) -> tuple[int, str]:
+    """(runs per scenario, reason) for a gameplay change. diff=None: no diff, assume netcode."""
+    if event == "push":
+        return FULL_RUNS, "push to main"
+    net = [p for p in paths if p in NETCODE]
+    if diff is None:
+        net += [p for p in paths if p in NETCODE_MIXED]
+    else:
+        net += ["%s (%d netcode lines)" % (p, n) for p, n in net_lines(diff).items()]
+    if net:
+        return FULL_RUNS, "netcode changed: " + ", ".join(net)
+    return LIGHT_RUNS, "gameplay change without netcode"
 
 
 def input_section(text: str) -> str:
@@ -82,7 +135,30 @@ def self_test() -> int:
         if got != want:
             print("FAIL %s: got %s, want %s" % (paths, got, want), file=sys.stderr)
             fail += 1
-    print("play_review_paths self-test: %d/%d ok" % (len(cases) - fail, len(cases)))
+    def diff(path: str, *lines: str) -> str:
+        return "diff --git a/%s b/%s\n--- a/%s\n+++ b/%s\n@@ -1 +1 @@\n%s\n" % (
+            path, path, path, path, "\n".join(lines))
+    play = diff("Scripts/player.gd", "-\tvar speed = 1", "+\tvar speed = 2")
+    play_net = diff("Scripts/player.gd", "+@rpc(\"any_peer\")", "+func hit():")
+    scene_net = diff("flagoria_main.tscn", "+[node name=\"MultiplayerSpawner\" type=\"MultiplayerSpawner\"]")
+    tiers = [
+        ("pull_request", ["Scripts/mob_spawner.gd", "README.md"], "", FULL_RUNS),
+        ("pull_request", ["tools/stress_netcode.py"], "", FULL_RUNS),
+        ("pull_request", ["tests/late_join_probe.gd"], "", FULL_RUNS),
+        ("pull_request", ["Scripts/player.gd"], play_net, FULL_RUNS),
+        ("pull_request", ["flagoria_main.tscn"], scene_net, FULL_RUNS),
+        ("pull_request", ["Scripts/player.gd"], None, FULL_RUNS),
+        ("pull_request", ["Scripts/player.gd", "Player/sword.tscn"], play, LIGHT_RUNS),
+        ("pull_request", ["Scripts/hearts_hud.gd"], diff("Scripts/hearts_hud.gd", "+rpc()"), LIGHT_RUNS),
+        ("push", ["Scripts/hearts_hud.gd"], "", FULL_RUNS),
+    ]
+    for event, paths, text, want in tiers:
+        got = stress_tier(event, paths, text)[0]
+        if got != want:
+            print("FAIL tier %s %s: got %d, want %d" % (event, paths, got, want), file=sys.stderr)
+            fail += 1
+    total = len(cases) + len(tiers)
+    print("play_review_paths self-test: %d/%d ok" % (total - fail, total))
     return 1 if fail else 0
 
 
@@ -98,6 +174,9 @@ def main() -> int:
     ap.add_argument("--files", help="changed paths, one per line (default: stdin)")
     ap.add_argument("--base-project", help="project.godot before the change")
     ap.add_argument("--head-project", help="project.godot after the change")
+    ap.add_argument("--diff", help="`git diff -U0` of the change, for NETCODE_MIXED files")
+    ap.add_argument("--event", default="pull_request", choices=["pull_request", "push"])
+    ap.add_argument("--labeled", action="store_true", help="has needs-play-review: gameplay=true")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
     if args.self_test:
@@ -107,11 +186,16 @@ def main() -> int:
     hits = gameplay_paths(paths, read_opt(args.base_project), read_opt(args.head_project))
     for path in hits:
         print("gameplay: " + path)
-    print("gameplay=%s (%d of %d paths)" % (str(bool(hits)).lower(), len(hits), len(paths)))
+    gameplay = bool(hits) or args.labeled
+    print("gameplay=%s (%d of %d paths%s)" % (str(gameplay).lower(), len(hits), len(paths),
+                                             ", labeled" if args.labeled else ""))
+    runs, reason = stress_tier(args.event, paths, read_opt(args.diff) if args.diff else None)
+    if gameplay:
+        print("stress tier: %d runs per scenario (%s)" % (runs, reason))
     out = os.environ.get("GITHUB_OUTPUT")
     if out:
         with open(out, "a") as fh:
-            fh.write("gameplay=%s\n" % str(bool(hits)).lower())
+            fh.write("gameplay=%s\nstress_runs=%d\n" % (str(gameplay).lower(), runs))
     return 0
 
 

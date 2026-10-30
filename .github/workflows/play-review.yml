@@ -6,15 +6,19 @@ name: play-review
 # A label added by play-review-label.yml starts no new run (GitHub does not
 # trigger workflows from GITHUB_TOKEN events), so this job also applies the
 # same path check itself rather than waiting for the "labeled" event.
+# It also runs on gameplay pushes to main. The runs per scenario come from
+# tools/play_review_paths.py: 20 on main or when netcode changes, else 5.
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
+  push:
+    branches: [main]
 
 permissions:
   contents: read
 
 concurrency:
-  group: play-review-${{ github.event.pull_request.number }}
+  group: play-review-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -33,19 +37,21 @@ jobs:
         id: gate
         env:
           LABELED: ${{ contains(github.event.pull_request.labels.*.name, 'needs-play-review') }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          if [ "$LABELED" = "true" ]; then
-            echo "gameplay=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          python3 tools/play_review_paths.py --self-test
           mb="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
           git diff --name-only "$mb" "$HEAD_SHA" > "$RUNNER_TEMP/paths.txt"
+          git diff -U0 "$mb" "$HEAD_SHA" > "$RUNNER_TEMP/change.diff"
           git show "$mb:project.godot" > "$RUNNER_TEMP/base.godot" || rm -f "$RUNNER_TEMP/base.godot"
           git show "$HEAD_SHA:project.godot" > "$RUNNER_TEMP/head.godot" || rm -f "$RUNNER_TEMP/head.godot"
-          python3 tools/play_review_paths.py --files "$RUNNER_TEMP/paths.txt" \
+          labeled=()
+          if [ "$LABELED" = "true" ]; then labeled=(--labeled); fi
+          python3 tools/play_review_paths.py --files "$RUNNER_TEMP/paths.txt" --diff "$RUNNER_TEMP/change.diff" \
+            --event "$EVENT" "${labeled[@]}" \
             --base-project "$RUNNER_TEMP/base.godot" --head-project "$RUNNER_TEMP/head.godot"
 
       - name: Install Godot 4.7.2
@@ -58,8 +64,10 @@ jobs:
           sudo install -m 755 /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 /usr/local/bin/godot
           godot --version
 
-      - name: Stress multiplayer scenarios (20 runs each, 4 at a time)
+      - name: Stress multiplayer scenarios (${{ steps.gate.outputs.stress_runs }} runs each, 4 at a time)
         if: steps.gate.outputs.gameplay == 'true'
+        env:
+          STRESS_RUNS: ${{ steps.gate.outputs.stress_runs }}
         run: python3 tools/stress_netcode.py
 
       - name: Upload failed run logs (also retried ones)
