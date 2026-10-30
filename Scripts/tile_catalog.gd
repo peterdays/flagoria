@@ -249,6 +249,42 @@ const WALL_H_DMG_CRACK := Vector2i(23, 2)
 const WALL_H_DMG_CHUNK := Vector2i(16, 3)
 const WALL_V_DMG_CRACK := Vector2i(17, 3)
 
+## Wooden palisade walls (overlay layer, transparent background). Slot i
+## matches stone slot i: WALL_* (16 + i % 8, i / 8) -> PALISADE_* (i % 8, 15 + i / 8).
+## GATE_V_OPEN and the _JOIN_ pieces (a straight run whose end meets a stone
+## wall) have no stone counterpart.
+const PALISADE_POST := Vector2i(0, 15)
+const PALISADE_END_N := Vector2i(1, 15)
+const PALISADE_END_E := Vector2i(2, 15)
+const PALISADE_END_S := Vector2i(3, 15)
+const PALISADE_END_W := Vector2i(4, 15)
+const PALISADE_H := Vector2i(5, 15)
+const PALISADE_V := Vector2i(6, 15)
+const PALISADE_CORNER_OUT_NW := Vector2i(7, 15)
+const PALISADE_CORNER_OUT_NE := Vector2i(0, 16)
+const PALISADE_CORNER_OUT_SW := Vector2i(1, 16)
+const PALISADE_CORNER_OUT_SE := Vector2i(2, 16)
+const PALISADE_CORNER_IN_NW := Vector2i(3, 16)
+const PALISADE_CORNER_IN_NE := Vector2i(4, 16)
+const PALISADE_CORNER_IN_SW := Vector2i(5, 16)
+const PALISADE_CORNER_IN_SE := Vector2i(6, 16)
+const PALISADE_T_N := Vector2i(7, 16)
+const PALISADE_T_E := Vector2i(0, 17)
+const PALISADE_T_S := Vector2i(1, 17)
+const PALISADE_T_W := Vector2i(2, 17)
+const PALISADE_CROSS := Vector2i(3, 17)
+const PALISADE_GATE_H := Vector2i(4, 17)
+const PALISADE_GATE_H_OPEN := Vector2i(5, 17)
+const PALISADE_GATE_V := Vector2i(6, 17)
+const PALISADE_H_DMG_CRACK := Vector2i(7, 17)
+const PALISADE_H_DMG_CHUNK := Vector2i(0, 18)
+const PALISADE_V_DMG_CRACK := Vector2i(1, 18)
+const PALISADE_GATE_V_OPEN := Vector2i(2, 18)
+const PALISADE_H_JOIN_E := Vector2i(3, 18)
+const PALISADE_H_JOIN_W := Vector2i(4, 18)
+const PALISADE_V_JOIN_N := Vector2i(5, 18)
+const PALISADE_V_JOIN_S := Vector2i(6, 18)
+
 ## Name -> {source_id, atlas}. Every constant above appears here.
 const TILES := {
 	"WATER": {"source_id": SOURCE_ID, "atlas": WATER},
@@ -461,4 +497,35 @@ const TILES := {
 	"WALL_H_DMG_CRACK": {"source_id": SOURCE_ID, "atlas": WALL_H_DMG_CRACK},
 	"WALL_H_DMG_CHUNK": {"source_id": SOURCE_ID, "atlas": WALL_H_DMG_CHUNK},
 	"WALL_V_DMG_CRACK": {"source_id": SOURCE_ID, "atlas": WALL_V_DMG_CRACK},
+	"PALISADE_POST": {"source_id": SOURCE_ID, "atlas": PALISADE_POST},
+	"PALISADE_END_N": {"source_id": SOURCE_ID, "atlas": PALISADE_END_N},
+	"PALISADE_END_E": {"source_id": SOURCE_ID, "atlas": PALISADE_END_E},
+	"PALISADE_END_S": {"source_id": SOURCE_ID, "atlas": PALISADE_END_S},
+	"PALISADE_END_W": {"source_id": SOURCE_ID, "atlas": PALISADE_END_W},
+	"PALISADE_H": {"source_id": SOURCE_ID, "atlas": PALISADE_H},
+	"PALISADE_V": {"source_id": SOURCE_ID, "atlas": PALISADE_V},
+	"PALISADE_CORNER_OUT_NW": {"source_id": SOURCE_ID, "atlas": PALISADE_CORNER_OUT_NW},
+	"PALISADE_CORNER_OUT_NE": {"source_id": SOURCE_ID, "atlas": PALISADE_CORNER_OUT_NE},
+	"PALISADE_CORNER_OUT_SW": {"source_id": SOURCE_ID, "atlas": PALISADE_CORNER_OUT_SW},
+	"PALISADE_CORNER_OUT_SE": {"source_id": SOURCE_ID, "atlas": PALISADE_CORNER_OUT_SE},
+	"PALISADE_CORNER_IN_NW": {"source_id": SOURCE_ID, "atlas": PALISADE_CORNER_IN_NW},
+	"PALISADE_CORNER_IN_NE": {"source_id": SOURCE_ID, "atlas": PALISADE_CORNER_IN_NE},
+	"PALISADE_CORNER_IN_SW": {"source_id": SOURCE_ID, "atlas": PALISADE_CORNER_IN_SW},
+	"PALISADE_CORNER_IN_SE": {"source_id": SOURCE_ID, "atlas": PALISADE_CORNER_IN_SE},
+	"PALISADE_T_N": {"source_id": SOURCE_ID, "atlas": PALISADE_T_N},
+	"PALISADE_T_E": {"source_id": SOURCE_ID, "atlas": PALISADE_T_E},
+	"PALISADE_T_S": {"source_id": SOURCE_ID, "atlas": PALISADE_T_S},
+	"PALISADE_T_W": {"source_id": SOURCE_ID, "atlas": PALISADE_T_W},
+	"PALISADE_CROSS": {"source_id": SOURCE_ID, "atlas": PALISADE_CROSS},
+	"PALISADE_GATE_H": {"source_id": SOURCE_ID, "atlas": PALISADE_GATE_H},
+	"PALISADE_GATE_H_OPEN": {"source_id": SOURCE_ID, "atlas": PALISADE_GATE_H_OPEN},
+	"PALISADE_GATE_V": {"source_id": SOURCE_ID, "atlas": PALISADE_GATE_V},
+	"PALISADE_H_DMG_CRACK": {"source_id": SOURCE_ID, "atlas": PALISADE_H_DMG_CRACK},
+	"PALISADE_H_DMG_CHUNK": {"source_id": SOURCE_ID, "atlas": PALISADE_H_DMG_CHUNK},
+	"PALISADE_V_DMG_CRACK": {"source_id": SOURCE_ID, "atlas": PALISADE_V_DMG_CRACK},
+	"PALISADE_GATE_V_OPEN": {"source_id": SOURCE_ID, "atlas": PALISADE_GATE_V_OPEN},
+	"PALISADE_H_JOIN_E": {"source_id": SOURCE_ID, "atlas": PALISADE_H_JOIN_E},
+	"PALISADE_H_JOIN_W": {"source_id": SOURCE_ID, "atlas": PALISADE_H_JOIN_W},
+	"PALISADE_V_JOIN_N": {"source_id": SOURCE_ID, "atlas": PALISADE_V_JOIN_N},
+	"PALISADE_V_JOIN_S": {"source_id": SOURCE_ID, "atlas": PALISADE_V_JOIN_S},
 }
