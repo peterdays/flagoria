@@ -160,7 +160,7 @@ jobs:
           "$tools/aapt2" dump badging "$APK" | grep -E "^(package|application-label):" | tee "$RUNNER_TEMP/badging.txt"
           grep -q "^package: name='org.flagoria.game.debug' versionCode='$GITHUB_RUN_NUMBER' " "$RUNNER_TEMP/badging.txt"
           "$tools/apksigner" verify --print-certs "$APK" | tee "$RUNNER_TEMP/certs.txt"
-          grep -q '^Signer #1 certificate DN: C=US, O=Android, CN=Android Debug$' "$RUNNER_TEMP/certs.txt"
+          grep -q '^Signer #1 certificate DN: CN=Android Debug, O=Android, C=US$' "$RUNNER_TEMP/certs.txt"
 
       - name: Check APK audio assets
         if: steps.gate.outputs.build == 'true'
