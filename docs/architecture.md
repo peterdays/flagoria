@@ -8,7 +8,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 |---|---|
 | `project.godot` | Main scene `flagoria_main.tscn`, and five autoloads: `MapGen` (`Scripts/map_gen.gd`), `AudioSettings` (`Scripts/audio_settings.gd`), `GameSettings` (`Scripts/game_settings.gd`), `MusicPlayer` (`Scripts/music_player.gd`), `UiSfx` (`Scripts/ui_sfx.gd`). |
 | `flagoria_main.tscn` + `flagoria_main.gd` | The game: main menu, HUD, `World/worldMap` (the `TileMap`), `World/Mobs`, `World/Interaction`, `Inventory`, `Points`, `Discovery`. Host, join, the dedicated server (`-- --server`), player spawn and the map-parameter sync. |
-| `tests/run_tests.gd` | Headless test runner (`--only`, `--list`); see `tests/README.md`. |
+| `tests/run_tests.gd` | Headless test runner (`--only`, `--list`). It finds every `tests/**/test_*.gd` file; see `tests/README.md`. |
 | `tools/verify.sh` | What CI's verify job runs: import, parse every script, run every test. |
 | `tools/cli.gd` | Headless map commands (`map render`, `map stats`, in `tools/map_cli.gd`). |
 
@@ -35,7 +35,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 | `art/` | Tiles, sprites, sounds, theme and their credits. |
 | `structures/` | Hand-drawn structure text files (`structures/guard_post.txt`) in the format `Scripts/structure.gd` parses. |
 | `addons/virtual_joystick/` | Vendored touch joystick. |
-| `tests/` | Runner, probes started as separate processes, `tests/fixtures/`, `tests/golden/`. |
+| `tests/` | Runner (`tests/run_tests.gd`, still holding the tests that have not moved yet), area test files (`tests/<area>/test_*.gd`), shared helpers (`tests/helpers/test_helpers.gd`), probes started as separate processes, `tests/fixtures/`, `tests/golden/`. |
 | `tools/` | Verify, CLI, renders, asset generators, CI helpers (`tools/pr_hygiene.py`, `tools/play_review_paths.py`, `tools/stress_netcode.py`, `tools/ci_job_times.py`). |
 | `.github/workflows/` | verify, pr-hygiene, play-review-label, play-review, pr-debug-apk, android-apk, job-times. |
 | `.cursor/skills/verify-flagoria/` | Launch, doctor and drive scripts, and one feature file per feature under `.cursor/skills/verify-flagoria/features/`. |
@@ -45,7 +45,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 
 - `Scripts/world/`: map generation helpers (terrain shape, spawn search).
 - `Scripts/mechanics/<mechanic>/`: one folder per mechanic: `trees/`, `bridges/`, `walls/`, `structures/`, `interact/`, `interactables/`, later `building/` and `conquest/`.
-- `tests/<area>/test_*.gd`: tests per area (`world/`, `saves/`, `mobs/`, `combat/`, `player/`, `points/`, `ui/`, `audio/`, `net/`) or per mechanic (`tests/mechanics/<mechanic>/`), with shared helpers in `tests/helpers/test_helpers.gd`. The runner finds these files once #255 lands. Until then, tests go in `tests/run_tests.gd` next to related tests.
+- `tests/<area>/test_*.gd`: tests per area (`world/`, `saves/`, `mobs/`, `combat/`, `player/`, `points/`, `ui/`, `audio/`, `net/`) or per mechanic (`tests/mechanics/<mechanic>/`), with shared helpers in `tests/helpers/test_helpers.gd`. The runner finds these files (#255). Tests not moved yet stay in `tests/run_tests.gd` and reach the helpers through one-line forwarders, which go away once the last tests move out.
 
 ## Rules
 
@@ -112,14 +112,14 @@ Where each part of the game lives today, how data moves between the parts, and w
 |---|---|
 | A new mechanic (logic) | `Scripts/mechanics/<mechanic>/` |
 | Its resources (`.tres`) | `data/<mechanic>/` |
-| Its tests | `tests/mechanics/<mechanic>/test_<topic>.gd` (in `tests/run_tests.gd` until #255) |
+| Its tests | `tests/mechanics/<mechanic>/test_<topic>.gd` |
 | Its verify recipe | `.cursor/skills/verify-flagoria/features/<feature>.md` (#291) |
 | Map generation helper | `Scripts/world/` |
 | A new tile name | `Scripts/tile_catalog.gd` |
 | A new biome table entry | `Scripts/BiomeCatalog.gd` |
 | A new map parameter | `Scripts/MapGenParams.gd` |
 | A new mob type | `Scripts/mob_catalog.gd` |
-| Test helper shared by several files | `tests/helpers/test_helpers.gd` (after #255) |
+| Test helper shared by several files | `tests/helpers/test_helpers.gd` |
 | Dev or CI tool | `tools/` (asset generators under `tools/audio/`, `tools/hero/`, `tools/icon/`) |
 | CI workflow | `.github/workflows/` |
 | Art and sound | `art/`, with credits next to the files (for example `art/audio/CREDITS.md`) |
