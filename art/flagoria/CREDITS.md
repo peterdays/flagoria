@@ -8,5 +8,6 @@
 The atlas is 448×304 px, 28×19 cells of 16×16 px. Import it with Nearest filtering and no mipmaps. Cell names are in `Scripts/tile_catalog.gd` and `docs/tiles.md`.
 
 Cell (8, 2), the tree stump (`STUMP`), was drawn later in code in the same palette, also in-house.
+Cell (8, 3), the bush stump (`BUSH_STUMP`), and the bush chop frames in `fx/` (`bush_hit.png`, `fx_leaves.png`) were drawn later in the same palette, also in-house.
 
 Rows 15-18 (wooden palisade walls and plank bridges) were drawn later in code in the same palette, also in-house.

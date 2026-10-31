@@ -169,6 +169,8 @@ const TREE_BIG_OAK_BR := Vector2i(14, 1)
 const TREE_PINE_SMALL := Vector2i(7, 2)
 ## What a cut tree leaves: walkable ground decor, no collision.
 const STUMP := Vector2i(8, 2)
+## What a chopped bush leaves: walkable ground decor, no collision.
+const BUSH_STUMP := Vector2i(8, 3)
 
 ## Plank bridges (layer 0, no collision, so walkable). Straight runs only:
 ## H runs W->E, V runs N->S. START has land on the W/N side, END on the E/S
@@ -430,6 +432,7 @@ const TILES := {
 	"TREE_BIG_OAK_BR": {"source_id": SOURCE_ID, "atlas": TREE_BIG_OAK_BR},
 	"TREE_PINE_SMALL": {"source_id": SOURCE_ID, "atlas": TREE_PINE_SMALL},
 	"STUMP": {"source_id": SOURCE_ID, "atlas": STUMP},
+	"BUSH_STUMP": {"source_id": SOURCE_ID, "atlas": BUSH_STUMP},
 	"BRIDGE_PLANK_H": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_H},
 	"BRIDGE_PLANK_V": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_V},
 	"BRIDGE_PLANK_H_START": {"source_id": SOURCE_ID, "atlas": BRIDGE_PLANK_H_START},
