@@ -6,7 +6,7 @@
 
 - `tests/<area>/test_<topic>.gd`: tests grouped by area or mechanic, for example `tests/ui/test_map_zoom.gd`. The runner finds every `tests/**/test_*.gd` file on its own; nothing lists them.
 - `tests/helpers/test_helpers.gd`: shared helpers (`_pre_biome_defaults`, `_free_udp_port`, `_walls_from_rows` and the others). Every test file starts with `extends "res://tests/helpers/test_helpers.gd"`. Inside a test file, `root`, `process_frame`, `physics_frame`, `paused`, `create_timer()` and `set_multiplayer()` work as they do on the `SceneTree`.
-- `tests/run_tests.gd`: the runner, plus the tests that have not moved to an area file yet. They reach the shared helpers through short forwarders.
+- `tests/run_tests.gd`: the runner, plus `smoke_true` and `discovery_messages`, which check the runner itself.
 - `tests/*_probe.gd`: scripts that tests start as separate Godot processes. `tests/fixtures/` and `tests/golden/` hold the data tests compare against.
 
 ## Adding a test
