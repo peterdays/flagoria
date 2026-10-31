@@ -77,3 +77,12 @@ jobs:
           name: netcode-stress-logs
           path: artifacts/out/stress/
           if-no-files-found: ignore
+
+  job-times:
+    name: Job times
+    needs: [stress]
+    if: ${{ !cancelled() && needs.stress.result != 'skipped' }}
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/job-times.yml

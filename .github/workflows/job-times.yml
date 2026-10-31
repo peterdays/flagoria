@@ -1,0 +1,31 @@
+name: job-times
+
+# Reusable last job for the pull request workflows: writes how long each job
+# of the calling run took, against the median of recent successful runs, to
+# the job summary (tools/ci_job_times.py). A warning past the threshold in
+# that script; time never fails a check. Read-only: actions: read for the
+# timings, contents: read for the script. No comment is posted anywhere.
+on:
+  workflow_call:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  times:
+    name: Job times
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: tools/ci_job_times.py
+          sparse-checkout-cone-mode: false
+
+      - name: Report job times
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/ci_job_times.py
