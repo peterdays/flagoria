@@ -31,6 +31,7 @@ This imports the project, opens it again in the headless editor to check that it
 - Per-feature recipes, including manual checks for things the headless run cannot see, are in [.cursor/skills/verify-flagoria/features/](.cursor/skills/verify-flagoria/features/README.md).
 - Multiplayer changes also need the two-player checklist below.
 - Contributor and agent rules, including the pull request size cap, are in [AGENTS.md](AGENTS.md).
+- Where each script lives and where new code goes: [docs/architecture.md](docs/architecture.md).
 
 ## Map command line
 
