@@ -1,7 +1,8 @@
 extends SceneTree
 ## Loads the main scene and spawns a local player, then quits.
-## Run as a subprocess by test_player_spawn_no_missing_nodes in run_tests.gd,
-## which checks this process's output for "Node not found".
+## Run as a subprocess by test_player_spawn_no_missing_nodes in
+## tests/player/test_player_spawn.gd, which checks this process's output for
+## "Node not found".
 
 func _initialize() -> void:
 	call_deferred("_run")
