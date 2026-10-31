@@ -2,11 +2,18 @@
 
 `tests/run_tests.gd` is the headless test runner. `tools/verify.sh` runs it with no arguments, which runs every test.
 
+## Layout
+
+- `tests/<area>/test_<topic>.gd`: tests grouped by area or mechanic, for example `tests/ui/test_map_zoom.gd`. The runner finds every `tests/**/test_*.gd` file on its own; nothing lists them.
+- `tests/helpers/test_helpers.gd`: shared helpers (`_pre_biome_defaults`, `_free_udp_port`, `_walls_from_rows` and the others). Every test file starts with `extends "res://tests/helpers/test_helpers.gd"`. Inside a test file, `root`, `process_frame`, `physics_frame`, `paused`, `create_timer()` and `set_multiplayer()` work as they do on the `SceneTree`.
+- `tests/run_tests.gd`: the runner, plus the tests that have not moved to an area file yet. They reach the shared helpers through short forwarders.
+- `tests/*_probe.gd`: scripts that tests start as separate Godot processes. `tests/fixtures/` and `tests/golden/` hold the data tests compare against.
+
 ## Adding a test
 
-Write a `func _test_<name>() -> int` in `tests/run_tests.gd` that prints `-- test_<name>` and returns the number of failures. The runner finds it by name; nothing else needs to list it. Tests run in source order, and each must also pass on its own.
+Write a `func _test_<name>() -> int` in the test file for its area (or a new `tests/<area>/test_<topic>.gd`) that prints `-- test_<name>` and returns the number of failures. The runner finds it by name; nothing else needs to list it. Files run sorted by path, and tests run in source order within a file. Each test must also pass on its own. Test names are unique across all files: a name defined twice fails the run with `Duplicate test name: ...`.
 
-Only top-level, non-static functions named `_test_<lowercase_name>` with no parameters are run. A test-like function that breaks one of these rules (parameters, uppercase letters, `static`, indented, or no leading underscore) is skipped and the runner prints `WARNING: skipped <name> (line N): ...` on stderr. `--only=<name>` for such a function points at that warning.
+Only top-level, non-static functions named `_test_<lowercase_name>` with no parameters are run. A test-like function that breaks one of these rules (parameters, uppercase letters, `static`, indented, or no leading underscore) is skipped and the runner prints `WARNING: skipped <name> (<file> line N): ...` on stderr. `--only=<name>` for such a function points at that warning.
 
 ## Running one test
 
@@ -22,7 +29,7 @@ Run `godot --headless --path . --import` once first on a fresh checkout. To avoi
 
 ## Netcode stress and the `needs-play-review` label
 
-`tools/stress_netcode.py` runs every multiplayer scenario (a test that opens an ENet peer or starts another Godot process) 20 times, each in a fresh headless process with its own XDG dirs, 4 runs at a time (`-j`; each parallel slot picks UDP ports from its own block, passed to `_free_udp_port()` as `FLAGORIA_TEST_PORTS`), and prints pass rate and worst wall time per scenario. Logs of failed runs go to `artifacts/out/stress/`. A scenario listed in `KNOWN_FLAKY` (with the issue that tracks it) gets one retry after a failed run and counts as failed only if the retry fails too; the `retried` column shows how often its first attempt failed. Remove the entry when its issue is fixed.
+`tools/stress_netcode.py` runs every multiplayer scenario (a test, in any test file, that opens an ENet peer or starts another Godot process) 20 times, each in a fresh headless process with its own XDG dirs, 4 runs at a time (`-j`; each parallel slot picks UDP ports from its own block, passed to `_free_udp_port()` as `FLAGORIA_TEST_PORTS`), and prints pass rate and worst wall time per scenario. Logs of failed runs go to `artifacts/out/stress/`. A scenario listed in `KNOWN_FLAKY` (with the issue that tracks it) gets one retry after a failed run and counts as failed only if the retry fails too; the `retried` column shows how often its first attempt failed. Remove the entry when its issue is fixed.
 
 ```bash
 GODOT=/path/to/godot python3 tools/stress_netcode.py          # 20 runs each
