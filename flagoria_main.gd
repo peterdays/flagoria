@@ -117,7 +117,7 @@ func _apply_params_to_world(params: MapGenParams) -> void:
 
 func _land_spawn_position(for_player: Node = null) -> Vector2:
 	## The map's land spawn point. For a player, the nearest spot near it that
-	## no other living player stands on (see SPAWN_RADIUS in TileMap.gd).
+	## no other living player stands on (see SPAWN_RADIUS in Scripts/world/spawn_finder.gd).
 	var world = get_node("World/worldMap")
 	var cell = world.resolve_player_spawn()
 	if for_player == null:
