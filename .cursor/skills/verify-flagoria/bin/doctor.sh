@@ -42,10 +42,10 @@ else
   fi
 fi
 
-if grep -q 'test_map_characterization' tests/run_tests.gd 2>/dev/null; then
-  echo "doctor: map characterization test present in tests/run_tests.gd"
+if grep -q 'test_map_characterization' tests/world/test_map_characterization.gd 2>/dev/null; then
+  echo "doctor: map characterization test present in tests/world/test_map_characterization.gd"
 else
-  echo "doctor: map characterization test missing from tests/run_tests.gd" >&2
+  echo "doctor: map characterization test missing from tests/world/test_map_characterization.gd" >&2
   ok=0
 fi
 
