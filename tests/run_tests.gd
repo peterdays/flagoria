@@ -207,77 +207,12 @@ func _filter_tests(names: Array[String], wanted: PackedStringArray, skipped: Dic
 	return picked
 
 
-func _pre_biome_defaults() -> MapGenParams:
-	return _helpers._pre_biome_defaults()
-
-
 func _spawn_params(seed_value: int, biome_frequency: float) -> MapGenParams:
 	return _helpers._spawn_params(seed_value, biome_frequency)
 
 
-func _spawn_session(mode: String, joiners: int) -> int:
-	return await _helpers._spawn_session(mode, joiners)
-
-
-func _remove_dir(dir: String) -> void:
-	_helpers._remove_dir(dir)
-
-
-func _body_rect(player: Node) -> Rect2:
-	return _helpers._body_rect(player)
-
-
-func _respawn_follow_case(label: String, death: Vector2, spawn: Vector2, walk: Vector2,
-		drop_ms: int, prior: int = 0) -> int:
-	return await _helpers._respawn_follow_case(label, death, spawn, walk, drop_ms, prior)
-
-
-func _walls_from_rows(rows: Array, family: String = WallSolver.STONE) -> Dictionary:
-	return _helpers._walls_from_rows(rows, family)
-
-
-func _structure_errors(text: String) -> Array[String]:
-	return _helpers._structure_errors(text)
-
-
-func _archipelago_land_masses(world, half: int) -> int:
-	return _helpers._archipelago_land_masses(world, half)
-
-
-func _biome_terrain_params(arch: bool) -> MapGenParams:
-	return _helpers._biome_terrain_params(arch)
-
-
-func _chunk_digest(world, centre: Vector2i, w: int) -> String:
-	return _helpers._chunk_digest(world, centre, w)
-
-
 func _tap_sequence(pos: Vector2, steps: Array) -> void:
 	_helpers._tap_sequence(pos, steps)
-
-
-func _free_udp_port() -> int:
-	return _helpers._free_udp_port()
-
-
-func _client_connected(smp: SceneMultiplayer, cpeer: ENetMultiplayerPeer) -> bool:
-	return await _helpers._client_connected(smp, cpeer)
-
-
-func _chase_spot(world, mob: Mob, tiles: int) -> Variant:
-	return _helpers._chase_spot(world, mob, tiles)
-
-
-func _contact_player(world_root: Node) -> CharacterBody2D:
-	return _helpers._contact_player(world_root)
-
-
-func _sword_on(player: Node2D, mob: Mob) -> void:
-	_helpers._sword_on(player, mob)
-
-
-func _ui_plays_since(ui, before: Dictionary) -> Dictionary:
-	return _helpers._ui_plays_since(ui, before)
 
 
 func _test_smoke_true() -> int:
