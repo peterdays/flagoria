@@ -1,7 +1,8 @@
 extends SceneTree
 ## Loads the main scene and feeds the main menu a burst of unhandled input
 ## events, then quits. Run as a subprocess by test_main_menu_input_no_log_spam
-## in run_tests.gd, which checks this process's output for InputMap errors.
+## in tests/ui/test_main_menu_input.gd, which checks this process's output for
+## InputMap errors.
 
 const EVENTS := 50
 

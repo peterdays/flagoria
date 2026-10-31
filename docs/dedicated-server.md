@@ -123,7 +123,7 @@ The server runs until it is stopped. SIGTERM ends the process without a graceful
 
 Clients join with Main Menu Join. Join always uses port `9786`, so a server on another port cannot be reached from the GUI yet.
 
-`test_dedicated_server_join` in `tests/run_tests.gd` starts a `-- --server` process, joins it through the main scene's Join path, and checks that the client gets map params and its own player and that the host has no node `1`. Waits are bounded at 30 seconds, and the server process is killed at the end. `test_dedicated_server_params_file` starts one with `--params` and checks that the joining client gets exactly the saved params, and that a missing file exits `1`.
+`test_dedicated_server_join` in `tests/net/test_dedicated_server.gd` starts a `-- --server` process, joins it through the main scene's Join path, and checks that the client gets map params and its own player and that the host has no node `1`. Waits are bounded at 30 seconds, and the server process is killed at the end. `test_dedicated_server_params_file` starts one with `--params` and checks that the joining client gets exactly the saved params, and that a missing file exits `1`.
 
 ## 5. CPU and memory (rough)
 

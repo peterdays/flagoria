@@ -20,7 +20,7 @@ Preconditions:
 - Two display-capable game processes for the GUI checklist; none for the headless peer tests.
 - `doctor.sh` exits `0`.
 
-- **Automated today.** Tests start a second headless Godot as a dedicated server and join it (`test_dedicated_server_join` in `tests/run_tests.gd`, `test_mob_*_two_players` and `test_mobs_sync_to_peer` in `tests/mobs/`), which proves ENet join, param sync and player spawn on both peers. It does **not** click the menu Host/Join buttons; do not mark the GUI path of `mp-host` / `mp-join` verified from verify.sh alone. See [Dedicated server](./dedicated-server.md).
+- **Automated today.** Tests start a second headless Godot as a dedicated server and join it (`test_dedicated_server_join` in `tests/net/`, `test_mob_*_two_players` and `test_mobs_sync_to_peer` in `tests/mobs/`), which proves ENet join, param sync and player spawn on both peers. It does **not** click the menu Host/Join buttons; do not mark the GUI path of `mp-host` / `mp-join` verified from verify.sh alone. See [Dedicated server](./dedicated-server.md).
 - **Manual.** Run two instances; complete the README checklist (host, join, move, attack, regen, death).
 - **Placeholder #45.** The remaining gap is a scripted menu Host/Join between two instances in CI.
 - **Proof.** For manual runs: short note in `artifacts/out/e2e-summary.txt` that checklist steps passed. For #45: attach the smoke log path.
