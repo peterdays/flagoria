@@ -8,8 +8,8 @@ In interact mode the hero chops trees and bushes for wood. Each choppable kind i
 - `chop-range` a drag cuts every choppable in the range within reach at once (`Interaction.cut_range`).
 - `chop-yield` a fallen plant gives its type's `yields` (tree 3 wood, bush 1, tunable in the `.tres`).
 - `bush-effects` a bush hit draws `art/flagoria/fx/bush_hit.png` in place of the bush tile (the tile switches to its invisible alternative 1 with the same collision) and `fx_leaves.png` frames 0-1; the fall plays frames 2-3, the bush break sound, and no puff.
-- `stump-kept` the stump stays when the chunk is drawn again and is open ground for mobs (`TileMap.cut_choppable`, `_cut_cells`).
-- `regrow` after `regrow_delay` seconds of play the stump turns back into the same tree or bush (`TileMap.regrow_due`).
+- `stump-kept` the stump stays when the chunk is drawn again and is open ground for mobs (`TileMap.cut_choppable`, kept in `TreeCuts._cut_cells` in `Scripts/mechanics/trees/tree_cuts.gd`).
+- `regrow` after `regrow_delay` seconds of play the stump turns back into the same tree or bush (`TileMap.regrow_due`, forwards to `TreeCuts`).
 
 ## How to get to it (user POV)
 
