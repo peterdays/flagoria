@@ -4,7 +4,7 @@ Players spawn on walkable land from which they can reach at least 200 clear cell
 
 ## Sub-features
 
-- `spawn-land` `resolve_player_spawn` (`Scripts/TileMap.gd`) picks walkable land.
+- `spawn-land` `resolve_player_spawn` (`Scripts/world/spawn_finder.gd`, called through `Scripts/TileMap.gd`) picks walkable land.
 - `spawn-reachable` the spawn has 200+ reachable clear cells.
 - `spawn-nodes` spawning a player finds every node it needs.
 

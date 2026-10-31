@@ -44,9 +44,8 @@ var _bridge_cells: Dictionary = {}
 var regrow_delay: float = 300.0
 ## Seconds this map has been played; advanced in _process, cut times use it.
 var play_time: float = 0.0
-# Kept Vector2i squares when archipelago_island_count > 0.
-var _archipelago_active_squares: Dictionary = {}
-var _archipelago_count_limited: bool = false
+## Altitude shaping (Scripts/world/terrain_shape.gd); reads this map's values.
+var _terrain := TerrainShape.new(self)
 var ground_chance_a: float = -0.25
 var ground_chance_b: float = 0.25
 var ground_chance_c: float = 0.75
@@ -70,24 +69,10 @@ const GROUND_DECOR_LAYER := 2
 # plant_tile result for a cell without a plant.
 const NO_PLANT := Vector2i(-1, -1)
 
-const SPAWN_NEIGHBORS := [
-	Vector2i(0, -1), Vector2i(1, -1), Vector2i(1, 0), Vector2i(1, 1),
-	Vector2i(0, 1), Vector2i(-1, 1), Vector2i(-1, 0), Vector2i(-1, -1),
-]
-# Player moves between cells by 4-neighbour steps.
-const SPAWN_STEPS := [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]
-# A spawn must reach at least this many clear-ground cells on foot.
-const SPAWN_MIN_REACHABLE := 200
-## Players spawn and respawn at a free spot at most this far (px) from the
-## spawn point, so several of them never stand on one another. 64 px is four
-## 16 px tiles: room for dozens of players, all on screen around the spawn.
-const SPAWN_RADIUS := 64.0
-# Two players closer than this (px, centre to centre) would touch; one tile
-# apart keeps their 8 x 10 bodies from overlapping.
-const SPAWN_CLEARANCE := 16.0
-# Clear cells walked from the spawn point when looking for a free spot, at
-# least (more when many players stand around it, see free_spawn_position).
-const SPAWN_SEARCH_LIMIT := 400
+# Spawn search constants other scripts and tests read from the map.
+const SPAWN_MIN_REACHABLE := SpawnFinder.SPAWN_MIN_REACHABLE
+const SPAWN_RADIUS := SpawnFinder.SPAWN_RADIUS
+const SPAWN_CLEARANCE := SpawnFinder.SPAWN_CLEARANCE
 
 
 func _ready():
@@ -123,7 +108,7 @@ func apply_map_params(p: MapGenParams) -> void:
 	archipelago_seed = working.altitude_seed
 	archipelago_world_extent = maxi(0, working.archipelago_world_extent)
 	archipelago_island_count = maxi(0, working.archipelago_island_count)
-	_rebuild_archipelago_active_squares()
+	_terrain._rebuild_archipelago_active_squares()
 	ground_chance_a = working.ground_chance_a
 	ground_chance_b = working.ground_chance_b
 	ground_chance_c = working.ground_chance_c
@@ -190,88 +175,23 @@ func generate_chunk(position):
 
 
 func cell_altitude(cell: Vector2i, biome_id: int) -> float:
-	## Final altitude at a cell: noise, biome bias (biomes on), island and
-	## archipelago shaping. generate_chunk and tools/render_biomes.gd share it.
-	var alt := altitude.get_noise_2d(cell.x, cell.y)
-	if biome_frequency > 0.0:
-		alt += BiomeCatalog.altitude_bias(biome_id)
-	return archipelago_altitude(cell, island_altitude(cell, alt))
+	return _terrain.cell_altitude(cell, biome_id)
 
 
 func island_altitude(cell: Vector2i, alt: float) -> float:
-	## Add island_falloff * (1 - (distance / island_radius)^2): cells near the
-	## origin are raised into land, the radius is unchanged, cells beyond it sink.
-	if island_radius <= 0:
-		return alt
-	var d := Vector2(cell).length() / float(island_radius)
-	return alt + island_falloff * (1.0 - d * d)
+	return _terrain.island_altitude(cell, alt)
 
 
 func archipelago_altitude(cell: Vector2i, alt: float) -> float:
-	## Add island_falloff * (1 - (distance / archipelago_island_radius)^2), where
-	## distance is to the nearest active archipelago centre, so every active
-	## square of archipelago_spacing tiles gets its own island with sea between.
-	## With archipelago_island_count set, each kept square only uses its own
-	## centre and its first row and column are sea, so islands never merge;
-	## dropped squares are all sea.
-	if archipelago_spacing <= 0:
-		return alt
-	var square := Vector2i(floori(float(cell.x) / archipelago_spacing), floori(float(cell.y) / archipelago_spacing))
-	if _archipelago_count_limited:
-		var local := cell - square * archipelago_spacing
-		if not _archipelago_active_squares.has(square) or local.x == 0 or local.y == 0:
-			return water_max_alt - 1.0
-		var own := Vector2(cell).distance_to(archipelago_centre(square)) / float(archipelago_island_radius)
-		return alt + island_falloff * (1.0 - own * own)
-	var nearest := INF
-	for dx in range(-1, 2):
-		for dy in range(-1, 2):
-			var sq := square + Vector2i(dx, dy)
-			if not archipelago_square_active(sq):
-				continue
-			var centre := archipelago_centre(sq)
-			nearest = minf(nearest, Vector2(cell).distance_to(centre))
-	if nearest == INF:
-		return alt
-	var d := nearest / float(archipelago_island_radius)
-	return alt + island_falloff * (1.0 - d * d)
+	return _terrain.archipelago_altitude(cell, alt)
 
 
 func archipelago_centre(square: Vector2i) -> Vector2:
-	## Centre of the island in grid square `square`: the square's middle, moved
-	## by a per-square offset that depends only on the square and the altitude seed.
-	var h: int = hash(Vector3i(square.x, square.y, archipelago_seed))
-	var offset := Vector2(float(h & 0xFFFF) / 65535.0, float((h >> 16) & 0xFFFF) / 65535.0) * 2.0 - Vector2.ONE
-	var half := archipelago_spacing * 0.5
-	return (Vector2(square) + Vector2(0.5, 0.5)) * archipelago_spacing + offset * archipelago_jitter * half
+	return _terrain.archipelago_centre(square)
 
 
 func archipelago_square_active(square: Vector2i) -> bool:
-	## True when this spacing square contributes an island centre.
-	if archipelago_spacing <= 0:
-		return false
-	if _archipelago_count_limited:
-		return _archipelago_active_squares.has(square)
-	if archipelago_world_extent > 0 and not _archipelago_square_intersects_extent(square):
-		return false
-	# Spawn square always stays active.
-	if square == Vector2i.ZERO:
-		return true
-	if biome_frequency > 0.0:
-		return _archipelago_square_kept_by_biome(square)
-	return true
-
-
-func _archipelago_square_kept_by_biome(square: Vector2i) -> bool:
-	## Keep the square when a deterministic hash falls under that biome's density.
-	var half := int(archipelago_spacing / 2)
-	var centre_cell := square * archipelago_spacing + Vector2i(half, half)
-	var dens := BiomeCatalog.density(biome_at(centre_cell))
-	if dens >= 1.0:
-		return true
-	var h: int = hash(Vector3i(square.x, square.y, biome_seed))
-	var frac := float(h & 0xFFFF) / 65535.0
-	return frac < dens
+	return _terrain.archipelago_square_active(square)
 
 
 func biome_at(cell: Vector2i) -> int:
@@ -279,60 +199,6 @@ func biome_at(cell: Vector2i) -> int:
 	if biome_frequency <= 0.0:
 		return BiomeCatalog.TEMPERATE
 	return BiomeCatalog.from_noise(biome.get_noise_2d(cell.x, cell.y))
-
-
-func _archipelago_square_intersects_extent(square: Vector2i) -> bool:
-	## Grid square [sx*S, (sx+1)*S) x [sy*S, (sy+1)*S) overlaps [-E, E]^2.
-	var s := archipelago_spacing
-	var e := archipelago_world_extent
-	var min_x := square.x * s
-	var max_x := (square.x + 1) * s - 1
-	var min_y := square.y * s
-	var max_y := (square.y + 1) * s - 1
-	return min_x <= e and max_x >= -e and min_y <= e and max_y >= -e
-
-
-func _rebuild_archipelago_active_squares() -> void:
-	## Cache the kept squares when archipelago_island_count is set. Candidates
-	## are the squares inside archipelago_world_extent, or a box around the
-	## origin big enough for the count when the extent is 0. The spawn square
-	## (0, 0) is always kept; the rest are taken nearest-first.
-	_archipelago_active_squares.clear()
-	_archipelago_count_limited = false
-	if archipelago_spacing <= 0 or archipelago_island_count <= 0:
-		return
-	_archipelago_count_limited = true
-	var lo: int
-	var hi: int
-	if archipelago_world_extent > 0:
-		lo = floori(float(-archipelago_world_extent) / archipelago_spacing) - 1
-		hi = floori(float(archipelago_world_extent) / archipelago_spacing) + 1
-	else:
-		hi = ceili(sqrt(float(archipelago_island_count))) + 1
-		lo = -hi
-	var candidates: Array[Vector2i] = []
-	for sx in range(lo, hi + 1):
-		for sy in range(lo, hi + 1):
-			var sq := Vector2i(sx, sy)
-			if sq == Vector2i.ZERO:
-				continue
-			if archipelago_world_extent <= 0 or _archipelago_square_intersects_extent(sq):
-				candidates.append(sq)
-	candidates.sort_custom(_archipelago_square_closer)
-	_archipelago_active_squares[Vector2i.ZERO] = true
-	for i in range(mini(archipelago_island_count - 1, candidates.size())):
-		_archipelago_active_squares[candidates[i]] = true
-
-
-func _archipelago_square_closer(a: Vector2i, b: Vector2i) -> bool:
-	## Sort key: square centre distance to origin, then hash for ties.
-	var da := ((Vector2(a) + Vector2(0.5, 0.5)) * float(archipelago_spacing)).length_squared()
-	var db := ((Vector2(b) + Vector2(0.5, 0.5)) * float(archipelago_spacing)).length_squared()
-	if da != db:
-		return da < db
-	var ha: int = hash(Vector3i(a.x, a.y, archipelago_seed))
-	var hb: int = hash(Vector3i(b.x, b.y, archipelago_seed))
-	return ha < hb
 
 
 func set_tile_type_z0(pos_vec, alt, moist, _temp, chance, biome_id: int = BiomeCatalog.TEMPERATE):
@@ -609,11 +475,7 @@ func is_walkable_land(cell: Vector2i) -> bool:
 
 
 func count_walkable_neighbors(cell: Vector2i) -> int:
-	var n := 0
-	for d in SPAWN_NEIGHBORS:
-		if is_walkable_land(cell + d):
-			n += 1
-	return n
+	return SpawnFinder.count_walkable_neighbors(self, cell)
 
 
 func is_clear_ground(cell: Vector2i) -> bool:
@@ -628,104 +490,18 @@ func is_clear_ground(cell: Vector2i) -> bool:
 	return get_cell_atlas_coords(GROUND_DECOR_LAYER, cell) != TileCatalog.STONES
 
 
-func reachable_clear_cells(start: Vector2i, limit: int = SPAWN_MIN_REACHABLE) -> Array[Vector2i]:
-	## Clear-ground cells reachable from start by 4-neighbour steps, start
-	## included, in flood order. Stops once limit cells are found.
-	var found: Array[Vector2i] = []
-	if not is_clear_ground(start):
-		return found
-	var seen := {start: true}
-	found.append(start)
-	var head := 0
-	while head < found.size() and found.size() < limit:
-		var current: Vector2i = found[head]
-		head += 1
-		for d in SPAWN_STEPS:
-			var next: Vector2i = current + d
-			if seen.has(next):
-				continue
-			seen[next] = true
-			if is_clear_ground(next):
-				found.append(next)
-				if found.size() >= limit:
-					break
-	return found
+func reachable_clear_cells(start: Vector2i, limit: int = SpawnFinder.SPAWN_MIN_REACHABLE) -> Array[Vector2i]:
+	return SpawnFinder.reachable_clear_cells(self, start, limit)
 
 
 func resolve_player_spawn(origin_cell: Vector2i = Vector2i(0, 0), max_radius: int = 96) -> Vector2i:
-	## Nearest clear-ground cell to origin_cell (ring order) from which the
-	## player can walk to at least SPAWN_MIN_REACHABLE clear cells. If none is
-	## within max_radius, the candidate with the largest reachable area; if no
-	## clear cell at all, origin_cell.
-	var best := origin_cell
-	var best_size := 0
-	# Cells of areas already measured as too small, so each is flooded once.
-	var small_area := {}
-	var visited := {origin_cell: true}
-	var queue: Array[Vector2i] = [origin_cell]
-	var head := 0
-	while head < queue.size():
-		var cell: Vector2i = queue[head]
-		head += 1
-		if not small_area.has(cell) and is_clear_ground(cell):
-			var area := reachable_clear_cells(cell)
-			if area.size() >= SPAWN_MIN_REACHABLE:
-				spawn_point = cell
-				return cell
-			for c in area:
-				small_area[c] = true
-			if area.size() > best_size:
-				best_size = area.size()
-				best = cell
-		for d in SPAWN_NEIGHBORS:
-			var next: Vector2i = cell + d
-			if visited.has(next):
-				continue
-			if absi(next.x - origin_cell.x) > max_radius or absi(next.y - origin_cell.y) > max_radius:
-				continue
-			visited[next] = true
-			queue.append(next)
-
-	spawn_point = best
-	return best
+	return SpawnFinder.resolve_player_spawn(self, origin_cell, max_radius)
 
 
-func spawn_spots(origin_cell: Vector2i, limit: int = SPAWN_SEARCH_LIMIT) -> Array[Vector2]:
-	## Centres of up to limit clear cells a player can walk to from
-	## origin_cell, nearest first (ties by y, then x), so every peer gets the
-	## same order.
-	var origin := map_to_local(origin_cell)
-	var spots: Array[Vector2] = []
-	for cell in reachable_clear_cells(origin_cell, limit):
-		spots.append(map_to_local(cell))
-	spots.sort_custom(func(a: Vector2, b: Vector2) -> bool:
-		var da := a.distance_squared_to(origin)
-		var db := b.distance_squared_to(origin)
-		if da != db:
-			return da < db
-		if a.y != b.y:
-			return a.y < b.y
-		return a.x < b.x)
-	return spots
+func spawn_spots(origin_cell: Vector2i, limit: int = SpawnFinder.SPAWN_SEARCH_LIMIT) -> Array[Vector2]:
+	return SpawnFinder.spawn_spots(self, origin_cell, limit)
 
 
 func free_spawn_position(origin_cell: Vector2i, taken: Array[Vector2]) -> Vector2:
-	## The nearest spot to origin_cell clear of every position in taken. That
-	## is within SPAWN_RADIUS unless the area is full; then the nearest free
-	## spot further out. One position blocks at most per_taken cell centres,
-	## so the search walks enough cells that taken cannot cover them all.
-	## Only when all the ground reachable from origin_cell is taken does it
-	## fall back to origin_cell itself.
-	var span := 2 * ceili(SPAWN_CLEARANCE / tile_set.tile_size.x) + 1
-	var per_taken := span * span
-	for spot in spawn_spots(origin_cell, maxi(SPAWN_SEARCH_LIMIT, per_taken * taken.size() + 1)):
-		if _clear_of(spot, taken):
-			return spot
-	return map_to_local(origin_cell)
+	return SpawnFinder.free_spawn_position(self, origin_cell, taken)
 
-
-func _clear_of(at: Vector2, taken: Array[Vector2]) -> bool:
-	for other in taken:
-		if at.distance_to(other) < SPAWN_CLEARANCE:
-			return false
-	return true

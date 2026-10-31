@@ -1,5 +1,5 @@
 extends "res://tests/helpers/test_helpers.gd"
-## Player spawn on reachable land (Scripts/TileMap.gd resolve_player_spawn).
+## Player spawn on reachable land (Scripts/world/spawn_finder.gd resolve_player_spawn).
 
 
 func _test_spawn_on_land() -> int:

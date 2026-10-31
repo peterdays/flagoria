@@ -14,8 +14,8 @@ Where each part of the game lives today, how data moves between the parts, and w
 
 ## Main data flows
 
-- **Map generation.** `Scripts/MapAdminPanel.gd` edits `MapGen.params` (a `MapGenParams`, saved to `user://map_gen_params.cfg`). Host emits `MainMenu.new_server_created`; `flagoria_main.gd` `setup_server` applies the params to `Scripts/TileMap.gd` (`apply_map_params`). Every `chunk_refresh_frames` frames (default 15) `Scripts/TileMap.gd` draws a chunk (default 32 x 32 cells) around the local player (`generate_chunk`): biome (`Scripts/BiomeCatalog.gd`), altitude (island and archipelago shaping), then ground, plants and stones, named through `Scripts/tile_catalog.gd`. `predict_cell` gives the same answer for cells not drawn yet. Each draw emits `ground_changed`.
-- **Spawn.** `Scripts/TileMap.gd` `resolve_player_spawn` finds reachable land; `free_spawn_position` keeps players apart. `flagoria_main.gd` places each player there.
+- **Map generation.** `Scripts/MapAdminPanel.gd` edits `MapGen.params` (a `MapGenParams`, saved to `user://map_gen_params.cfg`). Host emits `MainMenu.new_server_created`; `flagoria_main.gd` `setup_server` applies the params to `Scripts/TileMap.gd` (`apply_map_params`). Every `chunk_refresh_frames` frames (default 15) `Scripts/TileMap.gd` draws a chunk (default 32 x 32 cells) around the local player (`generate_chunk`): biome (`Scripts/BiomeCatalog.gd`), altitude (island and archipelago shaping in `Scripts/world/terrain_shape.gd`), then ground, plants and stones, named through `Scripts/tile_catalog.gd`. `predict_cell` gives the same answer for cells not drawn yet. Each draw emits `ground_changed`.
+- **Spawn.** `Scripts/TileMap.gd` `resolve_player_spawn` finds reachable land; `free_spawn_position` keeps players apart. Both forward to `Scripts/world/spawn_finder.gd`. `flagoria_main.gd` places each player there.
 - **Player and interaction.** `Player/character_body_2d.tscn` (`Scripts/player.gd`) handles movement, sword, camera zoom (`Scripts/map_zoom.gd`) and aim (`Scripts/attack_aim.gd`, styled by `Scripts/aim_cone_style.gd`). Health is `Scripts/player_health.gd`. `Scripts/interaction.gd` switches combat and interact mode. In interact mode it selects choppable cells (types from `Scripts/mechanics/interactables/` and `data/interactables/`), runs the chop, calls `Scripts/TileMap.gd` `cut_choppable` and adds the yield to `Scripts/inventory.gd`, which `Scripts/resource_hud.gd` shows. Interact mode is single-player only, and stumps regrow through `Scripts/TileMap.gd` `regrow_due`.
 - **Not wired into play yet.** `Scripts/wall_solver.gd`, `Scripts/structure.gd` and `Scripts/TileMap.gd` `build_bridge` are only called from tests so far.
 - **Mobs.** The server runs `Scripts/mob_spawner.gd` `spawn_for_world` (types and sheets from `Scripts/mob_catalog.gd`). Each mob runs `Scripts/mob.gd` on the server, and the other peers receive its state through the `MultiplayerSynchronizer` in `Mobs/mob.tscn`. Kills and discoveries pay out through `Scripts/points.gd` and `Scripts/discovery_points.gd`, and `Scripts/score_hud.gd` shows them.
@@ -45,14 +45,14 @@ Where each part of the game lives today, how data moves between the parts, and w
 
 - `Scripts/world/`: map generation helpers (terrain shape, spawn search).
 - `Scripts/mechanics/<mechanic>/`: one folder per mechanic: `trees/`, `bridges/`, `walls/`, `structures/`, `interact/`, `interactables/`, later `building/` and `conquest/`.
-- `tests/<area>/test_*.gd`: tests per area (`world/`, `saves/`, `mobs/`, `combat/`, `player/`, `points/`, `ui/`, `audio/`, `net/`) or per mechanic (`tests/mechanics/<mechanic>/`), with shared helpers in `tests/helpers/test_helpers.gd`. The runner finds these files (#255). Tests not moved yet stay in `tests/run_tests.gd` and reach the helpers through one-line forwarders, which go away once the last tests move out.
+- `tests/<area>/test_*.gd`: tests per area (`world/`, `saves/`, `mobs/`, `combat/`, `player/`, `points/`, `ui/`, `audio/`, `net/`) or per mechanic (`tests/mechanics/<mechanic>/`), with shared helpers in `tests/helpers/test_helpers.gd`. The runner finds these files (#255). `tests/run_tests.gd` keeps only its own self-checks.
 
 ## Rules
 
 - A mechanic owns its logic, data and tests: scripts in `Scripts/mechanics/<mechanic>/`, resources in `data/<mechanic>/`, tests in `tests/mechanics/<mechanic>/`.
 - Shared catalogues stay where they are: `Scripts/tile_catalog.gd` (a data table, allowed to stay large), `Scripts/BiomeCatalog.gd`, `Scripts/mob_catalog.gd`, `Scripts/MapGenParams.gd`.
 - Autoloads stay in `Scripts/` unless a pull request moves one on purpose and updates `project.godot`.
-- Moving a script: `git mv` the `.gd` and its `.gd.uid` together, so the uid stays next to the script. Scenes here load scripts by `path=` without a `uid=`, so the same pull request also updates every `res://` path to the script: scenes, `preload`/`load` calls, tests, and the path lists in `tools/play_review_paths.py`. Note that `_test_tile_catalog` only scans the top level of `Scripts/`.
+- Moving a script: `git mv` the `.gd` and its `.gd.uid` together, so the uid stays next to the script. Scenes here load scripts by `path=` without a `uid=`, so the same pull request also updates every `res://` path to the script: scenes, `preload`/`load` calls, tests, and the path lists in `tools/play_review_paths.py`. `test_tile_catalog` scans `Scripts/` and its subfolders.
 - No behaviour change in a move pull request. Keep thin wrappers with the old names until callers move.
 - Each new test or verify step states its time cost in the pull request ("Time cost" line). CI reports each job's time per run (#294).
 
@@ -64,7 +64,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 |---|---|---|
 | `flagoria_main.gd` | Host, join, dedicated server, spawn placement, params sync | stays |
 | `TouchScreenButton.gd` | On-screen attack button look and place | stays |
-| `Scripts/TileMap.gd` | Chunk drawing, terrain shape, plants, cuts and regrowth, bridges, spawn search | stays for chunk drawing. Terrain shape goes to `Scripts/world/terrain_shape.gd` and spawn search to `Scripts/world/spawn_finder.gd` (#260). Tree cuts go to `Scripts/mechanics/trees/tree_cuts.gd` and bridges to `Scripts/mechanics/bridges/bridge_builder.gd` (#261). |
+| `Scripts/TileMap.gd` | Chunk drawing, terrain shape, plants, cuts and regrowth, bridges, spawn search | stays for chunk drawing. Moved: terrain shape is in `Scripts/world/terrain_shape.gd` and spawn search in `Scripts/world/spawn_finder.gd` (#260); `Scripts/TileMap.gd` keeps wrappers with the old names. Tree cuts go to `Scripts/mechanics/trees/tree_cuts.gd` and bridges to `Scripts/mechanics/bridges/bridge_builder.gd` (#261). |
 | `Scripts/interaction.gd` | Combat/interact mode, selection, reach, gating, chop | `Scripts/mechanics/interact/interaction.gd`; chop to `Scripts/mechanics/trees/chop_action.gd` (#262) |
 | `Scripts/wall_solver.gd` | Wall piece per cell from neighbours | `Scripts/mechanics/walls/wall_solver.gd` (#261) |
 | `Scripts/structure.gd` | Parse and place hand-drawn structures | `Scripts/mechanics/structures/structure.gd` (#261) |
