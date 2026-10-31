@@ -9,13 +9,7 @@ extends SceneTree
 ## Exit 0 on success, 1 on failure or an unknown test name. A SCRIPT ERROR
 ## logged while a test runs, even inside a helper it goes on past, fails it.
 
-const TestHelpers = preload("res://tests/helpers/test_helpers.gd")
 const TESTS_DIR := "res://tests"
-
-## Shared helpers live in tests/helpers/test_helpers.gd. Test files extend it;
-## the tests still in this file reach it through the forwarders below, which
-## go away once those tests have moved to their own files.
-var _helpers := TestHelpers.new()
 
 
 func _initialize() -> void:
@@ -42,7 +36,6 @@ class _ScriptErrorCount extends Logger:
 
 
 func _run() -> void:
-	_helpers.tree = self
 	var skipped := {}
 	var names: Array[String] = []
 	var owners := {}  # test name -> the object whose method it is
@@ -205,14 +198,6 @@ func _filter_tests(names: Array[String], wanted: PackedStringArray, skipped: Dic
 		if test_name in keys:
 			picked.append(test_name)
 	return picked
-
-
-func _spawn_params(seed_value: int, biome_frequency: float) -> MapGenParams:
-	return _helpers._spawn_params(seed_value, biome_frequency)
-
-
-func _tap_sequence(pos: Vector2, steps: Array) -> void:
-	_helpers._tap_sequence(pos, steps)
 
 
 func _test_smoke_true() -> int:
