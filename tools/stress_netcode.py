@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Run every multiplayer test scenario N times headless and print a table.
 
-A multiplayer scenario is a `_test_*` function in tests/run_tests.gd that opens
-an ENet peer or starts another Godot process, directly or through a helper in
-the same file. Each run is `run_tests.gd -- --only=<name>` in a fresh Godot
+A multiplayer scenario is a `_test_*` function in tests/run_tests.gd or a
+tests/**/test_*.gd file that opens an ENet peer or starts another Godot
+process, directly or through a helper (tests/helpers/test_helpers.gd, or any
+other function in those files). Each run is `run_tests.gd -- --only=<name>` in a fresh Godot
 process with its own XDG dirs. Runs go JOBS at a time (default 4); each
 parallel slot gets its own block of UDP ports through FLAGORIA_TEST_PORTS, so
 two runs never pick the same port. A run passes when it exits 0, prints
@@ -38,7 +39,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-TESTS = ROOT / "tests" / "run_tests.gd"
+TESTS = ROOT / "tests"
+RUNNER = TESTS / "run_tests.gd"
 LOG_DIR = ROOT / "artifacts" / "out" / "stress"
 NET_MARKERS = ("ENetMultiplayerPeer", "OS.create_process(")
 ERROR_RE = re.compile(r"SCRIPT ERROR:|Parse [Ee]rror|Failed to load script|Failed loading resource")
@@ -51,13 +53,23 @@ PORT_LO, PORT_HI = 20000, 32767
 KNOWN_FLAKY: dict[str, str] = {}  # e.g. {"test_name": "#123"}
 
 
-def net_scenarios(source: str) -> list[str]:
-    """Test names (without the leading underscore), in source order."""
-    starts = list(FUNC_RE.finditer(source))
-    bodies = {}
-    for i, m in enumerate(starts):
-        end = starts[i + 1].start() if i + 1 < len(starts) else len(source)
-        bodies[m.group(1)] = source[m.end():end]
+def test_sources() -> list[str]:
+    """The runner, then every tests/**/test_*.gd file, in the runner's order
+    (sorted by path). The shared helpers file matches the pattern too."""
+    paths = sorted(set(TESTS.rglob("test_*.gd")) | {RUNNER},
+                   key=lambda p: p.relative_to(TESTS).as_posix())
+    return [p.read_text() for p in paths]
+
+
+def net_scenarios(sources: list[str]) -> list[str]:
+    """Test names (without the leading underscore), in run order."""
+    bodies: dict[str, str] = {}
+    for source in sources:
+        starts = list(FUNC_RE.finditer(source))
+        for i, m in enumerate(starts):
+            end = starts[i + 1].start() if i + 1 < len(starts) else len(source)
+            # A runner forwarder and the helper it calls share a name.
+            bodies[m.group(1)] = bodies.get(m.group(1), "") + source[m.end():end]
     net = {name for name, body in bodies.items() if any(k in body for k in NET_MARKERS)}
     changed = True
     while changed:  # a function that calls a net helper is net too
@@ -114,7 +126,7 @@ def main() -> int:
     ap.add_argument("--list", action="store_true")
     args = ap.parse_args()
 
-    names = net_scenarios(TESTS.read_text())
+    names = net_scenarios(test_sources())
     if args.only:
         wanted = ["test_" + w.strip().removeprefix("test_") for w in args.only.split(",") if w.strip()]
         unknown = [w for w in wanted if w not in names]

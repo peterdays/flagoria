@@ -125,6 +125,7 @@ def self_test() -> int:
         (["Scripts/map_save.gd"], None, None, True),
         (["Scripts/MapGenParams.gd.uid", "Scripts/map_save.gd.uid"], None, None, False),
         (["Scripts/player.gd.uid", "tests/run_tests.gd"], None, None, False),
+        (["tests/ui/test_map_zoom.gd", "tests/helpers/test_helpers.gd"], None, None, False),
         (["project.godot"], None, None, True),
         (["project.godot"], "[application]\nname=1\n" + inp, "[application]\nname=2\n" + inp, False),
         (["project.godot"], inp + "[physics]\n", inp + "jump={}\n[physics]\n", True),
