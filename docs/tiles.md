@@ -15,7 +15,7 @@ The map uses the in-house Flagoria tileset v3.1 (Solaria replacement, #97 / #100
 | `Scripts/TileMap.gd` | Places tiles in `set_tile_type_z0`, `get_random_ground_vec` and `set_tile_type_z1` by name, e.g. `set_cell(layer, cell, TileCatalog.SOURCE_ID, TileCatalog.WATER)`. |
 | `Scripts/footsteps.gd` | Maps the cell under the player to a footstep surface through `TileCatalog.TILES`. |
 | `tools/audio_check.gd`, `tools/render_biomes.gd` | Use `TileCatalog` names. |
-| `tests/run_tests.gd` | Pinned characterization data and a few fixtures compare against the raw coordinates of the map fill tiles below, on purpose: a cell move must fail them. |
+| `tests/world/test_map_characterization.gd` and other tests | Pinned characterization data and a few fixtures compare against the raw coordinates of the map fill tiles below, on purpose: a cell move must fail them. |
 
 ## Map fill tiles (placed by the generator)
 

@@ -61,7 +61,7 @@ Read-only. Run whenever anything looks off:
 ./.cursor/skills/verify-flagoria/bin/doctor.sh
 ```
 
-Expect exit `0` and lines confirming: `GODOT` version matches the major.minor in `project.godot` `config/features` (currently `4.7`), `test_map_characterization` present in `tests/run_tests.gd`, and repo root OK (`project.godot`, `tools/verify.sh`, `tests/run_tests.gd`). Fail if Godot is not found (`GODOT`, or `godot` on `PATH` when `GODOT` is unset), wrong major/minor, the characterization test is missing, or the checkout is not Flagoria.
+Expect exit `0` and lines confirming: `GODOT` version matches the major.minor in `project.godot` `config/features` (currently `4.7`), `test_map_characterization` present in `tests/world/test_map_characterization.gd`, and repo root OK (`project.godot`, `tools/verify.sh`, `tests/run_tests.gd`). Fail if Godot is not found (`GODOT`, or `godot` on `PATH` when `GODOT` is unset), wrong major/minor, the characterization test is missing, or the checkout is not Flagoria.
 
 ## Drive
 

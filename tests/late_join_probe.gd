@@ -1,6 +1,6 @@
 extends SceneTree
 ## One peer of a multi-peer spawn session, run as its own headless process by
-## test_spawn_late_join in run_tests.gd.
+## test_spawn_late_join in tests/world/test_spawn.gd.
 ##   -- --port=N --out=PATH              join localhost:N through the Join path
 ##   -- --port=N --out=PATH --host       listen host with its own player
 ##   -- --port=N --out=PATH --dedicated  dedicated server, no player
