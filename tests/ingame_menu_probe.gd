@@ -1,8 +1,8 @@
 extends SceneTree
 ## Hosts a game through the main menu's Host button, leaves it through the
 ## in-game menu's Main menu button, then hosts a second game the same way.
-## Run as a subprocess by test_ingame_menu_leave in run_tests.gd with
-## `-- --port=N` (a free UDP port). Prints one line per failed check, every
+## Run as a subprocess by test_ingame_menu_leave in tests/ui/test_ingame_menu.gd
+## with `-- --port=N` (a free UDP port). Prints one line per failed check, every
 ## engine error it logged, and INGAME_MENU_PROBE_OK when every check passed.
 
 var _errors := _ErrorLog.new()
