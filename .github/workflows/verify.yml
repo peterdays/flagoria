@@ -32,3 +32,12 @@ jobs:
           name: audio-check
           path: artifacts/out/audio_check*
           if-no-files-found: ignore
+
+  job-times:
+    name: Job times
+    needs: [godot]
+    if: ${{ !cancelled() }}
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/job-times.yml

@@ -28,6 +28,7 @@ The only personal identity allowed anywhere is the git commit author metadata, u
   - Do not over-split. Splitting one concern into tiny dependent pull requests is fragmentation. Each split must be independently reviewable and mergeable.
 - Nothing is merged, released, or tagged without the owner's approval.
 - Run `tools/verify.sh` before opening a pull request; CI runs the same check.
+- CI time is weighed, not capped. Each new test, verify step or CI job states its expected time cost in the pull request (template line "Time cost"). Every pull request workflow ends with a "Job times" job (`tools/ci_job_times.py`) whose job summary shows each job's time against the median of recent successful main runs; a job over 5 minutes gets a warning, never a failure.
 - For scripted verification recipes (launch, doctor, drive, evidence), use `.cursor/skills/verify-flagoria/` when that skill is present.
 
 ## Known mistakes and the rules that prevent them

@@ -15,6 +15,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - Automated proof goes through `tools/verify.sh` via `bin/drive-verify.sh`.
 - Visual proof uses `xvfb-run` and `--rendering-driver opengl3` when a display is required.
 - Record skips with the unmet precondition; do not report a skipped path as verified through a different path.
+- Every feature file, and every new test or drive added to one, states its expected time cost (for example `~5 s in tools/verify.sh`, `~2 min stress`). Time is weighed, not capped: a costly proof is fine when it is worth it. CI's "Job times" summary per workflow run shows the actual figures against recent main runs.
 
 ## Proof and skip reporting
 

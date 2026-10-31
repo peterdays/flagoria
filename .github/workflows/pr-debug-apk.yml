@@ -174,3 +174,12 @@ jobs:
           path: ${{ env.APK }}
           retention-days: 7
           if-no-files-found: error
+
+  job-times:
+    name: Job times
+    needs: [apk]
+    if: ${{ !cancelled() && needs.apk.result != 'skipped' }}
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/job-times.yml

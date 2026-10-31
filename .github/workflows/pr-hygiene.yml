@@ -31,3 +31,12 @@ jobs:
 
       - name: Check this pull request
         run: python3 tools/pr_hygiene.py --event "$GITHUB_EVENT_PATH"
+
+  job-times:
+    name: Job times
+    needs: [hygiene]
+    if: ${{ !cancelled() }}
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/job-times.yml
