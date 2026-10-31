@@ -3,23 +3,29 @@ extends "res://tests/helpers/test_helpers.gd"
 
 
 func _test_tile_catalog() -> int:
-	## Every TileCatalog.<NAME> used in Scripts/ is in TileCatalog.TILES, every
-	## entry exists in the world TileSet, and map scripts pass no raw atlas
-	## coords to set_cell.
+	## Every TileCatalog.<NAME> used in Scripts/ (subfolders included) is in
+	## TileCatalog.TILES, every entry exists in the world TileSet, and map
+	## scripts pass no raw atlas coords to set_cell.
 	print("-- test_tile_catalog")
 	var fail := 0
 	var used := {}
 	var name_re := RegEx.create_from_string("TileCatalog\\.([A-Z][A-Z0-9_]*)")
 	var raw_re := RegEx.create_from_string("set_cell\\([^\\n]*Vector2i\\(")
-	for file in DirAccess.get_files_at("res://Scripts"):
-		if not file.ends_with(".gd") or file == "tile_catalog.gd":
-			continue
-		var text := FileAccess.get_file_as_string("res://Scripts/" + file)
-		for m in name_re.search_all(text):
-			used[m.get_string(1)] = file
-		if raw_re.search(text) != null:
-			printerr("FAIL tile_catalog: raw atlas coords in set_cell in %s" % file)
-			fail += 1
+	var dirs := ["res://Scripts"]
+	while not dirs.is_empty():
+		var dir: String = dirs.pop_back()
+		for sub in DirAccess.get_directories_at(dir):
+			dirs.append(dir + "/" + sub)
+		for base in DirAccess.get_files_at(dir):
+			var file := (dir + "/" + base).trim_prefix("res://Scripts/")
+			if not file.ends_with(".gd") or file == "tile_catalog.gd":
+				continue
+			var text := FileAccess.get_file_as_string(dir + "/" + base)
+			for m in name_re.search_all(text):
+				used[m.get_string(1)] = file
+			if raw_re.search(text) != null:
+				printerr("FAIL tile_catalog: raw atlas coords in set_cell in %s" % file)
+				fail += 1
 	if used.is_empty():
 		printerr("FAIL tile_catalog: no TileCatalog names found in Scripts/")
 		fail += 1
