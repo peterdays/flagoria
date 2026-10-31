@@ -37,6 +37,7 @@ GAMEPLAY = [
     "Scripts/mob.gd", "Scripts/mob_spawner.gd", "Scripts/mob_catalog.gd",
     "Scripts/TileMap.gd",  # chunk loading, collision, ground sync
     "Scripts/world/*.gd",  # terrain shape and spawn search for the world map
+    "Scripts/mechanics/*.gd",  # cuts, bridges, walls, structures, choppable types (all subfolders)
     "Scripts/map_gen.gd",  # session map parameters applied to the world map
     "Scripts/MapGenParams.gd",  # map generation defaults and value ranges
     "Scripts/map_save.gd",  # saved worlds: which parameters a world loads with
@@ -127,6 +128,9 @@ def self_test() -> int:
         (["Scripts/MapGenParams.gd.uid", "Scripts/map_save.gd.uid"], None, None, False),
         (["Scripts/world/spawn_finder.gd"], None, None, True),
         (["Scripts/world/terrain_shape.gd.uid"], None, None, False),
+        (["Scripts/mechanics/trees/tree_cuts.gd"], None, None, True),
+        (["Scripts/mechanics/bridges/bridge_builder.gd"], None, None, True),
+        (["Scripts/mechanics/walls/wall_solver.gd.uid"], None, None, False),
         (["Scripts/player.gd.uid", "tests/run_tests.gd"], None, None, False),
         (["tests/ui/test_map_zoom.gd", "tests/helpers/test_helpers.gd"], None, None, False),
         (["project.godot"], None, None, True),
