@@ -103,6 +103,9 @@ func _run() -> void:
 	for test_name in picked:
 		var before := script_errors.count()
 		var result = await (owners[test_name] as Object).call(test_name)
+		# Let nodes the test queued for freeing leave the tree, so the next
+		# test's scene keeps its own name (for example /root/Flagoria).
+		await process_frame
 		var raised := script_errors.count() - before
 		if raised > 0:
 			printerr("FAIL %s logged %d SCRIPT ERROR(s)" % [test_name.trim_prefix("_"), raised])
