@@ -1,0 +1,5 @@
+# Files allowed over their budget in tools/file_budget.py (see its header).
+# One entry per line: <path> <cap> <reason>
+# The cap is the file's size when listed, so it cannot grow. Lower it when the
+# file shrinks, and remove the entry once the file is within its budget.
+Scripts/tile_catalog.gd 534 shared data table mapping every tile name to its atlas coords; one entry per tile, little logic, stays whole by the docs/architecture.md rules
