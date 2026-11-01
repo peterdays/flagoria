@@ -20,10 +20,11 @@ Project-local verification for Flagoria. Read this cold mid-task. Prefer the fea
 
 ## Launch
 
-`tools/verify.sh` and the drives below are short runs. For a gameplay drive, launch the real game and wait until it is usable:
+`tools/verify.sh` and the drives below are short runs. For a gameplay drive, launch the real game and either play a feature drive to its end or leave the game running for an agent:
 
 ```bash
-./.cursor/skills/verify-flagoria/bin/launch.sh drives/wait.gd            # headless
+./.cursor/skills/verify-flagoria/bin/launch.sh drives/smoke.gd           # a drive that finishes
+./.cursor/skills/verify-flagoria/bin/launch.sh drives/wait.gd            # stays up; headless
 ./.cursor/skills/verify-flagoria/bin/launch.sh drives/wait.gd --display  # xvfb-run + opengl3
 ```
 
@@ -35,11 +36,24 @@ The drive path is relative to the skill dir, to the repo, or a `res://` path. Ea
 2. makes a fresh run dir `.run/<run-id>/` with empty `xdg/data`, `xdg/config` and `xdg/cache`, and exports `XDG_DATA_HOME`, `XDG_CONFIG_HOME` and `XDG_CACHE_HOME` to them, so the game starts from an empty `user://` and never reads or writes the real one;
 3. starts `godot --headless --path . --script <drive.gd>` in the background (with `--display`: under `xvfb-run -a` with `--rendering-driver opengl3`), logging to `.run/<run-id>/game.log`;
 4. appends each exact PID to `.run/pids` as `<pid> <kind> <run-id> <path>`: the Godot PID, plus the `xvfb-run` PID with `--display`;
-5. waits up to 60 s (`VERIFY_READY_TIMEOUT`) for the ready line, then prints `launch: run=<run-id> pid=<pid> log=...` and the ready line, and exits `0`.
+5. prints `launch: run=<run-id> pid=<pid> log=...`, then each `VERIFY_READY`, `VERIFY_STEP` and `VERIFY_DONE` line from `game.log` as it comes, and exits with the drive's result (below).
 
-**Ready line:** `VERIFY_READY pid=<pid> scene=res://flagoria_main.tscn`. The drive prints it only after the main scene is loaded, a game is started through the main menu's Host button and the local hero exists under `World`. A running process is not ready; a usable game is. `drives/wait.gd` does only this and then waits for cleanup (it quits on its own after 10 minutes).
+**Lines** a drive prints on stdout, all from `bin/drive_base.gd`:
 
-If the game exits first, or the line does not come in time, launch exits non-zero with the log tail. On a timeout the game is still running: stop it with Cleanup.
+| Line | Printed by | Meaning |
+|---|---|---|
+| `VERIFY_READY pid=<pid> scene=res://flagoria_main.tscn` | `start_game()` | The main scene is loaded, a game is started through the main menu's Host button and the local hero exists under `World`. A running process is not ready; a usable game is. |
+| `VERIFY_STEP <name>` | `step(name)` | A drive step begins. |
+| `VERIFY_DONE ok` or `VERIFY_DONE fail` | `done(ok)` | The drive finished; the game quits with `0` or `1`. |
+| `VERIFY_IDLE pid=<pid>` | `idle()` | The drive stays up for an agent; stop it with Cleanup. It quits on its own after 10 minutes. |
+
+**Exit code of `launch.sh`:**
+- `0`: the drive printed `VERIFY_DONE ok` and the game exited `0`;
+- `0`: the drive printed `VERIFY_IDLE`; launch returns at once and the game keeps running (`drives/wait.gd` does this right after the ready line);
+- `1`: `VERIFY_DONE fail`, or the game exited without a `VERIFY_DONE` line (a crash, a kill, or a drive that quit on its own), or before `VERIFY_READY`;
+- `1`: a timeout: no `VERIFY_READY` within 60 s (`VERIFY_READY_TIMEOUT`), or no `VERIFY_DONE` or `VERIFY_IDLE` within 300 s of it (`VERIFY_DRIVE_TIMEOUT`). The game is still running: stop it with Cleanup.
+
+On every `1` launch prints the last 20 lines of `game.log` to stderr. Run Cleanup after every launch either way: finished runs still have their run dir.
 
 Two launches side by side each get their own run dir, user dir and PID.
 
@@ -63,7 +77,7 @@ Expect exit `0` and lines confirming: `GODOT` version matches the major.minor in
 ./.cursor/skills/verify-flagoria/bin/doctor.sh --instance <run-id>
 ```
 
-Run it before the first drive step, after any failed step, and whenever a drive does something surprising. `<run-id>` is the `run=` value `launch.sh` printed. On top of the checks above, it checks every PID recorded for that run in `.run/pids`, and prints one `doctor: instance ok:` or `doctor: instance FAIL:` line per check:
+Run it before the first drive step, after any failed step, and whenever a drive does something surprising. It needs the game up: after `VERIFY_IDLE`, or while a drive is still going. A drive that has printed `VERIFY_DONE` has exited, so its PID check fails. `<run-id>` is the `run=` value `launch.sh` printed. On top of the checks above, it checks every PID recorded for that run in `.run/pids`, and prints one `doctor: instance ok:` or `doctor: instance FAIL:` line per check:
 - each PID is still running (not exited or a zombie);
 - each `godot` PID runs the recorded Godot binary (`/proc/<pid>/exe`), whose `--version` matches `project.godot`;
 - each `godot` PID has `XDG_DATA_HOME` inside `.run/<run-id>/xdg/`, so it is our instance and not a play session sharing a real `user://`;
@@ -90,6 +104,40 @@ Map characterization: the verify log must include `PASS test_map_characterizatio
 ```
 
 Uses `xvfb-run` + `opengl3` and a short SceneTree script to open **Map Settings** and write `artifacts/out/map_settings.png`. `artifacts/out/` is gitignored, so the run leaves `git status` clean. The committed `artifacts/map_settings.png` is the reference image; replace it only on purpose, by copying the new capture over it. If xvfb/GL is unavailable, the script exits non-zero with a clear message — treat as skipped visual proof, not as a product regression, unless the change was UI-only.
+
+### Feature drives
+
+A feature drive is `drives/<feature>.gd`. It plays the real game through the input a player gives it and ends with `done(ok)`:
+
+```gdscript
+extends "res://.cursor/skills/verify-flagoria/bin/drive_base.gd"
+
+func run() -> void:
+	if not await start_game():
+		return
+	var start := hero().position
+	step("walk")
+	await hold("ui_right", 30)
+	done(hero().position.distance_to(start) >= 1.0)
+```
+
+Start it with `bin/launch.sh drives/<feature>.gd` and read its result from the exit code. `drives/smoke.gd` is this sample. Helpers in `bin/drive_base.gd` (await the ones that take frames):
+
+| Helper | What it does |
+|---|---|
+| `start_game()` | Loads the main scene, clicks Host with a pointer click on the button, prints `VERIFY_READY` once the hero exists. `false` (after `done(false)`) if it does not. |
+| `hero()` | The local hero under `World`, to read its state. |
+| `hold(action, frames)`, `tap(action)` | Press an input action (`ui_left`, `ui_right`, `ui_up`, `ui_down`, `attack`) for some physics frames, or for one. |
+| `toggle_mode()` | Clicks `CanvasLayer1/ModeButton` (combat or interact mode). |
+| `tap_cell(cell)` | A touch tap at a map cell's screen position. A cell under the HUD (the minimap, the buttons) gets the HUD, as a finger would. |
+| `menu_save()` | Clicks the in-game menu button, then Save. |
+| `click(path)` | A left click at the centre of a `Control` under the main scene. |
+| `wait_until(predicate, timeout_s)` | Waits frame by frame; `false` on timeout. |
+| `step(name)`, `done(ok)`, `idle()` | Print the lines above; `done` quits `0` or `1`. |
+
+Clicks and taps go to the centre of the node's rect or the cell, read at run time and converted to window pixels through the canvas and window stretch transforms, so they land in the same place headless (a 64x64 window) and under `--display` (1280x720). Never pass a screen position written as a literal.
+
+**Drive rule:** a drive may read game state to decide when to go on or whether it passed, but never sets it: no `set_cell`, no inventory writes, no calls into `Interaction` internals, no emitting a button's `pressed`. Everything it changes goes through input. Setup is chosen by seed in `user://map_gen_params.cfg`, written into the run's scratch user dir before launch, never by the drive. `launch.sh` has no option to write that file yet, so every launch gets a random map, and a drive must pass on any map: the sample only checks that the hero moved at all, since a tree or water may stop it a few px to the right.
 
 ### Two-player Host/Join
 
@@ -136,7 +184,8 @@ All under `.cursor/skills/verify-flagoria/bin/` (executable):
 
 | Script | Role |
 |---|---|
-| `launch.sh` | Start a drive from a scratch user dir; wait for `VERIFY_READY` |
+| `launch.sh` | Start a drive from a scratch user dir; print its lines; exit with its result |
+| `drive_base.gd` | Base script for drives: `start_game`, input helpers, `step` / `done` / `idle` |
 | `doctor.sh` | Read-only health of the checkout; `--instance <run-id>` also checks a launched game |
 | `drive-verify.sh` | Run `tools/verify.sh`, copy log to artifacts |
 | `drive-map-settings-screenshot.sh` | xvfb Map Settings PNG in `artifacts/out/` |
@@ -144,7 +193,7 @@ All under `.cursor/skills/verify-flagoria/bin/` (executable):
 | `cleanup.sh` | Stop recorded PIDs by exact PID; remove `.run/` |
 | `run_lib.sh` | Sourced by the others: Godot lookup, run dirs, `.run/pids` |
 
-Drives started with `launch.sh` live in `drives/` (`drives/wait.gd`: start a game, print the ready line, wait).
+Drives started with `launch.sh` live in `drives/` (`drives/wait.gd`: start a game, then `idle()`; `drives/smoke.gd`: start a game, walk right, check the hero moved).
 
 ## Feature map
 
