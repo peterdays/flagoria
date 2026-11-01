@@ -22,7 +22,7 @@
 [ext_resource type="Script" path="res://Scripts/discovery_points.gd" id="12_discovery"]
 [ext_resource type="Script" path="res://Scripts/inventory.gd" id="13_inventory"]
 [ext_resource type="Script" path="res://Scripts/resource_hud.gd" id="14_resource_hud"]
-[ext_resource type="Script" path="res://Scripts/interaction.gd" id="15_interaction"]
+[ext_resource type="Script" path="res://Scripts/mechanics/interact/interaction.gd" id="15_interaction"]
 [ext_resource type="Script" path="res://Scripts/minimap_panel.gd" id="16_minimap"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_bm55c"]
