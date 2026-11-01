@@ -39,3 +39,7 @@ python3 tools/stress_netcode.py --list
 ```
 
 CI runs it (`.github/workflows/play-review.yml`) only for pull requests that carry `needs-play-review`. `.github/workflows/play-review-label.yml` adds that label when a pull request touches gameplay: player, mobs, scenes, HUD and menus, touch input, netcode, map generation parameters and saved worlds (`Scripts/map_gen.gd`, `Scripts/MapGenParams.gd`, `Scripts/map_save.gd`), or the `[input]` section of `project.godot`. The path list is in `tools/play_review_paths.py` (`--self-test` checks it).
+
+## Gameplay drives and the `needs-drive` label
+
+Gameplay drives (`.cursor/skills/verify-flagoria/drives/`) start a real game, so `tools/verify.sh` and the required checks never run them. `.github/workflows/verify-drive.yml` runs them only when asked: from the Actions tab (**verify-drive**, **Run workflow**, optionally a space-separated list of drive names), or when a pull request from this repository gets the `needs-drive` label. Each drive's evidence is uploaded as the `drive-evidence` artifact. To run one locally, see the verify-flagoria skill (`bin/launch.sh drives/<name>.gd`).

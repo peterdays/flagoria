@@ -140,6 +140,10 @@ Clicks and taps go to the centre of the node's rect or the cell, read at run tim
 
 **Drive rule:** a drive may read game state to decide when to go on or whether it passed, but never sets it: no `set_cell`, no inventory writes, no calls into `Interaction` internals, no emitting a button's `pressed`. Everything it changes goes through input. Setup is chosen by seed in `user://map_gen_params.cfg`, written into the run's scratch user dir before launch, never by the drive. `launch.sh` has no option to write that file yet, so every launch gets a random map, and a drive must pass on any map: the sample only checks that the hero moved at all, since a tree or water may stop it a few px to the right.
 
+### Drives in CI (opt-in)
+
+`.github/workflows/verify-drive.yml` runs drives on a GitHub runner, headless: import, `bin/doctor.sh`, then per drive `bin/launch.sh drives/<name>.gd`, `bin/doctor.sh --instance <run-id>` for a drive that idles (one that printed `VERIFY_DONE` has exited, so the PID check would fail), and `bin/cleanup.sh`. It uploads `artifacts/out/runs/` (under this skill) as the `drive-evidence` artifact, also when a drive fails. Start it from the Actions tab (**verify-drive**, **Run workflow**; `drives` is a space-separated list of names in `drives/`, empty for all), or add the `needs-drive` label to a pull request from this repository. It never runs on push or on a plain pull request, and `tools/verify.sh` and the required checks never run drives.
+
 ### Two-player Host/Join
 
 Not fully automatable without a GUI harness yet (placeholder: issue #45). What is feasible now:
