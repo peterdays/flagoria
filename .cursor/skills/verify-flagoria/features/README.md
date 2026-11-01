@@ -28,10 +28,10 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Headless verify](./headless-verify.md) — `tools/verify.sh` file budget, load, parse, and tests.
 - [Map characterization](./map-characterization.md) — pinned map-output / golden atlas check.
 - [Map Settings panel](./map-settings-panel.md) — in-game admin parameters before Host.
-- [Two-player Host/Join](./two-player-host-join.md) — multiplayer boot (headless peers scripted; GUI checklist manual).
+- [Two-player Host/Join](./two-player-host-join.md) — multiplayer boot (headless peers scripted; two-launch menu drive; GUI checklist manual).
 - [Dedicated server](./dedicated-server.md) — `-- --server` headless host and a client joining it.
 - [Player health](./player-health.md) — hearts, HUD, regen, death, respawn, health sync.
-- [Sword combat](./sword-combat.md) — PvP swing, mid-swing hitbox.
+- [Combat and aiming](./combat-and-aiming.md) — swing, mid-swing hitbox, mouse and touch aim, cone, cancel.
 - [Mobs](./mobs.md) — seeded placement, wander, chase, contact damage, sword hits, sync.
 - [Player spawn](./player-spawn.md) — spawn on reachable land.
 - [Tileset and collision](./tileset-and-collision.md) — tile catalog, water and forest walls.
@@ -49,5 +49,5 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 
 ## Placeholders (not verified here yet)
 
-- **#45 automated two-player smoke** — partly covered: `test_dedicated_server_join` and the `*_two_players` mob tests start a second headless Godot as a server and join it. Still missing: a scripted Host/Join through the menu between two GUI instances.
+- **#45 automated two-player smoke** — partly covered: `test_dedicated_server_join`, `test_two_player_smoke` and the `*_two_players` mob tests start a second headless Godot as a server and join it. A two-launch drive that clicks Host and Join is in [Two-player Host/Join](./two-player-host-join.md). Still missing: running it as a smoke in CI.
 - **#48 CLI map renders** — partly covered: `tools/render_biomes.gd` renders a wide biome map to `artifacts/out/biomes` (see [Biomes](./biomes.md)). Still missing: a general map render for golden image diffs.
