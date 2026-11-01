@@ -26,6 +26,7 @@ Project-local verification for Flagoria. Read this cold mid-task. Prefer the fea
 ./.cursor/skills/verify-flagoria/bin/launch.sh drives/smoke.gd           # a drive that finishes
 ./.cursor/skills/verify-flagoria/bin/launch.sh drives/wait.gd            # stays up; headless
 ./.cursor/skills/verify-flagoria/bin/launch.sh drives/wait.gd --display  # xvfb-run + opengl3
+./.cursor/skills/verify-flagoria/bin/launch.sh drives/chop_trees.gd --seed 49  # a fixed map
 ```
 
 In a fresh checkout, import once first (`"$GODOT" --headless --path . --import`), as `tools/verify.sh` does.
@@ -138,11 +139,11 @@ Start it with `bin/launch.sh drives/<feature>.gd` and read its result from the e
 
 Clicks and taps go to the centre of the node's rect or the cell, read at run time and converted to window pixels through the canvas and window stretch transforms, so they land in the same place headless (a 64x64 window) and under `--display` (1280x720). Never pass a screen position written as a literal.
 
-**Drive rule:** a drive may read game state to decide when to go on or whether it passed, but never sets it: no `set_cell`, no inventory writes, no calls into `Interaction` internals, no emitting a button's `pressed`. Everything it changes goes through input. Setup is chosen by seed in `user://map_gen_params.cfg`, written into the run's scratch user dir before launch, never by the drive. `launch.sh` has no option to write that file yet, so every launch gets a random map, and a drive must pass on any map: the sample only checks that the hero moved at all, since a tree or water may stop it a few px to the right.
+**Drive rule:** a drive may read game state to decide when to go on or whether it passed, but never sets it: no `set_cell`, no inventory writes, no calls into `Interaction` internals, no emitting a button's `pressed`. Everything it changes goes through input. Setup is chosen by seed in `user://map_gen_params.cfg`, written into the run's scratch user dir before launch, never by the drive. `bin/launch.sh <drive> --seed N` writes it, with the five seeds N .. N+4 (as `tools/map_cli.gd --seed`); without `--seed`, or with 0, every launch gets a random map. A drive that needs a fixed map names its seed on a line `## launch: --seed N` at its top, which `verify-drive.yml` passes to `launch.sh` and an agent passes by hand; `drives/chop_trees.gd` uses seed 49, which spawns the hero 64 px from a tree. A drive with no seed line must pass on any map: the sample only checks that the hero moved at all, since a tree or water may stop it a few px to the right.
 
 ### Drives in CI (opt-in)
 
-`.github/workflows/verify-drive.yml` runs drives on a GitHub runner, headless: import, `bin/doctor.sh`, then per drive `bin/launch.sh drives/<name>.gd`, `bin/doctor.sh --instance <run-id>` for a drive that idles (one that printed `VERIFY_DONE` has exited, so the PID check would fail), and `bin/cleanup.sh`. It uploads `artifacts/out/runs/` (under this skill) as the `drive-evidence` artifact, also when a drive fails. Start it from the Actions tab (**verify-drive**, **Run workflow**; `drives` is a space-separated list of names in `drives/`, empty for all), or add the `needs-drive` label to a pull request from this repository. It never runs on push or on a plain pull request, and `tools/verify.sh` and the required checks never run drives.
+`.github/workflows/verify-drive.yml` runs drives on a GitHub runner, headless: import, `bin/doctor.sh`, then per drive `bin/launch.sh drives/<name>.gd` (with `--seed N` from the drive's `## launch: --seed N` line), `bin/doctor.sh --instance <run-id>` for a drive that idles (one that printed `VERIFY_DONE` has exited, so the PID check would fail), and `bin/cleanup.sh`. It uploads `artifacts/out/runs/` (under this skill) as the `drive-evidence` artifact, also when a drive fails. Start it from the Actions tab (**verify-drive**, **Run workflow**; `drives` is a space-separated list of names in `drives/`, empty for all), or add the `needs-drive` label to a pull request from this repository. It never runs on push or on a plain pull request, and `tools/verify.sh` and the required checks never run drives.
 
 ### Two-player Host/Join
 
@@ -165,11 +166,11 @@ Each launch keeps its evidence in `.cursor/skills/verify-flagoria/artifacts/out/
 
 | File | Written by | Contents |
 |---|---|---|
-| `<NN>-<label>.json` | `snapshot(label)` | Hero cell and facing, mode (`combat` or `interact`), inventory counts, explored cell count, and the foliage-layer tile names (`TileCatalog` names, `null` when empty) in a 9x9 square around the hero, top row first. |
+| `<NN>-<label>.json` | `snapshot(label)` | Hero cell and facing, mode (`combat` or `interact`), inventory counts, explored cell count, and the tile names (`TileCatalog` names, `null` when empty) of the foliage layer (`foliage`, trees and bushes) and the ground decor layer (`ground_decor`, stumps, stones and flowers) in a 9x9 square around the hero, top row first. |
 | `<NN>-<label>.png` | `snapshot(label)` under `--display` | The window. A headless run has no image; its JSON says `"png": "skipped: headless run, ..."`. |
 | `game.log` | `launch.sh` when the game exits; `collect-evidence.sh` | The game's output, with the `VERIFY_*` lines. |
 | `user/` | `collect-evidence.sh` | The scratch `user://`: `saves/` and `*.cfg`. |
-| `summary.txt` | `collect-evidence.sh` | Run id, drive, commit, Godot version, steps seen, result, snapshots. |
+| `summary.txt` | `collect-evidence.sh` | Run id, drive, seed (`random` without `--seed`), commit, Godot version, steps seen, result, snapshots. |
 
 The result is `ok` or `fail` from `VERIFY_DONE`; `idle (then stopped by cleanup or killed)` after `VERIFY_IDLE`; `killed (...)` when the game ended by a signal, or launch was not there to see it end, without `VERIFY_DONE`; `exited <code> without VERIFY_DONE` otherwise. Cleanup runs `collect-evidence.sh <run-id>` for every run before it removes `.run/`, so a failed or killed drive keeps its evidence. Run it by hand to look at a run that is still up.
 
@@ -179,7 +180,7 @@ After a successful verify drive, write a short summary:
 ./.cursor/skills/verify-flagoria/bin/evidence-summarize.sh
 ```
 
-Other artifacts live in `.cursor/skills/verify-flagoria/artifacts/` (for example `verify.log`, `out/e2e-summary.txt`, `out/map_settings.png`). **Cleanup must not delete this directory's proof files.** `evidence-summarize.sh` writes to the gitignored `artifacts/out/`. The committed `artifacts/e2e-summary.txt` is a reference example of the format and changes only on purpose.
+Other artifacts live in `.cursor/skills/verify-flagoria/artifacts/` (for example `verify.log`, `out/e2e-summary.txt`, `out/map_settings.png`). **Cleanup must not delete this directory's proof files.** `evidence-summarize.sh` writes to the gitignored `artifacts/out/`. The committed `artifacts/e2e-summary.txt` is a reference `summary.txt` from one end-to-end `drives/chop_trees.gd` run (#290) and changes only on purpose; `evidence-summarize.sh` still writes its own verify summary to `artifacts/out/e2e-summary.txt`.
 
 ## Cleanup
 
@@ -201,7 +202,7 @@ All under `.cursor/skills/verify-flagoria/bin/` (executable):
 
 | Script | Role |
 |---|---|
-| `launch.sh` | Start a drive from a scratch user dir; print its lines; exit with its result |
+| `launch.sh` | Start a drive from a scratch user dir (`--seed N` for a fixed map); print its lines; exit with its result |
 | `drive_base.gd` | Base script for drives: `start_game`, input helpers, `snapshot`, `step` / `done` / `idle` |
 | `doctor.sh` | Read-only health of the checkout; `--instance <run-id>` also checks a launched game |
 | `drive-verify.sh` | Run `tools/verify.sh`, copy log to artifacts |
@@ -211,7 +212,7 @@ All under `.cursor/skills/verify-flagoria/bin/` (executable):
 | `cleanup.sh` | Stop recorded PIDs by exact PID; collect each run's evidence; remove `.run/` |
 | `run_lib.sh` | Sourced by the others: Godot lookup, run dirs, `.run/pids` |
 
-Drives started with `launch.sh` live in `drives/` (`drives/wait.gd`: start a game, then `idle()`; `drives/smoke.gd`: start a game, walk right, check the hero moved).
+Drives started with `launch.sh` live in `drives/` (`drives/wait.gd`: start a game, then `idle()`; `drives/smoke.gd`: start a game, walk right, check the hero moved; `drives/chop_trees.gd`: chop one tree with a tap, then save, see `features/chop-trees.md`).
 
 ## Feature map
 

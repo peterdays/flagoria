@@ -58,6 +58,7 @@ steps="$(sed -n 's/^VERIFY_STEP //p' "${log}" 2>/dev/null | paste -sd ' ' -)"
 {
   echo "run: ${id}"
   echo "drive: $(cat "${run}/drive" 2>/dev/null || echo unknown)"
+  echo "seed: $(cat "${run}/seed" 2>/dev/null || echo random)"
   echo "commit: ${commit}"
   echo "godot: ${version}"
   echo "steps: ${steps:-none}"

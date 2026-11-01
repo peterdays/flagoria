@@ -34,6 +34,7 @@ const INTERACTION := "World/Interaction"
 const INVENTORY := "Inventory"
 const MINIMAP := "CanvasLayer1/MinimapPanel"
 const FOLIAGE_LAYER := 1
+const GROUND_DECOR_LAYER := 2  ## stumps, stones and flowers (Scripts/TileMap.gd)
 ## snapshot() records the foliage layer in a square this many cells from the
 ## hero on each side: 9x9.
 const SNAPSHOT_RADIUS := 4
@@ -218,13 +219,14 @@ func snapshot_state() -> Dictionary:
 	var minimap := current_scene.get_node_or_null(MINIMAP)
 	if minimap != null:
 		state["explored_cells"] = minimap.explored.explored_count()
-	state["foliage"] = _foliage_names(map, cell)
+	state["foliage"] = _layer_names(map, FOLIAGE_LAYER, cell)
+	state["ground_decor"] = _layer_names(map, GROUND_DECOR_LAYER, cell)
 	return state
 
 
 ## Rows of tile names from TileCatalog (null for an empty cell), top to
-## bottom, around `center` on the foliage layer.
-func _foliage_names(map: TileMap, center: Vector2i) -> Array:
+## bottom, around `center` on `layer`.
+func _layer_names(map: TileMap, layer: int, center: Vector2i) -> Array:
 	var names := {}
 	var catalog: Dictionary = (load("res://Scripts/tile_catalog.gd") as Script).get_script_constant_map()
 	for key in catalog:
@@ -235,8 +237,8 @@ func _foliage_names(map: TileMap, center: Vector2i) -> Array:
 		var row := []
 		for dx in range(-SNAPSHOT_RADIUS, SNAPSHOT_RADIUS + 1):
 			var cell := center + Vector2i(dx, dy)
-			var source := map.get_cell_source_id(FOLIAGE_LAYER, cell)
-			var atlas := map.get_cell_atlas_coords(FOLIAGE_LAYER, cell)
+			var source := map.get_cell_source_id(layer, cell)
+			var atlas := map.get_cell_atlas_coords(layer, cell)
 			if source == -1:
 				row.append(null)
 			elif source == TileCatalog.SOURCE_ID and names.has(atlas):
