@@ -25,7 +25,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 
 ## Features
 
-- [Headless verify](./headless-verify.md) — `tools/verify.sh` load, parse, and tests.
+- [Headless verify](./headless-verify.md) — `tools/verify.sh` file budget, load, parse, and tests.
 - [Map characterization](./map-characterization.md) — pinned map-output / golden atlas check.
 - [Map Settings panel](./map-settings-panel.md) — in-game admin parameters before Host.
 - [Two-player Host/Join](./two-player-host-join.md) — multiplayer boot (headless peers scripted; GUI checklist manual).
