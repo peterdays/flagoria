@@ -76,7 +76,6 @@ Where each part of the game lives today, how data moves between the parts, and w
 | `Scripts/BiomeCatalog.gd` | Biome ids and per-biome tables | stays (shared catalogue) |
 | `Scripts/MapGenParams.gd` | Map generation parameters resource | stays (shared) |
 | `Scripts/map_gen.gd` | Autoload: active params, save/load hooks | stays (autoload) |
-| `Scripts/world_seeder.gd` | Legacy seed bag, no callers | stays |
 | `Scripts/map_save.gd` | Versioned JSON save files | stays |
 | `Scripts/world_save.gd` | One saved world in memory | stays |
 | `Scripts/player.gd` | Player movement, sword, animation | stays |
