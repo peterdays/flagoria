@@ -3,27 +3,31 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 cd "$ROOT"
+source "${ROOT}/.cursor/skills/verify-flagoria/bin/run_lib.sh"
 ART=".cursor/skills/verify-flagoria/artifacts"
-RUN=".cursor/skills/verify-flagoria/.run"
 OUT="${ART}/out"
-mkdir -p "$OUT" "$RUN"
+mkdir -p "$OUT"
 
-if [[ -z "${GODOT:-}" ]]; then
-  echo "drive-map-settings: set GODOT" >&2
-  exit 1
-fi
-if ! command -v xvfb-run >/dev/null 2>&1; then
+run_find_godot drive-map-settings
+xvfb="$(command -v xvfb-run)" || {
   echo "drive-map-settings: xvfb-run not available; skip visual proof" >&2
   exit 2
-fi
+}
+xvfb="$(readlink -f "${xvfb}")"
+# Scratch XDG dirs, so the capture neither reads nor writes the real user://.
+run_new map-settings
 
 SCRIPT_RES="res://.cursor/skills/verify-flagoria/bin/capture_map_settings.gd"
 out_png="${OUT}/map_settings.png"
 
+"${xvfb}" -a -s "-screen 0 1280x720x24" \
+  "${GODOT_EXE}" --path "$ROOT" --rendering-driver opengl3 \
+  --script "${SCRIPT_RES}" </dev/null >"${ART}/map_settings.log" 2>&1 &
+pid=$!
+run_record "${pid}" xvfb-run "${RUN_ID}" "${xvfb}"
+run_record_godot_children "${pid}" "${RUN_ID}" || true
 set +e
-xvfb-run -a -s "-screen 0 1280x720x24" \
-  "$GODOT" --path "$ROOT" --rendering-driver opengl3 \
-  --script "${SCRIPT_RES}" >"${ART}/map_settings.log" 2>&1
+wait "${pid}"
 status=$?
 set -e
 cat "${ART}/map_settings.log"
