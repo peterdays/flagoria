@@ -56,6 +56,8 @@ Where each part of the game lives today, how data moves between the parts, and w
 - Moving a script: `git mv` the `.gd` and its `.gd.uid` together, so the uid stays next to the script. Scenes here load scripts by `path=` without a `uid=`, so the same pull request also updates every `res://` path to the script: scenes, `preload`/`load` calls, tests, and the path lists in `tools/play_review_paths.py`. `test_tile_catalog` scans `Scripts/` and its subfolders.
 - No behaviour change in a move pull request. Keep thin wrappers with the old names until callers move.
 - Each new test or verify step states its time cost in the pull request ("Time cost" line). CI reports each job's time per run (#294).
+- Every new player-facing mechanic (a new choppable, a tower, a wall type, a city rule) adds its feature file, `.cursor/skills/verify-flagoria/features/<feature>.md`, and its index line in `features/README.md` in the same pull request. When a player can reach the feature in a running game, the same pull request also adds a drive under `.cursor/skills/verify-flagoria/drives/`. A change that is not player-facing says so on the pull request template's feature-file line (#291).
+- Before each checkpoint in #253's gate, a verification maintenance pass runs over `.cursor/skills/verify-flagoria/`. The pass covers index hygiene (every feature file is in the index, and every index line points at a file that exists), one source read per feature file (its paths, names and steps still match the code), and one live drive per reachable feature. Its outcome goes in a short comment on #253: clean, changed (with the PR link), or blocked (with the reason). The pass edits only the skill directory; any product bug it finds gets its own issue.
 
 ## Every script and its home
 
@@ -114,7 +116,8 @@ Where each part of the game lives today, how data moves between the parts, and w
 | A new mechanic (logic) | `Scripts/mechanics/<mechanic>/` |
 | Its resources (`.tres`) | `data/<mechanic>/` |
 | Its tests | `tests/mechanics/<mechanic>/test_<topic>.gd` |
-| Its verify recipe | `.cursor/skills/verify-flagoria/features/<feature>.md` (#291) |
+| Its verify recipe | `.cursor/skills/verify-flagoria/features/<feature>.md`, plus its line in `features/README.md` (#291) |
+| Its live drive, when a player can reach it | `.cursor/skills/verify-flagoria/drives/<feature>.gd` (#291) |
 | Map generation helper | `Scripts/world/` |
 | A new tile name | `Scripts/tile_catalog.gd` |
 | A new biome table entry | `Scripts/BiomeCatalog.gd` |
