@@ -13,12 +13,13 @@
 [resource]
 script = ExtResource("1_type")
 id = "tree"
-tiles = Array[String](["TREE", "TREE_PINE_SMALL"])
+tiles = Array[String](["TREE"])
 hits = 2
 yields = Dictionary[StringName, int]({
 &"wood": 3
 })
 leaves = "STUMP"
+save_key = "tree"
 hit_sounds = Array[AudioStream]([ExtResource("2_chop1"), ExtResource("3_chop2"), ExtResource("4_chop3")])
 fell_sounds = Array[AudioStream]([ExtResource("5_fall")])
 hit_no_repeat = true

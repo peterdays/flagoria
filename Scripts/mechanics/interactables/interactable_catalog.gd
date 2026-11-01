@@ -1,9 +1,12 @@
 class_name InteractableCatalog
 extends RefCounted
-## Every choppable type, and which one a foliage tile is.
+## Every choppable type, and which one a foliage tile is. A preload list,
+## not a scan of data/interactables/: exported builds keep only .remap files
+## there, and the list fails to parse when a file is missing.
 
 const TYPES := [
 	preload("res://data/interactables/tree.tres"),
+	preload("res://data/interactables/pine.tres"),
 	preload("res://data/interactables/bush.tres"),
 ]
 

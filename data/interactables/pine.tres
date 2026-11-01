@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="InteractableType" format=3]
+
+[ext_resource type="Script" path="res://Scripts/mechanics/interactables/interactable_type.gd" id="1_type"]
+[ext_resource type="AudioStream" path="res://art/audio/sfx/world/trees/tree_chop_01.wav" id="2_chop1"]
+[ext_resource type="AudioStream" path="res://art/audio/sfx/world/trees/tree_chop_02.wav" id="3_chop2"]
+[ext_resource type="AudioStream" path="res://art/audio/sfx/world/trees/tree_chop_03.wav" id="4_chop3"]
+[ext_resource type="AudioStream" path="res://art/audio/sfx/world/trees/tree_fall_01.wav" id="5_fall"]
+[ext_resource type="AudioStream" path="res://art/audio/sfx/world/trees/leaf_rustle_01.wav" id="6_rustle"]
+[ext_resource type="AudioStream" path="res://art/audio/sfx/world/trees/tree_crack_01.wav" id="7_crack"]
+[ext_resource type="AudioStream" path="res://art/audio/sfx/world/trees/wood_pickup_01.wav" id="8_pick1"]
+[ext_resource type="AudioStream" path="res://art/audio/sfx/world/trees/wood_pickup_02.wav" id="9_pick2"]
+
+[resource]
+script = ExtResource("1_type")
+id = "pine"
+tiles = Array[String](["TREE_PINE_SMALL"])
+hits = 2
+yields = Dictionary[StringName, int]({
+&"wood": 3
+})
+leaves = "STUMP"
+save_key = "pine"
+hit_sounds = Array[AudioStream]([ExtResource("2_chop1"), ExtResource("3_chop2"), ExtResource("4_chop3")])
+fell_sounds = Array[AudioStream]([ExtResource("5_fall")])
+hit_no_repeat = true
+fell_own_player = true
+hit_layer_sounds = Array[AudioStream]([ExtResource("6_rustle")])
+last_hit_sounds = Array[AudioStream]([ExtResource("7_crack")])
+pickup_sounds = Array[AudioStream]([ExtResource("8_pick1"), ExtResource("9_pick2")])
+fell_puff = true

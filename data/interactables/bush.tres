@@ -17,6 +17,7 @@ yields = Dictionary[StringName, int]({
 &"wood": 1
 })
 leaves = "BUSH_STUMP"
+save_key = "bush"
 hit_sounds = Array[AudioStream]([ExtResource("2_hit1"), ExtResource("3_hit2"), ExtResource("4_hit3")])
 fell_sounds = Array[AudioStream]([ExtResource("5_break")])
 hit_sheet = ExtResource("6_hit")
