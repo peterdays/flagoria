@@ -4,8 +4,8 @@ In interact mode the hero chops trees and bushes for wood. Each choppable kind i
 
 ## Sub-features
 
-- `chop-tap` a tap chops the nearest choppable next to the tapped cell: two hits (140 ms and 460 ms), it falls at 560 ms (`Interaction.step_chop`, `fell_at`).
-- `chop-range` a drag cuts every choppable in the range within reach at once (`Interaction.cut_range`).
+- `chop-tap` a tap chops the nearest choppable next to the tapped cell: two hits (140 ms and 460 ms), it falls at 560 ms (`ChopAction.step_chop`, `fell_at` in `Scripts/mechanics/trees/chop_action.gd`, driven by `Interaction`).
+- `chop-range` a drag cuts every choppable in the range within reach at once (`Interaction.cut_range` in `Scripts/mechanics/interact/interaction.gd`).
 - `chop-yield` a fallen plant gives its type's `yields` (tree 3 wood, bush 1, tunable in the `.tres`).
 - `bush-effects` a bush hit draws `art/flagoria/fx/bush_hit.png` in place of the bush tile (the tile switches to its invisible alternative 1 with the same collision) and `fx_leaves.png` frames 0-1; the fall plays frames 2-3, the bush break sound, and no puff.
 - `stump-kept` the stump stays when the chunk is drawn again and is open ground for mobs (`TileMap.cut_choppable`, kept in `TreeCuts._cut_cells` in `Scripts/mechanics/trees/tree_cuts.gd`).
@@ -28,5 +28,5 @@ Preconditions: `doctor.sh` exits `0`.
 
 - Cuts are not saved (map saves hold generation inputs only) and not synced: interact mode is single-player, and `regrow_due` does nothing while multiplayer is active.
 - `has_tree` is true only for the tree type; use `choppable(cell)` for any choppable.
-- A type with a `hit_sheet` needs alternative tile `Interaction.HIDDEN_ALT` in the TileSet, invisible and with the same collision, or the hit frames draw over the tile.
+- A type with a `hit_sheet` needs alternative tile `ChopAction.HIDDEN_ALT` (also `Interaction.HIDDEN_ALT`) in the TileSet, invisible and with the same collision, or the hit frames draw over the tile.
 - Headless, played sounds never finish, so a run that chops a bush ends with its streams listed as "still in use at exit"; that is not a failure.
