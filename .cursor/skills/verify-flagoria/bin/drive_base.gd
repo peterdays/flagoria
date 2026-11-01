@@ -13,6 +13,9 @@ extends SceneTree
 ##   VERIFY_STEP <name>                     a drive step begins
 ##   VERIFY_DONE ok|fail                    the drive finished; exit 0 or 1
 ##   VERIFY_IDLE pid=<pid>                  the drive stays up for an agent
+##
+## snapshot(label) writes evidence to $VERIFY_EVIDENCE_DIR, which launch.sh
+## sets to artifacts/out/runs/<run-id>/ (see SKILL.md, Evidence).
 
 const MAIN := "res://flagoria_main.tscn"
 const HOST_BUTTON := "CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/HostButton"
@@ -27,8 +30,16 @@ const ACTIONS := ["ui_left", "ui_right", "ui_up", "ui_down", "attack"]
 const START_TIMEOUT_S := 30.0
 ## idle() quits on its own after this long, in case cleanup is never run.
 const MAX_IDLE_S := 600.0
+const INTERACTION := "World/Interaction"
+const INVENTORY := "Inventory"
+const MINIMAP := "CanvasLayer1/MinimapPanel"
+const FOLIAGE_LAYER := 1
+## snapshot() records the foliage layer in a square this many cells from the
+## hero on each side: 9x9.
+const SNAPSHOT_RADIUS := 4
 
 var _finished := false
+var _snapshots := 0
 
 
 func _initialize() -> void:
@@ -152,6 +163,88 @@ func wait_until(predicate: Callable, timeout_s: float) -> bool:
 			return false
 		await process_frame
 	return true
+
+
+## Writes <NN>-<label>.json with the game state a player can see: hero cell
+## and facing, mode, inventory counts, explored cell count and the foliage
+## tile names in a 9x9 square around the hero. Under --display it also writes
+## <NN>-<label>.png of the window; headless runs have no image, and the JSON
+## says so. Returns the JSON path, or "" outside launch.sh.
+func snapshot(label: String) -> String:
+	var dir := OS.get_environment("VERIFY_EVIDENCE_DIR")
+	if dir == "":
+		printerr("drive: snapshot %s skipped: VERIFY_EVIDENCE_DIR is unset (start drives with bin/launch.sh)" % label)
+		return ""
+	DirAccess.make_dir_recursive_absolute(dir)
+	_snapshots += 1
+	var base := dir.path_join("%02d-%s" % [_snapshots, label.validate_filename()])
+	var state := snapshot_state()
+	state["label"] = label
+	if DisplayServer.get_name() == "headless":
+		state["png"] = "skipped: headless run, no image (launch with --display for one)"
+	else:
+		await RenderingServer.frame_post_draw
+		var png := base + ".png"
+		var err := root.get_texture().get_image().save_png(png)
+		state["png"] = png.get_file() if err == OK else "failed: error %d" % err
+	var f := FileAccess.open(base + ".json", FileAccess.WRITE)
+	f.store_string(JSON.stringify(state, "  ", false) + "\n")
+	f.close()
+	print("drive: snapshot %s" % base.get_file())
+	return base + ".json"
+
+
+## The state snapshot() records, read from the nodes; never sets anything.
+func snapshot_state() -> Dictionary:
+	var state := {}
+	var h := hero()
+	var map: TileMap = current_scene.get_node_or_null(WORLD_MAP) if current_scene else null
+	if h == null or map == null:
+		state["hero"] = null
+		return state
+	var cell := map.local_to_map(map.to_local(h.global_position))
+	state["hero"] = {"cell": [cell.x, cell.y], "facing": h.get("lastAnimDirection")}
+	var it := current_scene.get_node_or_null(INTERACTION)
+	if it != null:
+		var modes: Dictionary = it.get_script().get_script_constant_map()["Mode"]
+		state["mode"] = str(modes.find_key(it.mode)).to_lower()
+	var inventory := current_scene.get_node_or_null(INVENTORY)
+	if inventory != null:
+		var counts := {}
+		for value in inventory.get_script().get_script_constant_map().values():
+			if value is StringName:
+				counts[str(value)] = inventory.count_of(value)
+		state["inventory"] = counts
+	var minimap := current_scene.get_node_or_null(MINIMAP)
+	if minimap != null:
+		state["explored_cells"] = minimap.explored.explored_count()
+	state["foliage"] = _foliage_names(map, cell)
+	return state
+
+
+## Rows of tile names from TileCatalog (null for an empty cell), top to
+## bottom, around `center` on the foliage layer.
+func _foliage_names(map: TileMap, center: Vector2i) -> Array:
+	var names := {}
+	var catalog: Dictionary = (load("res://Scripts/tile_catalog.gd") as Script).get_script_constant_map()
+	for key in catalog:
+		if catalog[key] is Vector2i and not names.has(catalog[key]):
+			names[catalog[key]] = key  # first declared name wins for shared coords
+	var rows := []
+	for dy in range(-SNAPSHOT_RADIUS, SNAPSHOT_RADIUS + 1):
+		var row := []
+		for dx in range(-SNAPSHOT_RADIUS, SNAPSHOT_RADIUS + 1):
+			var cell := center + Vector2i(dx, dy)
+			var source := map.get_cell_source_id(FOLIAGE_LAYER, cell)
+			var atlas := map.get_cell_atlas_coords(FOLIAGE_LAYER, cell)
+			if source == -1:
+				row.append(null)
+			elif source == TileCatalog.SOURCE_ID and names.has(atlas):
+				row.append(names[atlas])
+			else:
+				row.append("source %d atlas %d,%d" % [source, atlas.x, atlas.y])
+		rows.append(row)
+	return rows
 
 
 func step(name: String) -> void:

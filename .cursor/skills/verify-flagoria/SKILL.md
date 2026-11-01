@@ -15,7 +15,7 @@ Project-local verification for Flagoria. Read this cold mid-task. Prefer the fea
 
 | Path | Purpose |
 |---|---|
-| `.cursor/skills/verify-flagoria/artifacts/` | Proof outputs (logs, screenshots, summaries). **Survives cleanup.** |
+| `.cursor/skills/verify-flagoria/artifacts/` | Proof outputs (logs, screenshots, summaries; per-run evidence in `out/runs/<run-id>/`). **Survives cleanup.** |
 | `.cursor/skills/verify-flagoria/.run/` | `pids` and one dir per launch (scratch user dirs, `game.log`). Gitignored; removed by cleanup. |
 
 ## Launch
@@ -134,6 +134,7 @@ Start it with `bin/launch.sh drives/<feature>.gd` and read its result from the e
 | `click(path)` | A left click at the centre of a `Control` under the main scene. |
 | `wait_until(predicate, timeout_s)` | Waits frame by frame; `false` on timeout. |
 | `step(name)`, `done(ok)`, `idle()` | Print the lines above; `done` quits `0` or `1`. |
+| `snapshot(label)` | Writes `<NN>-<label>.json` (and `.png` under `--display`) to the run's evidence dir; see Evidence. Await it. |
 
 Clicks and taps go to the centre of the node's rect or the cell, read at run time and converted to window pixels through the canvas and window stretch transforms, so they land in the same place headless (a 64x64 window) and under `--display` (1280x720). Never pass a screen position written as a literal.
 
@@ -150,11 +151,23 @@ Do not claim two-player PvP was proven by verify.sh alone.
 
 ## Evidence
 
-Proof standards:
+A drive is a proof only if its evidence is readable after the run. Proof standards:
 
-- Exercise the real user/CI path (`tools/verify.sh`, Map Settings UI), not internal-only setters that skip the menu or RPC.
-- Capture action + result (log excerpt + screenshot when visual).
-- Side effects: for map golden, failing after a threshold edit is the mutation proof (do that only in a throwaway edit and revert).
+- Take the real player path: the main menu, pointer clicks and input actions (`start_game()`, `tap`, `click`), or the real CI path (`tools/verify.sh`), not internal setters that skip the menu or RPC.
+- Record the action and the state it led to: a `step(name)` before the action and a `snapshot(label)` after it (before and after, when the change is the proof).
+- Record side effects too, such as the world save under `user/saves/` after `menu_save()`. For the map golden, failing after a threshold edit is the mutation proof (do that only in a throwaway edit and revert).
+
+Each launch keeps its evidence in `.cursor/skills/verify-flagoria/artifacts/out/runs/<run-id>/` (gitignored, kept by Cleanup):
+
+| File | Written by | Contents |
+|---|---|---|
+| `<NN>-<label>.json` | `snapshot(label)` | Hero cell and facing, mode (`combat` or `interact`), inventory counts, explored cell count, and the foliage-layer tile names (`TileCatalog` names, `null` when empty) in a 9x9 square around the hero, top row first. |
+| `<NN>-<label>.png` | `snapshot(label)` under `--display` | The window. A headless run has no image; its JSON says `"png": "skipped: headless run, ..."`. |
+| `game.log` | `launch.sh` when the game exits; `collect-evidence.sh` | The game's output, with the `VERIFY_*` lines. |
+| `user/` | `collect-evidence.sh` | The scratch `user://`: `saves/` and `*.cfg`. |
+| `summary.txt` | `collect-evidence.sh` | Run id, drive, commit, Godot version, steps seen, result, snapshots. |
+
+The result is `ok` or `fail` from `VERIFY_DONE`; `idle (then stopped by cleanup or killed)` after `VERIFY_IDLE`; `killed (...)` when the game ended by a signal, or launch was not there to see it end, without `VERIFY_DONE`; `exited <code> without VERIFY_DONE` otherwise. Cleanup runs `collect-evidence.sh <run-id>` for every run before it removes `.run/`, so a failed or killed drive keeps its evidence. Run it by hand to look at a run that is still up.
 
 After a successful verify drive, write a short summary:
 
@@ -162,7 +175,7 @@ After a successful verify drive, write a short summary:
 ./.cursor/skills/verify-flagoria/bin/evidence-summarize.sh
 ```
 
-Artifacts live in `.cursor/skills/verify-flagoria/artifacts/` (for example `verify.log`, `out/e2e-summary.txt`, `out/map_settings.png`). **Cleanup must not delete this directory's proof files.** `evidence-summarize.sh` writes to the gitignored `artifacts/out/`. The committed `artifacts/e2e-summary.txt` is a reference example of the format and changes only on purpose.
+Other artifacts live in `.cursor/skills/verify-flagoria/artifacts/` (for example `verify.log`, `out/e2e-summary.txt`, `out/map_settings.png`). **Cleanup must not delete this directory's proof files.** `evidence-summarize.sh` writes to the gitignored `artifacts/out/`. The committed `artifacts/e2e-summary.txt` is a reference example of the format and changes only on purpose.
 
 ## Cleanup
 
@@ -176,7 +189,7 @@ Run it after every launch or drive, including failed ones. It stops only PIDs li
 
 Anything else, such as a reused PID or a Godot started by hand, is left alone and reported.
 
-Teardown order: first the Godot games, so `xvfb-run` sees its child exit and stops its own Xvfb; then the wrappers, after stopping any Godot left below them by exact PID. Each PID gets `TERM`, then `KILL` after 5 s. Then `.run/` is removed. `artifacts/` is never touched. Never `pkill`, `killall` or kill by name.
+Teardown order: first the Godot games, so `xvfb-run` sees its child exit and stops its own Xvfb; then the wrappers, after stopping any Godot left below them by exact PID. Each PID gets `TERM`, then `KILL` after 5 s. Then `collect-evidence.sh` keeps each run's evidence (see Evidence) and `.run/` is removed. `artifacts/` is never touched. Never `pkill`, `killall` or kill by name.
 
 ## Helpers
 
@@ -185,12 +198,13 @@ All under `.cursor/skills/verify-flagoria/bin/` (executable):
 | Script | Role |
 |---|---|
 | `launch.sh` | Start a drive from a scratch user dir; print its lines; exit with its result |
-| `drive_base.gd` | Base script for drives: `start_game`, input helpers, `step` / `done` / `idle` |
+| `drive_base.gd` | Base script for drives: `start_game`, input helpers, `snapshot`, `step` / `done` / `idle` |
 | `doctor.sh` | Read-only health of the checkout; `--instance <run-id>` also checks a launched game |
 | `drive-verify.sh` | Run `tools/verify.sh`, copy log to artifacts |
 | `drive-map-settings-screenshot.sh` | xvfb Map Settings PNG in `artifacts/out/` |
 | `evidence-summarize.sh` | Write `artifacts/out/e2e-summary.txt` from latest logs |
-| `cleanup.sh` | Stop recorded PIDs by exact PID; remove `.run/` |
+| `collect-evidence.sh` | Copy a run's `game.log` and `user://` to `artifacts/out/runs/<run-id>/`; write `summary.txt` |
+| `cleanup.sh` | Stop recorded PIDs by exact PID; collect each run's evidence; remove `.run/` |
 | `run_lib.sh` | Sourced by the others: Godot lookup, run dirs, `.run/pids` |
 
 Drives started with `launch.sh` live in `drives/` (`drives/wait.gd`: start a game, then `idle()`; `drives/smoke.gd`: start a game, walk right, check the hero moved).
