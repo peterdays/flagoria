@@ -6,6 +6,8 @@
 SKILL="${ROOT}/.cursor/skills/verify-flagoria"
 RUN_ROOT="${SKILL}/.run"
 PIDS="${RUN_ROOT}/pids"
+# Per-run evidence, kept through cleanup (artifacts/out/ is gitignored).
+EVIDENCE_ROOT="${SKILL}/artifacts/out/runs"
 
 # GODOT if set, else `godot` on PATH (as tools/verify.sh). GODOT_EXE is the
 # resolved binary, which is what /proc/<pid>/exe shows for its processes.
@@ -20,11 +22,14 @@ run_find_godot() {
 }
 
 # Fresh .run/<run-id>/ for a run named after $1, with empty XDG dirs, so the
-# game's user:// starts empty and never touches the real one.
+# game's user:// starts empty and never touches the real one. Exports the
+# run's evidence dir as VERIFY_EVIDENCE_DIR for drive_base.gd's snapshot().
 run_new() {
   RUN_ID="$1-$(date +%Y%m%d-%H%M%S)-$$"
   RUN_DIR="${RUN_ROOT}/${RUN_ID}"
   mkdir -p "${RUN_DIR}/xdg/data" "${RUN_DIR}/xdg/config" "${RUN_DIR}/xdg/cache"
+  export VERIFY_EVIDENCE_DIR="${EVIDENCE_ROOT}/${RUN_ID}"
+  mkdir -p "${VERIFY_EVIDENCE_DIR}"
   export XDG_DATA_HOME="${RUN_DIR}/xdg/data"
   export XDG_CONFIG_HOME="${RUN_DIR}/xdg/config"
   export XDG_CACHE_HOME="${RUN_DIR}/xdg/cache"

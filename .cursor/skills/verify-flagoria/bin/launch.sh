@@ -12,6 +12,9 @@
 # and leaves the game running for bin/cleanup.sh. VERIFY_READY_TIMEOUT (60 s)
 # bounds the wait for the ready line, VERIFY_DRIVE_TIMEOUT (300 s) the wait
 # after it; on a timeout the game is left running and launch exits 1.
+#
+# Evidence: snapshots go to artifacts/out/runs/<run-id>/, and launch copies
+# game.log there when it sees the game exit. bin/cleanup.sh collects the rest.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 cd "$ROOT"
@@ -38,6 +41,7 @@ fi
 run_find_godot launch
 run_new "$(basename "${drive}" .gd)"
 log="${RUN_DIR}/game.log"
+echo "${drive}" >"${RUN_DIR}/drive"
 
 if [[ ${display} -eq 1 ]]; then
   xvfb="$(command -v xvfb-run)" || { echo "launch: xvfb-run not available" >&2; exit 2; }
@@ -88,6 +92,8 @@ while [[ -d "/proc/${pid}" ]]; do
 done
 code=0
 wait "${pid}" || code=$?
+echo "${code}" >"${RUN_DIR}/exit"
+cp "${log}" "${VERIFY_EVIDENCE_DIR}/game.log"
 stream
 if grep -q '^VERIFY_DONE ok$' "${log}" && [[ ${code} -eq 0 ]]; then
   exit 0

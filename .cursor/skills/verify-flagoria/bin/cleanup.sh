@@ -2,7 +2,8 @@
 # Cleanup: stop the processes recorded in .run/pids, by exact PID, then remove
 # .run/. A PID is stopped only while it is still the process that was launched
 # (see bin/run_lib.sh), so a reused PID or a Godot started by hand is left
-# alone. Never kills by name. artifacts/ is never touched.
+# alone. Never kills by name. Before .run/ goes, bin/collect-evidence.sh copies
+# each run's evidence to artifacts/out/runs/<run-id>/; artifacts/ is kept.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 cd "$ROOT"
@@ -70,5 +71,9 @@ if [[ -f "${PIDS}" ]]; then
     done <"${PIDS}"
   done
 fi
+for dir in "${RUN_ROOT}"/*/; do
+  [[ -d "${dir}" ]] || continue
+  "${SKILL}/bin/collect-evidence.sh" "$(basename "${dir}")" || echo "cleanup: collecting $(basename "${dir}") failed"
+done
 rm -rf "${RUN_ROOT}"
 echo "cleanup: removed .run/; artifacts/ kept"

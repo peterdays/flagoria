@@ -12,8 +12,10 @@ func run() -> void:
 	if not await start_game():
 		return
 	var start := hero().position
+	await snapshot("start")
 	step("walk")
 	await hold("ui_right", WALK_FRAMES)
 	var moved := hero().position.distance_to(start)
 	print("smoke: hero moved %.1f px" % moved)
+	await snapshot("walked")
 	done(moved >= MIN_MOVED)
