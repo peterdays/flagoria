@@ -1,0 +1,100 @@
+name: verify-drive
+
+# Opt-in gameplay drives (#289). A drive starts a real game, so this never runs
+# on push or on a plain pull request: only from the Actions tab
+# (workflow_dispatch) or when a pull request gets the needs-drive label.
+# Fork safety: pull_request (not pull_request_target), so a fork's run gets a
+# read-only token and no secrets; the job also skips pull requests from forks.
+# tools/verify.sh and the required checks never run drives.
+on:
+  workflow_dispatch:
+    inputs:
+      drives:
+        description: "Drive names in drives/, space separated (empty: all)"
+        required: false
+        default: ""
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-drive-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  drive:
+    name: Gameplay drives
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.label.name == 'needs-drive' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Godot 4.7.2
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/godot.zip \
+            https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
+          unzip -q -o /tmp/godot.zip -d /tmp/godot
+          sudo install -m 755 /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version
+
+      - name: Import the project
+        run: timeout 300 godot --headless --path . --import
+
+      - name: Doctor
+        run: .cursor/skills/verify-flagoria/bin/doctor.sh
+
+      - name: Run the drives
+        env:
+          DRIVES: ${{ inputs.drives }}
+        run: |
+          set -uo pipefail
+          skill=.cursor/skills/verify-flagoria
+          if [[ -z "${DRIVES:-}" ]]; then
+            for f in "${skill}"/drives/*.gd; do DRIVES+="$(basename "${f}" .gd) "; done
+          fi
+          failed=0
+          for name in ${DRIVES}; do
+            if [[ ! "${name}" =~ ^[a-z0-9_]+$ || ! -f "${skill}/drives/${name}.gd" ]]; then
+              echo "::error::no drive drives/${name}.gd"
+              failed=1
+              continue
+            fi
+            echo "::group::drive ${name}"
+            out="$(mktemp)"
+            "${skill}/bin/launch.sh" "drives/${name}.gd" | tee "${out}"
+            code="${PIPESTATUS[0]}"
+            run="$(sed -n 's/^launch: run=\([^ ]*\) .*/\1/p' "${out}" | head -n 1)"
+            # A drive that idles (VERIFY_IDLE) is still up: check the instance.
+            if [[ "${code}" -eq 0 ]] && grep -q '^VERIFY_IDLE' "${out}"; then
+              "${skill}/bin/doctor.sh" --instance "${run}" || code=1
+            fi
+            "${skill}/bin/cleanup.sh"
+            echo "::endgroup::"
+            if [[ "${code}" -ne 0 ]]; then
+              echo "::error::drive ${name} failed (run ${run:-none})"
+              failed=1
+            else
+              echo "drive ${name}: ok (run ${run})"
+            fi
+          done
+          exit "${failed}"
+
+      - name: Upload drive evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: drive-evidence
+          # launch.sh writes evidence under the skill; .cursor/ is a hidden
+          # directory, which upload-artifact skips unless told otherwise.
+          path: .cursor/skills/verify-flagoria/artifacts/out/runs/
+          include-hidden-files: true
+          if-no-files-found: warn
