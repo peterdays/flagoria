@@ -39,10 +39,11 @@ var _hidden_cell := Vector2i.ZERO  ## the cell showing HIDDEN_ALT while _hit pla
 var _fx: Sprite2D  ## chop_type's fx_sheet over the cell
 var _fx_time := -1.0
 var _fx_fell := false  ## _fx plays the falling frames, not a hit
-var _sfx: AudioStreamPlayer2D  ## hit_sounds and fell_sounds
+var _sfx: AudioStreamPlayer2D  ## hit_sounds, and fell_sounds without fell_own_player
 var _sfx_layer: AudioStreamPlayer2D  ## hit_layer_sounds
 var _sfx_last: AudioStreamPlayer2D  ## last_hit_sounds
 var _sfx_pickup: AudioStreamPlayer2D  ## pickup_sounds
+var _sfx_fell: AudioStreamPlayer2D  ## fell_sounds with fell_own_player
 var _last_hit_sound: AudioStream  ## for InteractableType.hit_no_repeat
 ## Streams started by the chop, in order (tests read this; playback is not
 ## observable headless).
@@ -71,6 +72,7 @@ func setup() -> void:
 	_sfx_layer = _sound_player()
 	_sfx_last = _sound_player()
 	_sfx_pickup = _sound_player()
+	_sfx_fell = _sound_player()
 
 
 func chopping() -> bool:
@@ -193,7 +195,7 @@ func _on_hit() -> void:
 func _on_fell() -> void:
 	## chop_cell just became its stump and gave its yields: fall and pickup
 	## sounds, puff or fx falling frames.
-	_play(chop_type.fell_sounds)
+	_play(chop_type.fell_sounds, _sfx_fell if chop_type.fell_own_player else _sfx)
 	if not chop_type.yields.is_empty():
 		_play(chop_type.pickup_sounds, _sfx_pickup)
 	_end_hit()

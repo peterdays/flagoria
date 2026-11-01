@@ -20,6 +20,9 @@ extends Resource
 @export var fell_sounds: Array[AudioStream] = []
 ## Pick a hit sound other than the previous one (with 2 or more).
 @export var hit_no_repeat := false
+## Play the fall sound on its own sound player, so it does not cut off the
+## last hit sound 0.1 s in (FLASH_TIME); off, the fall replaces it.
+@export var fell_own_player := false
 ## Each slot below plays on its own sound player, over the ones above, and
 ## may be empty. With each hit sound (e.g. leaves):
 @export var hit_layer_sounds: Array[AudioStream] = []

@@ -39,7 +39,7 @@ func _test_chop_tree_sounds() -> int:
 	## Each impact plays a tree_chop clip (never the same one twice in a row)
 	## with leaf_rustle, the last impact adds tree_crack, and the fall at
 	## 560 ms plays tree_fall then wood_pickup as the wood is added. All on
-	## the SFX bus. A bush's slots stay empty, so its sounds are unchanged.
+	## the SFX bus, the fall on its own player. A bush's slots stay empty, so its sounds are unchanged.
 	print("-- test_chop_tree_sounds")
 	var fail := 0
 	var s: Dictionary = await _chop_scene()
@@ -72,12 +72,19 @@ func _test_chop_tree_sounds() -> int:
 			or inventory.count_of(Inventory.WOOD) != InteractableCatalog.by_id("tree").amount_of(Inventory.WOOD):
 		printerr("FAIL chop_tree_sounds: at the fall sounds %s, wood %s" % [got, inventory.count_of(Inventory.WOOD)])
 		fail += 1
+	# The fall comes 0.1 s after the last impact, on its own player, so the
+	# last chop is not cut off.
+	var fell_chop: ChopAction = interaction._chop
+	if fell_chop._sfx_fell.stream == null or fell_chop._sfx_fell.stream.resource_path.get_file().get_basename() != "tree_fall_01" \
+			or fell_chop._sfx.stream.resource_path.get_file().get_basename() != got[2]:
+		printerr("FAIL chop_tree_sounds: the fall did not keep the last chop playing")
+		fail += 1
 	interaction.step_chop(1.0)
 	if interaction.sfx_log.size() != 7:
 		printerr("FAIL chop_tree_sounds: sounds after the chop ended: %s" % [_names(interaction.sfx_log)])
 		fail += 1
 	var chop: ChopAction = interaction._chop
-	for player in [chop._sfx, chop._sfx_layer, chop._sfx_last, chop._sfx_pickup]:
+	for player in [chop._sfx, chop._sfx_layer, chop._sfx_last, chop._sfx_pickup, chop._sfx_fell]:
 		if player.bus != &"SFX":
 			printerr("FAIL chop_tree_sounds: %s plays on bus %s" % [player, player.bus])
 			fail += 1
@@ -97,7 +104,7 @@ func _test_chop_tree_sounds() -> int:
 		printerr("FAIL chop_tree_sounds: only %d of %d chop clips picked in 60" % [seen.size(), hit_sounds.size()])
 		fail += 1
 	var bush := InteractableCatalog.by_id("bush")
-	if bush.hit_no_repeat or not bush.hit_layer_sounds.is_empty() or not bush.last_hit_sounds.is_empty() \
+	if bush.hit_no_repeat or bush.fell_own_player or not bush.hit_layer_sounds.is_empty() or not bush.last_hit_sounds.is_empty() \
 			or not bush.pickup_sounds.is_empty():
 		printerr("FAIL chop_tree_sounds: the bush got new sounds")
 		fail += 1

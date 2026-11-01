@@ -22,6 +22,7 @@ leaves = "STUMP"
 hit_sounds = Array[AudioStream]([ExtResource("2_chop1"), ExtResource("3_chop2"), ExtResource("4_chop3")])
 fell_sounds = Array[AudioStream]([ExtResource("5_fall")])
 hit_no_repeat = true
+fell_own_player = true
 hit_layer_sounds = Array[AudioStream]([ExtResource("6_rustle")])
 last_hit_sounds = Array[AudioStream]([ExtResource("7_crack")])
 pickup_sounds = Array[AudioStream]([ExtResource("8_pick1"), ExtResource("9_pick2")])
