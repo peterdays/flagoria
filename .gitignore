@@ -18,3 +18,6 @@ Builds/*
 
 # Headless / verify outputs
 artifacts/
+
+# Verify skill launch state (PIDs, scratch user dirs, game logs)
+.cursor/skills/verify-flagoria/.run/
