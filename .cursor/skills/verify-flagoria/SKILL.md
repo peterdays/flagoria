@@ -16,42 +16,36 @@ Project-local verification for Flagoria. Read this cold mid-task. Prefer the fea
 | Path | Purpose |
 |---|---|
 | `.cursor/skills/verify-flagoria/artifacts/` | Proof outputs (logs, screenshots, summaries). **Survives cleanup.** |
-| `.cursor/skills/verify-flagoria/.run/` | Per-run PIDs and temp state. Removed by cleanup. |
+| `.cursor/skills/verify-flagoria/.run/` | `pids` and one dir per launch (scratch user dirs, `game.log`). Gitignored; removed by cleanup. |
 
 ## Launch
 
-Flagoria is not a long-lived server for most checks. Launch means: confirm the engine, ensure the project can open headless, then start each drive as a short-lived process.
-
-1. Find Godot (`GODOT` if set, else `godot` on `PATH`) and check that its version matches `project.godot` (currently `4.7.*`):
+`tools/verify.sh` and the drives below are short runs. For a gameplay drive, launch the real game and wait until it is usable:
 
 ```bash
-export GODOT="${GODOT:-godot}" && "$GODOT" --version
+./.cursor/skills/verify-flagoria/bin/launch.sh drives/wait.gd            # headless
+./.cursor/skills/verify-flagoria/bin/launch.sh drives/wait.gd --display  # xvfb-run + opengl3
 ```
 
-2. Create run dirs:
+In a fresh checkout, import once first (`"$GODOT" --headless --path . --import`), as `tools/verify.sh` does.
 
-```bash
-mkdir -p .cursor/skills/verify-flagoria/artifacts .cursor/skills/verify-flagoria/.run
-```
+The drive path is relative to the skill dir, to the repo, or a `res://` path. Each launch:
 
-3. Optional warm import (same path CI uses first):
+1. finds Godot (`GODOT` if set, else `godot` on `PATH`);
+2. makes a fresh run dir `.run/<run-id>/` with empty `xdg/data`, `xdg/config` and `xdg/cache`, and exports `XDG_DATA_HOME`, `XDG_CONFIG_HOME` and `XDG_CACHE_HOME` to them, so the game starts from an empty `user://` and never reads or writes the real one;
+3. starts `godot --headless --path . --script <drive.gd>` in the background (with `--display`: under `xvfb-run -a` with `--rendering-driver opengl3`), logging to `.run/<run-id>/game.log`;
+4. appends each exact PID to `.run/pids` as `<pid> <kind> <run-id> <path>`: the Godot PID, plus the `xvfb-run` PID with `--display`;
+5. waits up to 60 s (`VERIFY_READY_TIMEOUT`) for the ready line, then prints `launch: run=<run-id> pid=<pid> log=...` and the ready line, and exits `0`.
 
-```bash
-"$GODOT" --headless --path . --editor --quit
-```
+**Ready line:** `VERIFY_READY pid=<pid> scene=res://flagoria_main.tscn`. The drive prints it only after the main scene is loaded, a game is started through the main menu's Host button and the local hero exists under `World`. A running process is not ready; a usable game is. `drives/wait.gd` does only this and then waits for cleanup (it quits on its own after 10 minutes).
 
-Ready when that command exits `0` (benign RID-leak `ERROR` lines on shutdown are normal and non-fatal).
+If the game exits first, or the line does not come in time, launch exits non-zero with the log tail. On a timeout the game is still running: stop it with Cleanup.
 
-4. For **visual** Map Settings proof only, a display is required. Prefer:
+Two launches side by side each get their own run dir, user dir and PID.
 
-```bash
-xvfb-run -a -s "-screen 0 1280x720x24" \
-  "$GODOT" --path . --rendering-driver opengl3 ...
-```
+`drive-verify.sh` and `drive-map-settings-screenshot.sh` record their PIDs in `.run/pids` the same way, and the screenshot drive also runs from a scratch run dir.
 
-Software GL (`llvmpipe`) is acceptable. If `xvfb-run` or a usable GL path is missing, skip visual drives and record the skip in evidence (do not fake screenshots).
-
-**Teardown of launch scaffolding:** see Cleanup. Do not leave editor or game processes running after a drive.
+For **visual** proof a display is required (`xvfb-run` and software GL, `llvmpipe`, are fine). If `xvfb-run` or a usable GL path is missing, skip visual drives and record the skip in evidence (do not fake screenshots).
 
 ## Doctor
 
@@ -114,7 +108,13 @@ Artifacts live in `.cursor/skills/verify-flagoria/artifacts/` (for example `veri
 ./.cursor/skills/verify-flagoria/bin/cleanup.sh
 ```
 
-Kills only PIDs recorded under `.cursor/skills/verify-flagoria/.run/` (never `pkill godot` by name). Removes `.run/` scratch. Leaves `artifacts/` intact.
+Run it after every launch or drive, including failed ones. It stops only PIDs listed in `.run/pids`, by exact PID, and only while each one is still the process that was launched:
+- a `godot` PID must run the recorded Godot binary (`/proc/<pid>/exe`) with `XDG_DATA_HOME` in its own `.run/<run-id>/xdg/`;
+- an `xvfb-run` or `verify` PID must still have the recorded `xvfb-run` or `tools/verify.sh` path on its command line.
+
+Anything else, such as a reused PID or a Godot started by hand, is left alone and reported.
+
+Teardown order: first the Godot games, so `xvfb-run` sees its child exit and stops its own Xvfb; then the wrappers, after stopping any Godot left below them by exact PID. Each PID gets `TERM`, then `KILL` after 5 s. Then `.run/` is removed. `artifacts/` is never touched. Never `pkill`, `killall` or kill by name.
 
 ## Helpers
 
@@ -122,11 +122,15 @@ All under `.cursor/skills/verify-flagoria/bin/` (executable):
 
 | Script | Role |
 |---|---|
+| `launch.sh` | Start a drive from a scratch user dir; wait for `VERIFY_READY` |
 | `doctor.sh` | Read-only health |
 | `drive-verify.sh` | Run `tools/verify.sh`, copy log to artifacts |
 | `drive-map-settings-screenshot.sh` | xvfb Map Settings PNG in `artifacts/out/` |
 | `evidence-summarize.sh` | Write `artifacts/out/e2e-summary.txt` from latest logs |
-| `cleanup.sh` | Tear down recorded PIDs + `.run/` |
+| `cleanup.sh` | Stop recorded PIDs by exact PID; remove `.run/` |
+| `run_lib.sh` | Sourced by the others: Godot lookup, run dirs, `.run/pids` |
+
+Drives started with `launch.sh` live in `drives/` (`drives/wait.gd`: start a game, print the ready line, wait).
 
 ## Feature map
 

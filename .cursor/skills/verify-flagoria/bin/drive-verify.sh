@@ -3,9 +3,9 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 cd "$ROOT"
+source "${ROOT}/.cursor/skills/verify-flagoria/bin/run_lib.sh"
 ART=".cursor/skills/verify-flagoria/artifacts"
-RUN=".cursor/skills/verify-flagoria/.run"
-mkdir -p "$ART" "$RUN"
+mkdir -p "$ART"
 
 # Same lookup as tools/verify.sh and doctor.sh: GODOT if set, else `godot` on PATH.
 export GODOT="${GODOT:-godot}"
@@ -15,8 +15,14 @@ if [[ ! -x "$GODOT" ]] && ! command -v "$GODOT" >/dev/null 2>&1; then
 fi
 
 log="${ART}/verify.log"
+# In the background so its PID goes to .run/pids before it runs; cleanup.sh
+# stops it, and the Godot processes under it, if it hangs. tools/verify.sh
+# makes its own scratch user dirs.
+"${ROOT}/tools/verify.sh" </dev/null >"${log}" 2>&1 &
+pid=$!
+run_record "${pid}" verify "verify-$(date +%Y%m%d-%H%M%S)-$$" "${ROOT}/tools/verify.sh"
 set +e
-./tools/verify.sh >"${log}" 2>&1
+wait "${pid}"
 status=$?
 set -e
 cat "${log}"
