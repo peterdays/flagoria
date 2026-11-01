@@ -31,7 +31,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 | `Scripts/` | Game scripts, mostly flat. `Scripts/mechanics/interactables/` is the first mechanic folder. |
 | root (`flagoria_main.gd`, `*.tscn`, `TouchScreenButton.gd`) | Main scene and top-level UI scenes. |
 | `Player/`, `Mobs/` | Player, sword and mob scenes. |
-| `data/` | Resource files a mechanic loads (`data/interactables/tree.tres`, `data/interactables/bush.tres`). |
+| `data/` | Resource files a mechanic loads (`data/interactables/tree.tres`, `pine.tres`, `bush.tres`). |
 | `art/` | Tiles, sprites, sounds, theme and their credits. |
 | `structures/` | Hand-drawn structure text files (`structures/guard_post.txt`) in the format `Scripts/mechanics/structures/structure.gd` parses. |
 | `addons/virtual_joystick/` | Vendored touch joystick. |

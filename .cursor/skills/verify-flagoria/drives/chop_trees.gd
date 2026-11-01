@@ -104,7 +104,7 @@ func nearest_tree(it: Node, map: TileMap) -> Variant:
 			var c := at + Vector2i(dx, dy)
 			var t: Resource = map.choppable(c)
 			var d := h.global_position.distance_to(it.cell_center(c))
-			if t != null and t.get("id") == "tree" and it.in_reach(c) and d < best_d:
+			if t != null and t.get("id") in ["tree", "pine"] and it.in_reach(c) and d < best_d:
 				best = c
 				best_d = d
 	return best

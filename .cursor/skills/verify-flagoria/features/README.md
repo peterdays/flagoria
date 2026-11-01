@@ -38,7 +38,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Biomes](./biomes.md) — biome terrain, plants, structures, `render_biomes` coverage gate.
 - [Map save files](./map-save.md) — versioned save/load of map inputs.
 - [Map zoom](./map-zoom.md) — local pinch, wheel and Ctrl +/- zoom.
-- [Chopping trees and bushes](./chop-trees-and-bushes.md) — interact-mode chop, per-type wood, stumps, regrowth.
+- [Chopping trees and bushes](./chop-trees-and-bushes.md) — interact-mode chop, tree, pine and bush types, per-type wood and regrow delay, stumps, regrowth.
 - [Chop trees (live drive)](./chop-trees.md) — mode button, tap a tree in reach, two hits, tree sounds, stump and wood once.
 - [Explored map](./explored-map.md) — minimap panel, cells revealed within 10 cells of the hero.
 - [Walls and bridges](./walls-and-bridges.md) — wall solver, plank bridges; live drive verified-unreachable until a build action lands.

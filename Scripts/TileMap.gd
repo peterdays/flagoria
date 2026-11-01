@@ -36,8 +36,9 @@ var _predict_cache: Dictionary = {}
 var _tree_cuts := TreeCuts.new(self)
 ## Placed plank bridges (Scripts/mechanics/bridges/bridge_builder.gd).
 var _bridges := BridgeBuilder.new(self)
-## Seconds of play after a cut before the stump turns back into its tree.
-## Kept in TreeCuts; this property reads and writes it there.
+## Seconds of play after a cut before any stump turns back into its plant,
+## overriding each type's regrow_delay; negative (the default) uses the
+## type's. Kept in TreeCuts; this property reads and writes it there.
 var regrow_delay: float:
 	get:
 		return _tree_cuts.regrow_delay

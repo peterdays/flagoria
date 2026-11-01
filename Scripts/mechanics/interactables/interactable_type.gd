@@ -5,7 +5,7 @@ extends Resource
 ## file per type in data/interactables/, listed in InteractableCatalog.
 ## Tuning a type (wood, hits) is an edit to its .tres, not to code.
 
-## Name of the type, e.g. "tree" or "bush".
+## Name of the type, e.g. "tree", "pine" or "bush".
 @export var id := ""
 ## TileCatalog.TILES names of the foliage-layer tiles this type is.
 @export var tiles: Array[String] = []
@@ -15,6 +15,12 @@ extends Resource
 @export var yields: Dictionary[StringName, int] = {}
 ## TileCatalog.TILES name of the walkable ground decor it leaves.
 @export var leaves := ""
+## Seconds of play before what it leaves turns back into it; 0 = never.
+## TreeCuts.regrow_delay, when set, overrides it for every type.
+@export var regrow_delay := 300.0
+## Key for this type in world saves (world.object_changes, #198). Cuts are
+## not saved yet, so nothing reads it.
+@export var save_key := ""
 ## Played on each impact (one picked at random) and when it falls.
 @export var hit_sounds: Array[AudioStream] = []
 @export var fell_sounds: Array[AudioStream] = []
