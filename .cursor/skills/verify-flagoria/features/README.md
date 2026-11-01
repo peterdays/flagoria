@@ -39,6 +39,9 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Map save files](./map-save.md) — versioned save/load of map inputs.
 - [Map zoom](./map-zoom.md) — local pinch, wheel and Ctrl +/- zoom.
 - [Chopping trees and bushes](./chop-trees-and-bushes.md) — interact-mode chop, per-type wood, stumps, regrowth.
+- [Chop trees (live drive)](./chop-trees.md) — mode button, tap a tree in reach, two hits, stump and wood once.
+- [Explored map](./explored-map.md) — minimap panel, cells revealed within 10 cells of the hero.
+- [Walls and bridges](./walls-and-bridges.md) — wall solver, plank bridges; live drive verified-unreachable until a build action lands.
 - [Audio](./audio.md) — buses, music, combat SFX, footsteps, `audio_check` gate.
 - [Main menu](./main-menu.md) — menu theme, Host/Join, volume sliders.
 - [Hero sprites](./hero-sprites.md) — layered hero sheet generator (manual check).
