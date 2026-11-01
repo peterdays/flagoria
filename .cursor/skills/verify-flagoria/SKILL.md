@@ -57,6 +57,20 @@ Read-only. Run whenever anything looks off:
 
 Expect exit `0` and lines confirming: `GODOT` version matches the major.minor in `project.godot` `config/features` (currently `4.7`), `test_map_characterization` present in `tests/world/test_map_characterization.gd`, and repo root OK (`project.godot`, `tools/verify.sh`, `tests/run_tests.gd`). Fail if Godot is not found (`GODOT`, or `godot` on `PATH` when `GODOT` is unset), wrong major/minor, the characterization test is missing, or the checkout is not Flagoria.
 
+### A launched instance
+
+```bash
+./.cursor/skills/verify-flagoria/bin/doctor.sh --instance <run-id>
+```
+
+Run it before the first drive step, after any failed step, and whenever a drive does something surprising. `<run-id>` is the `run=` value `launch.sh` printed. On top of the checks above, it checks every PID recorded for that run in `.run/pids`, and prints one `doctor: instance ok:` or `doctor: instance FAIL:` line per check:
+- each PID is still running (not exited or a zombie);
+- each `godot` PID runs the recorded Godot binary (`/proc/<pid>/exe`), whose `--version` matches `project.godot`;
+- each `godot` PID has `XDG_DATA_HOME` inside `.run/<run-id>/xdg/`, so it is our instance and not a play session sharing a real `user://`;
+- `.run/<run-id>/game.log` has the `VERIFY_READY` line, and no `SCRIPT ERROR` or `Node not found` after it.
+
+It exits `0` only when all of them pass. It only reads `.run/` and `/proc`: it changes no file and sends no input. A failure means relaunch (Cleanup, then Launch), not retry the step.
+
 ## Drive
 
 ### Automated (primary)
@@ -123,7 +137,7 @@ All under `.cursor/skills/verify-flagoria/bin/` (executable):
 | Script | Role |
 |---|---|
 | `launch.sh` | Start a drive from a scratch user dir; wait for `VERIFY_READY` |
-| `doctor.sh` | Read-only health |
+| `doctor.sh` | Read-only health of the checkout; `--instance <run-id>` also checks a launched game |
 | `drive-verify.sh` | Run `tools/verify.sh`, copy log to artifacts |
 | `drive-map-settings-screenshot.sh` | xvfb Map Settings PNG in `artifacts/out/` |
 | `evidence-summarize.sh` | Write `artifacts/out/e2e-summary.txt` from latest logs |
