@@ -15,18 +15,18 @@ In interact mode a tap on a tree in reach makes the hero face it and swing twice
 
 ## Driving it with verify-flagoria helpers
 
-Preconditions: `doctor.sh` exits `0`. Time cost: headless `-- test_chop_tree_two_hits` is under 0.5 s in `tools/verify.sh` (~1.2 s alone with `--only=chop_tree_two_hits`); a live drive is a few seconds (scratch runs took 3-9 s, most of it walking).
+Preconditions: `doctor.sh` exits `0`. Time cost: headless `-- test_chop_tree_two_hits` is under 0.5 s in `tools/verify.sh` (~1.2 s alone with `--only=chop_tree_two_hits`); the live drive is about 2.5 s headless, launch to `VERIFY_DONE` (25 runs with cleanup took 61 s).
 
 - **Run (headless).** `godot --headless --path . --script res://tests/run_tests.gd -- --only=chop_tree_two_hits`, or the full `tools/verify.sh`.
-- **Drive (live, to write as `drives/chop_trees.gd`).** `start_game()`, `toggle_mode()`, find the nearest tree by reading `World/worldMap` layer 1 near the hero (`map.choppable(cell)` with `id == "tree"`), walk toward it with `hold()` until `World/Interaction` `in_reach(cell)`, wait until the hero is still, connect `World/Interaction` `chop_hit`, `snapshot("before")`, `tap_cell(cell)`, `wait_until()` two hits, `snapshot("after")`, `done()`.
-- **Proof.** End state: layer 1 at the cell goes from a tree tile to empty and `GROUND_DECOR_LAYER` holds `STUMP`; `Inventory.count_of(&"wood")` rose by the tree's yield exactly once (a second tap on the stump adds no wood); two `chop_hit` signals for that cell, `hit` 1 then 2; `before` and `after` snapshots under `artifacts/out/runs/<run-id>/` (PNGs with `--display`).
+- **Drive (live).** `bin/launch.sh drives/chop_trees.gd --seed 49` (the drive's `## launch: --seed 49` line; `verify-drive.yml` reads it). Steps `start`, `interact-mode`, `chop`, `save`: `start_game()`, wait until the hero is still, pick the tree in reach nearest the hero (`map.choppable(cell)` with `id == "tree"` and `World/Interaction` `in_reach(cell)`; no walking), `snapshot("before")`, `toggle_mode()`, connect `World/Interaction` `chop_hit`, `tap_cell(cell)` on the tree's own cell, wait for `STUMP` on `GROUND_DECOR_LAYER`, check the wood, `snapshot("after")`, `menu_save()`, `done(true)`. It prints `chop: target ...`, `chop: stump at ... tap N` and `chop: saved user://saves/...`.
+- **Proof.** Read from `01-before.json` and `02-after.json` under `artifacts/out/runs/<run-id>/` (PNGs with `--display`): at the target cell `foliage` goes from `TREE` to `null` and `ground_decor` from `null` to `STUMP`, and `inventory.wood` goes up by the tree's yield (0 to 3). The drive also fails if a `chop_hit` lands on any other cell, if the hits are not 2, or if the wood is not exactly +3 ten frames after the stump. With seed 49 the hero spawns at cell (-2, 0) and the target is (-6, 0), 64 px away, so it is column 0 of row 4 in the 9x9 grids. The world save is in `user/saves/`.
 
 ## Gotchas
 
-- Moving more than 2 px (`MOVE_CANCEL`) or leaving interact mode mid-chop cancels it with no stump and no wood. The hero can still drift after `hold()` releases; wait until it is still before tapping.
+- Moving more than 2 px (`MOVE_CANCEL`) or leaving interact mode mid-chop cancels it with no stump and no wood. The hero can still drift after `hold()` releases or settle after spawn; the drive waits 10 still physics frames before each tap and does not walk.
 - A peer joining forces combat mode and hides the mode button (`-- test_interact_off_in_multiplayer`).
-- The tap chops the nearest choppable in reach, which can be a neighbouring bush (1 wood). Check the cell in `chop_hit`, not only the wood count.
-- The map is random per run. Some spawns have no tree within 30 cells, or the walk gets blocked; such a drive reports it found no tree in reach rather than passing.
-- In scratch runs on main, one of six headless runs reached the full proof; the rest found no tree, drifted, or started no chop from a still hero. `drives/chop_trees.gd` should handle each case before it is trusted.
-- `snapshot()` foliage names a `TREE_PINE_SMALL` cell `PINE` (same atlas coords), and it reads layer 1 only, so read the stump from `GROUND_DECOR_LAYER` directly.
+- The tap chops the nearest choppable in reach, which can be a neighbouring bush (1 wood) when the tapped cell itself is not in reach. Tap the tree's own cell while it is in reach (distance 0 wins) and check the cell in `chop_hit`, not only the wood count.
+- Without `--seed` the map is random, and most spawns have no tree in reach (4 of seeds 1-60 do: 22, 48, 49, 58). The drive then fails with `chop: no tree in reach of the hero at ...; launch with the seed above` instead of walking.
+- A tap that starts no chop, or a chop that ends with no stump, is printed with what the game saw (`hero`, distance, `in_reach`, mode, `interact_allowed`, the tap's window position) and tried again, up to 3 taps. In 25 consecutive seed-49 runs every chop started on the first tap.
+- `snapshot()` `foliage` names a `TREE_PINE_SMALL` cell `PINE` (same atlas coords). The stump is in `ground_decor`.
 - Headless tests: `-- test_chop_tree_two_hits`, `-- test_interact_mode_toggle`.

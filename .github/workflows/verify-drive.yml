@@ -70,7 +70,11 @@ jobs:
             fi
             echo "::group::drive ${name}"
             out="$(mktemp)"
-            "${skill}/bin/launch.sh" "drives/${name}.gd" | tee "${out}"
+            # A drive that needs a fixed map names its seed: "## launch: --seed N".
+            args=()
+            seed="$(sed -n 's/^## launch: --seed \([0-9]\{1,10\}\)$/\1/p' "${skill}/drives/${name}.gd" | head -n 1)"
+            [[ -n "${seed}" ]] && args=(--seed "${seed}")
+            "${skill}/bin/launch.sh" "drives/${name}.gd" "${args[@]}" | tee "${out}"
             code="${PIPESTATUS[0]}"
             run="$(sed -n 's/^launch: run=\([^ ]*\) .*/\1/p' "${out}" | head -n 1)"
             # A drive that idles (VERIFY_IDLE) is still up: check the instance.
