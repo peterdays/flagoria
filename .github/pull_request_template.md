@@ -15,6 +15,10 @@ Neutral project voice: no names, attributions, email addresses or local paths
 
 <!-- For example: tools/verify.sh, tests, a two-player run, screenshots. -->
 
+Feature file: <!-- "added" or "updated" (name the file under
+.cursor/skills/verify-flagoria/features/, plus its drive when a player can
+reach the feature), or "not player-facing". See docs/architecture.md. -->
+
 Time cost: <!-- Expected CI or verify time each new test, verify step or job
 adds, for example "~10 s in verify" or "none". Costly checks are allowed when
 they are worth it; say why. Each workflow run's "Job times" summary shows the

@@ -31,6 +31,7 @@ The only personal identity allowed anywhere is the git commit author metadata, u
 - CI time is weighed, not capped. Each new test, verify step or CI job states its expected time cost in the pull request (template line "Time cost"). Every pull request workflow ends with a "Job times" job (`tools/ci_job_times.py`) whose job summary shows each job's time against the median of recent successful main runs; a job over 5 minutes gets a warning, never a failure.
 - Where code goes: [docs/architecture.md](docs/architecture.md) maps every script to its module and its target folder, and says where new scripts, data, tests and tools go.
 - For scripted verification recipes (launch, doctor, drive, evidence), use `.cursor/skills/verify-flagoria/` when that skill is present.
+- Every new player-facing mechanic (a new choppable, a tower, a wall type, a city rule) adds its feature file `.cursor/skills/verify-flagoria/features/<feature>.md` and its index line in `features/README.md` in the same pull request. It also adds a drive under `.cursor/skills/verify-flagoria/drives/` when a player can reach the feature in a running game. Before each checkpoint in #253's gate, a verification maintenance pass checks the skill against the game. The rule and the pass are described in [docs/architecture.md](docs/architecture.md#rules).
 
 ## Known mistakes and the rules that prevent them
 
