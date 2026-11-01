@@ -36,7 +36,7 @@ The first 11 names kept their cells when the Solaria atlas was replaced. STONES 
 | PINE | Small pine on dry high ground (biomes on only, see `docs/biomes.md`) | 1 | (7, 2) | 1×1 | Same polygon as TREE |
 | FLOWER | Walkable flower in the flower altitude band | 2 (`GROUND_DECOR_LAYER`) | (9, 3) | 1×1 | None |
 | STONES | Walkable stones on bare land and beaches in some biomes (`BiomeCatalog.STRUCTURES`, biomes on only) | 2 (`GROUND_DECOR_LAYER`) | (0, 7) | 1×1 | None |
-| STUMP | What a tree cut in interact mode leaves (`cut_choppable` in `Scripts/TileMap.gd`); the map keeps it when the chunk is drawn again, until the tree regrows after `regrow_delay` | 2 (`GROUND_DECOR_LAYER`) | (8, 2) | 1×1 | None |
+| STUMP | What a tree cut in interact mode leaves (`cut_choppable` in `Scripts/mechanics/trees/tree_cuts.gd`, called through `Scripts/TileMap.gd`); the map keeps it when the chunk is drawn again, until the tree regrows after `regrow_delay` | 2 (`GROUND_DECOR_LAYER`) | (8, 2) | 1×1 | None |
 | BUSH_STUMP | What a bush cut in interact mode leaves; kept and regrown like STUMP | 2 (`GROUND_DECOR_LAYER`) | (8, 3) | 1×1 | None |
 
 With Solaria, TREE was 3×3 cells and BUSH 1×2. Both are now 1×1, so they draw smaller and their collision polygons were redrawn. The TREE and BUSH polygons are wide and tall enough that adjacent plants leave no gap the player (8×10 box) fits through. On the 16 px grid, trees and pines leave 2 px side to side and 5 px top to bottom, and bushes leave 4 px and 5 px. So a row, column or block of trees or bushes is a wall (`test_forest_walls` sweeps half-pixel lanes). One free cell between two plants is still passable.
@@ -159,7 +159,7 @@ Older single edge tiles, kept for hand-placed maps.
 
 ## Bridges
 
-Plank bridges sit on layer 0, the ground layer, in place of water. They have no collision, so the hero walks on them, and they are not a mob home. `TileMap.build_bridge(from, to)` lays one straight run over generated water and picks the pieces with `bridge_pieces`. Placed bridges stay when a chunk is drawn again and are cleared by a new map.
+Plank bridges sit on layer 0, the ground layer, in place of water. They have no collision, so the hero walks on them, and they are not a mob home. `TileMap.build_bridge(from, to)` (`Scripts/mechanics/bridges/bridge_builder.gd`) lays one straight run over generated water and picks the pieces with `bridge_pieces`. Placed bridges stay when a chunk is drawn again and are cleared by a new map.
 
 H runs west to east, V runs north to south. `START` has a land joint on the west (H) or north (V) end, `END` on the east or south end, `SINGLE` on both. `TIP_x` is an unfinished end that points to x. The `_WATER` pieces have water baked in and are the ones placed today. The plain pieces have a transparent background for sky shores. `BROKEN` pieces are art only: nothing places them yet.
 
@@ -200,7 +200,7 @@ Overlay tiles with a transparent background, placed on top of grass. `END_x`: th
 
 Every wall piece blocks (physics layer 0). The rects come from the stone envelope: an H run fills rows 1-14 (`y -7..7`), a V run fills columns 3-12 (`x -5..5`), and each arm reaches the cell edge. `GATE_H_OPEN` keeps only 2 px at each side, a 12 px gap for the 8×10 player.
 
-`Scripts/wall_solver.gd` (`WallSolver.solve`) picks the piece for every wall cell from its N/E/S/W wall neighbours. Stone and palisade cells connect to each other, and each keeps its own family. A `CORNER_OUT_q` becomes `CORNER_IN_q` only in a notch of an enclosure: the cell along both arms is outside and the cell on the other side of the bend is enclosed.
+`Scripts/mechanics/walls/wall_solver.gd` (`WallSolver.solve`) picks the piece for every wall cell from its N/E/S/W wall neighbours. Stone and palisade cells connect to each other, and each keeps its own family. A `CORNER_OUT_q` becomes `CORNER_IN_q` only in a notch of an enclosure: the cell along both arms is outside and the cell on the other side of the bend is enclosed.
 
 | Name | Cell |
 |---|---|
