@@ -2,8 +2,9 @@ class_name ChopAction
 extends RefCounted
 ## One chop of a tree or bush, driven by Interaction: the hero faces the
 ## plant and swings its type's `hits` chops, each impact plays the type's hit
-## sound, hit sheet and fx, and FLASH_TIME after the last impact the plant
-## becomes its stump through Interaction._cut, with its fall sound, puff or fx.
+## sounds, hit sheet and fx, and FLASH_TIME after the last impact the plant
+## becomes its stump through Interaction._cut, with its fall and pickup
+## sounds, puff or fx. Sounds are local, on the SFX bus.
 ## Moved from Scripts/interaction.gd (#262); Interaction keeps wrappers with
 ## the same names.
 
@@ -38,7 +39,11 @@ var _hidden_cell := Vector2i.ZERO  ## the cell showing HIDDEN_ALT while _hit pla
 var _fx: Sprite2D  ## chop_type's fx_sheet over the cell
 var _fx_time := -1.0
 var _fx_fell := false  ## _fx plays the falling frames, not a hit
-var _sfx: AudioStreamPlayer2D
+var _sfx: AudioStreamPlayer2D  ## hit_sounds and fell_sounds
+var _sfx_layer: AudioStreamPlayer2D  ## hit_layer_sounds
+var _sfx_last: AudioStreamPlayer2D  ## last_hit_sounds
+var _sfx_pickup: AudioStreamPlayer2D  ## pickup_sounds
+var _last_hit_sound: AudioStream  ## for InteractableType.hit_no_repeat
 ## Streams started by the chop, in order (tests read this; playback is not
 ## observable headless).
 var sfx_log: Array[AudioStream] = []
@@ -62,10 +67,10 @@ func setup() -> void:
 	_hit.z_as_relative = false
 	_hit.z_index = _i.world_map.get_layer_z_index(1)  # in the foliage tile's place
 	_fx = _sheet_sprite()
-	_sfx = AudioStreamPlayer2D.new()
-	_sfx.bus = &"SFX"
-	_sfx.volume_db = -8.0
-	_i.add_child(_sfx)
+	_sfx = _sound_player()
+	_sfx_layer = _sound_player()
+	_sfx_last = _sound_player()
+	_sfx_pickup = _sound_player()
 
 
 func chopping() -> bool:
@@ -102,14 +107,14 @@ func step_chop(delta: float) -> void:
 	## counts a hit (with the type's hit sound, hit sheet and fx); fell_at
 	## after the first wind-up the plant becomes its stump, plays its fall
 	## effects and gives its yields, and the hero recovers until the last
-	## chop ends. Moving away, leaving interact mode or losing the plant
-	## before it falls cancels with no stump and no wood.
+	## chop ends. Moving away, leaving interact mode, the hero dying or
+	## losing the plant before it falls cancels with no stump and no wood.
 	_step_fx(delta)
 	if not chopping():
 		return
 	if not _felled and (_i.mode != Interaction.Mode.INTERACT or _i.player == null or not _i.interact_allowed()
 			or _i.player.global_position.distance_to(_chop_from) > MOVE_CANCEL
-			or _i.world_map.choppable(chop_cell) != chop_type):
+			or _i.world_map.choppable(chop_cell) != chop_type or _player_dead()):
 		cancel_chop()
 		return
 	chop_time += delta
@@ -136,19 +141,34 @@ func cancel_chop() -> void:
 	_pose()
 
 
-func _play(streams: Array[AudioStream]) -> void:
+func _player_dead() -> bool:
+	var health := _i.player.get_node_or_null("Health") as PlayerHealth
+	return health != null and health.is_dead()
+
+
+func _play(streams: Array[AudioStream], player: AudioStreamPlayer2D = null, avoid: AudioStream = null) -> void:
+	## One of `streams` at random on `player` (default _sfx), not `avoid`.
 	if streams.is_empty():
 		return
-	_sfx.stream = streams[randi() % streams.size()]
-	_sfx.position = _i.to_local(_i.cell_center(chop_cell))
-	_sfx.pitch_scale = randf_range(0.93, 1.07)
-	_sfx.play()
-	sfx_log.append(_sfx.stream)
+	if player == null:
+		player = _sfx
+	var pick := randi() % streams.size()
+	if avoid != null and streams.size() > 1 and streams[pick] == avoid:
+		pick = (pick + 1 + randi() % (streams.size() - 1)) % streams.size()
+	player.stream = streams[pick]
+	player.position = _i.to_local(_i.cell_center(chop_cell))
+	player.pitch_scale = randf_range(0.93, 1.07)
+	player.play()
+	sfx_log.append(player.stream)
 
 
 func _on_hit() -> void:
-	## An impact on chop_cell: its hit sound, hit sheet and hit fx.
-	_play(chop_type.hit_sounds)
+	## An impact on chop_cell: its hit sounds, hit sheet and hit fx.
+	_play(chop_type.hit_sounds, _sfx, _last_hit_sound if chop_type.hit_no_repeat else null)
+	_last_hit_sound = _sfx.stream
+	_play(chop_type.hit_layer_sounds, _sfx_layer)
+	if chop_hits == chop_type.hits:
+		_play(chop_type.last_hit_sounds, _sfx_last)
 	var corner := _i.to_local(_i.cell_center(chop_cell)) - Vector2(_i.world_map.tile_set.tile_size) / 2.0
 	if chop_type.hit_sheet:
 		_end_hit()
@@ -171,8 +191,11 @@ func _on_hit() -> void:
 
 
 func _on_fell() -> void:
-	## chop_cell just became its stump: fall sound, puff or fx falling frames.
+	## chop_cell just became its stump and gave its yields: fall and pickup
+	## sounds, puff or fx falling frames.
 	_play(chop_type.fell_sounds)
+	if not chop_type.yields.is_empty():
+		_play(chop_type.pickup_sounds, _sfx_pickup)
 	_end_hit()
 	if chop_type.fell_puff:
 		_puff.position = _i.to_local(_i.cell_center(chop_cell))
@@ -240,6 +263,14 @@ func _pose() -> void:
 		while col < CHOP_FRAME_ENDS.size() - 1 and t >= CHOP_FRAME_ENDS[col]:
 			col += 1
 	_i.player.set_chop_pose(_chop_facing, col)
+
+
+func _sound_player() -> AudioStreamPlayer2D:
+	var player := AudioStreamPlayer2D.new()
+	player.bus = &"SFX"
+	player.volume_db = -8.0
+	_i.add_child(player)
+	return player
 
 
 func _sheet_sprite() -> Sprite2D:

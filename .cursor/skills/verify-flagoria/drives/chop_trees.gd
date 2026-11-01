@@ -3,12 +3,15 @@ extends "res://.cursor/skills/verify-flagoria/bin/drive_base.gd"
 ## Chop one tree with a tap in interact mode (features/chop-trees.md). With
 ## seed 49 (the line above, read by verify-drive.yml) the spawn has trees in
 ## reach. Proof, read from the 01-before and 02-after snapshots: the target
-## cell's tree is a stump and wood went up by the tree's yield once.
+## cell's tree is a stump and wood went up by the tree's yield once, and
+## the chop's sounds (Interaction.sfx_log) came in the order of #265.
 
 const SETTLE_FRAMES := 10  ## physics frames the hero must keep still
 const TAPS := 3  ## taps tried before the drive fails
 const START_S := 0.5  ## s a tap has to start a chop
 const FALL_S := 2.0  ## s a started chop has to leave a stump (fell_at(2) is 0.56)
+## The chop's sounds in order, with the clip number dropped (#265).
+const SOUNDS := ["tree_chop", "leaf_rustle", "tree_chop", "leaf_rustle", "tree_crack", "tree_fall", "wood_pickup"]
 
 var _hits: Array[Vector2i] = []
 
@@ -51,6 +54,14 @@ func run() -> void:
 	var wood_after: int = inventory.count_of(&"wood")
 	if wood_after - wood_before != wood_yield:
 		printerr("chop: wood went %d -> %d, not +%d" % [wood_before, wood_after, wood_yield])
+		done(false)
+		return
+	var sounds := []
+	for stream: AudioStream in it.sfx_log:
+		sounds.append(stream.resource_path.get_file().get_basename().trim_suffix("_01").trim_suffix("_02").trim_suffix("_03"))
+	print("chop: sounds %s" % [sounds])
+	if sounds != SOUNDS:
+		printerr("chop: sounds %s, expected %s" % [sounds, SOUNDS])
 		done(false)
 		return
 	await snapshot("after")
@@ -107,6 +118,7 @@ func chop(it: Node, map: TileMap, cell: Vector2i, hits: int) -> bool:
 		if not await settle():
 			return false
 		_hits.clear()
+		it.sfx_log.clear()  # only the last tap's chop counts
 		await tap_cell(cell)
 		if not await wait_until(func() -> bool: return it.chopping() or not _hits.is_empty(), START_S):
 			printerr("chop: tap %d started no chop: %s" % [attempt, diagnose(it, map, cell)])

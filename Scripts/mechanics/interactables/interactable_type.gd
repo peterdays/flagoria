@@ -18,6 +18,15 @@ extends Resource
 ## Played on each impact (one picked at random) and when it falls.
 @export var hit_sounds: Array[AudioStream] = []
 @export var fell_sounds: Array[AudioStream] = []
+## Pick a hit sound other than the previous one (with 2 or more).
+@export var hit_no_repeat := false
+## Each slot below plays on its own sound player, over the ones above, and
+## may be empty. With each hit sound (e.g. leaves):
+@export var hit_layer_sounds: Array[AudioStream] = []
+## With the last impact's hit sound:
+@export var last_hit_sounds: Array[AudioStream] = []
+## When its yields are added to the inventory:
+@export var pickup_sounds: Array[AudioStream] = []
 ## Frames (16x16, left to right) drawn in place of the tile after each
 ## impact. A type with a hit sheet needs alternative tile
 ## Interaction.HIDDEN_ALT (invisible, same collision) in the TileSet.

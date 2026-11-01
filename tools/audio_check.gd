@@ -46,6 +46,8 @@ const TIMELINE := [
 	{"name": "kill", "action": "kill", "duration": 0.8, "expect": {"hit_land": 1, "player_hurt": 1, "hit_sting": 1}},
 	# One regen heal on this peer's own player; other players' heals are silent here.
 	{"name": "regen", "action": "regen", "duration": 0.6, "expect": {"regen_tick": 1}},
+	# This peer's own player chops a two-hit tree through Interaction (#265).
+	{"name": "chop_tree", "action": "chop_tree", "duration": 1.0, "expect": {"tree_chop": 2, "leaf_rustle": 2, "tree_crack": 1, "tree_fall": 1, "wood_pickup": 1}},
 	# SFX slider at 0: the swing still starts, but nothing reaches Master.
 	{"name": "swing_sfx_off", "action": "swing", "sfx_volume": 0.0, "audible": false, "duration": 0.6, "expect": {"sword_swing": 1}},
 	{"name": "music", "action": "idle", "music": "GAME_TRACK", "duration": 2.0, "expect": {"4 - Village": 1}},
@@ -151,6 +153,8 @@ func _setup() -> void:
 		for node in _sound_players(player):
 			_add_probe(node)
 	for node in music.players():
+		_add_probe(node)
+	for node in _sound_players(_scene.get_node("World/Interaction")):
 		_add_probe(node)
 	for node in root.get_node("UiSfx").players().values():
 		_add_probe(node)
@@ -284,6 +288,8 @@ func _begin_step(i: int, t: float) -> void:
 			_place_still(_local, _walker.global_position + Vector2(0, 12))
 			_local.health.set_health_now(_local.health.max_health - 1)
 			_local.get_node("regen_timer").timeout.emit()
+		"chop_tree":
+			_chop_tree()
 		"ui_click":
 			_scene.get_node("CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/MapSettingsButton").pressed.emit()
 		"ui_back":
@@ -333,6 +339,24 @@ func _place_still(body: Node2D, pos: Vector2) -> void:
 	var steps = body.get_node("Footsteps")
 	steps._travelled = 0.0
 	steps._has_last_pos = false
+
+
+func _chop_tree() -> void:
+	## A tree two cells above this peer's own player, chopped the way a tap
+	## starts it; Interaction steps the chop each frame.
+	_place_still(_local, _walker.global_position + Vector2(0, 12))
+	var cell := _world.local_to_map(_world.to_local(_local.global_position)) + Vector2i(0, -2)
+	var grass: Dictionary = TileCatalog.TILES["GRASS_A"]
+	for dy in range(0, 3):
+		_world.set_cell(0, cell + Vector2i(0, dy), grass["source_id"], grass["atlas"])
+		for layer in range(1, _world.get_layers_count()):
+			_world.erase_cell(layer, cell + Vector2i(0, dy))
+	_world.set_cell(1, cell, TileCatalog.SOURCE_ID, TileCatalog.TREE)
+	var interaction: Interaction = _scene.get_node("World/Interaction")
+	interaction.bind(_local)
+	interaction.set_mode(Interaction.Mode.INTERACT)
+	if not interaction.start_chop(cell):
+		_failures.append("chop_tree: could not start chopping the tree at %s" % cell)
 
 
 func _sword_hit() -> void:
