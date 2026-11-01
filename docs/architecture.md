@@ -36,7 +36,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 | `structures/` | Hand-drawn structure text files (`structures/guard_post.txt`) in the format `Scripts/mechanics/structures/structure.gd` parses. |
 | `addons/virtual_joystick/` | Vendored touch joystick. |
 | `tests/` | Runner (`tests/run_tests.gd`, plus its own self-checks), area test files (`tests/<area>/test_*.gd`), shared helpers (`tests/helpers/test_helpers.gd`), probes started as separate processes, `tests/fixtures/`, `tests/golden/`. |
-| `tools/` | Verify, CLI, renders, asset generators, CI helpers (`tools/pr_hygiene.py`, `tools/play_review_paths.py`, `tools/stress_netcode.py`, `tools/ci_job_times.py`). |
+| `tools/` | Verify, CLI, renders, asset generators, CI helpers (`tools/pr_hygiene.py`, `tools/file_budget.py`, `tools/play_review_paths.py`, `tools/stress_netcode.py`, `tools/ci_job_times.py`). |
 | `.github/workflows/` | verify, pr-hygiene, play-review-label, play-review, pr-debug-apk, android-apk, job-times. |
 | `.cursor/skills/verify-flagoria/` | Launch, doctor and drive scripts, and one feature file per feature under `.cursor/skills/verify-flagoria/features/`. |
 | `docs/` | Feature and process notes. |
@@ -50,6 +50,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 ## Rules
 
 - A mechanic owns its logic, data and tests: scripts in `Scripts/mechanics/<mechanic>/`, resources in `data/<mechanic>/`, tests in `tests/mechanics/<mechanic>/`.
+- File size budget: a script under `Scripts/` or `flagoria_main.gd` stays within 500 lines and a test file within 1,500. `tools/verify.sh` runs `tools/file_budget.py`, and only files listed in `tools/file_budget_allow.txt`, each with a reason and a cap, may be larger.
 - Shared catalogues stay where they are: `Scripts/tile_catalog.gd` (a data table, allowed to stay large), `Scripts/BiomeCatalog.gd`, `Scripts/mob_catalog.gd`, `Scripts/MapGenParams.gd`.
 - Autoloads stay in `Scripts/` unless a pull request moves one on purpose and updates `project.godot`.
 - Moving a script: `git mv` the `.gd` and its `.gd.uid` together, so the uid stays next to the script. Scenes here load scripts by `path=` without a `uid=`, so the same pull request also updates every `res://` path to the script: scenes, `preload`/`load` calls, tests, and the path lists in `tools/play_review_paths.py`. `test_tile_catalog` scans `Scripts/` and its subfolders.

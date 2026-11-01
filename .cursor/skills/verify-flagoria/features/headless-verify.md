@@ -1,9 +1,10 @@
 # Headless verify
 
-Headless verify opens the Godot 4.7 project, parses every GDScript file, runs the headless test entry point, and then runs the biome, audio and generator checks, so CI and local agents share one gate.
+Headless verify checks file sizes, opens the Godot 4.7 project, parses every GDScript file, runs the headless test entry point, and then runs the biome, audio and generator checks, so CI and local agents share one gate.
 
 ## Sub-features
 
+- `verify-file-budget` runs `tools/file_budget.py --self-test`, then `tools/file_budget.py`, before any Godot step. It fails when a `.gd` file under `Scripts/` or `flagoria_main.gd` is over 500 lines, or a test file under `tests/` is over 1,500, unless `tools/file_budget_allow.txt` lists it with a reason and a cap it may not grow past. Each failure line names the file, its size and the fix.
 - `verify-import-load` imports/opens the project headless via the editor.
 - `verify-parse` parses each `.gd` with `--check-only`.
 - `verify-tests` runs `res://tests/run_tests.gd` and requires `All tests passed.`
@@ -25,7 +26,7 @@ Preconditions:
 - `doctor.sh` exits `0`.
 - `GODOT` is Godot 4.7.x. When `GODOT` is unset, `tools/verify.sh` and `doctor.sh` both use `godot` on `PATH`.
 
-- **Run verify.** Execute `./.cursor/skills/verify-flagoria/bin/drive-verify.sh`. Exit code `0`. Log contains `Project load: ok`, `Script parse: ok`, `Tests: ok`, `Biome coverage: ok`, `Audio check: ok`, `Generator smoke: ok`, and `Verification passed.`
+- **Run verify.** Execute `./.cursor/skills/verify-flagoria/bin/drive-verify.sh`. Exit code `0`. Log contains `File budget: ok`, `Project load: ok`, `Script parse: ok`, `Tests: ok`, `Biome coverage: ok`, `Audio check: ok`, `Generator smoke: ok`, and `Verification passed.`
 - **Confirm tests.** The same log contains `All tests passed.` from `tests/run_tests.gd`.
 - **Proof.** Keep `.cursor/skills/verify-flagoria/artifacts/verify.log` (written by the helper).
 
