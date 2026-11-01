@@ -70,6 +70,25 @@ syncs:
 - `sword_hit_landed()` is the one place a sword hit on a mob is handled; add
   a sword impact sound there.
 
+### Chop sounds
+
+`ChopAction` (`Scripts/mechanics/trees/chop_action.gd`) plays a plant's
+sound slots from its `InteractableType` (`data/interactables/*.tres`), on
+this client only (chopping is single-player). Each slot has its own
+`AudioStreamPlayer2D` on `SFX` at -8 dB, pitch 0.93–1.07, so slots that start
+together do not cut each other off. An empty slot plays nothing.
+
+| Slot | Hook | Tree | Bush |
+| --- | --- | --- | --- |
+| `hit_sounds` | each impact (`chop_hit`) | `trees/tree_chop_01..03`, never the same twice in a row (`hit_no_repeat`) | `bushes/bush_hit_01..03` |
+| `hit_layer_sounds` | each impact, with the hit sound | `trees/leaf_rustle_01` | none |
+| `last_hit_sounds` | the last impact, with the hit sound | `trees/tree_crack_01` | none |
+| `fell_sounds` | the plant becomes its stump, 0.1 s after the last impact; on its own player with `fell_own_player`, else on the hit player (it cuts the last hit off) | `trees/tree_fall_01` (`fell_own_player`) | `bushes/bush_break_01` (hit player) |
+| `pickup_sounds` | its yields are added to the inventory | `trees/wood_pickup_01..02` | none |
+
+A chop cancelled before the fall (moving away, leaving interact mode, the
+hero dying) plays no fall or pickup sound.
+
 ### UI sounds
 
 The `UiSfx` autoload (`Scripts/ui_sfx.gd`) plays `art/audio/sfx/ui/` on the
