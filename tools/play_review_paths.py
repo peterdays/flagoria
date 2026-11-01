@@ -130,6 +130,8 @@ def self_test() -> int:
         (["Scripts/world/terrain_shape.gd.uid"], None, None, False),
         (["Scripts/mechanics/trees/tree_cuts.gd"], None, None, True),
         (["Scripts/mechanics/bridges/bridge_builder.gd"], None, None, True),
+        (["Scripts/mechanics/interact/interaction.gd"], None, None, True),
+        (["Scripts/mechanics/trees/chop_action.gd"], None, None, True),
         (["Scripts/mechanics/walls/wall_solver.gd.uid"], None, None, False),
         (["Scripts/player.gd.uid", "tests/run_tests.gd"], None, None, False),
         (["tests/ui/test_map_zoom.gd", "tests/helpers/test_helpers.gd"], None, None, False),
