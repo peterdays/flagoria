@@ -6,9 +6,10 @@ func _test_attack_aim_mouse() -> int:
 	## Mouse aim (#231): holding the left button on the map in combat mode
 	## shows the cone toward the cursor, snapped to the four swing directions,
 	## and releasing swings that way. The cone covers the sword's hitbox at
-	## mid-swing in every direction. Right-click cancels; mouse events made
-	## from touches, clicks on the HUD, interact mode and a dead player never
-	## aim; an unknown RPC direction swings in the facing direction.
+	## mid-swing in every direction. Right-click and opening the in-game menu
+	## cancel; mouse events made from touches, clicks on the HUD, interact
+	## mode, an open in-game menu and a dead player never aim; an unknown RPC
+	## direction swings in the facing direction.
 	print("-- test_attack_aim_mouse")
 	var fail := 0
 	if AttackAim.direction_name(Vector2(-3, 1)) != "Left" or AttackAim.direction_name(Vector2(1, -3)) != "Up" \
@@ -52,6 +53,27 @@ func _test_attack_aim_mouse() -> int:
 		var until := Time.get_ticks_msec() + 3000
 		while player.isAttacking and Time.get_ticks_msec() < until:
 			await process_frame
+
+	# Opening the in-game menu mid-aim cancels: the release does not swing,
+	# and a click while it is open does not aim.
+	var game_menu = scene.get_node("CanvasLayer1/InGameMenu")
+	player.lastAnimDirection = "Down"
+	mouse.call(MOUSE_BUTTON_LEFT, at.call(Vector2(-60, 5)), true)
+	var aimed_before: bool = aim.aiming
+	game_menu.open()
+	await process_frame
+	mouse.call(MOUSE_BUTTON_LEFT, at.call(Vector2(-60, 5)), false)
+	if not aimed_before or aim.aiming or player.isAttacking:
+		printerr("FAIL attack_aim_mouse opening the in-game menu did not cancel the aim (aimed %s, aiming %s, attacking %s)"
+				% [aimed_before, aim.aiming, player.isAttacking])
+		fail += 1
+	mouse.call(MOUSE_BUTTON_LEFT, at.call(Vector2(-60, 5)), true)
+	if aim.aiming:
+		printerr("FAIL attack_aim_mouse aimed with the in-game menu open")
+		fail += 1
+	mouse.call(MOUSE_BUTTON_LEFT, at.call(Vector2(-60, 5)), false)
+	game_menu.close()
+	await wait_swing.call()
 
 	# Hold, move the cursor round, release: the cone follows and the swing
 	# goes the last way it showed.
