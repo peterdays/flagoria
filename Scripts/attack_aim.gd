@@ -25,7 +25,8 @@ extends Node2D
 ## swing, never an angle the hit will not land on. The aim is local only; the
 ## attack goes out through the player's attack_animation RPC with its
 ## direction. Clicks that start on a HUD control, mouse events the engine
-## makes from touches, interact mode and a dead player never aim. Space still
+## makes from touches, interact mode, an open in-game menu and a dead player
+## never aim, and opening the menu mid-aim cancels the aim. Space still
 ## attacks at once in the facing direction.
 
 const DIRECTIONS := ["Up", "Down", "Left", "Right"]
@@ -38,6 +39,7 @@ const TOUCH_DOWN := 1  ## a finger on it, inside the dead zone
 const TOUCH_AIM := 2  ## that finger past the dead zone, aiming
 const ATTACK_BUTTON_GROUP := "attack_button"
 const INTERACTION_PATH := "/root/Flagoria/World/Interaction"
+const MENU_PATH := "/root/Flagoria/CanvasLayer1/InGameMenu"
 
 var player: Node2D  ## the local player; this node is its child
 var aiming := false
@@ -86,6 +88,9 @@ func aim_direction() -> String:
 
 func can_aim() -> bool:
 	if player == null or player.health.is_dead():
+		return false
+	var menu := get_node_or_null(MENU_PATH)
+	if menu != null and menu.is_open():
 		return false
 	var interaction := get_node_or_null(INTERACTION_PATH)
 	return interaction == null or interaction.mode == Interaction.Mode.COMBAT

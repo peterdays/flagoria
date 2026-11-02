@@ -11,7 +11,7 @@ A player swings the sword with space, a tap on the on-screen attack button, or a
 - `aim-touch` a finger that lands on the attack button (group `attack_button`, `CanvasLayer1/TouchScreenButton`) aims once it moves more than `TOUCH_DEAD_ZONE` (8 screen px) from the button's `aim_center()`.
 - `aim-cone` a translucent cone from the hero shows the swing; its look is `AimConeStyle` (`Scripts/aim_cone_style.gd`).
 - `aim-snap` the aim snaps to one of the four swing directions (`AttackAim.DIRECTIONS`: Up, Down, Left, Right).
-- `aim-cancel` right-click cancels a mouse aim; dragging back into the dead zone cancels a touch aim (lifting there does not swing; dragging out again aims again).
+- `aim-cancel` right-click, or opening the in-game menu (`CanvasLayer1/InGameMenu`, Esc or its HUD button), cancels a mouse aim, and no aim starts while that menu is open; dragging back into the dead zone cancels a touch aim (lifting there does not swing; dragging out again aims again).
 - `aim-release` releasing the mouse button or lifting the finger swings in the aimed direction, sent to every peer through the `attack_animation` RPC.
 
 ## How to get to it (user POV)
