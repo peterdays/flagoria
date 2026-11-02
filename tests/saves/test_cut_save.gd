@@ -188,3 +188,88 @@ func _test_cut_save_in_game() -> int:
 	if fail == 0:
 		print("PASS test_cut_save_in_game (tree %s)" % tree)
 	return fail
+
+
+func _test_cut_save_late_join() -> int:
+	## A host loads a save with a cut tree and bush and a client joins. The
+	## client gets the host's cut list with the map params and draws the same
+	## stumps: for each cut cell, the same tiles and the same blocking as
+	## the host. The host is a second process (tests/cut_sync_probe.gd).
+	print("-- test_cut_save_late_join")
+	var setup := _cut_save_scene()
+	var probe_scene = setup[0]
+	var params: MapGenParams = setup[2]
+	var found: Dictionary = setup[3]
+	probe_scene.queue_free()
+	await process_frame
+	if not found.has("tree") or not found.has("bush"):
+		printerr("FAIL cut_save_late_join: seed 7 has no tree or bush near the spawn: %s" % found)
+		return 1
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL cut_save_late_join found no free UDP port")
+		return 1
+	var world_save := WorldSave.new(params)
+	for pair in [[found["tree"], "tree", 40.0], [found["bush"], "bush", 20.0]]:
+		world_save.object_changes.get_or_add(WorldSave.chunk_key(pair[0]), {})[WorldSave.cell_key(pair[0])] = {"cut": pair[1], "age": pair[2]}
+	var saved := MapSave.save_world(world_save, "test_cut_save_late_join_%d_%d" % [OS.get_process_id(), port])
+	var save_path := ProjectSettings.globalize_path(saved["path"])
+	var out := OS.get_user_data_dir().path_join("cut_sync_%d_%d.json" % [OS.get_process_id(), port])
+	DirAccess.remove_absolute(out)
+	DirAccess.remove_absolute(out + ".stop")
+	var pid := OS.create_process(OS.get_executable_path(), ["--headless", "--path", ProjectSettings.globalize_path("res://"),
+			"--script", "res://tests/cut_sync_probe.gd", "--", "--port=%d" % port, "--save=" + save_path, "--out=" + out])
+	if saved["error"] != "" or pid <= 0:
+		printerr("FAIL cut_save_late_join: save %s, host pid %d" % [saved["error"], pid])
+		DirAccess.remove_absolute(saved["path"])
+		return 1
+	var read := func() -> Dictionary:
+		var data = JSON.parse_string(FileAccess.get_file_as_string(out)) if FileAccess.file_exists(out) else null
+		return data if data is Dictionary else {}
+	var fail := 0
+	var deadline := Time.get_ticks_msec() + 30000
+	while Time.get_ticks_msec() < deadline and OS.is_process_running(pid) and read.call().get("cells", {}).size() < 2:
+		await process_frame
+	var host: Dictionary = read.call()
+	var scene = null
+	if host.get("cells", {}).size() != 2:
+		printerr("FAIL cut_save_late_join: the host did not report its 2 cuts: %s" % host)
+		fail += 1
+	else:
+		scene = load("res://flagoria_main.tscn").instantiate()
+		root.add_child(scene)
+		scene.get_node("CanvasLayer2/MainMenu").hide()
+		var world = scene.get_node("World/worldMap")
+		scene.add_player_joined(port)
+		while Time.get_ticks_msec() < deadline and (scene.world_params == null or world.cut_changes().is_empty()):
+			await process_frame
+		for _i in 5:
+			await process_frame  # let the client draw its chunks
+		var client_cuts: Dictionary = world.cut_changes()
+		for chunk in host["cuts"]:
+			for key in host["cuts"][chunk]:
+				var want: Dictionary = host["cells"][key]
+				var got: Dictionary = JSON.parse_string(JSON.stringify(load("res://tests/cut_sync_probe.gd").cell_state(world, WorldSave.parse_cell(key))))
+				if not client_cuts.get(chunk, {}).has(key) or got != want or want["clear"] != true:
+					printerr("FAIL cut_save_late_join: cell %s on the client %s (cut %s), on the host %s"
+							% [key, got, client_cuts.get(chunk, {}).has(key), want])
+					fail += 1
+		if client_cuts.keys() != host["cuts"].keys():
+			printerr("FAIL cut_save_late_join: client cuts %s, host cuts %s" % [client_cuts, host["cuts"]])
+			fail += 1
+	FileAccess.open(out + ".stop", FileAccess.WRITE).close()
+	deadline = Time.get_ticks_msec() + 5000
+	while Time.get_ticks_msec() < deadline and OS.is_process_running(pid):
+		await process_frame
+	if OS.is_process_running(pid):
+		OS.kill(pid)
+	if scene:
+		scene.enet_peer.close()
+		scene.multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+		scene.queue_free()
+	for path in [saved["path"], out, out + ".stop", out + ".tmp"]:
+		DirAccess.remove_absolute(path)
+	await process_frame
+	if fail == 0:
+		print("PASS test_cut_save_late_join (%s)" % host["cuts"])
+	return fail

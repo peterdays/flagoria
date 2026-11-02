@@ -61,7 +61,7 @@ The catalog is a fixed `preload` list. It does not scan `data/interactables/`, b
 ## 5. Save and sync
 
 - **Save:** give the type a unique `save_key`. A cut of the type is saved in `world.object_changes` under it, with its age in seconds of play, and loads back as the stump (`TreeCuts.to_changes` and `TreeCuts.restore`, `docs/world-saves.md`, Cut trees and bushes). A new type needs no other save work. Renaming a `save_key` drops that type's cuts from existing saves.
-- **Sync:** cuts and regrowth are not synced (#223, sync pending in #298). `Interaction.interact_allowed` is false while multiplayer is active (`Interaction.multiplayer_on`: a client, or a host with a peer). So interact mode is off in two-player games, and `regrow_due` does nothing there. A new type needs no sync work until #298.
+- **Sync:** a joining player gets the host's cuts once, with the map params (`receive_map_params`). Cuts and regrowth during play are not synced (#223, sync pending in #298). `Interaction.interact_allowed` is false while multiplayer is active (`Interaction.multiplayer_on`: a client, or a host with a peer). So interact mode is off in two-player games, and `regrow_due` does nothing there. A new type needs no sync work until #298.
 
 ## 6. Tests
 

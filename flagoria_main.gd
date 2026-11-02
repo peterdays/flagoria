@@ -170,21 +170,26 @@ func _on_world_child_entered(node: Node) -> void:
 
 func _sync_map_params_to_peer(peer_id: int) -> void:
 	## Send the full parameter dictionary (not just seeds) so both players
-	## share one map, with the spot add_player picked for the peer's player.
+	## share one map, with the spot add_player picked for the peer's player
+	## and the host's tree and bush cuts in the world save format
+	## (TreeCuts.to_changes), so a joining peer draws the same stumps. Cuts
+	## are sent once, on join: interact mode is off while multiplayer is
+	## active, so none are made or regrow during two-player play (#223).
 	if world_params == null:
 		return
 	var player = get_node_or_null("World/" + str(peer_id))
 	var spot: Vector2 = player.position if player else Vector2.INF
-	rpc_id(peer_id, "receive_map_params", world_params.to_dict(), spot)
+	rpc_id(peer_id, "receive_map_params", world_params.to_dict(), spot, get_node("World/worldMap").cut_changes())
 
 
 @rpc("authority", "reliable", "call_remote")
-func receive_map_params(data: Dictionary, spot: Vector2) -> void:
+func receive_map_params(data: Dictionary, spot: Vector2, cuts: Dictionary) -> void:
 	var params = MapGenParams.new()
 	params.from_dict(data)
 	world_params = params
 	get_node("/root/MapGen").params = params.duplicate_params()
 	_apply_params_to_world(params)
+	get_node("World/worldMap").restore_cuts(cuts)  # before the chunks are drawn again
 	_own_spot = spot
 	_place_own_player()  # or once the player arrives, see _on_world_child_entered
 	var world = get_node("World/worldMap")

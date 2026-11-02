@@ -88,8 +88,14 @@ sets the params and keeps the change sections. When the host then starts with
 those same params, `Flagoria.setup_server` restores the cuts after it applies
 the params and before any chunk is drawn, so cut cells are drawn as stumps.
 If the params were changed in between, no cuts are applied. A dedicated
-server started with `--params` reads the params only. Joining players do not
-get the loaded cuts yet: cuts are not synced (#223).
+server started with `--params` reads the params only.
+
+A player who joins gets the host's current cut list with the map params
+(`receive_map_params`, in the same entry format) and restores it before
+drawing any chunk, so both see the same stumps. Cuts are sent once, on join.
+Interact mode is off and nothing regrows while multiplayer is active, so the
+lists cannot drift apart during two-player play. Syncing cuts made during
+two-player play is still #223.
 
 `MapSave.load_world(path)` returns `{"world", "error", "version"}`:
 

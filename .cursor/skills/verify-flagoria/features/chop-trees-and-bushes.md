@@ -28,7 +28,7 @@ Preconditions: `doctor.sh` exits `0`. Time cost: `-- test_catalog_resolves_cells
 
 ## Gotchas
 
-- Cuts are saved in world saves (`world.object_changes`, `tests/saves/test_cut_save.gd`) but not synced: interact mode is single-player, and `regrow_due` does nothing while multiplayer is active.
+- Cuts are saved in world saves (`world.object_changes`, `tests/saves/test_cut_save.gd`) and sent to a joining player once, but not synced during play: interact mode is single-player, and `regrow_due` does nothing while multiplayer is active.
 - `has_tree` is true for the tree and pine types; use `choppable(cell)` for any choppable.
 - A saved cut names its type by `save_key` and stores its age in seconds of play, so nothing regrows while the game is closed.
 - A type with a `hit_sheet` needs alternative tile `ChopAction.HIDDEN_ALT` (also `Interaction.HIDDEN_ALT`) in the TileSet, invisible and with the same collision, or the hit frames draw over the tile.

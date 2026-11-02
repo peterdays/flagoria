@@ -11,8 +11,8 @@ extends Node2D
 ## player is cut at once. A cut plant leaves its type's stump and gives its
 ## type's `yields` (data/interactables/*.tres). Mouse clicks and drags count as
 ## touches (pointing/emulate_touch_from_mouse). Touches that start on a HUD
-## control, and two-finger pinches, select nothing. Cuts are local to this
-## game and not synced to other players, so interact mode is single-player
+## control, and two-finger pinches, select nothing. A joining player gets
+## the host's cuts once, but cuts made during play are not synced (#223), so interact mode is single-player
 ## only: while multiplayer is active (a client, or a host with a peer
 ## connected) the mode button is hidden and disabled, the mode is forced to
 ## combat and map input cuts nothing. Hosting alone counts as single-player.
