@@ -68,17 +68,53 @@ func restore(changes: Dictionary) -> int:
 				continue
 			var cell = WorldSave.parse_cell(str(key))
 			var type := InteractableCatalog.by_save_key(str(entry["cut"]))
-			if cell == null or type == null or _cut_cells.has(cell) \
-					or InteractableCatalog.type_at(_map.predict_cell(cell)[1]) != type:
+			if cell == null or type == null or grown(cell) != type:
 				continue
-			var age := maxf(0.0, float(entry.get("age", 0.0)))
-			_cut_cells[cell] = [_map.play_time - age, type.leaves_atlas(), type]
-			_map._predict_cache.erase(cell)
-			if _map.get_cell_source_id(1, cell) != -1:  # drawn already
-				_map.erase_cell(1, cell)
-				_map.set_cell(_map.GROUND_DECOR_LAYER, cell, TileCatalog.SOURCE_ID, type.leaves_atlas())
+			_add(cell, type, _map.play_time - maxf(0.0, float(entry.get("age", 0.0))))
 			added += 1
 	return added
+
+
+func replace(changes: Dictionary) -> int:
+	## Make the cuts exactly the ones in `changes` (to_changes entries), as
+	## restore checks them: a cut not listed grows back, a listed one is
+	## added once. A joining peer applies the host's list this way, so it ends
+	## with the host's set whatever it held before. Returns how many it holds.
+	var listed := {}
+	for chunk in changes:
+		for key in changes[chunk]:
+			listed[WorldSave.parse_cell(str(key))] = true
+	for cell in _cut_cells.keys():
+		if not listed.has(cell):
+			_grow_back(cell)
+	restore(changes)
+	return _cut_cells.size()
+
+
+func grown(cell: Vector2i) -> InteractableType:
+	## The choppable type the map grows on `cell`, drawn or not, or null when
+	## it grows none there or it is cut.
+	if _cut_cells.has(cell):
+		return null
+	return InteractableCatalog.type_at(_map.predict_cell(cell)[1])
+
+
+func cut_grown(cell: Vector2i) -> InteractableType:
+	## Cut what grown(cell) finds, drawn or not: the host decides cuts next to
+	## any player, not only in the chunks around its own. Returns the type
+	## cut, or null.
+	var type := grown(cell)
+	if type != null:
+		_add(cell, type, _map.play_time)
+	return type
+
+
+func _add(cell: Vector2i, type: InteractableType, cut_at: float) -> void:
+	_cut_cells[cell] = [cut_at, type.leaves_atlas(), type]
+	_map._predict_cache.erase(cell)
+	if _map.get_cell_source_id(1, cell) != -1:  # drawn already: swap it like a chop
+		_map.erase_cell(1, cell)
+		_map.set_cell(_map.GROUND_DECOR_LAYER, cell, TileCatalog.SOURCE_ID, type.leaves_atlas())
 
 
 func choppable(cell: Vector2i) -> InteractableType:
@@ -99,34 +135,35 @@ func cut_choppable(cell: Vector2i) -> InteractableType:
 	## drawn again, until regrow_due grows the plant back. Returns the type
 	## that was cut, or null when there is nothing to cut.
 	var type := choppable(cell)
-	if type == null:
-		return null
-	_cut_cells[cell] = [_map.play_time, type.leaves_atlas(), type]
-	_map._predict_cache.erase(cell)
-	_map.erase_cell(1, cell)
-	_map.set_cell(_map.GROUND_DECOR_LAYER, cell, TileCatalog.SOURCE_ID, type.leaves_atlas())
+	if type != null:
+		_add(cell, type, _map.play_time)
 	return type
 
 
 func regrow_due() -> int:
 	## Stumps cut at least their regrow delay ago turn back into the tree
 	## or bush the map generates there; a stump under a player waits until the cell
-	## is free. Single-player only (cuts are not synced, #223): nothing
-	## regrows while multiplayer is active. Returns how many plants regrew.
+	## is free. Regrowth is not synced (#298): nothing regrows while
+	## multiplayer is active. Returns how many plants regrew.
 	if Interaction.multiplayer_on(_map.multiplayer):
 		return 0
-	var grown := 0
+	var regrown := 0
 	for cell in _cut_cells.keys():
 		var delay: float = regrow_delay if regrow_delay >= 0.0 else _cut_cells[cell][2].regrow_delay
 		if delay == 0.0 or _map.play_time - _cut_cells[cell][0] < delay or _map.player_on_cell(cell):
 			continue
-		_cut_cells.erase(cell)
-		_map._predict_cache.erase(cell)
-		if _map.get_cell_source_id(0, cell) == -1:
-			continue  # not drawn yet: generate_chunk draws the tree
-		_map.erase_cell(_map.GROUND_DECOR_LAYER, cell)
-		var b := _map.biome_at(cell)
-		_map.set_tile_type_z1(cell, _map.cell_altitude(cell, b), _map.moisture.get_noise_2d(cell.x, cell.y),
-				_map.temperature.get_noise_2d(cell.x, cell.y), _map.items_chance.get_noise_2d(cell.x, cell.y), b)
-		grown += 1
-	return grown
+		regrown += int(_grow_back(cell))
+	return regrown
+
+
+func _grow_back(cell: Vector2i) -> bool:
+	## Drop the cut on `cell`; true when its plant was drawn back in.
+	_cut_cells.erase(cell)
+	_map._predict_cache.erase(cell)
+	if _map.get_cell_source_id(0, cell) == -1:
+		return false  # not drawn yet: generate_chunk draws the plant
+	_map.erase_cell(_map.GROUND_DECOR_LAYER, cell)
+	var b := _map.biome_at(cell)
+	_map.set_tile_type_z1(cell, _map.cell_altitude(cell, b), _map.moisture.get_noise_2d(cell.x, cell.y),
+			_map.temperature.get_noise_2d(cell.x, cell.y), _map.items_chance.get_noise_2d(cell.x, cell.y), b)
+	return true

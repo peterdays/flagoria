@@ -11,11 +11,13 @@ extends Node2D
 ## player is cut at once. A cut plant leaves its type's stump and gives its
 ## type's `yields` (data/interactables/*.tres). Mouse clicks and drags count as
 ## touches (pointing/emulate_touch_from_mouse). Touches that start on a HUD
-## control, and two-finger pinches, select nothing. A joining player gets
-## the host's cuts once, but cuts made during play are not synced (#223), so interact mode is single-player
-## only: while multiplayer is active (a client, or a host with a peer
-## connected) the mode button is hidden and disabled, the mode is forced to
-## combat and map input cuts nothing. Hosting alone counts as single-player.
+## control, and two-finger pinches, select nothing.
+## While multiplayer is active (a client, or a host with a peer connected)
+## the host decides every cut (#223): a client asks it with request_cut, the
+## host checks the plant is there and in the cutter's reach, cuts it, sends
+## apply_cut to every other peer and tells the cutter its yields with
+## receive_yields. A client's stump appears when the host's apply_cut comes
+## back. Peers that join later get the host's cuts with the map params.
 
 signal mode_changed(mode: Mode)
 ## A chop's axe landed on `cell`; `hit` counts from 1 to the type's `hits`.
@@ -24,6 +26,9 @@ signal chop_hit(cell: Vector2i, hit: int)
 enum Mode { COMBAT, INTERACT }
 
 const REACH := 80.0  ## world px from the player to a plant it can cut
+## Extra world px the host allows a client's cut, as its copy of that
+## player's position can lag a little behind.
+const REACH_SLACK := 24.0
 const DRAG_START := 6.0  ## viewport px a touch moves before it is a range, not a tap
 ## The invisible alternative tile a chop swaps in (kept in ChopAction).
 const HIDDEN_ALT := ChopAction.HIDDEN_ALT
@@ -44,7 +49,6 @@ var _touch := -1  ## index of the touch being followed, or -1
 var _start := Vector2.ZERO  ## viewport position where it went down
 var _end := Vector2.ZERO
 var _dragging := false
-var _allowed := true  ## interact mode is available (not in multiplayer)
 ## The chop, its effects and its sounds (Scripts/mechanics/trees/chop_action.gd).
 var _chop := ChopAction.new(self)
 ## The chop's state, read through these (kept in ChopAction).
@@ -81,7 +85,6 @@ func _ready() -> void:
 	if button:
 		InGameMenu.fit_icon_button(button)
 		button.pressed.connect(toggle_mode)
-	_update_allowed()
 	_refresh_button()
 
 
@@ -94,8 +97,6 @@ func toggle_mode() -> void:
 
 
 func set_mode(value: Mode) -> void:
-	if value == Mode.INTERACT and not interact_allowed():
-		value = Mode.COMBAT
 	mode = value
 	_cancel()
 	_refresh_button()
@@ -108,12 +109,6 @@ func _refresh_button() -> void:
 		button.icon = ICONS[mode]
 		button.tooltip_text = TOOLTIPS[mode]
 		button.set_pressed_no_signal(mode == Mode.INTERACT)
-		button.visible = _allowed
-		button.disabled = not _allowed
-
-
-func multiplayer_active() -> bool:
-	return multiplayer_on(multiplayer)
 
 
 static func multiplayer_on(api: MultiplayerAPI) -> bool:
@@ -126,31 +121,14 @@ static func multiplayer_on(api: MultiplayerAPI) -> bool:
 	return not api.is_server() or not api.get_peers().is_empty()
 
 
-func interact_allowed() -> bool:
-	return not multiplayer_active()
-
-
-func _update_allowed() -> void:
-	## Follow multiplayer starting or ending: force combat mode and hide the
-	## button while it is active, show the button again when it ends.
-	var allowed := interact_allowed()
-	if allowed == _allowed:
-		return
-	_allowed = allowed
-	if not allowed and mode == Mode.INTERACT:
-		set_mode(Mode.COMBAT)
-	_refresh_button()
-
-
 func _process(delta: float) -> void:
-	_update_allowed()
 	step_chop(delta)
 	if mode == Mode.INTERACT:
 		queue_redraw()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if mode != Mode.INTERACT or player == null or not interact_allowed():
+	if mode != Mode.INTERACT or player == null:
 		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
@@ -255,16 +233,65 @@ func step_chop(delta: float) -> void:
 
 
 func _cut(cell: Vector2i) -> bool:
-	if not interact_allowed():
+	## Cut the plant on `cell` for the local player. Alone it is cut here; a
+	## host decides it with host_cut; a client asks the host and returns
+	## true when it asked (the fall plays, the stump and wood come back).
+	if not multiplayer_on(multiplayer):
+		var type: InteractableType = world_map.cut_choppable(cell)
+		if type != null:
+			receive_yields(type.yields)
+		return type != null
+	if multiplayer.is_server():
+		var cut := host_cut(cell)
+		if cut != null:
+			receive_yields(cut.yields)
+		return cut != null
+	if world_map.choppable(cell) == null \
+			or multiplayer.multiplayer_peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
 		return false
-	var type: InteractableType = world_map.cut_choppable(cell)
-	if type == null:
-		return false
+	request_cut.rpc_id(1, cell)
+	return true
+
+
+func host_cut(cell: Vector2i) -> InteractableType:
+	## Host: cut the plant the map grows on `cell`, drawn here or not, and
+	## send the cut to every peer. Returns the type cut, or null when there
+	## is none (never grown there, or cut already).
+	var type: InteractableType = world_map.cut_grown(cell)
+	if type != null:
+		apply_cut.rpc(cell)
+	return type
+
+
+@rpc("any_peer", "reliable", "call_remote")
+func request_cut(cell: Vector2i) -> void:
+	## Host: a client asks to cut `cell`. Cut when that client's player is in
+	## reach of it, and send the client its yields.
+	if not multiplayer.is_server():
+		return
+	var peer := multiplayer.get_remote_sender_id()
+	var cutter := get_node_or_null("../" + str(peer)) as Node2D
+	if cutter == null or cutter.global_position.distance_to(cell_center(cell)) > REACH + REACH_SLACK:
+		return
+	var type := host_cut(cell)
+	if type != null:
+		receive_yields.rpc_id(peer, type.yields)
+
+
+@rpc("authority", "reliable", "call_remote")
+func apply_cut(cell: Vector2i) -> void:
+	## A cut the host decided: show the stump here too, drawn or not.
+	world_map.cut_grown(cell)
+
+
+@rpc("authority", "reliable", "call_remote")
+func receive_yields(yields: Dictionary) -> void:
+	## Add what a cut earned to the local inventory (the host sends a
+	## client's; inventories are local until #297).
 	var inventory := get_node_or_null(INVENTORY_PATH) as Inventory
 	if inventory:
-		for resource in type.yields:
-			inventory.add(resource, type.yields[resource])
-	return true
+		for resource in yields:
+			inventory.add(StringName(resource), int(yields[resource]))
 
 
 func _draw() -> void:

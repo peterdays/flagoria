@@ -92,10 +92,12 @@ server started with `--params` reads the params only.
 
 A player who joins gets the host's current cut list with the map params
 (`receive_map_params`, in the same entry format) and restores it before
-drawing any chunk, so both see the same stumps. Cuts are sent once, on join.
-Interact mode is off and nothing regrows while multiplayer is active, so the
-lists cannot drift apart during two-player play. Syncing cuts made during
-two-player play is still #223.
+drawing any chunk, so both see the same stumps. The list replaces whatever
+cuts the joiner held, so it ends with exactly the host's set. Cuts made
+during play go through the host and reach every peer as they happen
+(`Interaction.apply_cut`, after the join list on the same reliable channel).
+Nothing regrows while multiplayer is active (#298), so the lists cannot
+drift apart during two-player play.
 
 `MapSave.load_world(path)` returns `{"world", "error", "version"}`:
 

@@ -40,6 +40,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Map zoom](./map-zoom.md) — local pinch, wheel and Ctrl +/- zoom.
 - [Chopping trees and bushes](./chop-trees-and-bushes.md) — interact-mode chop, tree, pine and bush types, per-type wood and regrow delay, stumps, regrowth.
 - [Chop trees (live drive)](./chop-trees.md) — mode button, tap a tree in reach, two hits, tree sounds, stump and wood once.
+- [Cut sync (two-player)](./cut-sync.md) — host-decided tree and bush cuts, same stump on every peer, wood to the cutter, late joiners get the exact set.
 - [Explored map](./explored-map.md) — minimap panel, cells revealed within 10 cells of the hero.
 - [Walls and bridges](./walls-and-bridges.md) — wall solver, plank bridges; live drive verified-unreachable until a build action lands.
 - [Audio](./audio.md) — buses, music, combat SFX, footsteps, `audio_check` gate.
