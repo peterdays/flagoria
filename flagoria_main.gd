@@ -89,6 +89,7 @@ func setup_server(params: MapGenParams, port: int = PORT) -> Error:
 	world_params.ensure_seeds()
 	get_node("/root/MapGen").params = world_params.duplicate_params()
 	_apply_params_to_world(world_params)
+	_restore_loaded_world()
 
 	var err := enet_peer.create_server(port)
 	multiplayer.multiplayer_peer = enet_peer
@@ -107,6 +108,17 @@ func spawn_mobs() -> int:
 	var origin: Vector2i = world.resolve_player_spawn()
 	var rate: float = get_node("/root/GameSettings").mob_rate
 	return get_node("World/Mobs").spawn_for_world(world, origin, world_params.altitude_seed, rate)
+
+
+func _restore_loaded_world() -> int:
+	## After the params are applied and before any chunk is drawn: put back
+	## the cuts of the save MapGen.load_map_inputs read, when this host is
+	## starting that world. Returns how many cuts came back.
+	var loaded: WorldSave = get_node("/root/MapGen").take_loaded_world(world_params)
+	var world = get_node("World/worldMap")
+	if loaded == null or world == null:
+		return 0
+	return world.restore_cuts(loaded.object_changes)
 
 
 func _apply_params_to_world(params: MapGenParams) -> void:

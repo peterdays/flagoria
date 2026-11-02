@@ -18,8 +18,8 @@ extends Resource
 ## Seconds of play before what it leaves turns back into it; 0 = never.
 ## TreeCuts.regrow_delay, when set, overrides it for every type.
 @export var regrow_delay := 300.0
-## Key for this type in world saves (world.object_changes, #198). Cuts are
-## not saved yet, so nothing reads it.
+## Key for this type in world saves: a saved cut names its type by it
+## (world.object_changes, TreeCuts.to_changes). Unique per type.
 @export var save_key := ""
 ## Played on each impact (one picked at random) and when it falls.
 @export var hit_sounds: Array[AudioStream] = []

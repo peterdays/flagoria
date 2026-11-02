@@ -11,6 +11,10 @@ extends RefCounted
 
 ## Change sections inside "world", in file order.
 const WORLD_SECTIONS: Array[String] = ["tile_edits", "object_changes", "structures"]
+## Side of a save chunk in cells. Chunk keys in the change sections use this
+## fixed grid, not the map's chunk_width and chunk_height (draw sizes that
+## the map params can change).
+const CHUNK_SIZE := 32
 
 ## Generation inputs, seeds resolved.
 var params: MapGenParams
@@ -47,3 +51,20 @@ func world_from_dict(data: Dictionary) -> String:
 				return "world.%s[%s] is not an object" % [section, chunk]
 		(get(section) as Dictionary).assign(chunks)
 	return ""
+
+
+static func chunk_key(cell: Vector2i) -> String:
+	## "cx,cy" of the save chunk that holds `cell` (CHUNK_SIZE cells a side).
+	return "%d,%d" % [floori(cell.x / float(CHUNK_SIZE)), floori(cell.y / float(CHUNK_SIZE))]
+
+
+static func cell_key(cell: Vector2i) -> String:
+	return "%d,%d" % [cell.x, cell.y]
+
+
+static func parse_cell(key: String) -> Variant:
+	## The Vector2i a cell_key names, or null when `key` is not "x,y".
+	var parts := key.split(",")
+	if parts.size() != 2 or not parts[0].is_valid_int() or not parts[1].is_valid_int():
+		return null
+	return Vector2i(parts[0].to_int(), parts[1].to_int())

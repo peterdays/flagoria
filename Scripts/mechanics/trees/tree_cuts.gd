@@ -39,6 +39,48 @@ func clear() -> void:
 	_cut_cells.clear()
 
 
+func to_changes() -> Dictionary[String, Dictionary]:
+	## The cuts as world save entries (world.object_changes,
+	## docs/world-saves.md): chunk -> {cell: {"cut": the type's save_key,
+	## "age": seconds of play since the cut}}. The age, not the cut's
+	## play_time, so a loaded cut keeps its place in the regrowth wait.
+	var out: Dictionary[String, Dictionary] = {}
+	for cell: Vector2i in _cut_cells:
+		var type: InteractableType = _cut_cells[cell][2]
+		var chunk := WorldSave.chunk_key(cell)
+		if not out.has(chunk):
+			out[chunk] = {}
+		out[chunk][WorldSave.cell_key(cell)] = {"cut": type.save_key, "age": _map.play_time - _cut_cells[cell][0]}
+	return out
+
+
+func restore(changes: Dictionary) -> int:
+	## Adds the cuts in world save entries written by to_changes. Call it
+	## after apply_map_params, best before the chunks are drawn: drawing then
+	## puts the stumps in (a cell drawn already is swapped like a cut). Entries that are not cuts are left to their own
+	## readers. A cut is dropped when its type is unknown or the map no
+	## longer grows that type on its cell. Returns how many cuts were added.
+	var added := 0
+	for chunk in changes:
+		for key in changes[chunk]:
+			var entry = changes[chunk][key]
+			if not entry is Dictionary or not entry.has("cut"):
+				continue
+			var cell = WorldSave.parse_cell(str(key))
+			var type := InteractableCatalog.by_save_key(str(entry["cut"]))
+			if cell == null or type == null or _cut_cells.has(cell) \
+					or InteractableCatalog.type_at(_map.predict_cell(cell)[1]) != type:
+				continue
+			var age := maxf(0.0, float(entry.get("age", 0.0)))
+			_cut_cells[cell] = [_map.play_time - age, type.leaves_atlas(), type]
+			_map._predict_cache.erase(cell)
+			if _map.get_cell_source_id(1, cell) != -1:  # drawn already
+				_map.erase_cell(1, cell)
+				_map.set_cell(_map.GROUND_DECOR_LAYER, cell, TileCatalog.SOURCE_ID, type.leaves_atlas())
+			added += 1
+	return added
+
+
 func choppable(cell: Vector2i) -> InteractableType:
 	## The choppable type (tree, bush) on `cell`'s foliage layer, or null.
 	if _map.get_cell_source_id(1, cell) == -1:
