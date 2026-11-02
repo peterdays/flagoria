@@ -74,6 +74,10 @@ extends Resource
 @export_range(-1.0, 2.0, 0.01) var pine_min_alt: float = 0.5
 @export_range(-1.0, 0.0, 0.01) var pine_min_moist: float = -0.25
 @export_range(-1.0, 2.0, 0.05) var pine_min_chance: float = 0.3
+# Bushy trees (TileCatalog.TREE_BUSHY): a tree cell turns into the bushy
+# broadleaf variant where moisture is above bushy_tree_min_moist plus the
+# biome's bushy_moist (BiomeCatalog.PLANTS). Biomes on only.
+@export_range(0.0, 2.0, 0.05) var bushy_tree_min_moist: float = 0.3
 
 
 static func make_defaults() -> MapGenParams:

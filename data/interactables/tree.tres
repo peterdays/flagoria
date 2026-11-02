@@ -13,7 +13,7 @@
 [resource]
 script = ExtResource("1_type")
 id = "tree"
-tiles = Array[String](["TREE"])
+tiles = Array[String](["TREE", "TREE_BUSHY"])
 hits = 2
 yields = Dictionary[StringName, int]({
 &"wood": 3
