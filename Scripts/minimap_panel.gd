@@ -257,7 +257,7 @@ static func kind_of(p: Array) -> int:
 	match p[1]:
 		TileCatalog.PINE:
 			return Kind.PINE
-		TileCatalog.TREE:
+		TileCatalog.TREE, TileCatalog.TREE_BUSHY:
 			return Kind.TREE
 		TileCatalog.BUSH:
 			return Kind.BUSH
