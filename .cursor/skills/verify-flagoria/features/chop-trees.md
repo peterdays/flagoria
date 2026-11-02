@@ -13,7 +13,7 @@ In interact mode a tap on a tree in reach makes the hero face it and swing twice
 
 ## How to get to it (user POV)
 
-- Host a world alone (interact mode is off once a peer is connected), tap `CanvasLayer1/ModeButton`, walk next to a tree and tap it.
+- Host or join a world, tap `CanvasLayer1/ModeButton`, walk next to a tree and tap it.
 
 ## Driving it with verify-flagoria helpers
 
@@ -26,10 +26,10 @@ Preconditions: `doctor.sh` exits `0`. Time cost: headless `-- test_chop_tree_two
 ## Gotchas
 
 - Moving more than 2 px (`MOVE_CANCEL`) or leaving interact mode mid-chop cancels it with no stump and no wood. The hero can still drift after `hold()` releases or settle after spawn; the drive waits 10 still physics frames before each tap and does not walk.
-- A peer joining forces combat mode and hides the mode button (`-- test_interact_off_in_multiplayer`).
+- In a two-player game the host decides each cut; a client's stump shows one round trip after its tree falls ([Cut sync](./cut-sync.md)). The mode button works in every session state (`-- test_interact_in_multiplayer`).
 - The tap chops the nearest choppable in reach, which can be a neighbouring bush (1 wood) when the tapped cell itself is not in reach. Tap the tree's own cell while it is in reach (distance 0 wins) and check the cell in `chop_hit`, not only the wood count.
 - Without `--seed` the map is random, and most spawns have no tree in reach (4 of seeds 1-60 do: 22, 48, 49, 58). The drive then fails with `chop: no tree in reach of the hero at ...; launch with the seed above` instead of walking.
-- A tap that starts no chop, or a chop that ends with no stump, is printed with what the game saw (`hero`, distance, `in_reach`, mode, `interact_allowed`, the tap's window position) and tried again, up to 3 taps. In 25 consecutive seed-49 runs every chop started on the first tap.
+- A tap that starts no chop, or a chop that ends with no stump, is printed with what the game saw (`hero`, distance, `in_reach`, mode, the tap's window position) and tried again, up to 3 taps. In 25 consecutive seed-49 runs every chop started on the first tap.
 - `snapshot()` `foliage` names a `TREE_PINE_SMALL` cell `PINE` (same atlas coords). The stump is in `ground_decor`.
 - `sfx_log` records streams as they start; headless playback is not heard. Whether they are heard is `tools/audio_check.gd`'s job (probe bus per sound player).
 - Headless tests: `-- test_chop_tree_two_hits`, `-- test_chop_tree_sounds`, `-- test_chop_cancel_on_death`, `-- test_interact_mode_toggle`.

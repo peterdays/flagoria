@@ -82,7 +82,7 @@ func chopping() -> bool:
 func start_chop(cell: Vector2i) -> bool:
 	## Start chopping the tree or bush at `cell`; false while another chop
 	## runs, or when there is nothing to chop in reach there.
-	if chopping() or not _i.interact_allowed() or not _i.world_map.choppable(cell) or not _i.in_reach(cell):
+	if chopping() or not _i.world_map.choppable(cell) or not _i.in_reach(cell):
 		return false
 	chop_cell = cell
 	chop_type = _i.world_map.choppable(cell)
@@ -114,7 +114,7 @@ func step_chop(delta: float) -> void:
 	_step_fx(delta)
 	if not chopping():
 		return
-	if not _felled and (_i.mode != Interaction.Mode.INTERACT or _i.player == null or not _i.interact_allowed()
+	if not _felled and (_i.mode != Interaction.Mode.INTERACT or _i.player == null
 			or _i.player.global_position.distance_to(_chop_from) > MOVE_CANCEL
 			or _i.world_map.choppable(chop_cell) != chop_type or _player_dead()):
 		cancel_chop()

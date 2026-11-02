@@ -218,7 +218,7 @@ func _test_cut_save_late_join() -> int:
 	DirAccess.remove_absolute(out)
 	DirAccess.remove_absolute(out + ".stop")
 	var pid := OS.create_process(OS.get_executable_path(), ["--headless", "--path", ProjectSettings.globalize_path("res://"),
-			"--script", "res://tests/cut_sync_probe.gd", "--", "--port=%d" % port, "--save=" + save_path, "--out=" + out])
+			"--script", "res://tests/cut_sync_probe.gd", "--", "--host", "--port=%d" % port, "--save=" + save_path, "--out=" + out])
 	if saved["error"] != "" or pid <= 0:
 		printerr("FAIL cut_save_late_join: save %s, host pid %d" % [saved["error"], pid])
 		DirAccess.remove_absolute(saved["path"])
@@ -272,4 +272,43 @@ func _test_cut_save_late_join() -> int:
 	await process_frame
 	if fail == 0:
 		print("PASS test_cut_save_late_join (%s)" % host["cuts"])
+	return fail
+
+
+func _test_cut_replace() -> int:
+	## A joining client takes the host's cut list as the exact set
+	## (world.replace_cuts, #223): a cut missing from the list grows back, a
+	## listed one stays a stump, and applying the list again adds nothing.
+	## A live cut (world.cut_grown) of a cell already cut, or of bare ground,
+	## does nothing, so the second of two cuts of one cell earns no wood.
+	print("-- test_cut_replace")
+	var setup := _cut_save_scene()
+	var scene = setup[0]
+	var world = setup[1]
+	var tree: Vector2i = setup[3]["tree"]
+	var bush: Vector2i = setup[3]["bush"]
+	var fail := 0
+	world.generate_chunk(world.map_to_local(tree))
+	world.generate_chunk(world.map_to_local(bush))
+	if world.cut_grown(tree) == null or world.cut_grown(bush) == null:
+		printerr("FAIL cut_replace: could not cut %s and %s" % [tree, bush])
+		fail += 1
+	if world.cut_grown(tree) != null or world.cut_grown(world.resolve_player_spawn()) != null:
+		printerr("FAIL cut_replace: a second cut, or a cut of the spawn cell, cut something")
+		fail += 1
+	var changes: Dictionary = world.cut_changes().duplicate(true)
+	changes[WorldSave.chunk_key(tree)].erase(WorldSave.cell_key(tree))
+	if changes[WorldSave.chunk_key(tree)].is_empty():
+		changes.erase(WorldSave.chunk_key(tree))
+	for i in 2:
+		var count: int = world.replace_cuts(changes)
+		if count != 1 or _cut_at(world, tree) or not _cut_at(world, bush) or not _stump_drawn(world, bush, "bush") \
+				or world.choppable(tree) == null:
+			printerr("FAIL cut_replace pass %d: %d cuts, tree cut %s (choppable %s), bush stump %s"
+					% [i, count, _cut_at(world, tree), world.choppable(tree), _stump_drawn(world, bush, "bush")])
+			fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_cut_replace")
 	return fail

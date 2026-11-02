@@ -141,7 +141,7 @@ func chop(it: Node, map: TileMap, cell: Vector2i, hits: int) -> bool:
 
 func diagnose(it: Node, map: TileMap, cell: Vector2i) -> String:
 	var h := hero()
-	return "hero=%s dist=%.1f in_reach=%s mode=%s allowed=%s chopping=%s choppable=%s tap_window=%s" % [
+	return "hero=%s dist=%.1f in_reach=%s mode=%s chopping=%s choppable=%s tap_window=%s" % [
 			h.global_position, h.global_position.distance_to(it.cell_center(cell)), it.in_reach(cell),
-			it.mode, it.interact_allowed(), it.chopping(), map.choppable(cell) != null,
+			it.mode, it.chopping(), map.choppable(cell) != null,
 			to_window(map, map.map_to_local(cell))]

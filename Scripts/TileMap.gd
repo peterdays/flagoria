@@ -370,6 +370,14 @@ func restore_cuts(changes: Dictionary) -> int:
 	return _tree_cuts.restore(changes)
 
 
+func replace_cuts(changes: Dictionary) -> int:
+	return _tree_cuts.replace(changes)
+
+
+func cut_grown(cell: Vector2i) -> InteractableType:
+	return _tree_cuts.cut_grown(cell)
+
+
 func build_bridge(from: Vector2i, to: Vector2i) -> bool:
 	return _bridges.build_bridge(from, to)
 

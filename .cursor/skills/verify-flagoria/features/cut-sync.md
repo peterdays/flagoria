@@ -1,0 +1,32 @@
+# Cut sync (two-player)
+
+In a two-player game a tree or bush cut by any player becomes the same walkable stump on every peer (#223). The cutter asks the host, the host decides and tells everyone, and only the cutter gets the wood. A player joining later gets the host's exact cut set. Chopping itself (taps, swings, sounds, regrowth offline) is in [Chopping trees and bushes](./chop-trees-and-bushes.md) and [Chop trees (live drive)](./chop-trees.md).
+
+## Sub-features
+
+- `cut-request` a client's chop ends in `Interaction._cut`, which sends `request_cut(cell)` to the host (`Scripts/mechanics/interact/interaction.gd`). The fall and pickup sounds play on the client at once; the stump and the wood follow one round trip later.
+- `cut-decide` the host checks the cell against the generated map plus its cut list (`world.cut_grown`, `Scripts/mechanics/trees/tree_cuts.gd`), not its drawn tiles, so it can decide cells it has not drawn (and a dedicated server can). It rejects a cutter farther than `REACH` + `REACH_SLACK` (24 px) from the cell, and a cell already cut, so of two cuts of one cell only the first gets wood.
+- `cut-apply` the host sends `apply_cut(cell)` to every peer, and `receive_yields(yields)` to the cutter (3 wood for a tree, 1 for a bush). A host cutting with peers connected does the same and adds its own wood. Applying a cut that is already there does nothing.
+- `cut-join` a joining peer gets the cut list with the map params and replaces its cuts with it (`world.replace_cuts`): cuts it held that are not listed grow back, and none are doubled. Live cuts after that arrive on the same reliable channel, so they cannot overtake the list.
+- `cut-mode` interact mode and the mode button work in every session state: offline, hosting alone, hosting with a peer, connecting, connected.
+- Not synced: regrowth (paused while multiplayer is active, #298), the inventory itself and blocks or bridges (#297).
+
+## How to get to it (user POV)
+
+- Instance A: Host. Instance B: Join. On either, switch to interact mode and chop a tree or bush; the stump shows on both and the player can walk through it on both.
+
+## Driving it with verify-flagoria helpers
+
+Preconditions: `doctor.sh` exits `0`. Time cost: `-- test_cut_sync_two_players` about 2.4 s in `tools/verify.sh` (~3.7 s alone with `--only=`); `-- test_cut_replace` about 0.2 s and `-- test_interact_in_multiplayer` about 0.3 s (~1.5 s and ~1.6 s alone); the stress run `python3 tools/stress_netcode.py -n 10 --only cut_sync_two_players` about 18 s (4 runs at a time).
+
+- **Run (headless).** `godot --headless --path . --script res://tests/run_tests.gd -- --only=cut_sync_two_players` (also `cut_replace`, `interact_in_multiplayer`, `cut_save_late_join`), or the full `tools/verify.sh`. Stress: `python3 tools/stress_netcode.py -n 10 --only cut_sync_two_players`.
+- **What the scenario does.** `tests/net/test_cut_sync.gd` starts three headless processes of `tests/cut_sync_probe.gd` on seed 7: a host, a client, then a late joiner. The host and the client each cut a tree and a bush near the spawn at the same time, through `Interaction._cut` (the path a tap ends in) after stepping next to the cell. The probe writes its peer id, cut list, wood, errors and the state of each watched cell (`plant`, `decor`, `clear`) to a JSON file every 100 ms.
+- **Proof.** `PASS test_cut_sync_two_players (host cut [...], client cut [...])`. It fails unless, within 20 s, the host and the client hold the same four cuts, each of those cells shows the same stump and is clear ground on both, and each has exactly 4 wood; then the late joiner holds the same four cuts and cell states; and no peer logged an engine error. `-- test_cut_replace` proves the join list is applied as the exact set and that a second cut of a cell does nothing.
+- **Drive (live).** None yet: a two-launch drive like the one in [Two-player Host/Join](./two-player-host-join.md) that taps a tree on each side is not written. The headless scenario runs the same game code from `Interaction._cut` on; only the tap and swing, covered by [Chop trees (live drive)](./chop-trees.md), are left out.
+
+## Gotchas
+
+- The probe moves its player next to each cell and waits 300 ms before the cut, so the host's copy of the player position is close enough for the reach check.
+- The host decides from `predict_cell`, so a hand-drawn test map (`world.set_cell` on an empty map) has nothing the host will cut. In-process tests that tap trees on a hand-drawn row work offline only; use the seed-7 map for anything the host decides.
+- In one process two `SceneMultiplayer`s on different roots do not share node paths, so the cut RPCs cannot be exercised in-process; `-- test_interact_in_multiplayer` checks only the mode and button there.
+- The cut list sent on join is one RPC with no size cap yet; a world with very many cuts makes it large (follow-up).

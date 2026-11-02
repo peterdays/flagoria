@@ -2,7 +2,9 @@ class_name Inventory
 extends Node
 ## Resources the local player has gathered: resource name -> count. Wood is
 ## the only resource so far. The inventory is local to this game; it is not
-## synced to other players and not kept in world saves yet.
+## synced to other players and not kept in world saves yet. In two-player play
+## the host decides each cut and sends the cutter its wood
+## (Interaction.receive_yields).
 
 signal changed(resource: StringName, count: int)
 
