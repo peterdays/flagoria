@@ -14,7 +14,9 @@ extends Node2D
 ## lifting there does not swing; dragging out again aims again. The finger is
 ## tracked by its touch index, so the move stick can be held meanwhile. A tap
 ## swings only when an aim could (can_aim). Losing focus or pausing the app
-## drops the finger and any aim: the lift may never arrive.
+## drops the finger and any aim: the lift may never arrive. A second finger
+## that lands off the move stick while the first aims cancels: the first
+## finger is let go, so neither its drags nor its lift swing.
 
 ## The button is found by group: any CanvasItem in ATTACK_BUTTON_GROUP with
 ## `hits(screen_pos) -> bool` and `aim_center() -> Vector2` works, so its look
@@ -40,6 +42,8 @@ const TOUCH_AIM := 2  ## that finger past the dead zone, aiming
 const ATTACK_BUTTON_GROUP := "attack_button"
 const INTERACTION_PATH := "/root/Flagoria/World/Interaction"
 const MENU_PATH := "/root/Flagoria/CanvasLayer1/InGameMenu"
+const MOVE_STICK_PATH := "/root/Flagoria/CanvasLayer1/player_joystick"
+const MapZoomScript := preload("res://Scripts/map_zoom.gd")
 
 var player: Node2D  ## the local player; this node is its child
 var aiming := false
@@ -126,14 +130,25 @@ func _start_aim() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
-		# The finger's lift may never arrive: forget it, and drop any aim.
-		_touch_index = -1
-		_touch_aimed = false
-		_touch_offset = Vector2.ZERO
-		aiming = false
-		queue_redraw()
-		if is_inside_tree():
-			_show_touch_state()
+		_drop_touch()  # the finger's lift may never arrive
+
+
+func _drop_touch() -> void:
+	## Forgets the finger on the button and drops any aim.
+	_touch_index = -1
+	_touch_aimed = false
+	_touch_offset = Vector2.ZERO
+	aiming = false
+	queue_redraw()
+	if is_inside_tree():
+		_show_touch_state()
+
+
+func _on_move_stick(pos: Vector2) -> bool:
+	## True when a touch here is the move stick's, with the HUD's slack.
+	var stick := get_node_or_null(MOVE_STICK_PATH)
+	return stick != null and stick.has_method("start_reach") \
+			and pos.distance_to(stick.global_position) <= stick.start_reach() + MapZoomScript.HUD_MARGIN_PX
 
 
 func attack_button():
@@ -165,6 +180,10 @@ func _input(event: InputEvent) -> void:
 
 func _on_touch(event: InputEventScreenTouch) -> void:
 	if event.pressed:
+		if aiming and _touch_index != -1 and event.index != _touch_index \
+				and not _on_move_stick(event.position):
+			_drop_touch()  # a second touch cancels the aim
+			return
 		var button = attack_button()
 		if _touch_index == -1 and button != null and button.is_visible_in_tree() \
 				and button.hits(event.position):
