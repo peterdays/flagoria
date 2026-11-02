@@ -7,8 +7,9 @@ applied on top. An unchanged world is about 1 KB.
 
 `Scripts/map_save.gd` (`MapSave`) reads and writes the file.
 `Scripts/world_save.gd` (`WorldSave`) is the save in memory. This page covers
-the container format, which is slice 1 of #196. The change sections stay empty
-until the features that fill them land.
+the container format, which is slice 1 of #196. Tree and bush cuts fill
+`world.object_changes` (see [Cut trees and bushes](#cut-trees-and-bushes)). The
+other change sections stay empty until the features that fill them land.
 
 ## File layout (version 2)
 
@@ -36,7 +37,10 @@ until the features that fill them land.
 | `player` | The player's own progress (#197). |
 
 Each `world` section is sparse and keyed by chunk, then by cell:
-`{"<cx>,<cy>": {"<x>,<y>": <entry>}}`. Only chunks with a change appear, so a
+`{"<cx>,<cy>": {"<x>,<y>": <entry>}}`. A chunk is a fixed 32 by 32 cells
+(`WorldSave.CHUNK_SIZE`, floored, so cell `-20,70` is in chunk `-1,2`), not the
+map's draw chunk size, which the params can change. `WorldSave.chunk_key` and
+`WorldSave.cell_key` build the keys. Only chunks with a change appear, so a
 loader can apply a chunk's changes when it builds that chunk. The feature that
 owns a section decides the shape of its entries. JSON numbers read back as
 floats, so each entry's reader converts its own integers.
@@ -45,15 +49,53 @@ floats, so each entry's reader converts its own integers.
 There are no timestamps in the file: the saved maps list uses the file's
 modified time.
 
+## Cut trees and bushes
+
+A felled tree or bush is a `world.object_changes` entry on its cell:
+
+```json
+"world": {"object_changes": {"0,0": {"23,19": {"cut": "tree", "age": 40.0}}}}
+```
+
+| Key | Meaning |
+| --- | --- |
+| `cut` | The type that was cut, by its `save_key` (`tree`, `pine`, `bush`). |
+| `age` | Seconds of play since the cut. The regrowth wait goes on from there after a load. |
+
+The age is play time only: time while the game is closed does not count, so
+nothing regrows between sessions. That is a choice for now and can be
+revisited. The cut's own play time is not stored, because play time starts
+again from 0 in every session.
+
+`TreeCuts.to_changes` writes the entries and `TreeCuts.restore` reads them
+back. On a load, an entry is dropped when its type is unknown or the map no
+longer grows that type on that cell (after a generator change, for example).
+Entries without `cut` belong to other features and are left alone.
+
 ## Saving during play
 
 **Save** in the in-game menu writes the world being played, named after the
 date and time (`2026-10-27 22-15-03`; a second save in the same second gets
 ` 2`). The panel stays open and confirms it on one line ("Saved: 10-27 22:15"),
-so the player can resume or leave. Until player state (#197) and object changes (#198) land, the file holds
-the generation inputs and empty change sections.
+so the player can resume or leave. The file holds the generation inputs and
+this peer's tree and bush cuts. Player state (#197) and the rest of the object
+changes (#198) are not saved yet.
 
 ## Loading
+
+`MapGen.load_map_inputs(path)` makes a save the world the next host starts. It
+sets the params and keeps the change sections. When the host then starts with
+those same params, `Flagoria.setup_server` restores the cuts after it applies
+the params and before any chunk is drawn, so cut cells are drawn as stumps.
+If the params were changed in between, no cuts are applied. A dedicated
+server started with `--params` reads the params only.
+
+A player who joins gets the host's current cut list with the map params
+(`receive_map_params`, in the same entry format) and restores it before
+drawing any chunk, so both see the same stumps. Cuts are sent once, on join.
+Interact mode is off and nothing regrows while multiplayer is active, so the
+lists cannot drift apart during two-player play. Syncing cuts made during
+two-player play is still #223.
 
 `MapSave.load_world(path)` returns `{"world", "error", "version"}`:
 

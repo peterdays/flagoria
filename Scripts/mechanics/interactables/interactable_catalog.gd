@@ -38,6 +38,14 @@ static func by_id(id: String) -> InteractableType:
 	return null
 
 
+static func by_save_key(key: String) -> InteractableType:
+	## The type whose save_key is `key` (world saves), or null.
+	for type: InteractableType in TYPES:
+		if type.save_key != "" and type.save_key == key:
+			return type
+	return null
+
+
 static func is_leftover(atlas: Vector2i) -> bool:
 	## True for what a cut type leaves (STUMP, BUSH_STUMP): walkable decor.
 	_index()

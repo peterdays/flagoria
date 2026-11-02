@@ -18,7 +18,7 @@ The catalog is a fixed `preload` list. It does not scan `data/interactables/`, b
 | `yields` | Resources given when it falls (step 4) | `{&"wood": 3}` / `{&"wood": 3}` / `{&"wood": 1}` |
 | `leaves` | `TileCatalog.TILES` name of the walkable decor it leaves on `GROUND_DECOR_LAYER` | `STUMP` / `STUMP` / `BUSH_STUMP` |
 | `regrow_delay` | Seconds of play before what it left turns back into it. 0 means never | 300 (default) for all three |
-| `save_key` | Key for this type in world saves (step 5). Not read yet | `tree` / `pine` / `bush` |
+| `save_key` | Key for this type in world saves (step 5). A saved cut names its type by it | `tree` / `pine` / `bush` |
 | `hit_sounds`, `hit_layer_sounds`, `last_hit_sounds`, `fell_sounds`, `pickup_sounds`, `hit_no_repeat`, `fell_own_player` | Sound slots (step 3) | see `docs/audio.md`, Chop sounds |
 | `hit_sheet` | 16x16 frames drawn in place of the tile after each impact | none / none / `art/flagoria/fx/bush_hit.png` |
 | `fx_sheet` | 4 frames over the cell: 0-1 after each impact, 2-3 once it falls | none / none / `art/flagoria/fx/fx_leaves.png` |
@@ -60,8 +60,8 @@ The catalog is a fixed `preload` list. It does not scan `data/interactables/`, b
 
 ## 5. Save and sync
 
-- **Save:** give the type a unique `save_key`. It is meant for `world.object_changes` in world saves (`Scripts/world_save.gd`, `docs/world-saves.md`). Nothing reads it until #198, and cuts are not saved yet.
-- **Sync:** cuts and regrowth are not synced (#223, sync pending in #298). `Interaction.interact_allowed` is false while multiplayer is active (`Interaction.multiplayer_on`: a client, or a host with a peer). So interact mode is off in two-player games, and `regrow_due` does nothing there. A new type needs no sync work until #298.
+- **Save:** give the type a unique `save_key`. A cut of the type is saved in `world.object_changes` under it, with its age in seconds of play, and loads back as the stump (`TreeCuts.to_changes` and `TreeCuts.restore`, `docs/world-saves.md`, Cut trees and bushes). A new type needs no other save work. Renaming a `save_key` drops that type's cuts from existing saves.
+- **Sync:** a joining player gets the host's cuts once, with the map params (`receive_map_params`). Cuts and regrowth during play are not synced (#223, sync pending in #298). `Interaction.interact_allowed` is false while multiplayer is active (`Interaction.multiplayer_on`: a client, or a host with a peer). So interact mode is off in two-player games, and `regrow_due` does nothing there. A new type needs no sync work until #298.
 
 ## 6. Tests
 

@@ -8,6 +8,8 @@ const SAVE_SECTION := "map_gen"
 signal map_saved(path: String)
 
 var params: MapGenParams = MapGenParams.make_defaults()
+## The save load_map_inputs read last, until a host takes it.
+var _loaded_world: WorldSave = null
 
 
 func _ready() -> void:
@@ -57,11 +59,24 @@ func save_world(world: WorldSave, save_name: String) -> Dictionary:
 
 
 func load_map_inputs(path: String) -> String:
-	## Makes a saved world the active params for the next host; returns "" or an error.
-	var result := MapSave.load_map(path)
+	## Makes a saved world the active params for the next host, and keeps its
+	## change sections for take_loaded_world; returns "" or an error.
+	var result := MapSave.load_world(path)
 	if result["error"] == "":
-		params = result["params"]
+		params = result["world"].params
+		_loaded_world = result["world"]
 	return result["error"]
+
+
+func take_loaded_world(world_params: MapGenParams) -> WorldSave:
+	## The world load_map_inputs read, when `world_params` (the params a
+	## host is starting with) are still its params; null otherwise, e.g.
+	## after the params were edited. One use: the next call returns null.
+	var world := _loaded_world
+	_loaded_world = null
+	if world == null or world.params.to_dict() != world_params.to_dict():
+		return null
+	return world
 
 
 func apply_to_world_map(world_map: Node) -> void:
