@@ -2,6 +2,8 @@
 
 A choppable plant (tree, pine and bush today) is one `InteractableType` resource (`Scripts/mechanics/interactables/interactable_type.gd`) in `data/interactables/`. Chopping, stumps, yields, sounds and regrowth all read the type, so a new kind that chops like the others needs a data file and assets, not new code (#264, #266). Follow the seven steps below in one pull request. The bush (#267, PR #293) is the worked example.
 
+`tests/mechanics/interactables/test_checklist.gd` (run by `tools/verify.sh`) fails, naming the type and the step, when a type misses a step a machine can check (#269); its feature file must name `<id>.tres`.
+
 ## 1. Data
 
 Add `data/interactables/<id>.tres`, with `script_class="InteractableType"`. Start from `tree.tres`, `pine.tres` or `bush.tres`. Then add it to `TYPES` in `Scripts/mechanics/interactables/interactable_catalog.gd`.
