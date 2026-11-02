@@ -108,6 +108,9 @@ static func load_world(path: String) -> Dictionary:
 	# Saves written before pines existed have no pine_min_chance; they load
 	# with pines off (a chance threshold no cell reaches) for the same reason.
 	params.pine_min_chance = 2.0
+	# Saves written before bushy trees have no bushy_tree_min_moist; they load
+	# with bushy trees off (a threshold no moisture reaches).
+	params.bushy_tree_min_moist = 2.0
 	params.from_dict(parsed["params"])
 	var world := WorldSave.new(params)
 	var section_error := world.world_from_dict(parsed["world"])

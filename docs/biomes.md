@@ -112,6 +112,25 @@ TEMPERATE with biomes on still matches the map with biomes off. Saves from
 before pines load with `pine_min_chance = 2.0` (no pines), so they regenerate
 unchanged.
 
+### Bushy trees
+
+With biomes on, a cell that would grow a broadleaf tree grows the bushy
+variant (`TileCatalog.TREE_BUSHY`, same collision as TREE, chopped as the
+tree type for 3 wood) when its moisture is above `bushy_tree_min_moist`
+(Map Settings, default 0.3) plus the biome's `bushy_moist`. Oaks keep the
+moderately moist land and bushy trees take the wettest tree land:
+
+| Biome             | `bushy_moist`        | Share of land (seeds 11, 42, 99) |
+|-------------------|----------------------|----------------------------------|
+| OCEANIC           | 0.0                  | 0 % (its land grows almost no trees) |
+| TEMPERATE         | 2.0 (none)           | 0 %                              |
+| CONTINENTAL       | +0.15 (wettest only) | about 1.0-1.2 %                  |
+| ARCHIPELAGO_DENSE | -0.2 (most trees)    | about 0.2-0.9 %                  |
+
+TEMPERATE with biomes on still matches the map with biomes off. Saves from
+before bushy trees load with `bushy_tree_min_moist = 2.0` (none), so they
+regenerate unchanged.
+
 ## Per-biome structures
 
 With biomes on, `BiomeCatalog.STRUCTURES` scatters walkable stones

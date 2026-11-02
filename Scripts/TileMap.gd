@@ -62,6 +62,7 @@ var flower_min_chance: float = 0.3
 var pine_min_alt: float = 0.5
 var pine_min_moist: float = -0.25
 var pine_min_chance: float = 0.3
+var bushy_tree_min_moist: float = 0.3
 var biome_frequency: float = 0.0
 var biome_seed: int = 0
 
@@ -125,6 +126,7 @@ func apply_map_params(p: MapGenParams) -> void:
 	pine_min_alt = working.pine_min_alt
 	pine_min_moist = working.pine_min_moist
 	pine_min_chance = working.pine_min_chance
+	bushy_tree_min_moist = working.bushy_tree_min_moist
 
 	clear()
 	_predict_cache.clear()
@@ -272,10 +274,11 @@ func set_tile_type_z1(pos_vec, alt, moist, _temp, chance, biome_id: int = BiomeC
 
 
 func plant_tile(alt: float, moist: float, chance: float, biome_id: int = BiomeCatalog.TEMPERATE) -> Vector2i:
-	## Bush, tree, pine or flower for one walkable cell, or NO_PLANT. With
-	## biomes on, BiomeCatalog.PLANTS shifts the tree, bush and pine chance
-	## thresholds and BiomeCatalog.TERRAIN the flower threshold; with biomes
-	## off there are no pines and the Map Settings thresholds apply unchanged.
+	## Bush, tree, bushy tree, pine or flower for one walkable cell, or
+	## NO_PLANT. With biomes on, BiomeCatalog.PLANTS shifts the tree, bush and
+	## pine chance thresholds and the bushy tree moisture threshold, and
+	## BiomeCatalog.TERRAIN the flower threshold; with biomes off there are no
+	## pines or bushy trees and the Map Settings thresholds apply unchanged.
 	var bush_chance := bush_min_chance
 	var tree_chance := tree_min_chance
 	var flower_chance := flower_min_chance
@@ -286,6 +289,8 @@ func plant_tile(alt: float, moist: float, chance: float, biome_id: int = BiomeCa
 	if moist > 0 and alt > bush_min_alt and alt <= bush_max_alt and chance > bush_chance:
 		return TileCatalog.BUSH
 	if moist > 0 and alt > tree_min_alt and chance > tree_chance:
+		if biome_frequency > 0.0 and moist > bushy_tree_min_moist + BiomeCatalog.plants(biome_id, "bushy_moist"):
+			return TileCatalog.TREE_BUSHY
 		return TileCatalog.TREE
 	if biome_frequency > 0.0 and moist <= 0 and alt > pine_min_alt:
 		# Dry high ground; the moisture floor never goes below the biome's

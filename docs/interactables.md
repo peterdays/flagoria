@@ -11,7 +11,7 @@ The catalog is a fixed `preload` list. It does not scan `data/interactables/`, b
 | Field | Meaning | tree / pine / bush today |
 |---|---|---|
 | `id` | Type name, also used by `InteractableCatalog.by_id` | `tree`, `pine`, `bush` |
-| `tiles` | `TileCatalog.TILES` names of the foliage-layer (layer 1) tiles it is | `TREE` / `TREE_PINE_SMALL` / `BUSH` |
+| `tiles` | `TileCatalog.TILES` names of the foliage-layer (layer 1) tiles it is | `TREE`, `TREE_BUSHY` / `TREE_PINE_SMALL` / `BUSH` |
 | `hits` | Chop impacts until it falls (`ChopAction` times each hit) | 2 / 2 / 2 |
 | `yields` | Resources given when it falls (step 4) | `{&"wood": 3}` / `{&"wood": 3}` / `{&"wood": 1}` |
 | `leaves` | `TileCatalog.TILES` name of the walkable decor it leaves on `GROUND_DECOR_LAYER` | `STUMP` / `STUMP` / `BUSH_STUMP` |

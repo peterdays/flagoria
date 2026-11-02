@@ -9,7 +9,7 @@ In interact mode a tap on a tree in reach makes the hero face it and swing twice
 - `chop-swing` `ChopAction` (`Scripts/mechanics/trees/chop_action.gd`): the hero faces the tree, each axe impact emits `chop_hit(cell, hit)` (re-emitted as `Interaction.chop_hit`), and the tree falls `ChopAction.fell_at(2)` = 0.56 s after the first wind-up.
 - `chop-sounds` each impact plays a `tree_chop_01..03` clip (never the same twice in a row) with `leaf_rustle_01`, the last impact adds `tree_crack_01`, and the fall plays `tree_fall_01` then `wood_pickup_01..02` as the wood is added. Slots in `tree.tres`, one `AudioStreamPlayer2D` each on `SFX`, local only (`docs/audio.md`, Chop sounds).
 - `chop-death` the hero dying mid-chop, before the fall, cancels it: no stump, no wood, no fall or pickup sound.
-- `chop-result` the tree's foliage tile (layer 1, `TREE`, or `TREE_PINE_SMALL` for the `pine.tres` type with the same values) is erased, `STUMP` is set on `GROUND_DECOR_LAYER` (layer 2), and `Inventory` gains the tree's `yields` (3 `wood`) once.
+- `chop-result` the tree's foliage tile (layer 1, `TREE` or `TREE_BUSHY`, or `TREE_PINE_SMALL` for the `pine.tres` type with the same values) is erased, `STUMP` is set on `GROUND_DECOR_LAYER` (layer 2), and `Inventory` gains the tree's `yields` (3 `wood`) once.
 
 ## How to get to it (user POV)
 

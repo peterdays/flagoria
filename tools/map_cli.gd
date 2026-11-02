@@ -29,6 +29,7 @@ static func tile_names() -> Dictionary:
 		TileCatalog.GRASS_B: "grass", TileCatalog.GRASS_C: "grass", TileCatalog.GRASS_D: "grass",
 		TileCatalog.TREE: "tree", TileCatalog.BUSH: "bush", TileCatalog.FLOWER: "flower",
 		TileCatalog.STONES: "stones", TileCatalog.PINE: "pine",
+		TileCatalog.TREE_BUSHY: "bushy_tree",
 	}
 
 

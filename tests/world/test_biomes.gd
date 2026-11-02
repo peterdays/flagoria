@@ -256,6 +256,10 @@ func _test_biome_plants() -> int:
 		if world.plant_tile(0.8, -0.1, 0.9, b) != NONE:
 			printerr("FAIL biome_plants: frequency 0 biome %s grew a pine" % b)
 			fail += 1
+		# No bushy trees with biomes off, even on the wettest land.
+		if world.plant_tile(0.8, 0.95, 0.9, b) != TileCatalog.TREE:
+			printerr("FAIL biome_plants: frequency 0 biome %s grew a bushy tree" % b)
+			fail += 1
 
 	# Biomes on: same altitude / moisture / chance, different plant per biome.
 	var on := _biome_terrain_params(true)
@@ -278,7 +282,7 @@ func _test_biome_plants() -> int:
 		["oceanic_sparse_bushes", 0.35, 0.1, ocean, NONE],
 	]
 	for c in cases:
-		var got: Vector2i = world.plant_tile(c[1], 0.5, c[2], c[3])
+		var got: Vector2i = world.plant_tile(c[1], 0.4, c[2], c[3])
 		if got != c[4]:
 			printerr("FAIL biome_plants case=%s got %s want %s" % [c[0], got, c[4]])
 			fail += 1
@@ -296,6 +300,23 @@ func _test_biome_plants() -> int:
 		["dense_no_pine", 0.6, -0.1, 0.9, dense, NONE],
 	]
 	for c in pine_cases:
+		var got: Vector2i = world.plant_tile(c[1], c[2], c[3], c[4])
+		if got != c[5]:
+			printerr("FAIL biome_plants case=%s got %s want %s" % [c[0], got, c[5]])
+			fail += 1
+	# Bushy trees: a tree cell on land wetter than bushy_tree_min_moist plus
+	# the biome's bushy_moist; never in TEMPERATE (the biomes-off row).
+	# [name, alt, moist, chance, biome, expected plant]
+	var bushy_cases := [
+		["continental_wet_bushy", 0.6, 0.6, 0.9, cont, TileCatalog.TREE_BUSHY],
+		["continental_moist_oak", 0.6, 0.4, 0.9, cont, TileCatalog.TREE],
+		["dense_bushy", 0.6, 0.2, 0.9, dense, TileCatalog.TREE_BUSHY],
+		["oceanic_bushy", 0.6, 0.4, 0.9, ocean, TileCatalog.TREE_BUSHY],
+		["oceanic_dry_oak", 0.6, 0.2, 0.9, ocean, TileCatalog.TREE],
+		["temperate_no_bushy", 0.6, 0.95, 0.9, T, TileCatalog.TREE],
+		["bushy_needs_tree_chance", 0.6, 0.6, 0.2, ocean, NONE],
+	]
+	for c in bushy_cases:
 		var got: Vector2i = world.plant_tile(c[1], c[2], c[3], c[4])
 		if got != c[5]:
 			printerr("FAIL biome_plants case=%s got %s want %s" % [c[0], got, c[5]])
@@ -331,11 +352,13 @@ func _test_biome_plants() -> int:
 	var trees := {}
 	var bushes := {}
 	var pines := {}
+	var bushy := {}
 	for b in BiomeCatalog.PLANTS:
 		land[b] = 0
 		trees[b] = 0
 		bushes[b] = 0
 		pines[b] = 0
+		bushy[b] = 0
 	for x in range(-2048, 2048, 16):
 		for y in range(-2048, 2048, 16):
 			var cell := Vector2i(x, y)
@@ -356,6 +379,8 @@ func _test_biome_plants() -> int:
 				bushes[b] += 1
 			elif plant == TileCatalog.PINE:
 				pines[b] += 1
+			elif plant == TileCatalog.TREE_BUSHY:
+				bushy[b] += 1
 	var share := func(d: Dictionary, b: int) -> float: return float(d[b]) / maxf(1.0, float(land[b]))
 	for b in land:
 		if land[b] < 20:
@@ -370,13 +395,20 @@ func _test_biome_plants() -> int:
 	if not (share.call(pines, cont) > share.call(pines, ocean) and pines[T] == 0 and pines[dense] == 0):
 		printerr("FAIL biome_plants: pine shares continental=%s oceanic=%s temperate=%s dense=%s" % [share.call(pines, cont), share.call(pines, ocean), share.call(pines, T), share.call(pines, dense)])
 		fail += 1
+	# Dense islands have too few trees in this sample to count bushy ones;
+	# the point cases above cover them.
+	if not (bushy[cont] > 0 and bushy[T] == 0):
+		printerr("FAIL biome_plants: bushy trees continental=%s temperate=%s" % [bushy[cont], bushy[T]])
+		fail += 1
 
-	# A save from before pines (no pine_min_chance) loads with pines off, so
-	# its world regenerates unchanged; a current save keeps its pine chance.
+	# A save from before pines and bushy trees (no pine_min_chance or
+	# bushy_tree_min_moist) loads with both off, so
+	# its world regenerates unchanged; a current save keeps both values.
 	var older := on.duplicate_params()
 	older.ensure_seeds()
 	var data: Dictionary = older.to_dict()
 	data.erase("pine_min_chance")
+	data.erase("bushy_tree_min_moist")
 	var path := MapSave.path_for("test_pre_pine_save")
 	DirAccess.make_dir_recursive_absolute(MapSave.SAVE_DIR)
 	var file := FileAccess.open(path, FileAccess.WRITE)
@@ -392,15 +424,19 @@ func _test_biome_plants() -> int:
 		if world.plant_tile(0.6, -0.1, 0.9, cont) != NONE:
 			printerr("FAIL biome_plants: pre-pine save grew pines")
 			fail += 1
+		if world.plant_tile(0.6, 0.95, 0.9, cont) != TileCatalog.TREE:
+			printerr("FAIL biome_plants: pre-bushy save grew bushy trees")
+			fail += 1
 	var saved = MapSave.save_map(older, "test_pine_save")
 	var reloaded = MapSave.load_map(saved["path"])
 	DirAccess.remove_absolute(saved["path"])
-	if reloaded["error"] != "" or reloaded["params"].pine_min_chance != older.pine_min_chance:
+	if reloaded["error"] != "" or reloaded["params"].pine_min_chance != older.pine_min_chance \
+			or reloaded["params"].bushy_tree_min_moist != older.bushy_tree_min_moist:
 		printerr("FAIL biome_plants: pine save reloaded error=%s" % reloaded["error"])
 		fail += 1
 
 	if fail == 0:
-		print("PASS test_biome_plants land=%s trees=%s bushes=%s pines=%s" % [land, trees, bushes, pines])
+		print("PASS test_biome_plants land=%s trees=%s bushes=%s pines=%s bushy=%s" % [land, trees, bushes, pines, bushy])
 	scene.queue_free()
 	return 1 if fail > 0 else 0
 
