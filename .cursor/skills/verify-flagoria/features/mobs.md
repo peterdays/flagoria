@@ -30,4 +30,5 @@ Preconditions: `doctor.sh` exits `0`.
 ## Gotchas
 
 - The `*_two_players` tests start a second headless Godot as a dedicated server on a free UDP port; a blocked loopback port fails them.
+- `test_mob_sword_two_players` hosts a pinned map (`MOB_SWORD_SEED`) and swings at its most isolated mob, so no second mob dies to the same swings (#328). A map or spawn change that moves mobs can fail its isolation check; pick another seed then.
 - Swapping mob art is a sheet file change; `test_mob_sheet_swap` fails if a texture is put in `Mobs/mob.tscn`. Sheet layout notes live in `art/mobs/README.md`.
