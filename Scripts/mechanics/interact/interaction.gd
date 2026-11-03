@@ -17,7 +17,10 @@ extends Node2D
 ## host checks the plant is there and in the cutter's reach, cuts it, sends
 ## apply_cut to every other peer and tells the cutter its yields with
 ## receive_yields. A client's stump appears when the host's apply_cut comes
-## back. Peers that join later get the host's cuts with the map params.
+## back. Peers that join later get the host's cuts, with their ages, with
+## the map params. Regrowth is the host's too (#298): a client never regrows
+## a stump on its own, and when one regrows on the host (TileMap.regrow_due)
+## the host sends apply_regrow to every peer.
 
 signal mode_changed(mode: Mode)
 ## A chop's axe landed on `cell`; `hit` counts from 1 to the type's `hits`.
@@ -81,6 +84,7 @@ func _ready() -> void:
 	z_index = 3  # over the trees
 	_chop.setup()
 	_chop.chop_hit.connect(chop_hit.emit)
+	world_map.plant_regrown.connect(_on_plant_regrown)
 	var button := get_node_or_null(BUTTON_PATH) as Button
 	if button:
 		InGameMenu.fit_icon_button(button)
@@ -282,6 +286,19 @@ func request_cut(cell: Vector2i) -> void:
 func apply_cut(cell: Vector2i) -> void:
 	## A cut the host decided: show the stump here too, drawn or not.
 	world_map.cut_grown(cell)
+
+
+func _on_plant_regrown(cell: Vector2i) -> void:
+	## Host: a stump regrew here; regrow it on every peer too.
+	if multiplayer_on(multiplayer) and multiplayer.is_server():
+		apply_regrow.rpc(cell)
+
+
+@rpc("authority", "reliable", "call_remote")
+func apply_regrow(cell: Vector2i) -> void:
+	## A regrowth the host decided: the plant comes back here at once. Only
+	## the host can send it; a cell with no cut here is left alone.
+	world_map.grow_back(cell)
 
 
 @rpc("authority", "reliable", "call_remote")

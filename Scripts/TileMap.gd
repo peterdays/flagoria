@@ -4,6 +4,8 @@ extends TileMap
 ## Emitted on every peer right after the cells are set, so local visuals that
 ## depend on the ground (hidden mobs) update in the same frame.
 signal ground_changed(cells: Rect2i)
+## A stump regrew here through regrow_due (the host sends it to its peers).
+signal plant_regrown(cell: Vector2i)
 
 var rng = RandomNumberGenerator.new()
 var count = 0
@@ -359,7 +361,14 @@ func cut_choppable(cell: Vector2i) -> InteractableType:
 
 
 func regrow_due() -> int:
-	return _tree_cuts.regrow_due()
+	var cells := _tree_cuts.regrow_due()
+	for cell in cells:
+		plant_regrown.emit(cell)
+	return cells.size()
+
+
+func grow_back(cell: Vector2i) -> bool:
+	return _tree_cuts.grow_back(cell)
 
 
 func cut_changes() -> Dictionary[String, Dictionary]:
