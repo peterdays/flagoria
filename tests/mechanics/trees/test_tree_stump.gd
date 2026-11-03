@@ -117,3 +117,61 @@ func _test_tree_regrows() -> int:
 	if fail == 0:
 		print("PASS test_tree_regrows")
 	return fail
+
+
+func _test_tree_regrows_under_mob() -> int:
+	## A due stump under a mob's feet stays a stump, so the regrown tree cannot
+	## trap the mob, also when only a corner of the feet box is on the cell;
+	## it regrows on the next regrow_due once the mob has left (#232).
+	print("-- test_tree_regrows_under_mob")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var fail := 0
+	var tree := Vector2i(1 << 20, 0)
+	for s in [11, 42, 7, 1, 99, 3, 5]:
+		world.apply_map_params(_spawn_params(s, 0.0))
+		world.generate_chunk(Vector2(0, 0))
+		for cell in world.get_used_cells(1):
+			if world.has_tree(cell):
+				tree = cell
+				break
+		if tree.x != 1 << 20:
+			break
+	if tree.x == 1 << 20:
+		printerr("FAIL tree_regrows_under_mob: no tree near the origin on any seed")
+		scene.queue_free()
+		return 1
+	var is_stump := func() -> bool:
+		return not world.has_tree(tree) and world.get_cell_atlas_coords(world.GROUND_DECOR_LAYER, tree) == TileCatalog.STUMP
+	world.regrow_delay = 30.0
+	world.play_time = 100.0
+	world.cut_choppable(tree)
+	world.play_time = 200.0  # long past due
+	var mob: Mob = load("res://Mobs/mob.tscn").instantiate()
+	var centre: Vector2 = world.map_to_local(tree)
+	mob.setup(MobCatalog.SLIME, centre + Vector2(0, 4), 1)
+	scene.get_node("World/Mobs").add_child(mob)
+	mob.set_physics_process(false)  # stays where the test puts it
+	await process_frame
+	if not world.mob_on_cell(tree) or world.player_on_cell(tree) or world.regrow_due() != 0 or not is_stump.call():
+		printerr("FAIL tree_regrows_under_mob: %s regrew under a mob standing on it" % tree)
+		fail += 1
+	# Feet centred on the next cell, one corner still on the stump.
+	var half: Vector2 = MobCatalog.stat(MobCatalog.SLIME, "body") * 0.5
+	mob.position = centre + Vector2(8 + half.x - 2, 4)
+	if world.local_to_map(mob.position) == tree or not world.mob_on_cell(tree) \
+			or world.regrow_due() != 0 or not is_stump.call():
+		printerr("FAIL tree_regrows_under_mob: %s regrew under a corner of a mob's feet" % tree)
+		fail += 1
+	# The mob walks off: the next regrow_due grows the tree back.
+	mob.position = centre + Vector2(6 * 16, 6 * 16)
+	if world.mob_on_cell(tree) or world.regrow_due() != 1 or not world.has_tree(tree):
+		printerr("FAIL tree_regrows_under_mob: %s did not regrow after the mob left" % tree)
+		fail += 1
+	mob.queue_free()
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_tree_regrows_under_mob")
+	return fail
