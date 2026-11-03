@@ -32,9 +32,9 @@ The first 11 names kept their cells when the Solaria atlas was replaced. STONES 
 | GRASS_C | Land, `chance < ground_chance_c` | 0 | (6, 0) | 1×1 | None |
 | GRASS_D | Land, otherwise | 0 | (6, 1) | 1×1 | None |
 | BUSH | Bush on moist land in the bush altitude band; chopped like a tree in interact mode | 1 | (7, 3) | 1×1 | 12×11 polygon over the whole bush (alternative 1 is the same tile, invisible, shown while the chop's hit frames draw in its place) |
-| TREE | Tree on moist land above `tree_min_alt` | 1 | (7, 0) | 1×1 | 14×11 polygon over the lower canopy and trunk |
-| PINE | Small pine on dry high ground (biomes on only, see `docs/biomes.md`) | 1 | (7, 2) | 1×1 | Same polygon as TREE |
-| TREE_BUSHY | Bushy broadleaf tree on wet land (biomes on only, see `docs/biomes.md`) | 1 | (7, 1) | 1×1 | Same polygon as TREE |
+| TREE | Tree on moist land above `tree_min_alt` | 1 | (7, 0) | 1×1 | 14×11 polygon over the lower canopy and trunk (alternative 1 is the same tile, invisible, shown while the chop's hit frames draw in its place) |
+| PINE | Small pine on dry high ground (biomes on only, see `docs/biomes.md`) | 1 | (7, 2) | 1×1 | Same polygon as TREE, and the same alternative 1 |
+| TREE_BUSHY | Bushy broadleaf tree on wet land (biomes on only, see `docs/biomes.md`) | 1 | (7, 1) | 1×1 | Same polygon as TREE, and the same alternative 1 |
 | FLOWER | Walkable flower in the flower altitude band | 2 (`GROUND_DECOR_LAYER`) | (9, 3) | 1×1 | None |
 | STONES | Walkable stones on bare land and beaches in some biomes (`BiomeCatalog.STRUCTURES`, biomes on only) | 2 (`GROUND_DECOR_LAYER`) | (0, 7) | 1×1 | None |
 | STUMP | What a tree cut in interact mode leaves (`cut_choppable` in `Scripts/mechanics/trees/tree_cuts.gd`, called through `Scripts/TileMap.gd`); the map keeps it when the chunk is drawn again, until the tree regrows after its type's `regrow_delay` | 2 (`GROUND_DECOR_LAYER`) | (8, 2) | 1×1 | None |

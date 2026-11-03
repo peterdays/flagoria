@@ -39,8 +39,8 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Biomes](./biomes.md) — biome terrain, plants, stones, island and archipelago shaping, biomes on by default, `render_biomes` coverage gate.
 - [Map save files](./map-save.md) — versioned world saves (inputs plus cuts), v1 migration, Save from the in-game menu, saved-maps API.
 - [Map zoom](./map-zoom.md) — local pinch, wheel and Ctrl +/- zoom.
-- [Chopping trees and bushes](./chop-trees-and-bushes.md) — interact-mode chop, tree, pine and bush types, per-type wood and regrow delay, stumps, regrowth (held while a player or mob stands on the stump), wood HUD, type checklist.
-- [Chop trees (live drive)](./chop-trees.md) — mode button, tap a tree in reach, two hits, tree sounds, stump and wood once.
+- [Chopping trees and bushes](./chop-trees-and-bushes.md) — interact-mode chop, tree, pine and bush types, their hit and fall frames, per-type wood and regrow delay, stumps, regrowth (held while a player or mob stands on the stump), wood HUD, type checklist.
+- [Chop trees (live drive)](./chop-trees.md) — mode button, tap a tree in reach, two hits, tree hit frames and sounds, stump and wood once.
 - [Cut sync (two-player)](./cut-sync.md) — host-decided tree and bush cuts, same stump on every peer, wood to the cutter, late joiners get the exact set.
 - [Explored map](./explored-map.md) — minimap panel, cells revealed within 10 cells of the hero.
 - [Walls and bridges](./walls-and-bridges.md) — wall solver, plank bridges; live drive verified-unreachable until a build action lands.
