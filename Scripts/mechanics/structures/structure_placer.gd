@@ -91,7 +91,7 @@ func can_place(structure: Structure, anchor_cell: Vector2i) -> Array[String]:
 func place(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
 	## Write `structure` with its anchor on `anchor_cell` for peer `owner`:
 	## ground cells, then object cells with wall and gate pieces from
-	## WallSolver and the owner's flag colour. Plants, decor and stumps
+	## WallSolver (an `open` gate drawn open) and the owner's flag colour. Plants, decor and stumps
 	## under it are removed. Returns the new placement id, or -1 and
 	## nothing written when can_place gives any reason.
 	if not can_place(structure, anchor_cell).is_empty():
@@ -101,7 +101,7 @@ func place(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
 	for cell: Vector2i in foot:
 		var o: Dictionary = foot[cell][1]
 		if not o.is_empty() and o["tile"].begins_with("WALL_"):
-			walls[cell] = {"gate": o["tile"].contains("GATE")}
+			walls[cell] = {"gate": o["tile"].contains("GATE"), "open": "open" in o["attributes"]}
 	var solved := WallSolver.solve(walls)
 	for cell: Vector2i in foot:
 		var g: Dictionary = foot[cell][0]
