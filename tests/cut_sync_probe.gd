@@ -12,8 +12,8 @@ extends SceneTree
 ## player then steps 64 px away from its cuts 500 ms after the last one, so
 ## it does not hold a stump back. The time (unix ms) each cut cell left the
 ## cut list is in "regrown". While PATH.forge exists, a client sends the
-## host apply_regrow for each listed cell once, as a peer that tries to
-## regrow by itself would.
+## host one apply_regrow_cells listing every listed cell, once, as a peer
+## that tries to regrow by itself would.
 ## Optional --place=NAME@x,y (host): place res://structures/NAME.txt with its
 ## anchor on x,y while the host is still alone, before its own player. While
 ## PATH.forge_place exists, a client sends every other client a forged
@@ -178,8 +178,7 @@ func _run() -> void:
 				interaction.request_cut.rpc_id(1, cell)
 		if not forged and not host and FileAccess.file_exists(out + ".forge"):
 			forged = true
-			for cell in listed:
-				interaction.apply_regrow.rpc_id(1, cell)
+			interaction.apply_regrow_cells.rpc_id(1, listed)
 		if not forged_place and not host and FileAccess.file_exists(out + ".forge_place"):
 			forged_place = true
 			for peer in main.multiplayer.get_peers():

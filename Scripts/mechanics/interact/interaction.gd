@@ -20,8 +20,9 @@ extends Node2D
 ## its yields with receive_yields. A client's stump appears when the host's
 ## apply_cut comes back. Peers that join later get the host's cuts, with
 ## their ages, with the map params. Regrowth is the host's too (#298): a
-## client never regrows a stump on its own, and when one regrows on the host
-## (TileMap.regrow_due) the host sends apply_regrow to every peer.
+## client never regrows a stump on its own, and when stumps regrow on the host
+## (TileMap.regrow_due) the host sends every peer one apply_regrow_cells per
+## tick (#353), which a client applies only when it came from the host.
 
 signal mode_changed(mode: Mode)
 ## A chop's axe landed on `cell`; `hit` counts from 1 to the type's `hits`.
@@ -85,7 +86,7 @@ func _ready() -> void:
 	z_index = 3  # over the trees
 	_chop.setup()
 	_chop.chop_hit.connect(chop_hit.emit)
-	world_map.plant_regrown.connect(_on_plant_regrown)
+	world_map.plants_regrown.connect(_on_plants_regrown)
 	var button := get_node_or_null(BUTTON_PATH) as Button
 	if button:
 		InGameMenu.fit_icon_button(button)
@@ -299,17 +300,22 @@ func apply_cut(cell: Vector2i) -> void:
 	world_map.cut_grown(cell)
 
 
-func _on_plant_regrown(cell: Vector2i) -> void:
-	## Host: a stump regrew here; regrow it on every peer too.
+func _on_plants_regrown(cells: Array[Vector2i]) -> void:
+	## Host: stumps regrew in one tick; regrow them on every peer too, in one
+	## message.
 	if multiplayer_on(multiplayer) and multiplayer.is_server():
-		apply_regrow.rpc(cell)
+		apply_regrow_cells.rpc(cells)
 
 
 @rpc("authority", "reliable", "call_remote")
-func apply_regrow(cell: Vector2i) -> void:
-	## A regrowth the host decided: the plant comes back here at once. Only
-	## the host can send it; a cell with no cut here is left alone.
-	world_map.grow_back(cell)
+func apply_regrow_cells(cells: Array[Vector2i]) -> void:
+	## Regrowths the host decided: the plants come back here at once. Applied
+	## only when the host (peer 1) sent it, whatever the RPC mode above; a
+	## cell with no cut here is left alone.
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	for cell in cells:
+		world_map.grow_back(cell)
 
 
 @rpc("authority", "reliable", "call_remote")
