@@ -37,13 +37,22 @@ extends Resource
 ## When its yields are added to the inventory:
 @export var pickup_sounds: Array[AudioStream] = []
 ## Frames (16x16, left to right) drawn in place of the tile after each
-## impact. A type with a hit sheet needs alternative tile
-## Interaction.HIDDEN_ALT (invisible, same collision) in the TileSet.
+## impact, one row per entry in `tiles`, in that order (hit_row). A type
+## with a hit sheet needs alternative tile Interaction.HIDDEN_ALT
+## (invisible, same collision) in the TileSet.
 @export var hit_sheet: Texture2D
 ## 4 frames (16x16) over the cell: 0-1 after each impact, 2-3 once it falls.
 @export var fx_sheet: Texture2D
 ## Play the puff cloud (MobCatalog.PUFF_SHEET) over the cell when it falls.
 @export var fell_puff := false
+
+
+func hit_row(atlas: Vector2i) -> int:
+	## The hit_sheet row of the tile at `atlas`: its index in `tiles`, or 0.
+	for row in tiles.size():
+		if TileCatalog.TILES.get(tiles[row], {}).get("atlas") == atlas:
+			return row
+	return 0
 
 
 func leaves_atlas() -> Vector2i:

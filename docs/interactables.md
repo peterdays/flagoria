@@ -20,8 +20,8 @@ The catalog is a fixed `preload` list. It does not scan `data/interactables/`, b
 | `regrow_delay` | Seconds of play before what it left turns back into it. 0 means never | 300 (default) for all three |
 | `save_key` | Key for this type in world saves (step 5). A saved cut names its type by it | `tree` / `pine` / `bush` |
 | `hit_sounds`, `hit_layer_sounds`, `last_hit_sounds`, `fell_sounds`, `pickup_sounds`, `hit_no_repeat`, `fell_own_player` | Sound slots (step 3) | see `docs/audio.md`, Chop sounds |
-| `hit_sheet` | 16x16 frames drawn in place of the tile after each impact | none / none / `art/flagoria/fx/bush_hit.png` |
-| `fx_sheet` | 4 frames over the cell: 0-1 after each impact, 2-3 once it falls | none / none / `art/flagoria/fx/fx_leaves.png` |
+| `hit_sheet` | 16x16 frames drawn in place of the tile after each impact, one row per entry in `tiles`, in that order | `art/flagoria/fx/tree_hit.png` (rows `TREE`, `TREE_BUSHY`) / `pine_hit.png` / `bush_hit.png` |
+| `fx_sheet` | 4 frames over the cell: 0-1 after each impact, 2-3 once it falls | `art/flagoria/fx/fx_tree.png` / `fx_pine.png` / `fx_leaves.png` |
 | `fell_puff` | Play the puff cloud over the cell when it falls | true / true / false |
 
 **`regrow_delay`.** `TreeCuts` (`Scripts/mechanics/trees/tree_cuts.gd`) records each cut's type, and `TileMap.regrow_due` regrows a stump once its type's `regrow_delay` has passed. The stump waits while a player or a mob stands on it, so a regrown tree never traps a mob (#232). `TileMap.regrow_delay` (forwarded to `TreeCuts.regrow_delay`) is a map-wide override:
@@ -34,7 +34,7 @@ The catalog is a fixed `preload` list. It does not scan `data/interactables/`, b
 
 - **Tiles:** add them to `art/flagoria/flagoria_tiles_v3.png` (16x16 cells), and name them in `Scripts/tile_catalog.gd`: a constant and an entry in `TILES`.
 - **Collision:** set it in the TileSet `art/flagoria/flagoria_tiles_v3.tres`.
-- **Hit sheet:** a type with a `hit_sheet` also needs alternative tile `ChopAction.HIDDEN_ALT` (1) in the TileSet: invisible, with the same collision. Otherwise the hit frames draw over the tile.
+- **Hit sheet:** a type with a `hit_sheet` also needs alternative tile `ChopAction.HIDDEN_ALT` (1) in the TileSet: invisible, with the same collision. Otherwise the hit frames draw over the tile. A type with several `tiles` gives its hit sheet one 16 px row per tile, in the order of `tiles` (`InteractableType.hit_row`). The tree and pine frames are drawn from their tiles by `tools/art/gen_tree_chop_frames.py`.
 - **Tile table:** add a row to `docs/tiles.md`, for the plant and for what it leaves.
 - **Credits:** credit new art in `art/flagoria/CREDITS.md`.
 - **Generation:** to have the generator place the type, change `plant_tile` in `Scripts/TileMap.gd`. Where it grows is a separate decision from adding the type; `docs/biomes.md` lists each biome's plant chances.

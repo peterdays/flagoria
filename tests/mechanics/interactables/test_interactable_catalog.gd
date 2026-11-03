@@ -35,10 +35,14 @@ func _test_catalog_resolves_cells() -> int:
 	var tree := InteractableCatalog.by_id("tree")
 	var pine := InteractableCatalog.by_id("pine")
 	for prop in ["hits", "yields", "leaves", "regrow_delay", "hit_sounds", "fell_sounds", "hit_no_repeat",
-			"fell_own_player", "hit_layer_sounds", "last_hit_sounds", "pickup_sounds", "hit_sheet", "fx_sheet",
-			"fell_puff"]:
+			"fell_own_player", "hit_layer_sounds", "last_hit_sounds", "pickup_sounds", "fell_puff"]:
 		if tree.get(prop) != pine.get(prop):
 			printerr("FAIL catalog_resolves_cells: pine %s %s differs from the tree's %s" % [prop, pine.get(prop), tree.get(prop)])
+			fail += 1
+	# The pine plays like a tree but draws its own hit and fall frames (#333).
+	for prop in ["hit_sheet", "fx_sheet"]:
+		if pine.get(prop) == null or pine.get(prop) == tree.get(prop):
+			printerr("FAIL catalog_resolves_cells: pine %s %s should be set and differ from the tree's" % [prop, pine.get(prop)])
 			fail += 1
 	var keys := {}
 	for type: InteractableType in InteractableCatalog.TYPES:
