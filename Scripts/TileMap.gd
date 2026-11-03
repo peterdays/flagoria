@@ -40,9 +40,9 @@ var _tree_cuts := TreeCuts.new(self)
 var _bridges := BridgeBuilder.new(self)
 ## Placed structures (#270); generate_chunk draws their cells.
 var _structures := StructurePlacer.new(self)
-## Seconds of play after a cut before any stump turns back into its plant,
-## overriding each type's regrow_delay; negative (the default) uses the
-## type's. Kept in TreeCuts; this property reads and writes it there.
+var _castle_front: Variant = null  # outside the starting castle's gate (#271): the spawn once set
+## Seconds of play after a cut before any stump regrows, overriding each type's
+## regrow_delay; negative (the default) uses the type's. Kept in TreeCuts.
 var regrow_delay: float:
 	get:
 		return _tree_cuts.regrow_delay
@@ -137,6 +137,7 @@ func apply_map_params(p: MapGenParams) -> void:
 	_tree_cuts.clear()
 	_bridges.clear()
 	_structures.clear()
+	_castle_front = null
 	spawn_point = Vector2i(0, 0)
 	ground_changed.emit(Rect2i())
 
@@ -225,9 +226,8 @@ func set_tile_type_z0(pos_vec, alt, moist, _temp, chance, biome_id: int = BiomeC
 
 
 func ground_tile(alt: float, moist: float, chance: float, biome_id: int = BiomeCatalog.TEMPERATE) -> Vector2i:
-	## Layer-0 tile for one cell. With biomes on, BiomeCatalog.TERRAIN moves the
-	## beach top and the swamp moisture threshold per biome; with biomes off the
-	## Map Settings thresholds apply unchanged.
+	## Layer-0 tile for one cell. With biomes on, BiomeCatalog.TERRAIN moves the beach
+	## top and swamp moisture threshold per biome; off, Map Settings apply unchanged.
 	var sand_top := sand_max_alt
 	var swamp_special_top := swamp_special_alt
 	var swamp_moist := 0.0
@@ -283,11 +283,9 @@ func set_tile_type_z1(pos_vec, alt, moist, _temp, chance, biome_id: int = BiomeC
 
 
 func plant_tile(alt: float, moist: float, chance: float, biome_id: int = BiomeCatalog.TEMPERATE) -> Vector2i:
-	## Bush, tree, bushy tree, pine or flower for one walkable cell, or
-	## NO_PLANT. With biomes on, BiomeCatalog.PLANTS shifts the tree, bush and
-	## pine chance thresholds and the bushy tree moisture threshold, and
-	## BiomeCatalog.TERRAIN the flower threshold; with biomes off there are no
-	## pines or bushy trees and the Map Settings thresholds apply unchanged.
+	## Bush, tree, bushy tree, pine or flower for one walkable cell, or NO_PLANT. With biomes
+	## on, BiomeCatalog.PLANTS shifts the tree, bush, pine and bushy tree thresholds and
+	## BiomeCatalog.TERRAIN the flower one; off, no pines or bushy trees, Map Settings apply.
 	var bush_chance := bush_min_chance
 	var tree_chance := tree_min_chance
 	var flower_chance := flower_min_chance
@@ -313,9 +311,8 @@ func plant_tile(alt: float, moist: float, chance: float, biome_id: int = BiomeCa
 
 
 func structure_tile(chance: float, biome_id: int = BiomeCatalog.TEMPERATE) -> Vector2i:
-	## Stones for one walkable cell that has no plant, or NO_PLANT. Only with
-	## biomes on: BiomeCatalog.STRUCTURES sets the chance threshold per biome.
-	## With biomes off there are no structures and the map is unchanged.
+	## Stones for one walkable cell with no plant, or NO_PLANT. Only with biomes on
+	## (BiomeCatalog.STRUCTURES sets the chance per biome); off, the map is unchanged.
 	if biome_frequency <= 0.0:
 		return NO_PLANT
 	if chance > BiomeCatalog.structures(biome_id, "stone_chance"):
@@ -324,9 +321,8 @@ func structure_tile(chance: float, biome_id: int = BiomeCatalog.TEMPERATE) -> Ve
 
 
 func predict_cell(cell: Vector2i) -> Array:
-	## [ground atlas, plant or structure atlas or NO_PLANT] that generate_chunk
-	## puts at `cell`, computed from the noise alone: no tiles are placed, so
-	## code away from the players (mobs) can read terrain anywhere.
+	## [ground atlas, plant or structure atlas or NO_PLANT] that generate_chunk puts at `cell`,
+	## from the noise alone (no tiles placed), so code away from players can read terrain.
 	if _predict_cache.has(cell):
 		return _predict_cache[cell]
 	var moist := moisture.get_noise_2d(cell.x, cell.y)
@@ -412,6 +408,13 @@ func placed_structures() -> Dictionary:
 	return _structures.placements()
 
 
+func place_start_castle(owner: int) -> bool:
+	## Peer `owner`'s starting castle by the spawn (StartCastle); false when none fits.
+	_castle_front = StartCastle.place(self, owner)
+	if _castle_front != null: spawn_point = _castle_front
+	return _castle_front != null
+
+
 func structures_for_sync() -> Array:
 	return _structures.to_sync()
 
@@ -425,8 +428,7 @@ static func bridge_pieces(length: int, horizontal: bool, land_before: bool, land
 
 
 func player_on_cell(cell: Vector2i) -> bool:
-	## True when a player's body box (a CharacterBody2D next to this map)
-	## overlaps the cell.
+	## True when a player's body box (a CharacterBody2D next to this map) overlaps the cell.
 	var cell_rect := Rect2(to_global(map_to_local(cell) - Vector2(8, 8)), Vector2(16, 16) * global_scale)
 	for node in get_parent().get_children():
 		if not node is CharacterBody2D:
@@ -470,8 +472,7 @@ func count_walkable_neighbors(cell: Vector2i) -> int:
 
 
 func is_clear_ground(cell: Vector2i) -> bool:
-	## Walkable ground with no tree, bush or stones on it. Generates the cell's
-	## chunk first if it has not been generated yet.
+	## Walkable ground with no tree, bush or stones on it; generates the cell's chunk first.
 	if get_cell_source_id(0, cell) == -1:
 		generate_chunk(map_to_local(cell))
 	if not is_walkable_land(cell):
@@ -486,7 +487,8 @@ func reachable_clear_cells(start: Vector2i, limit: int = SpawnFinder.SPAWN_MIN_R
 
 
 func resolve_player_spawn(origin_cell: Vector2i = Vector2i(0, 0), max_radius: int = 96) -> Vector2i:
-	return SpawnFinder.resolve_player_spawn(self, origin_cell, max_radius)
+	## The starting castle's gate front once it is placed, else SpawnFinder's.
+	return _castle_front if _castle_front != null else SpawnFinder.resolve_player_spawn(self, origin_cell, max_radius)
 
 
 func spawn_spots(origin_cell: Vector2i, limit: int = SpawnFinder.SPAWN_SEARCH_LIMIT) -> Array[Vector2]:

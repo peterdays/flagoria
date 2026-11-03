@@ -1,6 +1,6 @@
 # Structures (data format)
 
-Small hand-drawn structures (guard post, wall piece, camp) are stored as plain text in the `flagoria-structure 1` format: a header, one legend, then a `ground` and an `object` layer, up to 16 x 16, with tiles named by `TileCatalog`. `structures/guard_post.txt` is the first one. Placing a parsed structure on the map is covered in [Structure placement](./structure-placement.md).
+Small hand-drawn structures (guard post, wall piece, camp) are stored as plain text in the `flagoria-structure 1` format: a header, one legend, then a `ground` and an `object` layer, up to 16 x 16, with tiles named by `TileCatalog`. `structures/guard_post.txt` is the first one and `structures/castle.txt` the starting castle. Legend attributes: `auto` (wall pieces from `WallSolver`), `team` (the owner's flag colour) and `open` (the gate is drawn open). Placing a parsed structure on the map is covered in [Structure placement](./structure-placement.md).
 
 ## Sub-features
 
@@ -10,7 +10,7 @@ Small hand-drawn structures (guard post, wall piece, camp) are stored as plain t
 
 ## How to get to it (user POV)
 
-- Not reachable in game yet. Read or paste a file under `structures/`.
+- Read or paste a file under `structures/`. In game only `structures/castle.txt` is placed, as the [starting castle](./start-castle.md).
 
 ## Driving it with verify-flagoria helpers
 
@@ -18,4 +18,4 @@ Preconditions: `doctor.sh` exits `0`. Time cost: under 0.2 s in `tools/verify.sh
 
 - **Run.** `./.cursor/skills/verify-flagoria/bin/drive-verify.sh` and read `artifacts/verify.log`.
 - **Proof.** Headers `-- test_structure_round_trip`, `-- test_structure_lenient_paste`, `-- test_structure_rejects`, `-- test_structure_export_filter` with no `FAIL` after them.
-- **Drive (live).** Verified-unreachable: nothing in the game places a structure yet.
+- **Drive (live).** Host from the main menu and see the starting castle.

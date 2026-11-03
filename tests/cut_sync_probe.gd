@@ -3,7 +3,7 @@ extends SceneTree
 ## test_cut_save_late_join (tests/saves/test_cut_save.gd) and
 ## test_cut_sync_two_players (tests/net/test_cut_sync.gd) and
 ## test_regrow_sync_two_players (tests/net/test_regrow_sync.gd) and
-## test_structure_sync_join (tests/net/test_structure_sync.gd).
+## test_structure_sync_join and test_castle_sync_join (tests/net/test_structure_sync.gd).
 ##   -- --port=N --out=PATH --host --save=SAVE  load SAVE and host it with a player
 ##   -- --port=N --out=PATH                     join localhost:N through the Join path
 ## Optional --cells=x,y;x,y lists cells to report besides the cut ones.
@@ -19,7 +19,8 @@ extends SceneTree
 ## receive_map_params carrying one placement, once.
 ## Every 100 ms it writes PATH (JSON): its peer id, whether it has the map
 ## and its own player, its cut list, its wood and, for each cut or listed
-## cell, what is drawn there and whether it blocks. While PATH.cut holds
+## cell, what is drawn there and whether it blocks, and the cell each
+## player (by peer id) stands on. While PATH.cut holds
 ## cells (x,y;x,y), it cuts each once through the normal cut path: its
 ## player steps next to the cell, then Interaction._cut runs. Engine errors
 ## it logged are in "errors". Stops when PATH.stop exists, or after 90 s.
@@ -195,6 +196,11 @@ func _write(out: String, main, world, listed: Array[Vector2i], has_player: bool,
 	var guard := StructurePlacer.load_named("guard_post")
 	if guard != null and not listed.is_empty():
 		refused = world.can_place_structure(guard, listed[0])
+	var players := {}
+	for node in main.get_node("World").get_children():
+		if node is CharacterBody2D and str(node.name).is_valid_int():
+			var at: Vector2i = world.local_to_map(world.to_local(node.global_position))
+			players[str(node.name)] = [at.x, at.y]
 	var inventory: Inventory = main.get_node("Inventory")
 	var file := FileAccess.open(out + ".tmp", FileAccess.WRITE)
 	file.store_string(JSON.stringify({
@@ -205,6 +211,7 @@ func _write(out: String, main, world, listed: Array[Vector2i], has_player: bool,
 		"wood": inventory.count_of(Inventory.WOOD),
 		"regrown": regrown,
 		"placements": placements,
+		"players": players,
 		"place_refused": refused,
 		"errors": _errors.snapshot(),
 	}))

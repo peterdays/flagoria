@@ -15,9 +15,9 @@ Where each part of the game lives today, how data moves between the parts, and w
 ## Main data flows
 
 - **Map generation.** `Scripts/MapAdminPanel.gd` edits `MapGen.params` (a `MapGenParams`, saved to `user://map_gen_params.cfg`). Host emits `MainMenu.new_server_created`; `flagoria_main.gd` `setup_server` applies the params to `Scripts/TileMap.gd` (`apply_map_params`). Every `chunk_refresh_frames` frames (default 15) `Scripts/TileMap.gd` draws a chunk (default 32 x 32 cells) around the local player (`generate_chunk`): biome (`Scripts/BiomeCatalog.gd`), altitude (island and archipelago shaping in `Scripts/world/terrain_shape.gd`), then ground, plants and stones, named through `Scripts/tile_catalog.gd`. `predict_cell` gives the same answer for cells not drawn yet. Each draw emits `ground_changed`.
-- **Spawn.** `Scripts/TileMap.gd` `resolve_player_spawn` finds reachable land; `free_spawn_position` keeps players apart. Both forward to `Scripts/world/spawn_finder.gd`. `flagoria_main.gd` places each player there.
+- **Spawn.** `Scripts/TileMap.gd` `resolve_player_spawn` finds reachable land; `free_spawn_position` keeps players apart. Both forward to `Scripts/world/spawn_finder.gd`. `flagoria_main.gd` places each player there. A host that plays first places its starting castle next to the spawn (`place_start_castle`, forwarding to `Scripts/world/start_castle.gd`), and the land outside the castle gate becomes the spawn.
 - **Player and interaction.** `Player/character_body_2d.tscn` (`Scripts/player.gd`) handles movement, sword, camera zoom (`Scripts/map_zoom.gd`) and aim (`Scripts/attack_aim.gd`, styled by `Scripts/aim_cone_style.gd`). Health is `Scripts/player_health.gd`. `Scripts/mechanics/interact/interaction.gd` switches combat and interact mode. In interact mode it selects choppable cells (types from `Scripts/mechanics/interactables/` and `data/interactables/`; adding one: `docs/interactables.md`), runs the chop through `Scripts/mechanics/trees/chop_action.gd`, calls `Scripts/TileMap.gd` `cut_choppable` (which forwards to `Scripts/mechanics/trees/tree_cuts.gd`) and adds the yield to `Scripts/inventory.gd`, which `Scripts/resource_hud.gd` shows. Stumps regrow through `Scripts/TileMap.gd` `regrow_due` (also in `tree_cuts.gd`).
-- **Not wired into play yet.** `Scripts/mechanics/walls/wall_solver.gd`, `Scripts/mechanics/structures/structure.gd`, `Scripts/TileMap.gd` `place_structure` (which forwards to `Scripts/mechanics/structures/structure_placer.gd`) and `Scripts/TileMap.gd` `build_bridge` (which forwards to `Scripts/mechanics/bridges/bridge_builder.gd`) are only called from tests so far.
+- **Structures.** `Scripts/TileMap.gd` `place_structure` forwards to `Scripts/mechanics/structures/structure_placer.gd`, which reads `Scripts/mechanics/structures/structure.gd` files and picks wall pieces with `Scripts/mechanics/walls/wall_solver.gd`. In play only the starting castle uses it. `Scripts/TileMap.gd` `build_bridge` (which forwards to `Scripts/mechanics/bridges/bridge_builder.gd`) is only called from tests so far.
 - **Mobs.** The server runs `Scripts/mob_spawner.gd` `spawn_for_world` (types and sheets from `Scripts/mob_catalog.gd`). Each mob runs `Scripts/mob.gd` on the server, and the other peers receive its state through the `MultiplayerSynchronizer` in `Mobs/mob.tscn`. Kills and discoveries pay out through `Scripts/points.gd` and `Scripts/discovery_points.gd`, and `Scripts/score_hud.gd` shows them.
 - **Netcode.** ENet on UDP 9786 in `flagoria_main.gd`. The server owns the map params, mobs, health and points. A joining peer gets the full params, the host's tree and bush cuts and its placed structures through the `receive_map_params` RPC and builds the same map locally (placements after the join do not sync yet, #278). Players spawn through the `MultiplayerSpawner` under `World`. A cut during play is asked of the host (`Interaction.request_cut`), which decides it and sends the stump to every peer (`apply_cut`) and the wood to the cutter; the host also decides regrowth and sends each regrown plant to every peer (`apply_regrow`, #298). The multiplayer tests are stress-run by `tools/stress_netcode.py`.
 - **UI and menus.** `Scripts/MainMenu.gd` (main menu, Host/Join, volumes, mob rate) opens `map_admin_panel.tscn`. `number_pad.tscn` gives touch keys for number fields. In play: `ingame_menu.tscn`, `quit_prompt.tscn`, `Scripts/hearts_hud.gd`, `Scripts/minimap_panel.gd` (draws `Scripts/explored_map.gd`). The theme is `art/ui/main_menu_theme.tres`.
@@ -33,7 +33,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 | `Player/`, `Mobs/` | Player, sword and mob scenes. |
 | `data/` | Resource files a mechanic loads (`data/interactables/tree.tres`, `pine.tres`, `bush.tres`). |
 | `art/` | Tiles, sprites, sounds, theme and their credits. |
-| `structures/` | Hand-drawn structure text files (`structures/guard_post.txt`) in the format `Scripts/mechanics/structures/structure.gd` parses. |
+| `structures/` | Hand-drawn structure text files (`structures/guard_post.txt`, `structures/castle.txt`) in the format `Scripts/mechanics/structures/structure.gd` parses. |
 | `addons/virtual_joystick/` | Vendored touch joystick. |
 | `tests/` | Runner (`tests/run_tests.gd`, plus its own self-checks), area test files (`tests/<area>/test_*.gd`), shared helpers (`tests/helpers/test_helpers.gd`), probes started as separate processes, `tests/fixtures/`, `tests/golden/`. |
 | `tools/` | Verify, CLI, renders, asset generators, CI helpers (`tools/pr_hygiene.py`, `tools/file_budget.py`, `tools/play_review_paths.py`, `tools/stress_netcode.py`, `tools/ci_job_times.py`). |
@@ -43,7 +43,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 
 ## Target layout (#253)
 
-- `Scripts/world/`: map generation helpers (terrain shape, spawn search).
+- `Scripts/world/`: map generation helpers (terrain shape, spawn search, starting castle).
 - `Scripts/mechanics/<mechanic>/`: one folder per mechanic: `trees/`, `bridges/`, `walls/`, `structures/`, `interact/`, `interactables/`, later `building/` and `conquest/`.
 - `tests/<area>/test_*.gd`: tests per area (`world/`, `saves/`, `mobs/`, `combat/`, `player/`, `points/`, `ui/`, `audio/`, `net/`) or per mechanic (`tests/mechanics/<mechanic>/`), with shared helpers in `tests/helpers/test_helpers.gd`. The runner finds these files (#255). `tests/run_tests.gd` keeps only its own self-checks.
 
@@ -73,6 +73,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 | `Scripts/mechanics/walls/wall_solver.gd` | Wall piece per cell from neighbours | moved from `Scripts/wall_solver.gd` (#261) |
 | `Scripts/mechanics/structures/structure.gd` | Parse hand-drawn structures | moved from `Scripts/structure.gd` (#261) |
 | `Scripts/mechanics/structures/structure_placer.gd` | Check and place a parsed structure on the map, keep placements across redraws | new (#270) |
+| `Scripts/world/start_castle.gd` | Find the spot for a player's starting castle next to the spawn and place it | new (#271) |
 | `Scripts/mechanics/interactables/interactable_type.gd` | One choppable type (resource) | already home |
 | `Scripts/mechanics/interactables/interactable_catalog.gd` | Every choppable type, tile lookup | already home |
 | `Scripts/tile_catalog.gd` | Tile names to atlas coords | stays (shared data table) |

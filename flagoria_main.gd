@@ -74,7 +74,7 @@ func start_dedicated_server(port: int, params: MapGenParams = null) -> Error:
 	## normal Join path.
 	get_node("CanvasLayer2/MainMenu").hide()
 	get_node("/root/MusicPlayer").stop(0.0)  # no one listens on a dedicated server
-	var err := setup_server(params if params != null else get_node("/root/MapGen").params, port)
+	var err := setup_server(params if params != null else get_node("/root/MapGen").params, port, false)
 	if err != OK:
 		push_error("dedicated server: cannot listen on UDP port %s (error %s)" % [port, err])
 		return err
@@ -83,13 +83,18 @@ func start_dedicated_server(port: int, params: MapGenParams = null) -> Error:
 	return OK
 
 
-func setup_server(params: MapGenParams, port: int = PORT) -> Error:
-	## Host applies the chosen map params locally, then syncs the full set to joining peers.
+func setup_server(params: MapGenParams, port: int = PORT, with_castle := true) -> Error:
+	## Host applies the chosen map params locally, then syncs the full set to
+	## joining peers. With `with_castle` (a host that plays), the host's
+	## starting castle goes next to the spawn while it is still alone, before
+	## the mobs (#271); joining peers receive it with the map (#278).
 	world_params = params.duplicate_params()
 	world_params.ensure_seeds()
 	get_node("/root/MapGen").params = world_params.duplicate_params()
 	_apply_params_to_world(world_params)
 	_restore_loaded_world()
+	if with_castle:
+		get_node("World/worldMap").place_start_castle(1)  # the host is peer 1
 
 	var err := enet_peer.create_server(port)
 	multiplayer.multiplayer_peer = enet_peer

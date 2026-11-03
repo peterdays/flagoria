@@ -34,11 +34,13 @@ static func count_walkable_neighbors(map: _WorldMap, cell: Vector2i) -> int:
 	return n
 
 
-static func reachable_clear_cells(map: _WorldMap, start: Vector2i, limit: int = SPAWN_MIN_REACHABLE) -> Array[Vector2i]:
+static func reachable_clear_cells(map: _WorldMap, start: Vector2i, limit: int = SPAWN_MIN_REACHABLE,
+		blocked: Dictionary = {}) -> Array[Vector2i]:
 	## Clear-ground cells reachable from start by 4-neighbour steps, start
-	## included, in flood order. Stops once limit cells are found.
+	## included, in flood order, never entering a `blocked` cell. Stops once
+	## limit cells are found.
 	var found: Array[Vector2i] = []
-	if not map.is_clear_ground(start):
+	if blocked.has(start) or not map.is_clear_ground(start):
 		return found
 	var seen := {start: true}
 	found.append(start)
@@ -51,7 +53,7 @@ static func reachable_clear_cells(map: _WorldMap, start: Vector2i, limit: int = 
 			if seen.has(next):
 				continue
 			seen[next] = true
-			if map.is_clear_ground(next):
+			if not blocked.has(next) and map.is_clear_ground(next):
 				found.append(next)
 				if found.size() >= limit:
 					break

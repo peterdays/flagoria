@@ -208,3 +208,48 @@ func _test_structure_place_refused() -> int:
 	if fail == 0:
 		print("PASS test_structure_place_refused")
 	return fail
+
+
+func _test_structure_place_over_stump() -> int:
+	## A guard post placed over a stump drops the cut, so a regrowth tick
+	## long after it leaves the structure's cell as placed (no plant grows
+	## back inside it) and the cut is no longer listed or saved.
+	print("-- test_structure_place_over_stump")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var s := _guard_post()
+	var anchor: Variant = null
+	var stump := Vector2i.MAX
+	for sv in [11, 42, 99]:
+		world.apply_map_params(_spawn_params(sv, 0.0))
+		world.generate_chunk(Vector2(0, 0))
+		anchor = _find_anchor(world, s, func(cells):
+			var trees: Array = cells.filter(func(c): return InteractableCatalog.type_at(world.predict_cell(c)[1]) != null)
+			return trees.size() == 1 and cells.all(func(c): return c in trees or world.predicted_clear(c)))
+		if anchor != null:
+			for c in _footprint(s, anchor):
+				if InteractableCatalog.type_at(world.predict_cell(c)[1]) != null:
+					stump = c
+			break
+	if anchor == null:
+		printerr("FAIL structure_place_over_stump: no 5x4 spot with one plant near the origin on seeds 11, 42, 99")
+		scene.queue_free()
+		return 1
+	if world.cut_grown(stump) == null or world.place_structure(s, anchor, 1) <= 0:
+		printerr("FAIL structure_place_over_stump: cut %s or place at %s failed" % [stump, anchor])
+		fail += 1
+	var placed: Array = world.predict_cell(stump)
+	world.play_time += 1.0e6
+	var regrown: int = world.regrow_due()
+	if regrown != 0 or world.predict_cell(stump) != placed or not world.cut_changes().is_empty() \
+			or InteractableCatalog.type_at(world.get_cell_atlas_coords(1, stump)) != null:
+		printerr("FAIL structure_place_over_stump: after the tick %d regrew, %s is %s (placed %s), cuts %s"
+				% [regrown, stump, world.predict_cell(stump), placed, world.cut_changes()])
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_structure_place_over_stump")
+	return fail

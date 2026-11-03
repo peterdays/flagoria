@@ -10,7 +10,7 @@ const MAGIC := "flagoria-structure 1"
 const MAX_SIZE := 16
 const EMPTY := "."
 const LAYERS := ["ground", "object"]
-const ATTRIBUTES := ["auto", "team"]
+const ATTRIBUTES := ["auto", "team", "open"]
 ## The palette: the only tiles each layer may use. Wall pieces, gate variants
 ## and team colours are chosen by the game when a structure is placed.
 const ALLOWED := {
@@ -62,7 +62,7 @@ static func parse(text: String) -> Dictionary:
 		elif section == "legend":
 			var m := RegEx.create_from_string("^(\\S+)\\s*=\\s*([A-Z0-9_]+)((?:\\s+\\S+)*)$").search(line)
 			if m == null:
-				errors.append(at + "legend entries look like 'c = TILE_NAME [auto] [team]'")
+				errors.append(at + "legend entries look like 'c = TILE_NAME [auto] [team] [open]'")
 				continue
 			var c := m.get_string(1)
 			var attrs := m.get_string(3).strip_edges().split(" ", false)

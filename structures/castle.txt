@@ -1,0 +1,26 @@
+flagoria-structure 1
+name: castle
+version: 1
+size: 7x5
+anchor: 3,4
+tags: castle, starter
+; Each player's starting castle. The anchor is the gate; the player starts on the land below it.
+; F is the main tower (the flag tower) until castle keep and tower art exist.
+legend:
+  # = WALL_H auto
+  F = PROP_FLAG_BLUE team
+  G = WALL_GATE_H auto open
+  T = WALL_POST
+  s = SAND
+ground:
+  .......
+  .sssss.
+  .sssss.
+  .sssss.
+  ...s...
+object:
+  T#####T
+  #.....#
+  #..F..#
+  #.....#
+  T##G##T
