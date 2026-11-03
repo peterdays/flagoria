@@ -81,20 +81,34 @@ func _test_mob_sword() -> int:
 	return fail
 
 
+## The map test_mob_sword_two_players hosts: one of its mobs has no other mob
+## within reach (see that test). Any seed whose most isolated mob passes the
+## test's check works.
+const MOB_SWORD_SEED := 91
+
+
 func _test_mob_sword_two_players() -> int:
 	## A client of a dedicated server swings at a mob until it dies; the host
 	## decides the hits, and the client sees the hurt and dying states, then
 	## the mob is removed on the client, and the client is paid the mob's
 	## kill points once.
+	## The server hosts a pinned map (MOB_SWORD_SEED), and the target is the
+	## mob whose home is farthest from every other mob's: no other mob can
+	## come into the sword's reach, so the swings kill exactly one (#328).
 	print("-- test_mob_sword_two_players")
 	await process_frame
 	var port := _free_udp_port()
 	if port == 0:
 		printerr("FAIL mob_sword_two_players found no free UDP port")
 		return 1
+	var saved := MapSave.save_map(_spawn_params(MOB_SWORD_SEED, 0.003), "test_mob_sword_two_players")
+	if saved["error"] != "":
+		printerr("FAIL mob_sword_two_players could not save the map: %s" % saved["error"])
+		return 1
 	var pid := OS.create_process(
 		OS.get_executable_path(),
-		["--headless", "--path", ProjectSettings.globalize_path("res://"), "--", "--server", "--port=%d" % port]
+		["--headless", "--path", ProjectSettings.globalize_path("res://"), "--", "--server", "--port=%d" % port,
+				"--params=" + ProjectSettings.globalize_path(saved["path"])]
 	)
 	if pid <= 0:
 		printerr("FAIL mob_sword_two_players could not start the server process")
@@ -116,13 +130,37 @@ func _test_mob_sword_two_players() -> int:
 		if player and scene.world_params and not mobs_node.mobs().is_empty():
 			break
 		await process_frame
+	# Every mob of the map arrives in the join's spawn burst: wait until the
+	# count holds for 30 frames before picking the target.
+	var count := -1
+	var still := 0
+	while still < 30 and Time.get_ticks_msec() < deadline and OS.is_process_running(pid):
+		still = still + 1 if mobs_node.mobs().size() == count else 0
+		count = mobs_node.mobs().size()
+		await process_frame
 	var mob: Mob = null
-	if player and scene.world_params and not mobs_node.mobs().is_empty():
-		mob = mobs_node.mobs()[0]
+	var gap := 0.0  # px from the target's home to the nearest other mob's home
+	if player and scene.world_params:
+		for m in mobs_node.mobs():
+			var near := INF
+			for other in mobs_node.mobs():
+				if other != m:
+					near = minf(near, (m as Mob).home.distance_to((other as Mob).home))
+			if mob == null or near > gap:
+				mob = m
+				gap = near
 	var label := str(mob.name) if mob else ""
 	var mob_type := mob.mob_type if mob else ""
+	# A mob stays within CHASE_LEASH of its home (WANDER_RADIUS is less), and
+	# the player stands on the target, so a second mob is out of the sword's
+	# reach while the two homes are two leashes and some sword reaches apart.
+	var isolated := 2.0 * Mob.CHASE_LEASH + 3.0 * AimConeStyle.SWORD_REACH
 	if mob == null:
 		printerr("FAIL mob_sword_two_players no player or mobs on the client")
+		fail += 1
+	elif gap < isolated:
+		printerr("FAIL mob_sword_two_players seed %s: the most isolated mob %s is %s px from another, want %s; pin another seed"
+				% [MOB_SWORD_SEED, label, gap, isolated])
 		fail += 1
 	else:
 		var seen := {}
@@ -151,11 +189,12 @@ func _test_mob_sword_two_players() -> int:
 			printerr("FAIL mob_sword_two_players %s kill awards on the client %s, want %s" % [label, kills, want])
 			fail += 1
 	OS.kill(pid)
+	DirAccess.remove_absolute(saved["path"])
 	scene.enet_peer.close()
 	scene.multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	scene.queue_free()
 	if fail == 0:
-		print("PASS test_mob_sword_two_players (%s)" % label)
+		print("PASS test_mob_sword_two_players (%s, %s px from the next mob)" % [label, roundi(gap)])
 	return fail
 
 
