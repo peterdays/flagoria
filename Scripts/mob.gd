@@ -323,12 +323,23 @@ func can_stand_at(pos: Vector2) -> bool:
 	## Home ground under the whole feet box.
 	if _world == null:
 		return false
-	var half: Vector2 = MobCatalog.stat(mob_type, "body") * 0.5
 	var home_kind: int = MobCatalog.stat(mob_type, "home")
-	for corner in [Vector2(-half.x, -half.y), Vector2(half.x, -half.y), Vector2(-half.x, 0), Vector2(half.x, 0)]:
-		if not MobSpawner.is_home_cell(_world, _world.local_to_map(pos + corner), home_kind):
+	for cell in feet_cells(pos):
+		if not MobSpawner.is_home_cell(_world, cell, home_kind):
 			return false
 	return true
+
+
+func feet_cells(pos: Vector2 = position) -> Array[Vector2i]:
+	## The map cells under the corners of the feet box at `pos`: the cells
+	## can_stand_at checks, so a plant growing on one of them traps the mob.
+	var cells: Array[Vector2i] = []
+	if _world == null:
+		return cells
+	var half: Vector2 = MobCatalog.stat(mob_type, "body") * 0.5
+	for corner in [Vector2(-half.x, -half.y), Vector2(half.x, -half.y), Vector2(-half.x, 0), Vector2(half.x, 0)]:
+		cells.append(_world.local_to_map(pos + corner))
+	return cells
 
 
 func _start_idle() -> void:
