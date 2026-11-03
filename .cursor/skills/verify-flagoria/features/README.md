@@ -48,7 +48,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Main menu](./main-menu.md) — menu theme, Host/Join, volume and mob spawn sliders, letter keyboard.
 - [In-game menu and quit prompt](./ingame-menu.md) — menu button, Pause panel (Resume, Save, Main menu), quit confirm.
 - [Points](./points.md) — discovery and mob-kill points, host-owned totals, score HUD.
-- [Touch controls](./touch-controls.md) — joystick hold, Castle Stone attack button and stick, number pad and letter keyboard.
+- [Touch controls](./touch-controls.md) — joystick hold, Castle Stone attack button and stick, number pad and letter keyboard (`-` key; `Del` and `-` edit a selected value).
 - [Structures (data format)](./structures.md) — `flagoria-structure 1` text files; not placed in game yet.
 - [Hero sprites](./hero-sprites.md) — layered hero sheet generator, checked by the generator smoke.
 - [App icon](./app-icon.md) — icon generator and wiring, checked by the generator smoke.
