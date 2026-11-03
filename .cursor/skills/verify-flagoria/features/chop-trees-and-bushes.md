@@ -31,7 +31,7 @@ Preconditions: `doctor.sh` exits `0`. Time cost: `-- test_catalog_resolves_cells
 
 ## Gotchas
 
-- Cuts are saved in world saves (`world.object_changes`, `tests/saves/test_cut_save.gd`) and synced in two-player play: the host decides each cut and every peer shows the stump ([Cut sync](./cut-sync.md)). Regrowth is the host's too (#298): a client's `regrow_due` does nothing while connected, and the host sends each regrowth to every peer.
+- Cuts are saved in world saves (`world.object_changes`, `tests/saves/test_cut_save.gd`) and synced in two-player play: the host decides each cut and every peer shows the stump ([Cut sync](./cut-sync.md)). Regrowth is the host's too (#298): a client's `regrow_due` does nothing while connected, and the host sends each tick's regrowths to every peer in one message (#353).
 - `has_tree` is true for the tree and pine types; use `choppable(cell)` for any choppable.
 - A saved cut names its type by `save_key` and stores its age in seconds of play, so nothing regrows while the game is closed.
 - A type with several `tiles` needs one hit sheet row per tile, in the order of `tiles`; the checklist test fails a sheet with the wrong number of rows.

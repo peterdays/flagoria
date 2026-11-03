@@ -97,7 +97,7 @@ cuts the joiner held, so it ends with exactly the host's set. Cuts made
 during play go through the host and reach every peer as they happen
 (`Interaction.apply_cut`, after the join list on the same reliable channel).
 Regrowth is decided by the host alone and reaches every peer the same way
-(`Interaction.apply_regrow`, #298), so the lists cannot drift apart during
+(`Interaction.apply_regrow_cells`, #298), so the lists cannot drift apart during
 two-player play.
 
 `MapSave.load_world(path)` returns `{"world", "error", "version"}`:
