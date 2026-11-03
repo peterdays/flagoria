@@ -3,9 +3,10 @@ extends Control
 ## In-game keys for LineEdits, so touch devices do not pop up the OS keyboard.
 ## attach() gives a number field the digit pad and attach_spin_box() does the
 ## same for a SpinBox; attach_text() gives a text field the letter keyboard
-## (letters, digits, "." and ":"). Focusing or tapping the field opens the
-## keys, OK or a tap outside closes them. The field's text is selected on open,
-## so the first key replaces it. A physical keyboard keeps working, and a
+## (letters, digits, "-", "." and ":"). Focusing or tapping the field opens
+## the keys, OK or a tap outside closes them. The field's text is selected on
+## open, so the first key that types replaces it; Del and a number field's "-"
+## edit the value instead. A physical keyboard keeps working, and a
 ## number field drops anything it does not accept. Number fields that allow a
 ## sign or a decimal point also get "-" and "." keys. The keycap styles are
 ## theme type variations in art/ui/main_menu_theme.tres.
@@ -20,7 +21,7 @@ const DIGIT_ACTIONS := ["Delete", "Minus", "Point", "OK"]
 const LETTER_ROWS := [
 	["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
 	["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
-	["a", "s", "d", "f", "g", "h", "j", "k", "l", "Colon"],
+	["a", "s", "d", "f", "g", "h", "j", "k", "l", "Colon", "Minus"],
 	["z", "x", "c", "v", "b", "n", "m", "Point", "Delete", "OK"],
 ]
 ## Keys whose node name differs from the character they type.
@@ -163,9 +164,12 @@ func _on_key(key: String) -> void:
 	if key == "OK":
 		close()
 		return
-	# The text is selected while the pad is fresh, so the first key replaces it.
+	# The text is selected while the pad is fresh, so the first key that types
+	# replaces it. Del and a number field's "-" edit the value instead.
 	if target.has_selection():
-		target.text = ""
+		target.deselect()
+		if key != "Delete" and not (key == "Minus" and not _letters):
+			target.text = ""
 	if key == "Delete":
 		target.text = target.text.left(-1)
 	elif _letters:
