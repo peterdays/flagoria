@@ -56,6 +56,7 @@ func _test_checklist_fixtures_fail() -> int:
 		["tiles", _names_of(["NO_SUCH_TILE"]), "bush", "step 2 art"],
 		["leaves", "TREE", "bush", "step 2 art"],
 		["fx_sheet", load("res://art/ui/ui_wood_icon.png"), "bush", "step 2 art"],
+		["hit_sheet", load("res://art/flagoria/fx/bush_hit.png"), "tree", "step 2 art"],
 		["hit_sounds", _streams([bad_wav]), "tree", "step 3 sound"],
 		["fell_sounds", _streams([]), "bush", "step 3 sound"],
 		["yields", _yields({}), "tree", "step 4 yield"],
@@ -152,8 +153,9 @@ func checklist_errors(types: Array) -> Array[String]:
 			var sheet: Texture2D = type.get(sheet_name)
 			if sheet == null:
 				continue
-			if sheet.get_height() != 16 or sheet.get_width() % 16 != 0 or (sheet_name == "fx_sheet" and sheet.get_width() != 64):
-				e.call("step 2 art", "%s %s is %dx%d, want 16 px frames%s" % [sheet_name, sheet.resource_path, sheet.get_width(), sheet.get_height(), " x4" if sheet_name == "fx_sheet" else ""])
+			var rows := type.tiles.size() if sheet_name == "hit_sheet" else 1
+			if sheet.get_height() != 16 * rows or sheet.get_width() % 16 != 0 or (sheet_name == "fx_sheet" and sheet.get_width() != 64):
+				e.call("step 2 art", "%s %s is %dx%d, want 16 px frames%s, %d row(s)" % [sheet_name, sheet.resource_path, sheet.get_width(), sheet.get_height(), " x4" if sheet_name == "fx_sheet" else "", rows])
 			if not art_credits.contains(sheet.resource_path.get_file()):
 				e.call("step 2 art", "%s %s is not credited in %s" % [sheet_name, sheet.resource_path, ART_CREDITS])
 		# 3. Sound: files in one world/<group>/ folder, 22,050 Hz mono 16-bit, credited.

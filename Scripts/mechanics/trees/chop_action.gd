@@ -35,6 +35,7 @@ var _puff: Sprite2D  ## the cloud over a tree that just fell
 var _puff_time := -1.0
 var _hit: Sprite2D  ## chop_type's hit_sheet, drawn in place of the hit tile
 var _hit_time := -1.0
+var _hit_row := 0  ## chop_type.hit_row of the hit tile
 var _hidden_cell := Vector2i.ZERO  ## the cell showing HIDDEN_ALT while _hit plays
 var _fx: Sprite2D  ## chop_type's fx_sheet over the cell
 var _fx_time := -1.0
@@ -176,9 +177,12 @@ func _on_hit() -> void:
 		_end_hit()
 		_hidden_cell = chop_cell
 		_i.world_map.set_cell(1, chop_cell, TileCatalog.SOURCE_ID, _i.world_map.get_cell_atlas_coords(1, chop_cell), HIDDEN_ALT)
+		var size := _i.world_map.tile_set.tile_size
 		_hit.texture = chop_type.hit_sheet
-		_hit.hframes = chop_type.hit_sheet.get_width() / chop_type.hit_sheet.get_height()
-		_hit.frame = 0
+		_hit.hframes = chop_type.hit_sheet.get_width() / size.x
+		_hit.vframes = chop_type.hit_sheet.get_height() / size.y
+		_hit_row = chop_type.hit_row(_i.world_map.get_cell_atlas_coords(1, chop_cell))
+		_hit.frame_coords = Vector2i(0, _hit_row)
 		_hit.position = corner
 		_hit.visible = true
 		_hit_time = 0.0
@@ -235,7 +239,7 @@ func _step_fx(delta: float) -> void:
 		if frame >= _hit.hframes:
 			_end_hit()
 		else:
-			_hit.frame = frame
+			_hit.frame_coords = Vector2i(frame, _hit_row)
 	if _fx_time >= 0.0:
 		_fx_time += delta
 		var frame := -1
