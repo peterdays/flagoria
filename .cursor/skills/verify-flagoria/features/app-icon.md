@@ -15,8 +15,8 @@ A pixel-art tower is the project, window and Android launcher icon.
 
 Preconditions: `doctor.sh` exits `0`.
 
-- **Run.** No headless test covers this yet; see Gotchas for the manual recipe.
+- **Run.** `./.cursor/skills/verify-flagoria/bin/drive-verify.sh`. The generator smoke step prints `PASS app icon and 3 launcher icons` (the project icon and each Android launcher key with its square size). Time cost: under a second inside `tools/verify.sh`.
 
 ## Gotchas
 
-- No automated check yet; prove by re-running the generator and confirming `git status` shows no image change.
+- Verify does not re-run `make_icon.py`; after a generator change, re-run it and confirm `git status` shows no unintended image change.

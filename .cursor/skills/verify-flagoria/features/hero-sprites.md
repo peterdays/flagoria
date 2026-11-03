@@ -15,8 +15,9 @@ Player sprite sheets come from a layered generator; the Flagbearer sheet is the 
 
 Preconditions: `doctor.sh` exits `0`.
 
-- **Run.** No headless test covers this yet; see Gotchas for the manual recipe.
+- **Run.** `./.cursor/skills/verify-flagoria/bin/drive-verify.sh`. The generator smoke step (see [Headless verify](./headless-verify.md)) prints `PASS hero sheet (128, 256) used by the player scene` and, when Python 3 with Pillow is present, `PASS hero sheet regenerates identically`. Time cost: a few seconds inside `tools/verify.sh`.
 
 ## Gotchas
 
-- No automated check yet: verify.sh does not run the generator. Prove a change by running `python3 tools/hero/make_hero.py flagbearer` (needs Python 3 and Pillow) and comparing the committed sheet; record that this was manual.
+- Without Pillow verify prints `Hero regeneration: skipped` and checks only the committed sheet; record that the regeneration was not checked.
+- How the hero looks in game is a manual call.

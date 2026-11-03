@@ -147,9 +147,10 @@ Clicks and taps go to the centre of the node's rect or the cell, read at run tim
 
 ### Two-player Host/Join
 
-Not fully automatable without a GUI harness yet (placeholder: issue #45). What is feasible now:
+Not run in CI yet (placeholder: issue #45). What is feasible now:
 
-- Headless: main scene loads inside verify / characterization (no Host click).
+- Headless: tests start a second Godot as a server and join it (see `features/two-player-host-join.md`).
+- Two launches: `drives/two_player/two_player_host.gd`, then `drives/two_player/two_player_client.gd` about 4 s later, click Host and Join and check both see the same players and seeds (~10 s).
 - Manual: follow the README two-player play-test checklist (Host, Join localhost, move, attack, regen) on two instances.
 
 Do not claim two-player PvP was proven by verify.sh alone.
@@ -211,8 +212,9 @@ All under `.cursor/skills/verify-flagoria/bin/` (executable):
 | `collect-evidence.sh` | Copy a run's `game.log` and `user://` to `artifacts/out/runs/<run-id>/`; write `summary.txt` |
 | `cleanup.sh` | Stop recorded PIDs by exact PID; collect each run's evidence; remove `.run/` |
 | `run_lib.sh` | Sourced by the others: Godot lookup, run dirs, `.run/pids` |
+| `check-map.sh` | Lint the feature map, no Godot: every feature file indexed, every cited `test_<name>` exists, every test cited |
 
-Drives started with `launch.sh` live in `drives/` (`drives/wait.gd`: start a game, then `idle()`; `drives/smoke.gd`: start a game, walk right, check the hero moved; `drives/chop_trees.gd`: chop one tree with a tap, then save, see `features/chop-trees.md`).
+Drives started with `launch.sh` live in `drives/` (`drives/wait.gd`: start a game, then `idle()`; `drives/smoke.gd`: start a game, walk right, check the hero moved; `drives/chop_trees.gd`: chop one tree with a tap, then save, see `features/chop-trees.md`; `drives/combat_hud.gd`: HUD, a plain and an aimed touch swing, the in-game menu blocking an aim, see `features/combat-and-aiming.md`). The two-launch pair is in `drives/two_player/`, outside the glob `verify-drive.yml` runs alone.
 
 ## Feature map
 

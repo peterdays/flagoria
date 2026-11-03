@@ -8,6 +8,9 @@ Music loops in the menu and in game, and combat and footstep sounds play on the 
 - `audio-music` looping menu and game tracks (`Scripts/music_player.gd`).
 - `audio-sfx` swing, hit, hurt and kill sounds (`Scripts/combat_sfx.gd`).
 - `audio-footsteps` per-terrain footsteps (`Scripts/footsteps.gd`).
+- `audio-ui` UI sounds (`Scripts/ui_sfx.gd`): `click` on every button, `back` on Back, `menu_open` / `menu_close` when a menu shows or hides, `saved` on a map save; each press plays once and outlives its button, and every clip under `art/audio/sfx/ui/` is used.
+- `audio-mobs` mob `notice`, `attack`, `hurt`, `death`, `idle` (`Scripts/mob_sfx.gd`, see [Mobs](./mobs.md)).
+- `audio-chop` tree and bush chop sounds (see [Chopping trees and bushes](./chop-trees-and-bushes.md)).
 - `audio-check` in-game check that every wired sound is heard (`tools/audio_check.gd`, run by verify.sh).
 
 ## How to get to it (user POV)
@@ -19,7 +22,7 @@ Music loops in the menu and in game, and combat and footstep sounds play on the 
 Preconditions: `doctor.sh` exits `0`.
 
 - **Run.** Run `./.cursor/skills/verify-flagoria/bin/drive-verify.sh` (or `./tools/verify.sh`) and read `artifacts/verify.log`.
-- **Proof.** Each header `-- test_combat_sfx`, `-- test_footsteps`, `-- test_audio_settings`, `-- test_music_player` appears in the log, no `FAIL` line follows it, and the run ends with `All tests passed.` and `Verification passed.`
+- **Proof.** Each header `-- test_combat_sfx`, `-- test_footsteps`, `-- test_audio_settings`, `-- test_music_player`, `-- test_ui_sfx_clips`, `-- test_ui_sfx_presses` appears in the log, no `FAIL` line follows it, and the run ends with `All tests passed.` and `Verification passed.`
 
 ## Gotchas
 

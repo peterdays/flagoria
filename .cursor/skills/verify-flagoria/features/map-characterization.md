@@ -7,6 +7,7 @@ Map characterization pins procedural tile output for fixed seeds so parameter ch
 - `map-fixed-seeds` applies fixed `MapGenParams` seeds to `World/worldMap`.
 - `map-generate-chunk` calls `generate_chunk` at a fixed position.
 - `map-atlas-assert` compares layer 0 and layer 1 atlas coords at sampled cells.
+- `map-cli` `tools/cli.gd` `map render` prints a text map for a seed and `map stats` prints JSON that repeats byte for byte; bad input is an error, not a random map. Verify compares `map render --seed 42` to `tests/golden/map_render_seed42.txt` (see [Headless verify](./headless-verify.md)).
 
 ## How to get to it (user POV)
 
@@ -20,7 +21,7 @@ Preconditions:
 - `doctor.sh` exits `0`.
 
 - **Run verify.** `./.cursor/skills/verify-flagoria/bin/drive-verify.sh`.
-- **Observe.** Log line `PASS test_map_characterization` with its cell count.
+- **Observe.** Log line `PASS test_map_characterization` with its cell count, header `-- test_map_cli_render_and_stats` with no `FAIL` after it, and `Map render golden: ok`. Time cost: ~3 s of `tools/verify.sh` together.
 - **Mutation proof (optional, revert after).** Temporarily change a terrain threshold default (for example `water_max_alt` on `MapGenParams`), re-run the test script, expect a `FAIL cell=...` line and non-zero exit, then revert the edit and confirm verify passes again.
 - **Proof.** Excerpt of PASS/FAIL lines in `artifacts/verify.log` or `artifacts/out/e2e-summary.txt`.
 

@@ -17,8 +17,11 @@ fi
 log="${ART}/verify.log"
 # In the background so its PID goes to .run/pids before it runs; cleanup.sh
 # stops it, and the Godot processes under it, if it hangs. tools/verify.sh
-# makes its own scratch user dirs.
-"${ROOT}/tools/verify.sh" </dev/null >"${log}" 2>&1 &
+# makes its own scratch user dirs only for XDG vars that are unset (it keeps
+# any the caller set), so unset them here: settings saved in an agent's or a
+# play session's user dir must not reach the checks.
+env -u XDG_DATA_HOME -u XDG_CONFIG_HOME -u XDG_CACHE_HOME \
+  "${ROOT}/tools/verify.sh" </dev/null >"${log}" 2>&1 &
 pid=$!
 run_record "${pid}" verify "verify-$(date +%Y%m%d-%H%M%S)-$$" "${ROOT}/tools/verify.sh"
 set +e
