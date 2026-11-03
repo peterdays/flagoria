@@ -38,6 +38,8 @@ var _predict_cache: Dictionary = {}
 var _tree_cuts := TreeCuts.new(self)
 ## Placed plank bridges (Scripts/mechanics/bridges/bridge_builder.gd).
 var _bridges := BridgeBuilder.new(self)
+## Placed structures (#270); generate_chunk draws their cells.
+var _structures := StructurePlacer.new(self)
 ## Seconds of play after a cut before any stump turns back into its plant,
 ## overriding each type's regrow_delay; negative (the default) uses the
 ## type's. Kept in TreeCuts; this property reads and writes it there.
@@ -134,6 +136,7 @@ func apply_map_params(p: MapGenParams) -> void:
 	_predict_cache.clear()
 	_tree_cuts.clear()
 	_bridges.clear()
+	_structures.clear()
 	spawn_point = Vector2i(0, 0)
 	ground_changed.emit(Rect2i())
 
@@ -211,7 +214,7 @@ func set_tile_type_z0(pos_vec, alt, moist, _temp, chance, biome_id: int = BiomeC
 	if _bridges.has_bridge(pos_vec):
 		set_cell(0, pos_vec, TileCatalog.SOURCE_ID, _bridges.piece(pos_vec))
 		return
-	var tile_vec := ground_tile(alt, moist, chance, biome_id)
+	var tile_vec := _structures.ground_at(pos_vec, ground_tile(alt, moist, chance, biome_id))
 	if tile_vec != TileCatalog.WATER and tile_vec != TileCatalog.SAND \
 			and tile_vec != TileCatalog.SWAMP and tile_vec != TileCatalog.SWAMP_SPECIAL:
 		# ground — record first land tile as spawn hint
@@ -258,6 +261,10 @@ func get_random_ground_vec(chance):
 
 
 func set_tile_type_z1(pos_vec, alt, moist, _temp, chance, biome_id: int = BiomeCatalog.TEMPERATE):
+	if _structures.has_cell(pos_vec):
+		if _structures.object_at(pos_vec) != NO_PLANT:
+			set_cell(1, pos_vec, TileCatalog.SOURCE_ID, _structures.object_at(pos_vec))
+		return
 	if not is_walkable_land(pos_vec) or _bridges.has_bridge(pos_vec):
 		return
 	if _tree_cuts.has_cut(pos_vec):
@@ -326,9 +333,11 @@ func predict_cell(cell: Vector2i) -> Array:
 	var chance := items_chance.get_noise_2d(cell.x, cell.y)
 	var b := biome_at(cell)
 	var alt := cell_altitude(cell, b)
-	var ground: Vector2i = _bridges.piece_or(cell, ground_tile(alt, moist, chance, b))
+	var ground: Vector2i = _bridges.piece_or(cell, _structures.ground_at(cell, ground_tile(alt, moist, chance, b)))
 	var top := NO_PLANT
-	if ground_is_walkable(ground) and not _bridges.has_bridge(cell):
+	if _structures.has_cell(cell):
+		top = _structures.object_at(cell)
+	elif ground_is_walkable(ground) and not _bridges.has_bridge(cell):
 		if biome_frequency <= 0.0 or ground != TileCatalog.SAND:
 			top = plant_tile(alt, moist, chance, b)
 		if top == NO_PLANT:
@@ -389,6 +398,18 @@ func cut_grown(cell: Vector2i) -> InteractableType:
 
 func build_bridge(from: Vector2i, to: Vector2i) -> bool:
 	return _bridges.build_bridge(from, to)
+
+
+func can_place_structure(structure: Structure, anchor_cell: Vector2i) -> Array[String]:
+	return _structures.can_place(structure, anchor_cell)
+
+
+func place_structure(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
+	return _structures.place(structure, anchor_cell, owner)
+
+
+func placed_structures() -> Dictionary:
+	return _structures.placements()
 
 
 static func bridge_pieces(length: int, horizontal: bool, land_before: bool, land_after: bool) -> Array[Vector2i]:

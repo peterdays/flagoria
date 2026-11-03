@@ -31,6 +31,11 @@ func leftover(cell: Vector2i) -> Vector2i:
 	return _cut_cells[cell][1]
 
 
+func forget(cell: Vector2i) -> void:
+	## Drop the cut on `cell` without regrowing it (a structure now covers it).
+	_cut_cells.erase(cell)
+
+
 func is_empty() -> bool:
 	return _cut_cells.is_empty()
 
