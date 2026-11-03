@@ -21,7 +21,7 @@ class FakeApi:
 	## recorded instead of sent; `sender` is what get_remote_sender_id reports.
 	var id := 1
 	var sender := 0
-	var sent: Array = []  ## [peer, method, args] per RPC
+	var sent: Array = []  ## one [peer, method, args] for each RPC
 	var peer := FakePeer.new()
 
 	func _get_multiplayer_peer() -> MultiplayerPeer:
