@@ -130,3 +130,105 @@ func _test_cut_sync_two_players() -> int:
 	if fail == 0:
 		print("PASS test_cut_sync_two_players (host cut %s, client cut %s)" % cuts_of)
 	return fail
+
+
+func _test_dead_cut_client() -> int:
+	## A host and a client (tests/cut_sync_probe.gd) on seed 7 (#349). The
+	## host kills the client's player; the dead client drags a selection over
+	## a tree in reach, then sends the host request_cut for it directly. The
+	## host refuses both: 1 s later neither peer holds a cut and the client's
+	## wood is unchanged.
+	print("-- test_dead_cut_client")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	scene.get_node("CanvasLayer2/MainMenu").hide()
+	var world = scene.get_node("World/worldMap")
+	world.set_process(false)
+	var params := _spawn_params(7, 0.0)
+	params.ensure_seeds()
+	scene._apply_params_to_world(params)
+	var spawn: Vector2i = world.resolve_player_spawn()
+	var tree := Vector2i.MAX
+	for r in range(2, 40):
+		for dy in range(-r, r + 1):
+			for dx in range(-r, r + 1):
+				var cell := spawn + Vector2i(dx, dy)
+				var type := InteractableCatalog.type_at(world.predict_cell(cell)[1])
+				if tree == Vector2i.MAX and maxi(absi(dx), absi(dy)) == r and type != null and type.id == "tree":
+					tree = cell
+	scene.queue_free()
+	await process_frame
+	var port := _free_udp_port()
+	if tree == Vector2i.MAX or port == 0:
+		printerr("FAIL dead_cut_client: tree %s near the spawn, port %d" % [tree, port])
+		return 1
+	var saved := MapSave.save_world(WorldSave.new(params), "test_dead_cut_%d_%d" % [OS.get_process_id(), port])
+	var dir := OS.get_user_data_dir().path_join("dead_cut_%d_%d" % [OS.get_process_id(), port])
+	_remove_dir(dir)
+	DirAccess.make_dir_recursive_absolute(dir)
+	var outs: Array[String] = []
+	var pids: Array[int] = []
+	var launch := func(extra: Array) -> void:
+		outs.append(dir.path_join("p%d.json" % outs.size()))
+		var args := ["--headless", "--path", ProjectSettings.globalize_path("res://"), "--script", PROBE,
+				"--", "--port=%d" % port, "--out=" + outs[-1], "--cells=" + WorldSave.cell_key(tree)]
+		args.append_array(extra)
+		pids.append(OS.create_process(OS.get_executable_path(), args))
+	var read := func(i: int) -> Dictionary:
+		var text := FileAccess.get_file_as_string(outs[i]) if FileAccess.file_exists(outs[i]) else ""
+		var data = JSON.parse_string(text) if text != "" else null
+		return data if data is Dictionary else {}
+	var wait_for := func(cond: Callable, ms: int) -> bool:
+		var until := Time.get_ticks_msec() + ms
+		while Time.get_ticks_msec() < until and not cond.call():
+			await process_frame
+		return cond.call()
+	var write := func(path: String, text: String) -> void:
+		var f := FileAccess.open(path, FileAccess.WRITE)
+		f.store_string(text)
+		f.close()
+
+	var fail := 0
+	launch.call(["--host", "--save=" + ProjectSettings.globalize_path(saved["path"])])
+	launch.call([])
+	if saved["error"] != "" or not await wait_for.call(func() -> bool:
+			return read.call(0).get("ready", false) and read.call(1).get("ready", false), 30000):
+		printerr("FAIL dead_cut_client: the session did not start: save %s, host %s, client %s"
+				% [saved["error"], read.call(0), read.call(1)])
+		fail += 1
+	else:
+		write.call(outs[1] + ".dead_cut", WorldSave.cell_key(tree))
+		write.call(outs[0] + ".kill", read.call(1)["id"])
+		if not await wait_for.call(func() -> bool: return read.call(1).get("dead_cut", -1) >= 0, 10000):
+			printerr("FAIL dead_cut_client: the client never cut while dead: %s" % read.call(1))
+			fail += 1
+		else:
+			var until := Time.get_ticks_msec() + 1000  # the host's answer would be back by now
+			while Time.get_ticks_msec() < until:
+				await process_frame
+			var host: Dictionary = read.call(0)
+			var client: Dictionary = read.call(1)
+			if client.get("dead_cut", 0) < 1 or not client.get("dead", false) or not host.get("cuts", {}).is_empty() \
+					or not client.get("cuts", {}).is_empty() or client.get("wood", -1) != 0:
+				printerr("FAIL dead_cut_client: tree %s, host %s, client %s" % [tree, host, client])
+				fail += 1
+		for i in outs.size():
+			if not read.call(i).get("errors", []).is_empty():
+				printerr("FAIL dead_cut_client: peer %d logged errors: %s" % [i, read.call(i)["errors"]])
+				fail += 1
+
+	for out in outs:
+		FileAccess.open(out + ".stop", FileAccess.WRITE).close()
+	await wait_for.call(func() -> bool:
+		for pid in pids:
+			if OS.is_process_running(pid):
+				return false
+		return true, 10000)
+	for pid in pids:
+		if OS.is_process_running(pid):
+			OS.kill(pid)
+	_remove_dir(dir)
+	DirAccess.remove_absolute(saved["path"])
+	if fail == 0:
+		print("PASS test_dead_cut_client (tree %s)" % tree)
+	return fail

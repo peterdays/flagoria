@@ -3,7 +3,8 @@ extends SceneTree
 ## test_cut_save_late_join (tests/saves/test_cut_save.gd) and
 ## test_cut_sync_two_players (tests/net/test_cut_sync.gd) and
 ## test_regrow_sync_two_players (tests/net/test_regrow_sync.gd) and
-## test_structure_sync_join and test_castle_sync_join (tests/net/test_structure_sync.gd).
+## test_structure_sync_join and test_castle_sync_join (tests/net/test_structure_sync.gd)
+## and test_dead_cut_client (tests/net/test_cut_sync.gd).
 ##   -- --port=N --out=PATH --host --save=SAVE  load SAVE and host it with a player
 ##   -- --port=N --out=PATH                     join localhost:N through the Join path
 ## Optional --cells=x,y;x,y lists cells to report besides the cut ones.
@@ -17,6 +18,12 @@ extends SceneTree
 ## anchor on x,y while the host is still alone, before its own player. While
 ## PATH.forge_place exists, a client sends every other client a forged
 ## receive_map_params carrying one placement, once.
+## While PATH.kill holds a peer id (host), it sets that peer's player's health
+## to 0 once, with a 600 s respawn delay. While PATH.dead_cut holds cells, once
+## its own player is dead it steps next to each cell, waits 300 ms, drags a
+## selection over it with screen touch events in interact mode, then sends the
+## host request_cut for it directly, as a peer that skips its own check would;
+## "dead_cut" then counts the cells the drag covered in reach.
 ## Every 100 ms it writes PATH (JSON): its peer id, whether it has the map
 ## and its own player, its cut list, its wood and, for each cut or listed
 ## cell, what is drawn there and whether it blocks, and the cell each
@@ -119,6 +126,8 @@ func _run() -> void:
 	var forged := false
 	var forged_place := false
 	var moved_away := true
+	var killed := false
+	var dead_cut := -1
 	var deadline := Time.get_ticks_msec() + 90000
 	var next_write := 0
 	while Time.get_ticks_msec() < deadline and not FileAccess.file_exists(out + ".stop"):
@@ -139,6 +148,34 @@ func _run() -> void:
 				await process_frame
 			me.global_position += Vector2(0, 64)
 			moved_away = true
+		if not killed and host and FileAccess.file_exists(out + ".kill"):
+			var victim: Node2D = main.get_node_or_null("World/" + FileAccess.get_file_as_string(out + ".kill").strip_edges())
+			if victim:
+				killed = true
+				victim.health.respawn_delay = 600.0
+				victim.health.set_health_now(0)
+		if dead_cut < 0 and me and me.health.is_dead() and FileAccess.file_exists(out + ".dead_cut"):
+			dead_cut = 0
+			interaction.set_mode(Interaction.Mode.INTERACT)
+			for cell in parse_cells(FileAccess.get_file_as_string(out + ".dead_cut")):
+				var centre := interaction.cell_center(cell)
+				me.global_position = centre + Vector2(12, 0)
+				var wait := Time.get_ticks_msec() + 300  # the host's copy of the player follows
+				while Time.get_ticks_msec() < wait:
+					await process_frame
+				dead_cut += interaction.choppables_in_rect(Rect2(centre - Vector2(10, 10), Vector2(20, 20))).size()
+				var to_view := interaction.get_canvas_transform()
+				var press := InputEventScreenTouch.new()
+				press.position = to_view * (centre - Vector2(10, 10))
+				press.pressed = true
+				root.push_input(press, true)
+				var drag := InputEventScreenDrag.new()
+				drag.position = to_view * (centre + Vector2(10, 10))
+				root.push_input(drag, true)
+				var lift := InputEventScreenTouch.new()
+				lift.position = drag.position
+				root.push_input(lift, true)
+				interaction.request_cut.rpc_id(1, cell)
 		if not forged and not host and FileAccess.file_exists(out + ".forge"):
 			forged = true
 			for cell in listed:
@@ -160,7 +197,7 @@ func _run() -> void:
 				regrown[key] = int(Time.get_unix_time_from_system() * 1000.0)
 		if Time.get_ticks_msec() >= next_write:
 			next_write = Time.get_ticks_msec() + 100
-			_write(out, main, world, listed, me != null, regrown)
+			_write(out, main, world, listed, me, regrown, dead_cut)
 		await process_frame
 	quit(0)
 
@@ -176,7 +213,7 @@ static func cell_state(world, cell: Vector2i) -> Dictionary:
 		"predict": [predicted[0].x, predicted[0].y, predicted[1].x, predicted[1].y]}
 
 
-func _write(out: String, main, world, listed: Array[Vector2i], has_player: bool, regrown: Dictionary) -> void:
+func _write(out: String, main, world, listed: Array[Vector2i], me: Node2D, regrown: Dictionary, dead_cut: int) -> void:
 	var cuts: Dictionary = world.cut_changes()
 	var cells := {}
 	if main.world_params != null:
@@ -205,7 +242,9 @@ func _write(out: String, main, world, listed: Array[Vector2i], has_player: bool,
 	var file := FileAccess.open(out + ".tmp", FileAccess.WRITE)
 	file.store_string(JSON.stringify({
 		"id": str(main.multiplayer.get_unique_id()),
-		"ready": main.world_params != null and has_player,
+		"ready": main.world_params != null and me != null,
+		"dead": me != null and me.health.is_dead(),
+		"dead_cut": dead_cut,
 		"cuts": cuts,
 		"cells": cells,
 		"wood": inventory.count_of(Inventory.WOOD),
