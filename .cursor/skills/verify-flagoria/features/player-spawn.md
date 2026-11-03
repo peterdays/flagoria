@@ -16,7 +16,7 @@ Players spawn on walkable land from which they can reach at least 200 clear cell
 
 ## Driving it with verify-flagoria helpers
 
-Preconditions: `doctor.sh` exits `0`. Time cost: `-- test_spawn_late_join` starts one Godot process per joiner on a dedicated server and on a listen host, ~14 s alone with `--only=`; the other spawn tests together ~1.8 s.
+Preconditions: `doctor.sh` exits `0`. Time cost: `-- test_spawn_late_join` starts one Godot process per joiner on a dedicated server and on a listen host, ~12 s alone with `--only=` (each check waits up to 10 s for every peer's copies to match their owners); the other spawn tests together ~1.8 s.
 
 - **Run.** Run `./.cursor/skills/verify-flagoria/bin/drive-verify.sh` (or `./tools/verify.sh`) and read `artifacts/verify.log`.
 - **Proof.** Each header `-- test_spawn_on_land`, `-- test_spawn_reachable`, `-- test_player_spawn_no_missing_nodes`, `-- test_spawn_radius_no_overlap`, `-- test_spawn_full_area_searches_outward`, `-- test_spawn_late_join` appears in the log, no `FAIL` line follows it, and the run ends with `All tests passed.` and `Verification passed.`

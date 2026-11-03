@@ -55,6 +55,11 @@ func _spawn_params(seed_value: int, biome_frequency: float) -> MapGenParams:
 	return params
 
 
+## How long _spawn_session waits for every peer's copies to match their
+## owners before it checks them.
+const SYNC_WAIT_MS := 10000
+
+
 func _spawn_session(mode: String, joiners: int) -> int:
 	## One session of tests/late_join_probe.gd peers (see test_spawn_late_join):
 	## a server in mode ("dedicated" or "host") and joiners clients.
@@ -134,6 +139,36 @@ func _spawn_session(mode: String, joiners: int) -> int:
 			print("PASS spawn_late_join %s %s %s" % [mode, stage, at])
 		return bad
 
+	# Every peer's copy of every player stands where that player's owner has
+	# it. Owners send their position, relayed by the server, so a late
+	# joiner's copy can trail the owner by seconds under CPU load (#343).
+	var synced := func() -> bool:
+		var owned := {}
+		for i in outs.size():
+			var s: Dictionary = read.call(i)
+			var me = s.get("players", {}).get(s.get("id"))
+			if me != null:
+				owned[s["id"]] = Vector2(me["pos"][0], me["pos"][1])
+		if owned.size() != joiners + (1 if mode == "host" else 0):
+			return false
+		for i in outs.size():
+			var s: Dictionary = read.call(i)
+			for id in owned:
+				var seen = s.get("players", {}).get(id)
+				if seen == null or not Vector2(seen["pos"][0], seen["pos"][1]).is_equal_approx(owned[id]):
+					return false
+		return true
+	# synced for 300 ms in a row: a copy that matched once, while its owner
+	# still settles onto its spot, may not match when check reads it.
+	var held_since := [0]
+	var stays_synced := func() -> bool:
+		if not synced.call():
+			held_since[0] = 0
+			return false
+		if held_since[0] == 0:
+			held_since[0] = Time.get_ticks_msec()
+		return Time.get_ticks_msec() - held_since[0] >= 300
+
 	var fail := 0
 	start.call(["--" + mode])
 	if not await wait_for.call(func() -> bool: return read.call(0).get("origin") != null, 30000):
@@ -155,7 +190,8 @@ func _spawn_session(mode: String, joiners: int) -> int:
 			fail += 1
 		await pause.call(300)
 	if fail == 0:
-		await pause.call(1000)
+		held_since[0] = 0
+		await wait_for.call(stays_synced, SYNC_WAIT_MS)  # on a timeout, check names the stale copies
 		fail += check.call("join", func(s: Dictionary, server: Dictionary) -> Variant:
 			return server["picked"].get(s["id"]))
 	if fail == 0:
@@ -199,7 +235,8 @@ func _spawn_session(mode: String, joiners: int) -> int:
 			if bad == 0:
 				print("PASS spawn_late_join %s respawn %s" % [mode, spots])
 			fail += bad
-			await pause.call(1000)
+			held_since[0] = 0
+			await wait_for.call(stays_synced, SYNC_WAIT_MS)
 			fail += check.call("respawn landing", func(s: Dictionary, _server: Dictionary) -> Variant:
 				return s.get("respawned_at"))
 
