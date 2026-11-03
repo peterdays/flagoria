@@ -60,6 +60,9 @@ var _sent_walk_direction := ""
 ## The walk facing the owner last sent; replayed when an attack ends.
 var _walk_direction := "Down"
 var isAttacking: bool = false
+## How far the current swing turns from its four-way animation to the exact
+## aim angle (#231), about AttackAim.ORIGIN; 0 for a four-way swing.
+var swing_turn := 0.0
 
 
 func _ready():
@@ -69,6 +72,7 @@ func _ready():
 	health.respawned.connect(_on_respawned)
 	health.health_changed.connect(_apply_dead_state.unbind(2))
 	health.state_received.connect(_apply_dead_state.unbind(2))
+	animations.mixer_applied.connect(_turn_swing)
 	var sync := get_node_or_null("MultiplayerSynchronizer")
 	if sync:
 		sync.synchronized.connect(_on_synchronized)
@@ -136,18 +140,27 @@ func _unhandled_input(event):
 	if Input.is_action_just_pressed("attack"):
 		attack_animation.rpc()
 
-func attack_toward(direction: String):
-	## An aimed attack (AttackAim): swing toward `direction` on every peer.
-	attack_animation.rpc(direction)
+func attack_toward(direction: String, angle := NAN):
+	## An aimed attack (AttackAim): swing toward `direction`, at `angle` when
+	## given, on every peer.
+	attack_animation.rpc(direction, angle)
 
 @rpc("call_local")  # the call local calls in all remotes and the local too
-func attack_animation(direction: String = ""):
+func attack_animation(direction: String = "", angle: float = NAN):
 	# `direction` is Up, Down, Left or Right from an aimed attack; anything
 	# else, or none (Space, the touch button), swings in the facing direction.
-	# Every peer, the server included, swings the way the attacker aimed, and
+	# `angle` (radians) is the exact aim: the swing plays `direction`'s
+	# animation turned to it, and the sprite still faces `direction`. An angle
+	# that is not finite or not within 45 degrees of `direction` is rejected:
+	# the swing goes the facing direction, as for an unknown direction.
+	# Every peer, the server included, checks and swings the same way, and
 	# the server's copy still decides what the sword hits.
+	swing_turn = 0.0
 	if direction in AttackAimScript.DIRECTIONS:
-		lastAnimDirection = direction
+		var turn := 0.0 if is_nan(angle) else AttackAimScript.turn_to(direction, angle)
+		if not is_nan(turn):
+			lastAnimDirection = direction
+			swing_turn = turn
 	animations.stop()
 	combat_sfx.play_event("swing")
 	animations.play("attack" + lastAnimDirection)
@@ -158,6 +171,17 @@ func attack_animation(direction: String = ""):
 	weapon.visible = false
 	sword_shape.set_deferred("disabled", true)
 	isAttacking = false
+	swing_turn = 0.0
+
+
+func _turn_swing() -> void:
+	## After each animation step: turn the swing's weapon about the aim
+	## origin by swing_turn, so its hitbox follows the exact aim angle.
+	if swing_turn == 0.0 or not str(animations.current_animation).begins_with("attack"):
+		return
+	var origin := AttackAimScript.ORIGIN
+	weapon.position = origin + (weapon.position - origin).rotated(swing_turn)
+	weapon.rotation += swing_turn
 
 
 func sword_active() -> bool:

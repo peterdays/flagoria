@@ -107,6 +107,39 @@ func _test_attack_aim_mouse() -> int:
 			fail += 1
 		await wait_swing.call()
 
+	# Off-axis aims swing at the exact angle, the cone with them; the sprite
+	# keeps the nearest four-way facing.
+	var minimap = scene.get_node("CanvasLayer1/MinimapPanel")
+	minimap.shown = false  # the open minimap is HUD right of the hero
+	minimap.visible = false
+	var four := await _four_way_blades(player)
+	for deg in OFF_AXIS_DEGREES:
+		var angle := deg_to_rad(deg)
+		var spot: Vector2 = at.call(AttackAim.ORIGIN + Vector2.from_angle(angle) * 20.0)
+		mouse.call(MOUSE_BUTTON_LEFT, spot, true)
+		fail += _check_cone_angle("attack_aim_mouse %s deg" % deg, aim, angle)
+		mouse.call(MOUSE_BUTTON_LEFT, spot, false)
+		fail += _check_turned_swing("attack_aim_mouse %s deg" % deg, player, angle, four)
+		await wait_swing.call()
+
+	# The RPC's angle is checked on every peer: one that is not finite or not
+	# within 45 degrees of the direction swings the facing direction, untilted.
+	for bad in [["Right", INF], ["Right", PI], ["Right", deg_to_rad(50.0)], ["Up", -INF], ["Sideways", 0.2]]:
+		player.lastAnimDirection = "Left"
+		player.attack_animation(bad[0], bad[1])
+		if player.lastAnimDirection != "Left" or player.animations.current_animation != "attackLeft" \
+				or player.swing_turn != 0.0:
+			printerr("FAIL attack_aim_mouse bad angle %s swung %s, turn %s"
+					% [bad, player.animations.current_animation, player.swing_turn])
+			fail += 1
+		await wait_swing.call()
+	# No angle (Space, older callers) keeps the four-way swing.
+	player.attack_animation("Up")
+	if player.animations.current_animation != "attackUp" or player.swing_turn != 0.0:
+		printerr("FAIL attack_aim_mouse a four-way swing turned %s" % player.swing_turn)
+		fail += 1
+	await wait_swing.call()
+
 	# Right-click cancels: no swing.
 	mouse.call(MOUSE_BUTTON_LEFT, at.call(Vector2(60, 0)), true)
 	mouse.call(MOUSE_BUTTON_RIGHT, at.call(Vector2(60, 0)), true)
@@ -289,6 +322,16 @@ func _test_attack_aim_touch() -> int:
 		printerr("FAIL attack_aim_touch re-aim after cancel swung %s, want attackDown" % player.animations.current_animation)
 		fail += 1
 	await wait_swing.call()
+	# Off-axis drags swing at the exact angle from the button's centre.
+	var four := await _four_way_blades(player)
+	for deg in OFF_AXIS_DEGREES:
+		var angle := deg_to_rad(deg)
+		touch.call(1, c, true)
+		drag.call(1, c + Vector2.from_angle(angle) * 30.0)
+		fail += _check_cone_angle("attack_aim_touch %s deg" % deg, aim, angle)
+		touch.call(1, c + Vector2.from_angle(angle) * 30.0, false)
+		fail += _check_turned_swing("attack_aim_touch %s deg" % deg, player, angle, four)
+		await wait_swing.call()
 	# A second touch off the move stick cancels an aim: the aiming finger is
 	# let go, so its drags and its lift do not swing. A touch on the stick
 	# does not cancel.
@@ -432,4 +475,141 @@ func _test_attack_aim_touch_guards() -> int:
 	await process_frame
 	if fail == 0:
 		print("PASS test_attack_aim_touch_guards")
+	return fail
+
+
+const OFF_AXIS_DEGREES := [30.0, -60.0, 160.0, 115.0]  ## one per four-way direction
+
+
+func _blade(player) -> Vector2:
+	## The sword's hitbox mid-swing, from the cone's apex, in the player's space.
+	player.animations.seek(0.1, true)
+	return player.to_local(player.sword_shape.global_position) - AttackAim.ORIGIN
+
+
+func _four_way_blades(player) -> Dictionary:
+	## Each direction's four-way swing: its blade mid-swing.
+	var blades := {}
+	for direction in AttackAim.DIRECTIONS:
+		player.attack_animation(direction)
+		blades[direction] = _blade(player)
+		while player.isAttacking:
+			await process_frame
+	return blades
+
+
+func _check_cone_angle(what: String, aim: AttackAim, angle: float) -> int:
+	## While aiming, the cone's middle points along `angle`.
+	var cone := aim.cone_points()
+	var mid: Vector2 = cone[1 + AttackAim.ARC_POINTS / 2] - AttackAim.ORIGIN
+	if not aim.aiming or absf(angle_difference(mid.angle(), angle)) > 0.01 \
+			or absf(angle_difference(aim.aim_angle(), angle)) > 0.01:
+		printerr("FAIL %s cone at %s, aim %s (aiming %s)"
+				% [what, rad_to_deg(mid.angle()), rad_to_deg(aim.aim_angle()), aim.aiming])
+		return 1
+	return 0
+
+
+func _check_turned_swing(what: String, player, angle: float, four: Dictionary) -> int:
+	## After the release: the sprite faces the nearest direction, and the
+	## blade is that direction's four-way blade turned to `angle`.
+	var direction := AttackAim.direction_name(Vector2.from_angle(angle))
+	var turn := angle_difference(AttackAim.direction_vector(direction).angle(), angle)
+	var blade := _blade(player)
+	var want: Vector2 = four[direction].rotated(turn)
+	var fail := 0
+	if player.lastAnimDirection != direction or player.animations.current_animation != "attack" + direction:
+		printerr("FAIL %s swung %s facing %s, want %s"
+				% [what, player.animations.current_animation, player.lastAnimDirection, direction])
+		fail += 1
+	if blade.distance_to(want) > 0.05:
+		printerr("FAIL %s blade at %s, want %s (four-way %s)" % [what, blade, want, four[direction]])
+		fail += 1
+	return fail
+
+
+func _test_attack_angle_two_players() -> int:
+	## Two peers over ENet loopback (#231 slice 3): an aimed swing at an exact
+	## angle turns the same way on the server's copy, which decides hits, as
+	## on the attacker's; an angle off its direction falls back to the facing
+	## on the server too.
+	print("-- test_attack_angle_two_players")
+	var fail := 0
+	await process_frame
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL attack_angle_two_players found no free UDP port")
+		return 1
+	var server_root := Node.new()
+	server_root.name = "AngleServer"
+	root.add_child(server_root)
+	var s_world := Node.new()
+	s_world.name = "World"
+	server_root.add_child(s_world)
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var smp := SceneMultiplayer.new()
+	var cmp := SceneMultiplayer.new()
+	set_multiplayer(smp, server_root.get_path())
+	set_multiplayer(cmp, scene.get_path())
+	var speer := ENetMultiplayerPeer.new()
+	speer.create_server(port)
+	smp.multiplayer_peer = speer
+	var cpeer := ENetMultiplayerPeer.new()
+	cpeer.create_client("127.0.0.1", port)
+	cmp.multiplayer_peer = cpeer
+	if not await _client_connected(smp, cpeer):
+		printerr("FAIL attack_angle_two_players client did not connect")
+		fail += 1
+	else:
+		var copy := func(world: Node) -> CharacterBody2D:
+			var p = load("res://Player/character_body_2d.tscn").instantiate()
+			p.name = str(cpeer.get_unique_id())
+			p.get_node("MultiplayerSynchronizer").free()
+			world.add_child(p)
+			p.set_physics_process(false)  # no walk facing RPCs mid-check
+			return p
+		var server = copy.call(s_world)
+		var client = copy.call(scene.get_node("World"))
+		await process_frame
+		var wait_attack := func(p, on: bool) -> bool:
+			var until := Time.get_ticks_msec() + 5000
+			while p.isAttacking != on and Time.get_ticks_msec() < until:
+				await process_frame
+			return p.isAttacking == on
+		var four := await _four_way_blades(client)  # local only: not sent to the server
+		var angle := deg_to_rad(30.0)
+		var want: Vector2 = four["Right"].rotated(angle)
+		client.attack_toward("Right", angle)
+		if not await wait_attack.call(server, true):
+			printerr("FAIL attack_angle_two_players the server copy did not swing")
+			fail += 1
+		else:
+			var on_server := _blade(server)
+			var on_client := _blade(client)
+			if server.lastAnimDirection != "Right" or absf(server.swing_turn - angle) > 0.001 \
+					or on_server.distance_to(want) > 0.05 or on_client.distance_to(want) > 0.05:
+				printerr("FAIL attack_angle_two_players server swung %s turned %s, blade %s; client blade %s; want %s"
+						% [server.lastAnimDirection, server.swing_turn, on_server, on_client, want])
+				fail += 1
+		await wait_attack.call(server, false)
+		await wait_attack.call(client, false)
+		server.lastAnimDirection = "Down"
+		client.attack_animation.rpc("Right", PI)
+		if not await wait_attack.call(server, true):
+			printerr("FAIL attack_angle_two_players the server copy did not get the bad angle")
+			fail += 1
+		elif server.animations.current_animation != "attackDown" or server.swing_turn != 0.0:
+			printerr("FAIL attack_angle_two_players bad angle swung %s turned %s on the server"
+					% [server.animations.current_animation, server.swing_turn])
+			fail += 1
+	cpeer.close()
+	speer.close()
+	set_multiplayer(null, scene.get_path())
+	set_multiplayer(null, server_root.get_path())
+	scene.queue_free()
+	server_root.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_attack_angle_two_players")
 	return fail
