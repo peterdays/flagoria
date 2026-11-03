@@ -4,8 +4,9 @@ extends RefCounted
 ## the cells, and the list of placements. The map keeps wrappers
 ## (can_place_structure, place_structure, placed_structures) and asks
 ## has_cell / ground_at / object_at when it draws or predicts a cell.
-## Host-alone only for now: while multiplayer is on nothing is placed; peer
-## sync comes with #278.
+## Only a host that is still alone places: while multiplayer is on nothing is
+## placed. A peer that joins gets the host's list with the map (to_sync,
+## replace_from_host); live placements after a join are the rest of #278.
 
 const _WorldMap := preload("res://Scripts/TileMap.gd")
 
@@ -20,6 +21,7 @@ const MULTIPLAYER_ON := "multiplayer on"
 ## every other owner red until more owner colours exist (#274).
 const OWNER_FLAGS := {1: "PROP_FLAG_BLUE"}
 const OTHER_OWNER_FLAG := "PROP_FLAG_RED"
+const DIR := "res://structures"
 
 ## Placed cell -> [layer-0 atlas or NO_PLANT to keep the generated ground,
 ## layer-1 atlas or NO_PLANT for none]. generate_chunk draws these instead
@@ -96,6 +98,48 @@ func place(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
 	## nothing written when can_place gives any reason.
 	if not can_place(structure, anchor_cell).is_empty():
 		return -1
+	return _write(structure, anchor_cell, owner)
+
+
+func to_sync() -> Array:
+	## The placements in id order as [name, owner, anchor], the list the host
+	## sends a joining peer with the map.
+	var out := []
+	var ids := _placed.keys()
+	ids.sort()
+	for id in ids:
+		out.append([_placed[id]["name"], _placed[id]["owner"], _placed[id]["anchor"]])
+	return out
+
+
+func replace_from_host(list: Array) -> int:
+	## Client: make the placements exactly the host's `list` (to_sync), in
+	## its order, so ids match. Call it right after the params are applied,
+	## before the chunks are drawn again. The host checked each placement, so
+	## can_place is not asked (it refuses while multiplayer is on). An entry
+	## of the wrong shape, or naming no shipped structure file, is skipped.
+	## Returns how many placements it holds.
+	clear()
+	for entry in list:
+		if not entry is Array or entry.size() != 3 or not entry[0] is String \
+				or not entry[1] is int or not entry[2] is Vector2i:
+			continue
+		var structure := load_named(entry[0])
+		if structure != null:
+			_write(structure, entry[2], entry[1])
+	return _placed.size()
+
+
+static func load_named(structure_name: String) -> Structure:
+	## The shipped structure file `structure_name` (res://structures/NAME.txt),
+	## or null when the name is not one.
+	var path := "%s/%s.txt" % [DIR, structure_name]
+	if RegEx.create_from_string("^[a-z0-9_]+$").search(structure_name) == null or not FileAccess.file_exists(path):
+		return null
+	return Structure.parse(FileAccess.get_file_as_string(path))["structure"]
+
+
+func _write(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
 	var foot := footprint(structure, anchor_cell)
 	var walls := {}
 	for cell: Vector2i in foot:

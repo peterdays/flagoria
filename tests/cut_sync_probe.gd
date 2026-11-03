@@ -2,7 +2,8 @@ extends SceneTree
 ## One peer of a cut sync session, run as its own headless process by
 ## test_cut_save_late_join (tests/saves/test_cut_save.gd) and
 ## test_cut_sync_two_players (tests/net/test_cut_sync.gd) and
-## test_regrow_sync_two_players (tests/net/test_regrow_sync.gd).
+## test_regrow_sync_two_players (tests/net/test_regrow_sync.gd) and
+## test_structure_sync_join (tests/net/test_structure_sync.gd).
 ##   -- --port=N --out=PATH --host --save=SAVE  load SAVE and host it with a player
 ##   -- --port=N --out=PATH                     join localhost:N through the Join path
 ## Optional --cells=x,y;x,y lists cells to report besides the cut ones.
@@ -12,6 +13,10 @@ extends SceneTree
 ## cut list is in "regrown". While PATH.forge exists, a client sends the
 ## host apply_regrow for each listed cell once, as a peer that tries to
 ## regrow by itself would.
+## Optional --place=NAME@x,y (host): place res://structures/NAME.txt with its
+## anchor on x,y while the host is still alone, before its own player. While
+## PATH.forge_place exists, a client sends every other client a forged
+## receive_map_params carrying one placement, once.
 ## Every 100 ms it writes PATH (JSON): its peer id, whether it has the map
 ## and its own player, its cut list, its wood and, for each cut or listed
 ## cell, what is drawn there and whether it blocks. While PATH.cut holds
@@ -61,6 +66,7 @@ func _run() -> void:
 	var out := ""
 	var host := false
 	var regrow := -1.0
+	var place := ""
 	var listed: Array[Vector2i] = []
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--port="):
@@ -73,6 +79,8 @@ func _run() -> void:
 			listed = parse_cells(arg.trim_prefix("--cells="))
 		elif arg.begins_with("--regrow="):
 			regrow = arg.trim_prefix("--regrow=").to_float()
+		elif arg.begins_with("--place="):
+			place = arg.trim_prefix("--place=")
 		elif arg == "--host":
 			host = true
 	if port == 0 or out == "" or (host and save == "") or change_scene_to_file("res://flagoria_main.tscn") != OK:
@@ -90,6 +98,13 @@ func _run() -> void:
 			printerr("cut_sync_probe: could not host %s: %s" % [save, error])
 			quit(1)
 			return
+		if place != "":
+			var cell = WorldSave.parse_cell(place.get_slice("@", 1))
+			var structure := StructurePlacer.load_named(place.get_slice("@", 0))
+			if cell == null or structure == null or main.get_node("World/worldMap").place_structure(structure, cell, 1) < 0:
+				printerr("cut_sync_probe: could not place %s" % place)
+				quit(1)
+				return
 		main.add_player(1)
 	else:
 		main.add_player_joined(port)
@@ -101,6 +116,7 @@ func _run() -> void:
 	var seen_cut := {}
 	var regrown := {}
 	var forged := false
+	var forged_place := false
 	var moved_away := true
 	var deadline := Time.get_ticks_msec() + 90000
 	var next_write := 0
@@ -126,6 +142,12 @@ func _run() -> void:
 			forged = true
 			for cell in listed:
 				interaction.apply_regrow.rpc_id(1, cell)
+		if not forged_place and not host and FileAccess.file_exists(out + ".forge_place"):
+			forged_place = true
+			for peer in main.multiplayer.get_peers():
+				if peer != 1:
+					main.rpc_id(peer, "receive_map_params", main.world_params.to_dict(), Vector2.INF,
+							world.cut_changes(), [["guard_post", main.multiplayer.get_unique_id(), Vector2i(3, 3)]])
 		var now_cut: Dictionary = world.cut_changes()
 		var keys := {}
 		for chunk in now_cut:
@@ -148,7 +170,9 @@ static func cell_state(world, cell: Vector2i) -> Dictionary:
 	var clear: bool = world.is_clear_ground(cell)
 	var decor: Vector2i = world.get_cell_atlas_coords(world.GROUND_DECOR_LAYER, cell)
 	var plant: Vector2i = world.get_cell_atlas_coords(1, cell)
-	return {"plant": [plant.x, plant.y], "decor": [decor.x, decor.y], "clear": clear}
+	var predicted: Array = world.predict_cell(cell)
+	return {"plant": [plant.x, plant.y], "decor": [decor.x, decor.y], "clear": clear,
+		"predict": [predicted[0].x, predicted[0].y, predicted[1].x, predicted[1].y]}
 
 
 func _write(out: String, main, world, listed: Array[Vector2i], has_player: bool, regrown: Dictionary) -> void:
@@ -160,6 +184,17 @@ func _write(out: String, main, world, listed: Array[Vector2i], has_player: bool,
 		for chunk in cuts:
 			for key in cuts[chunk]:
 				cells[key] = cell_state(world, WorldSave.parse_cell(key))
+	var placements := []
+	var placed: Dictionary = world.placed_structures()
+	var ids := placed.keys()
+	ids.sort()
+	for id in ids:
+		var anchor: Vector2i = placed[id]["anchor"]
+		placements.append([placed[id]["name"], placed[id]["owner"], anchor.x, anchor.y])
+	var refused: Array = []
+	var guard := StructurePlacer.load_named("guard_post")
+	if guard != null and not listed.is_empty():
+		refused = world.can_place_structure(guard, listed[0])
 	var inventory: Inventory = main.get_node("Inventory")
 	var file := FileAccess.open(out + ".tmp", FileAccess.WRITE)
 	file.store_string(JSON.stringify({
@@ -169,6 +204,8 @@ func _write(out: String, main, world, listed: Array[Vector2i], has_player: bool,
 		"cells": cells,
 		"wood": inventory.count_of(Inventory.WOOD),
 		"regrown": regrown,
+		"placements": placements,
+		"place_refused": refused,
 		"errors": _errors.snapshot(),
 	}))
 	file.close()

@@ -180,21 +180,27 @@ func _sync_map_params_to_peer(peer_id: int) -> void:
 	## (TreeCuts.to_changes), so a joining peer draws the same stumps. Later
 	## cuts reach it through Interaction.apply_cut, sent after this on the
 	## same reliable channel, and regrowth through Interaction.apply_regrow (#298).
+	## The placed structures go too (StructurePlacer.to_sync), so the peer's
+	## walls block where the host's do from its first frame (#278).
 	if world_params == null:
 		return
 	var player = get_node_or_null("World/" + str(peer_id))
 	var spot: Vector2 = player.position if player else Vector2.INF
-	rpc_id(peer_id, "receive_map_params", world_params.to_dict(), spot, get_node("World/worldMap").cut_changes())
+	var world = get_node("World/worldMap")
+	rpc_id(peer_id, "receive_map_params", world_params.to_dict(), spot, world.cut_changes(), world.structures_for_sync())
 
 
 @rpc("authority", "reliable", "call_remote")
-func receive_map_params(data: Dictionary, spot: Vector2, cuts: Dictionary) -> void:
+func receive_map_params(data: Dictionary, spot: Vector2, cuts: Dictionary, placements: Array) -> void:
+	if multiplayer.get_remote_sender_id() != 1:
+		return  # only the host sends the map; the rpc mode already refuses others
 	var params = MapGenParams.new()
 	params.from_dict(data)
 	world_params = params
 	get_node("/root/MapGen").params = params.duplicate_params()
 	_apply_params_to_world(params)
 	get_node("World/worldMap").replace_cuts(cuts)  # the host's set, before the chunks are drawn again
+	get_node("World/worldMap").replace_structures(placements)  # likewise, before the player is placed
 	_own_spot = spot
 	_place_own_player()  # or once the player arrives, see _on_world_child_entered
 	var world = get_node("World/worldMap")
