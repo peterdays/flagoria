@@ -22,11 +22,12 @@ extends Node2D
 ## `hits(screen_pos) -> bool` and `aim_center() -> Vector2` works, so its look
 ## (texture, scene) can change without touching this script; one that also
 ## has `show_touch_state(state)` is told the TOUCH_* state to show. The cone's
-## look is `style` (AimConeStyle), its lines one screen pixel at any zoom. The sword swings in one of four
-## directions, so the aim snaps to the nearest one and the cone shows that
-## swing, never an angle the hit will not land on. The aim is local only; the
-## attack goes out through the player's attack_animation RPC with its
-## direction. Clicks that start on a HUD control, mouse events the engine
+## look is `style` (AimConeStyle), its lines one screen pixel at any zoom. The
+## cone and the swing follow the exact aim angle; the hero's sprite faces the
+## nearest of the four directions, and the swing plays that direction's
+## animation turned to the angle. The aim is local only; the attack goes out
+## through the player's attack_animation RPC with its direction and angle.
+## Clicks that start on a HUD control, mouse events the engine
 ## makes from touches, interact mode, an open in-game menu and a dead player
 ## never aim, and opening the menu mid-aim cancels the aim. Space still
 ## attacks at once in the facing direction.
@@ -35,6 +36,7 @@ const DIRECTIONS := ["Up", "Down", "Left", "Right"]
 const ARC := PI * 0.75  ## the swing's sweep, centred on the aim direction
 const ORIGIN := Vector2(0, -3)  ## where the cone starts, in the player's space
 const ARC_POINTS := 16
+const MAX_TURN := PI / 4.0  ## the farthest an aim angle is from its four-way direction
 const TOUCH_DEAD_ZONE := 8.0  ## screen px from the button's centre: inside is a tap, or a cancel
 const TOUCH_IDLE := 0  ## no finger on the button
 const TOUCH_DOWN := 1  ## a finger on it, inside the dead zone
@@ -79,15 +81,37 @@ static func direction_vector(direction: String) -> Vector2:
 	return Vector2.ZERO
 
 
-func aim_direction() -> String:
-	## The direction the attack goes if the button is released now; "" when
-	## nothing is aimed (a touch still inside the dead zone).
+static func turn_to(direction: String, angle: float) -> float:
+	## How far a swing toward `direction` turns to reach `angle` (radians);
+	## NAN when `angle` is more than MAX_TURN from it (or is not finite: the
+	## difference is then NAN and fails the bound too).
+	var base := direction_vector(direction)
+	if base == Vector2.ZERO:
+		return NAN
+	var turn := angle_difference(base.angle(), angle)
+	return turn if absf(turn) <= MAX_TURN + 0.001 else NAN
+
+
+func aim_vector() -> Vector2:
+	## Where the attack goes if the button is released now, from the cone's
+	## apex; zero when nothing is aimed (a touch still inside the dead zone).
 	if _touch_index != -1:
 		if _touch_offset.length() <= TOUCH_DEAD_ZONE:
-			return ""
-		return direction_name(_touch_offset)
+			return Vector2.ZERO
+		return _touch_offset
 	var target := get_canvas_transform().affine_inverse() * _pointer
-	return direction_name(target - to_global(ORIGIN))
+	return target - to_global(ORIGIN)
+
+
+func aim_direction() -> String:
+	## The four-way direction of the aim (the sprite's facing); "" for none.
+	return direction_name(aim_vector())
+
+
+func aim_angle() -> float:
+	## The exact aim angle in radians; NAN when nothing is aimed.
+	var v := aim_vector()
+	return NAN if v == Vector2.ZERO else v.angle()
 
 
 func can_aim() -> bool:
@@ -196,6 +220,7 @@ func _on_touch(event: InputEventScreenTouch) -> void:
 		return
 	_touch_offset = _offset_from_button(event.position)
 	var direction := aim_direction() if aiming else ""
+	var angle := aim_angle() if aiming else NAN
 	var tap := not _touch_aimed
 	_touch_index = -1
 	_touch_aimed = false
@@ -205,7 +230,7 @@ func _on_touch(event: InputEventScreenTouch) -> void:
 	if not can_aim():
 		return
 	if direction != "":
-		player.attack_toward(direction)
+		player.attack_toward(direction, angle)
 	elif tap:
 		player.attack_toward("")  # a tap swings the way the hero faces, as before
 
@@ -240,9 +265,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif not button.pressed and aiming:
 			_pointer = button.position
 			var direction := aim_direction()
+			var angle := aim_angle()
 			cancel()
 			if can_aim():
-				player.attack_toward(direction)
+				player.attack_toward(direction, angle)
 			get_viewport().set_input_as_handled()
 
 
@@ -256,7 +282,7 @@ func cone_points(origin := ORIGIN, reach := -1.0) -> PackedVector2Array:
 	if reach < 0.0:
 		reach = style.range
 	var points := PackedVector2Array([origin])
-	var angle := direction_vector(aim_direction()).angle()
+	var angle := aim_angle()
 	for i in ARC_POINTS + 1:
 		var a := angle - ARC / 2.0 + ARC * i / ARC_POINTS
 		points.append(origin + Vector2.from_angle(a) * reach)
@@ -279,7 +305,7 @@ func _draw() -> void:
 	# The rim runs just inside the outline: the same cone moved inward by half
 	# of both lines; the apex moves along the aim by that over sin(ARC / 2).
 	var inset := px * (style.outline_width + style.rim_width) / 2.0
-	var inner := cone_points(ORIGIN + direction_vector(aim_direction()) * inset / sin(ARC / 2.0),
+	var inner := cone_points(ORIGIN + Vector2.from_angle(aim_angle()) * inset / sin(ARC / 2.0),
 			style.range - inset)
 	inner.append(inner[0])
 	draw_polyline(inner, style.rim_color, style.rim_width * px)
