@@ -4,8 +4,7 @@ extends TileMap
 ## Emitted on every peer right after the cells are set, so local visuals that
 ## depend on the ground (hidden mobs) update in the same frame.
 signal ground_changed(cells: Rect2i)
-## Stumps regrew in these cells in one regrow_due tick (the host sends them to
-## its peers as one message, #353). Not emitted when nothing regrew.
+## Stumps regrew in these cells in one regrow_due tick (sent as one RPC, #353).
 signal plants_regrown(cells: Array[Vector2i])
 
 var rng = RandomNumberGenerator.new()
