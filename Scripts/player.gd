@@ -11,7 +11,7 @@ const JOYSTICK_MAX_SPEED = 60
 var input = Vector2.ZERO
 
 @onready var camera = $Camera2D
-@onready var joystick = $/root/Flagoria/CanvasLayer1/player_joystick
+@onready var joystick = get_node_or_null(^"/root/Flagoria/CanvasLayer1/player_joystick")  # none when the hero runs outside the game scene, as in tests
 @onready var animations = $AnimationPlayer
 @onready var weapon = $weapon
 @onready var combat_sfx: CombatSfx = $CombatSfx
