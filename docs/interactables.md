@@ -24,7 +24,7 @@ The catalog is a fixed `preload` list. It does not scan `data/interactables/`, b
 | `fx_sheet` | 4 frames over the cell: 0-1 after each impact, 2-3 once it falls | none / none / `art/flagoria/fx/fx_leaves.png` |
 | `fell_puff` | Play the puff cloud over the cell when it falls | true / true / false |
 
-**`regrow_delay`.** `TreeCuts` (`Scripts/mechanics/trees/tree_cuts.gd`) records each cut's type, and `TileMap.regrow_due` regrows a stump once its type's `regrow_delay` has passed. The stump waits while a player stands on it. `TileMap.regrow_delay` (forwarded to `TreeCuts.regrow_delay`) is a map-wide override:
+**`regrow_delay`.** `TreeCuts` (`Scripts/mechanics/trees/tree_cuts.gd`) records each cut's type, and `TileMap.regrow_due` regrows a stump once its type's `regrow_delay` has passed. The stump waits while a player or a mob stands on it, so a regrown tree never traps a mob (#232). `TileMap.regrow_delay` (forwarded to `TreeCuts.regrow_delay`) is a map-wide override:
 - -1, the default, uses each type's value;
 - any other value applies to every type (the tests set 30).
 
