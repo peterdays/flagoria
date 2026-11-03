@@ -170,6 +170,11 @@ func _test_structure_place_refused() -> int:
 			if a != null:
 				found[reason] = true
 				fail += refuse.call("%s (seed %s)" % [reason, sv], a, reason)
+	for sv in [11, 42, 99]:
+		if found.has("player"):
+			break
+		world.apply_map_params(_spawn_params(sv, 0.0))
+		world.generate_chunk(Vector2(0, 0))
 		var clear: Variant = _find_anchor(world, s, func(cells): return cells.all(world.predicted_clear))
 		if clear != null and not found.has("player"):
 			found["player"] = true
