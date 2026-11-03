@@ -412,6 +412,14 @@ func placed_structures() -> Dictionary:
 	return _structures.placements()
 
 
+func structures_for_sync() -> Array:
+	return _structures.to_sync()
+
+
+func replace_structures(list: Array) -> int:
+	return _structures.replace_from_host(list)
+
+
 static func bridge_pieces(length: int, horizontal: bool, land_before: bool, land_after: bool) -> Array[Vector2i]:
 	return BridgeBuilder.bridge_pieces(length, horizontal, land_before, land_after)
 

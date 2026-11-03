@@ -100,7 +100,7 @@ func _run() -> void:
 			return
 		if place != "":
 			var cell = WorldSave.parse_cell(place.get_slice("@", 1))
-			var structure = _structure(place.get_slice("@", 0))
+			var structure := StructurePlacer.load_named(place.get_slice("@", 0))
 			if cell == null or structure == null or main.get_node("World/worldMap").place_structure(structure, cell, 1) < 0:
 				printerr("cut_sync_probe: could not place %s" % place)
 				quit(1)
@@ -164,11 +164,6 @@ func _run() -> void:
 	quit(0)
 
 
-static func _structure(name: String) -> Structure:
-	var path := "res://structures/%s.txt" % name
-	return Structure.parse(FileAccess.get_file_as_string(path))["structure"] if FileAccess.file_exists(path) else null
-
-
 static func cell_state(world, cell: Vector2i) -> Dictionary:
 	## What a player meets on `cell`: the foliage tile, the decor under it
 	## (a stump) and whether the cell is clear to walk. Draws its chunk first.
@@ -197,7 +192,7 @@ func _write(out: String, main, world, listed: Array[Vector2i], has_player: bool,
 		var anchor: Vector2i = placed[id]["anchor"]
 		placements.append([placed[id]["name"], placed[id]["owner"], anchor.x, anchor.y])
 	var refused: Array = []
-	var guard = _structure("guard_post")
+	var guard := StructurePlacer.load_named("guard_post")
 	if guard != null and not listed.is_empty():
 		refused = world.can_place_structure(guard, listed[0])
 	var inventory: Inventory = main.get_node("Inventory")
