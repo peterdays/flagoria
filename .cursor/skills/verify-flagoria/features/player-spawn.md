@@ -7,6 +7,8 @@ Players spawn on walkable land from which they can reach at least 200 clear cell
 - `spawn-land` `resolve_player_spawn` (`Scripts/world/spawn_finder.gd`, called through `Scripts/TileMap.gd`) picks walkable land.
 - `spawn-reachable` the spawn has 200+ reachable clear cells.
 - `spawn-nodes` spawning a player finds every node it needs.
+- `spawn-free-spot` each player gets its own clear walkable spot within `SPAWN_RADIUS` (64 px) of the spawn point, at least `SPAWN_CLEARANCE` (16 px) from every other player, on join and on respawn (#164). The search walks at least `SPAWN_SEARCH_LIMIT` (400) clear cells and keeps going outward when every spot is taken.
+- `spawn-late-join` the server picks each joiner's spot; the joiner stands on it once the map arrives.
 
 ## How to get to it (user POV)
 
@@ -14,10 +16,10 @@ Players spawn on walkable land from which they can reach at least 200 clear cell
 
 ## Driving it with verify-flagoria helpers
 
-Preconditions: `doctor.sh` exits `0`.
+Preconditions: `doctor.sh` exits `0`. Time cost: `-- test_spawn_late_join` starts one Godot process per joiner on a dedicated server and on a listen host, ~14 s alone with `--only=`; the other spawn tests together ~1.8 s.
 
 - **Run.** Run `./.cursor/skills/verify-flagoria/bin/drive-verify.sh` (or `./tools/verify.sh`) and read `artifacts/verify.log`.
-- **Proof.** Each header `-- test_spawn_on_land`, `-- test_spawn_reachable`, `-- test_player_spawn_no_missing_nodes` appears in the log, no `FAIL` line follows it, and the run ends with `All tests passed.` and `Verification passed.`
+- **Proof.** Each header `-- test_spawn_on_land`, `-- test_spawn_reachable`, `-- test_player_spawn_no_missing_nodes`, `-- test_spawn_radius_no_overlap`, `-- test_spawn_full_area_searches_outward`, `-- test_spawn_late_join` appears in the log, no `FAIL` line follows it, and the run ends with `All tests passed.` and `Verification passed.`
 
 ## Gotchas
 
