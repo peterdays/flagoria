@@ -49,6 +49,6 @@ static func find_anchor(map: _WorldMap, castle: Structure, origin: Vector2i) -> 
 		if not map.predicted_clear(front) or not map.can_place_structure(castle, anchor).is_empty():
 			continue
 		var foot := StructurePlacer.footprint(castle, anchor)
-		if map.reachable_clear_cells(front, SpawnFinder.SPAWN_MIN_REACHABLE, foot).size() >= SpawnFinder.SPAWN_MIN_REACHABLE:
+		if SpawnFinder.reachable_clear_cells(map, front, SpawnFinder.SPAWN_MIN_REACHABLE, foot).size() >= SpawnFinder.SPAWN_MIN_REACHABLE:
 			return anchor
 	return null

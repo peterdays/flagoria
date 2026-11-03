@@ -40,9 +40,7 @@ var _tree_cuts := TreeCuts.new(self)
 var _bridges := BridgeBuilder.new(self)
 ## Placed structures (#270); generate_chunk draws their cells.
 var _structures := StructurePlacer.new(self)
-## The land cell outside the starting castle's gate once it is placed
-## (#271): the player spawn from then on. Null without a castle.
-var _castle_front: Variant = null
+var _castle_front: Variant = null  # outside the starting castle's gate (#271): the spawn once set
 ## Seconds of play after a cut before any stump turns back into its plant,
 ## overriding each type's regrow_delay; negative (the default) uses the
 ## type's. Kept in TreeCuts; this property reads and writes it there.
@@ -417,14 +415,10 @@ func placed_structures() -> Dictionary:
 
 
 func place_start_castle(owner: int) -> bool:
-	## Place peer `owner`'s starting castle next to the spawn (StartCastle);
-	## the land outside its gate becomes the spawn. False when none fits.
-	var front: Variant = StartCastle.place(self, owner)
-	if front == null:
-		return false
-	_castle_front = front
-	spawn_point = front
-	return true
+	## Peer `owner`'s starting castle by the spawn (StartCastle); false when none fits.
+	_castle_front = StartCastle.place(self, owner)
+	if _castle_front != null: spawn_point = _castle_front
+	return _castle_front != null
 
 
 static func bridge_pieces(length: int, horizontal: bool, land_before: bool, land_after: bool) -> Array[Vector2i]:
@@ -488,16 +482,13 @@ func is_clear_ground(cell: Vector2i) -> bool:
 	return get_cell_atlas_coords(GROUND_DECOR_LAYER, cell) != TileCatalog.STONES
 
 
-func reachable_clear_cells(start: Vector2i, limit: int = SpawnFinder.SPAWN_MIN_REACHABLE,
-		blocked: Dictionary = {}) -> Array[Vector2i]:
-	return SpawnFinder.reachable_clear_cells(self, start, limit, blocked)
+func reachable_clear_cells(start: Vector2i, limit: int = SpawnFinder.SPAWN_MIN_REACHABLE) -> Array[Vector2i]:
+	return SpawnFinder.reachable_clear_cells(self, start, limit)
 
 
 func resolve_player_spawn(origin_cell: Vector2i = Vector2i(0, 0), max_radius: int = 96) -> Vector2i:
 	## The starting castle's gate front once it is placed, else SpawnFinder's.
-	if _castle_front != null:
-		return _castle_front
-	return SpawnFinder.resolve_player_spawn(self, origin_cell, max_radius)
+	return _castle_front if _castle_front != null else SpawnFinder.resolve_player_spawn(self, origin_cell, max_radius)
 
 
 func spawn_spots(origin_cell: Vector2i, limit: int = SpawnFinder.SPAWN_SEARCH_LIMIT) -> Array[Vector2]:
