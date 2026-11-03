@@ -2,8 +2,8 @@ class_name StartCastle
 extends RefCounted
 ## The castle each player starts with (#271): structures/castle.txt placed
 ## next to the player spawn so the player starts on the land outside its
-## gate. The castle's anchor is its gate, in the bottom wall. Host alone
-## for now, like every placement (StructurePlacer); peer sync comes with #278.
+## gate. The castle's anchor is its gate, in the bottom wall. Placed by the
+## host while alone; joining peers get it with the map (StructurePlacer, #278).
 
 const _WorldMap := preload("res://Scripts/TileMap.gd")
 

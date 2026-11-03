@@ -60,10 +60,30 @@ func _check_castle(label: String, world, s: Structure) -> Dictionary:
 	return out
 
 
+func _check_gate_fit(label: String, world, player: CharacterBody2D, front: Vector2i) -> int:
+	## The player's body walks from the gate front through the open gate
+	## into the courtyard without touching a wall, while a step from the
+	## gate cell into the wall beside it collides (so the walls are live).
+	await physics_frame
+	await physics_frame
+	var at := func(cell: Vector2i) -> Transform2D:
+		return Transform2D(0.0, world.to_global(world.map_to_local(cell)))
+	var step := func(from: Vector2i, to: Vector2i) -> Vector2:
+		return world.to_global(world.map_to_local(to)) - world.to_global(world.map_to_local(from))
+	var gate := front + Vector2i(0, -1)
+	var court := front + Vector2i(0, -2)
+	var through: bool = player.test_move(at.call(front), step.call(front, court))
+	var into_wall: bool = player.test_move(at.call(gate), step.call(gate, gate + Vector2i(-1, 0)))
+	if through or not into_wall:
+		printerr("FAIL start_castle %s: through the gate collides %s, into the wall beside it %s" % [label, through, into_wall])
+		return 1
+	return 0
+
+
 func _test_start_castle() -> int:
 	## Hosting a new world (alone) places the host's castle next to the
 	## spawn on seeds 11, 42 and 99 and the player starts outside its gate,
-	## where it also respawns. A spot taken by a player moves the search
+	## where it also respawns, and its body fits through the gate. A spot taken by a player moves the search
 	## outward. A dedicated server, with no player of its own, has none.
 	print("-- test_start_castle")
 	var s := _castle()
@@ -92,6 +112,8 @@ func _test_start_castle() -> int:
 		elif player.spawn_position() != world.map_to_local(got["front"]):
 			printerr("FAIL start_castle seed %s: respawn at %s, want the gate front" % [sv, player.spawn_position()])
 			fail += 1
+		else:
+			fail += await _check_gate_fit("seed %s" % sv, world, player, got["front"])
 		if sv == 11 and got["front"] != Vector2i.MAX:
 			# Stand a player on the castle's gate: the next search starts
 			# from the same spawn and must move outward.

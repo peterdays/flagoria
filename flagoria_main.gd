@@ -87,7 +87,7 @@ func setup_server(params: MapGenParams, port: int = PORT, with_castle := true) -
 	## Host applies the chosen map params locally, then syncs the full set to
 	## joining peers. With `with_castle` (a host that plays), the host's
 	## starting castle goes next to the spawn while it is still alone, before
-	## the mobs (#271); peers get no castle until placements sync (#278).
+	## the mobs (#271); joining peers receive it with the map (#278).
 	world_params = params.duplicate_params()
 	world_params.ensure_seeds()
 	get_node("/root/MapGen").params = world_params.duplicate_params()
