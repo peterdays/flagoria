@@ -7,7 +7,12 @@ extends Resource
 ## light rim just inside a dark outline, both one screen pixel wide at any
 ## camera zoom, so the cone reads on sand, grass and water.
 
-@export var range := 34.0  ## world px from tip to arc: the blade reaches ~28 px (#334), plus half a mob's hurt box
+## The sword's reach, in world px from AttackAim.ORIGIN to the far edge of its
+## hitbox on the longest swing (#334). The cone's arc is drawn at this reach,
+## so a mob's hurt box inside the arc can be hit and one past it cannot.
+const SWORD_REACH := 30.0
+
+@export var range := SWORD_REACH  ## world px from tip to arc
 @export var fill_color := Color("3d3a5c")  ## its alpha is replaced by the pulse below
 @export var fill_alpha_min := 0.40  ## the pulse starts here, the faint end
 @export var fill_alpha_max := 0.55

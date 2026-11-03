@@ -1,10 +1,10 @@
 extends "res://tests/helpers/test_helpers.gd"
-## The sword's reach (#334): about 28 px from the aim cone's apex, inside
-## the aim cone, and hits land there but not beyond.
+## The sword's reach (#334): 30 px from the aim cone's apex, the same
+## length as the cone, and hits land there but not beyond.
 
-const REACH := 28.0  ## px from AttackAim.ORIGIN to the hitbox's farthest corner, the longest swing (Up)
-const REACH_MIN := 25.0  ## the shortest swing's reach (Down, ~25.4 px; 18.9 px before #334)
-const ANGLES := [0.0, 30.0, -60.0, 115.0, 160.0, -90.0]  ## aim angles, degrees
+const REACH := AimConeStyle.SWORD_REACH  ## px from AttackAim.ORIGIN to the hitbox's farthest corner, the longest swing (Up)
+const REACH_MIN := 27.0  ## the shortest swing's reach (Down, ~27.4 px; 18.9 px before #334)
+const ANGLES := [0.0, 90.0, 180.0, -90.0, 30.0, -60.0, 115.0, 160.0]  ## aim angles, degrees
 
 
 func _corners(player) -> Array:
@@ -23,10 +23,10 @@ func _swing_at(player, angle: float) -> void:
 
 
 func _test_sword_reach() -> int:
-	## Over a whole swing the hitbox reaches about 28 px at most (21.5 px
-	## before #334, +30%) and at least REACH_MIN at every aim angle, never past
-	## the cone's length; mid-swing the whole hitbox is inside the cone drawn
-	## for that aim.
+	## The cone is drawn at the sword's reach. Over a whole swing the hitbox
+	## reaches 30 px at most (21.5 px before #334) and at least REACH_MIN at
+	## every aim angle, never past the cone's length; mid-swing the whole
+	## hitbox is inside the cone drawn for that aim.
 	print("-- test_sword_reach")
 	var fail := 0
 	await process_frame
@@ -35,7 +35,11 @@ func _test_sword_reach() -> int:
 	player.set_physics_process(false)
 	await process_frame
 	var cone_range: float = AttackAim.new().style.range
+	if cone_range != REACH:
+		printerr("FAIL sword_reach the cone is %s px, the sword reaches %s px" % [cone_range, REACH])
+		fail += 1
 	var longest := 0.0
+	var reaches := []
 	for deg in ANGLES:
 		var angle := deg_to_rad(deg)
 		_swing_at(player, angle)
@@ -45,7 +49,8 @@ func _test_sword_reach() -> int:
 			for c in _corners(player):
 				far = maxf(far, c.length())
 		longest = maxf(longest, far)
-		if far < REACH_MIN or far > REACH + 0.5 or far > cone_range:
+		reaches.append("%s deg %.1f" % [deg, far])
+		if far < REACH_MIN or far > cone_range:
 			printerr("FAIL sword_reach %s deg reaches %.1f px, want %s-%s within the %s px cone"
 					% [deg, far, REACH_MIN, REACH, cone_range])
 			fail += 1
@@ -61,7 +66,7 @@ func _test_sword_reach() -> int:
 		fail += 1
 	player.queue_free()
 	if fail == 0:
-		print("PASS test_sword_reach (%s angles, cone %s px)" % [ANGLES.size(), cone_range])
+		print("PASS test_sword_reach (cone %s px; reach %s)" % [cone_range, ", ".join(reaches)])
 	return fail
 
 
