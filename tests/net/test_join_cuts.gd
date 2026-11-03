@@ -2,11 +2,13 @@ extends "res://tests/helpers/test_helpers.gd"
 ## The cut list a joining peer gets (#354): split across messages of at most
 ## JOIN_CUTS_PER_MESSAGE cuts (flagoria_main.gd), the joiner still ends with
 ## every cut and its age, and it takes the extra parts only from the host.
+## Each message stays under MESSAGE_BYTES encoded.
 ## In-process, with the MultiplayerAPI stand-in of test_regrow_batch.gd, so
 ## no network peer is opened.
 
 const Batch := preload("res://tests/net/test_regrow_batch.gd")
 const CUTS := 1200  ## host cuts: more than two messages' worth at the cap
+const MESSAGE_BYTES := 64 * 1024  ## the most one join message may encode to
 
 
 func _join_scene(api: MultiplayerAPI) -> Dictionary:
@@ -83,10 +85,12 @@ func _test_join_cuts_split() -> int:
 		counts.append(_cut_count(cuts))
 		biggest = maxi(biggest, var_to_bytes(args).size())
 	var total := counts.reduce(func(a: int, b: int) -> int: return a + b, 0) as int
-	if msgs.is_empty() or str(msgs[0][1]) != "receive_map_params" or cap <= 0 \
-			or counts.any(func(n: int) -> bool: return n > cap) or total != CUTS:
-		printerr("FAIL join_cuts_split: cap %d, %d messages %s carrying %s cuts (total %d of %d)"
-				% [cap, msgs.size(), msgs.map(func(m: Array) -> String: return str(m[1])), counts, total, CUTS])
+	if msgs.is_empty() or str(msgs[0][1]) != "receive_map_params" or cap <= 0 or cap >= CUTS \
+			or msgs.size() != ceili(CUTS / float(cap)) or counts.any(func(n: int) -> bool: return n > cap) \
+			or total != CUTS or biggest > MESSAGE_BYTES:
+		printerr("FAIL join_cuts_split: cap %d, %d messages %s carrying %s cuts (total %d of %d), biggest %d bytes (most %d)"
+				% [cap, msgs.size(), msgs.map(func(m: Array) -> String: return str(m[1])), counts, total, CUTS,
+				biggest, MESSAGE_BYTES])
 		fail += 1
 	# A client applies the messages in the order the reliable channel keeps.
 	var client_api := Batch.FakeApi.new()
