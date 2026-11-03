@@ -172,7 +172,9 @@ func _test_attack_aim_touch() -> int:
 	## stays in the dead zone, swings the way the hero faces. Dragging back
 	## into the dead zone cancels (lifting there does not swing); dragging out
 	## again aims again. The finger is tracked by index, so the move stick can
-	## be held meanwhile. The cone's look and length come from its style.
+	## be held meanwhile. A second touch off the move stick, or opening the
+	## in-game menu, cancels the aim. The cone's look and length come from its
+	## style.
 	print("-- test_attack_aim_touch")
 	var fail := 0
 	var scene = load("res://flagoria_main.tscn").instantiate()
@@ -286,6 +288,42 @@ func _test_attack_aim_touch() -> int:
 	if player.animations.current_animation != "attackDown":
 		printerr("FAIL attack_aim_touch re-aim after cancel swung %s, want attackDown" % player.animations.current_animation)
 		fail += 1
+	await wait_swing.call()
+	# A second touch off the move stick cancels an aim: the aiming finger is
+	# let go, so its drags and its lift do not swing. A touch on the stick
+	# does not cancel.
+	touch.call(1, c, true)
+	drag.call(1, c + Vector2(-30, 0))
+	touch.call(0, joystick.global_position, true)
+	var kept: bool = aim.aiming
+	touch.call(0, joystick.global_position, false)
+	touch.call(2, c + Vector2(-150, -80), true)
+	if not kept or aim.aiming:
+		printerr("FAIL attack_aim_touch second touch: aim kept on the stick %s, after a map touch %s"
+				% [kept, aim.aiming])
+		fail += 1
+	touch.call(2, c + Vector2(-150, -80), false)
+	drag.call(1, c + Vector2(0, -30))
+	touch.call(1, c + Vector2(0, -30), false)
+	if aim.aiming or player.isAttacking:
+		printerr("FAIL attack_aim_touch a finger cancelled by a second touch aimed or swung %s"
+				% player.animations.current_animation)
+		fail += 1
+	await wait_swing.call()
+	# Opening the in-game menu cancels a touch aim: lifting does not swing.
+	var game_menu = scene.get_node("CanvasLayer1/InGameMenu")
+	touch.call(1, c, true)
+	drag.call(1, c + Vector2(-30, 0))
+	var aimed_before: bool = aim.aiming
+	game_menu.open()
+	await process_frame
+	drag.call(1, c + Vector2(-32, 0))
+	touch.call(1, c + Vector2(-32, 0), false)
+	if not aimed_before or aim.aiming or player.isAttacking:
+		printerr("FAIL attack_aim_touch opening the in-game menu did not cancel the aim (aimed %s, aiming %s, attacking %s)"
+				% [aimed_before, aim.aiming, player.isAttacking])
+		fail += 1
+	game_menu.close()
 	await wait_swing.call()
 	# A finger elsewhere on the map never aims through the button.
 	touch.call(2, c + Vector2(-150, -80), true)
