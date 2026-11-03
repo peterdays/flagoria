@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Does a change touch gameplay? Decides the `needs-play-review` label.
 
-Gameplay means player, mobs, scenes, HUD and menus, touch input, netcode,
-map generation parameters, and the input map in project.godot. A
+Gameplay means player, combat and aim, mobs, scenes, HUD and menus, touch
+input, netcode, map generation parameters, tiles and biomes, scores,
+inventory, saved worlds, choppable types, and the input map in project.godot.
+Audio scripts are not gameplay. A
 project.godot change counts only when its [input] section differs; with no
 before/after copies given, any project.godot change counts.
 
@@ -43,6 +45,16 @@ GAMEPLAY = [
     "Scripts/map_save.gd",  # saved worlds: which parameters a world loads with
     "Scripts/hearts_hud.gd", "Scripts/map_zoom.gd",
     "Scripts/MainMenu.gd", "Scripts/MapAdminPanel.gd",
+    "Scripts/attack_aim.gd", "Scripts/aim_cone_style.gd",  # aimed attacks and the cone's reach
+    "Scripts/points.gd", "Scripts/discovery_points.gd",  # score awards
+    "Scripts/inventory.gd",  # gathered wood
+    "Scripts/game_settings.gd",  # mob spawn rate
+    "Scripts/tile_catalog.gd", "Scripts/BiomeCatalog.gd",  # tiles and biome tables of the world map
+    "Scripts/world_save.gd",  # what a saved world keeps
+    "Scripts/explored_map.gd", "Scripts/minimap_panel.gd",  # explored map and its HUD panel
+    "Scripts/resource_hud.gd", "Scripts/score_hud.gd",
+    "Scripts/ingame_menu.gd", "Scripts/quit_prompt.gd", "Scripts/number_pad.gd",
+    "data/interactables/*.tres",  # choppable types: hits, yields, regrowth, art and sounds
 ]
 
 # Netcode files: spawners, RPC-only scripts, the multiplayer test probes and
@@ -135,6 +147,14 @@ def self_test() -> int:
         (["Scripts/mechanics/walls/wall_solver.gd.uid"], None, None, False),
         (["Scripts/player.gd.uid", "tests/run_tests.gd"], None, None, False),
         (["tests/ui/test_map_zoom.gd", "tests/helpers/test_helpers.gd"], None, None, False),
+        (["Scripts/attack_aim.gd"], None, None, True),
+        (["Scripts/aim_cone_style.gd"], None, None, True),
+        (["Scripts/points.gd"], None, None, True),
+        (["Scripts/world_save.gd"], None, None, True),
+        (["Scripts/ingame_menu.gd"], None, None, True),
+        (["data/interactables/tree.tres"], None, None, True),
+        (["Scripts/attack_aim.gd.uid", "data/interactables/tree.tres.uid"], None, None, False),
+        (["Scripts/combat_sfx.gd", "Scripts/music_player.gd", "tools/render_biomes.gd"], None, None, False),
         (["project.godot"], None, None, True),
         (["project.godot"], "[application]\nname=1\n" + inp, "[application]\nname=2\n" + inp, False),
         (["project.godot"], inp + "[physics]\n", inp + "jump={}\n[physics]\n", True),
