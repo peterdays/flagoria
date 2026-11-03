@@ -11,8 +11,8 @@ func _test_regrow_sync_two_players() -> int:
 	## A host and a client (each its own process, tests/cut_sync_probe.gd)
 	## on seed 7 each cut a plant near the spawn: the host a tree, the client
 	## a bush. The client's own regrow delay is shorter than the host's, and
-	## it also sends the host a forged apply_regrow: the stumps stay on both
-	## until the host's delay is up. A second client joining before that gets
+	## it also sends the host a forged apply_regrow_cells: the stumps stay on
+	## both until the host's delay is up. A second client joining before that gets
 	## the stumps with the host's ages. Then the host regrows both, and every
 	## peer shows the same plant back within SAME_TIME_MS of the host. A third
 	## client joining after that sees no cuts and the same plants.
@@ -148,11 +148,11 @@ func _test_regrow_sync_two_players() -> int:
 					printerr("FAIL regrow_sync_two_players: the joiner after regrowth %s, host %s" % [read.call(3), read.call(0)])
 					fail += 1
 			if not str(read.call(0).get("errors", [])).contains("apply_regrow"):
-				printerr("FAIL regrow_sync_two_players: the host did not refuse the forged apply_regrow: %s" % read.call(0))
+				printerr("FAIL regrow_sync_two_players: the host did not refuse the forged apply_regrow_cells: %s" % read.call(0))
 				fail += 1
 			for i in outs.size():
-				# The host refuses the client's forged apply_regrow with an
-				# engine error; any other error fails.
+				# The host refuses the client's forged apply_regrow_cells with
+				# an engine error; any other error fails.
 				for line in read.call(i).get("errors", []):
 					if i != 0 or not "apply_regrow" in str(line):
 						printerr("FAIL regrow_sync_two_players: peer %d logged errors: %s" % [i, read.call(i)["errors"]])

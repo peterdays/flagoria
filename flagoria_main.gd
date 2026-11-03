@@ -179,7 +179,8 @@ func _sync_map_params_to_peer(peer_id: int) -> void:
 	## and the host's tree and bush cuts in the world save format
 	## (TreeCuts.to_changes), so a joining peer draws the same stumps. Later
 	## cuts reach it through Interaction.apply_cut, sent after this on the
-	## same reliable channel, and regrowth through Interaction.apply_regrow (#298).
+	## same reliable channel, and regrowth through
+	## Interaction.apply_regrow_cells (#298).
 	## The placed structures go too (StructurePlacer.to_sync), so the peer's
 	## walls block where the host's do from its first frame (#278).
 	if world_params == null:
