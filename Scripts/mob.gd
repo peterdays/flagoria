@@ -324,22 +324,39 @@ func can_stand_at(pos: Vector2) -> bool:
 	if _world == null:
 		return false
 	var home_kind: int = MobCatalog.stat(mob_type, "home")
-	for cell in feet_cells(pos):
-		if not MobSpawner.is_home_cell(_world, cell, home_kind):
+	var half: Vector2 = MobCatalog.stat(mob_type, "body") * 0.5
+	for corner in 4:
+		if not MobSpawner.is_home_cell(_world, _feet_cell(pos, half, corner), home_kind):
 			return false
 	return true
 
 
-func feet_cells(pos: Vector2 = position) -> Array[Vector2i]:
-	## The map cells under the corners of the feet box at `pos`: the cells
-	## can_stand_at checks, so a plant growing on one of them traps the mob.
-	var cells: Array[Vector2i] = []
+func add_feet_cells(into: Dictionary) -> void:
+	## Set `into[cell] = true` for each map cell under the corners of the feet
+	## box: the cells can_stand_at checks, so a plant growing on one of them
+	## traps the mob. Writes into the caller's set, no array per call (#354).
 	if _world == null:
-		return cells
+		return
 	var half: Vector2 = MobCatalog.stat(mob_type, "body") * 0.5
-	for corner in [Vector2(-half.x, -half.y), Vector2(half.x, -half.y), Vector2(-half.x, 0), Vector2(half.x, 0)]:
-		cells.append(_world.local_to_map(pos + corner))
+	for corner in 4:
+		into[_feet_cell(position, half, corner)] = true
+
+
+static func cells_under(mobs: Node) -> Dictionary:
+	## The set (cell -> true) of cells under the feet of every Mob child of
+	## `mobs` (World/Mobs), built once per regrowth pass (#354).
+	var cells := {}
+	if mobs != null:
+		for node in mobs.get_children():
+			if node is Mob:
+				(node as Mob).add_feet_cells(cells)
 	return cells
+
+
+func _feet_cell(pos: Vector2, half: Vector2, corner: int) -> Vector2i:
+	## The map cell under corner 0-3 of the feet box at `pos` (top left, top
+	## right, bottom left, bottom right; the box's bottom edge is at pos.y).
+	return _world.local_to_map(pos + Vector2(half.x if corner & 1 else -half.x, 0.0 if corner & 2 else -half.y))
 
 
 func _start_idle() -> void:

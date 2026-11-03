@@ -1,6 +1,8 @@
 extends Node2D
 
 const PORT = 9786
+## Most cuts in one join message (#354); see _sync_map_params_to_peer.
+const JOIN_CUTS_PER_MESSAGE := 500
 var enet_peer = ENetMultiplayerPeer.new()
 ## UDP port the main menu's Host button listens on.
 var host_port := PORT
@@ -183,12 +185,17 @@ func _sync_map_params_to_peer(peer_id: int) -> void:
 	## Interaction.apply_regrow_cells (#298).
 	## The placed structures go too (StructurePlacer.to_sync), so the peer's
 	## walls block where the host's do from its first frame (#278).
+	## The cut list goes JOIN_CUTS_PER_MESSAGE cuts at a time (#354): the
+	## first part with the params, the rest in receive_join_cuts right after.
 	if world_params == null:
 		return
 	var player = get_node_or_null("World/" + str(peer_id))
 	var spot: Vector2 = player.position if player else Vector2.INF
 	var world = get_node("World/worldMap")
-	rpc_id(peer_id, "receive_map_params", world_params.to_dict(), spot, world.cut_changes(), world.structures_for_sync())
+	var parts := WorldSave.split_changes(world.cut_changes(), JOIN_CUTS_PER_MESSAGE)
+	rpc_id(peer_id, "receive_map_params", world_params.to_dict(), spot, parts[0], world.structures_for_sync())
+	for i in range(1, parts.size()):
+		rpc_id(peer_id, "receive_join_cuts", parts[i])
 
 
 @rpc("authority", "reliable", "call_remote")
@@ -206,6 +213,16 @@ func receive_map_params(data: Dictionary, spot: Vector2, cuts: Dictionary, place
 	_place_own_player()  # or once the player arrives, see _on_world_child_entered
 	var world = get_node("World/worldMap")
 	world.player_spawned = true
+
+
+@rpc("authority", "reliable", "call_remote")
+func receive_join_cuts(cuts: Dictionary) -> void:
+	## The rest of the host's cut list after receive_map_params (#354): added
+	## to the cuts that message replaced, on the same reliable channel, so
+	## they land before any later cut or regrowth.
+	if multiplayer.get_remote_sender_id() != 1:
+		return  # only the host sends the map; the rpc mode already refuses others
+	get_node("World/worldMap").restore_cuts(cuts)
 
 
 func add_player(peer_id):

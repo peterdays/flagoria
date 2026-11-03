@@ -150,14 +150,20 @@ func regrow_due() -> Array[Vector2i]:
 	## or bush the map generates there; a stump under a player or a mob waits
 	## until the cell is free (#232). A client in multiplayer never regrows on its own: the host
 	## decides regrowth and sends it (Interaction.apply_regrow_cells, #298).
+	## The cells under mobs are gathered once per pass, on the first due
+	## stump, and each stump is looked up in that set (#354).
 	## Returns the cells that regrew.
 	var regrown: Array[Vector2i] = []
 	if Interaction.multiplayer_on(_map.multiplayer) and not _map.multiplayer.is_server():
 		return regrown
+	var under_mobs: Variant = null  # Dictionary once a stump is due
 	for cell in _cut_cells.keys():
 		var delay: float = regrow_delay if regrow_delay >= 0.0 else _cut_cells[cell][2].regrow_delay
-		if delay == 0.0 or _map.play_time - _cut_cells[cell][0] < delay or _map.player_on_cell(cell) \
-				or _map.mob_on_cell(cell):
+		if delay == 0.0 or _map.play_time - _cut_cells[cell][0] < delay or _map.player_on_cell(cell):
+			continue
+		if under_mobs == null:
+			under_mobs = _map.mob_cells()
+		if (under_mobs as Dictionary).has(cell):
 			continue
 		_grow_back(cell)
 		regrown.append(cell)
