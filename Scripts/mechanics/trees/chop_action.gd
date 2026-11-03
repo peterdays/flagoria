@@ -145,8 +145,7 @@ func cancel_chop() -> void:
 
 
 func _player_dead() -> bool:
-	var health := _i.player.get_node_or_null("Health") as PlayerHealth
-	return health != null and health.is_dead()
+	return Interaction.player_dead(_i.player)
 
 
 func _play(streams: Array[AudioStream], player: AudioStreamPlayer2D = null, avoid: AudioStream = null) -> void:

@@ -11,16 +11,17 @@ extends Node2D
 ## player is cut at once. A cut plant leaves its type's stump and gives its
 ## type's `yields` (data/interactables/*.tres). Mouse clicks and drags count as
 ## touches (pointing/emulate_touch_from_mouse). Touches that start on a HUD
-## control, and two-finger pinches, select nothing.
+## control, and two-finger pinches, select nothing. While the local player is
+## dead, taps and drags do nothing (#349).
 ## While multiplayer is active (a client, or a host with a peer connected)
 ## the host decides every cut (#223): a client asks it with request_cut, the
-## host checks the plant is there and in the cutter's reach, cuts it, sends
-## apply_cut to every other peer and tells the cutter its yields with
-## receive_yields. A client's stump appears when the host's apply_cut comes
-## back. Peers that join later get the host's cuts, with their ages, with
-## the map params. Regrowth is the host's too (#298): a client never regrows
-## a stump on its own, and when one regrows on the host (TileMap.regrow_due)
-## the host sends apply_regrow to every peer.
+## host checks the plant is there and the cutter is alive (#349) and in
+## reach, cuts it, sends apply_cut to every other peer and tells the cutter
+## its yields with receive_yields. A client's stump appears when the host's
+## apply_cut comes back. Peers that join later get the host's cuts, with
+## their ages, with the map params. Regrowth is the host's too (#298): a
+## client never regrows a stump on its own, and when one regrows on the host
+## (TileMap.regrow_due) the host sends apply_regrow to every peer.
 
 signal mode_changed(mode: Mode)
 ## A chop's axe landed on `cell`; `hit` counts from 1 to the type's `hits`.
@@ -134,6 +135,10 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if mode != Mode.INTERACT or player == null:
 		return
+	if player_dead(player):
+		if _touch != -1:
+			_cancel()
+		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			if _touch == -1 and not _on_hud(event.position):
@@ -155,6 +160,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		_end = event.position
 		if _start.distance_to(_end) > DRAG_START:
 			_dragging = true
+
+
+static func player_dead(node: Node) -> bool:
+	var health := node.get_node_or_null("Health") as PlayerHealth
+	return health != null and health.is_dead()
 
 
 func _on_hud(pos: Vector2) -> bool:
@@ -269,13 +279,14 @@ func host_cut(cell: Vector2i) -> InteractableType:
 
 @rpc("any_peer", "reliable", "call_remote")
 func request_cut(cell: Vector2i) -> void:
-	## Host: a client asks to cut `cell`. Cut when that client's player is in
-	## reach of it, and send the client its yields.
+	## Host: a client asks to cut `cell`. Cut when that client's player is
+	## alive and in reach of it, and send the client its yields.
 	if not multiplayer.is_server():
 		return
 	var peer := multiplayer.get_remote_sender_id()
 	var cutter := get_node_or_null("../" + str(peer)) as Node2D
-	if cutter == null or cutter.global_position.distance_to(cell_center(cell)) > REACH + REACH_SLACK:
+	if cutter == null or player_dead(cutter) \
+			or cutter.global_position.distance_to(cell_center(cell)) > REACH + REACH_SLACK:
 		return
 	var type := host_cut(cell)
 	if type != null:
