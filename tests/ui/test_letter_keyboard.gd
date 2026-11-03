@@ -65,3 +65,36 @@ func _test_main_menu_letter_keyboard() -> int:
 	if fail == 0:
 		print("PASS test_main_menu_letter_keyboard")
 	return fail
+
+
+func _test_letter_keyboard_minus_key() -> int:
+	## The letter keyboard has a "-" key, so a host name with a hyphen can be
+	## typed by touch.
+	print("-- test_letter_keyboard_minus_key")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	await process_frame
+	var menu = scene.get_node("CanvasLayer2/MainMenu")
+	var field: LineEdit = menu.address_entry
+	var kb = menu.get_node("LetterKeyboard")
+	var fail := 0
+	field.text = ""
+	field.grab_focus()
+	await process_frame
+	for ch in "my-host.local":
+		var key: String = {"-": "Minus", ".": "Point"}.get(ch, ch)
+		var b: Button = kb.find_child(key, true, false)
+		if b == null:
+			printerr("FAIL letter_keyboard_minus_key no %s key" % key)
+			fail += 1
+			continue
+		b.pressed.emit()
+	if field.text != "my-host.local":
+		printerr("FAIL letter_keyboard_minus_key keys gave %s want my-host.local" % field.text)
+		fail += 1
+	kb.close()
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_letter_keyboard_minus_key")
+	return fail

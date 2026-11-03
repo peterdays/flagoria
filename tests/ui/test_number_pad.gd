@@ -55,6 +55,41 @@ func _test_number_pad_first_key_replaces() -> int:
 	return fail
 
 
+func _test_number_pad_selected_value_edit_keys() -> int:
+	## While the value is selected, the first digit replaces it, but the first
+	## Del removes one character and the first "-" negates the value, as they
+	## do once the field is not selected.
+	print("-- test_number_pad_selected_value_edit_keys")
+	var pad: NumberPad = load("res://number_pad.tscn").instantiate()
+	var field := LineEdit.new()
+	root.add_child(field)
+	root.add_child(pad)
+	pad.attach(field, true)
+	await process_frame
+	var fail := 0
+	for case in [["Minus", "-12"], ["Delete", "1"], ["Digit5", "5"]]:
+		pad.close()
+		field.release_focus()
+		await process_frame
+		field.text = "12"
+		field.grab_focus()
+		await process_frame
+		await process_frame
+		if field.get_selected_text() != "12":
+			printerr("FAIL number_pad_selected_value_edit_keys %s: 12 not selected on open" % case[0])
+			fail += 1
+		pad.find_child(case[0], true, false).pressed.emit()
+		if field.text != case[1]:
+			printerr("FAIL number_pad_selected_value_edit_keys first %s on 12 gave %s want %s" % [case[0], field.text, case[1]])
+			fail += 1
+	pad.queue_free()
+	field.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_number_pad_selected_value_edit_keys")
+	return fail
+
+
 func _test_number_pad_keycap_style() -> int:
 	## The pad has its own keyboard look from the menu theme: keycaps for the
 	## digits, a red Delete and a gold OK key, and a framed panel.
