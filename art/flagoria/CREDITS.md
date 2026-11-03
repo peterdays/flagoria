@@ -9,5 +9,6 @@ The atlas is 448×304 px, 28×19 cells of 16×16 px. Import it with Nearest filt
 
 Cell (8, 2), the tree stump (`STUMP`), was drawn later in code in the same palette, also in-house.
 Cell (8, 3), the bush stump (`BUSH_STUMP`), and the bush chop frames in `fx/` (`bush_hit.png`, `fx_leaves.png`) were drawn later in the same palette, also in-house.
+The tree and pine chop frames in `fx/` (`tree_hit.png`, `pine_hit.png`, `fx_tree.png`, `fx_pine.png`) are drawn in code from the tree tiles and the same palette by `tools/art/gen_tree_chop_frames.py`, also in-house.
 
 Rows 15-18 (wooden palisade walls and plank bridges) were drawn later in code in the same palette, also in-house.
