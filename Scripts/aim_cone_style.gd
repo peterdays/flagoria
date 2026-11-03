@@ -7,7 +7,7 @@ extends Resource
 ## light rim just inside a dark outline, both one screen pixel wide at any
 ## camera zoom, so the cone reads on sand, grass and water.
 
-@export var range := 26.0  ## world px from tip to arc: the blade reaches ~21.5 px, plus half a mob's hurt box
+@export var range := 34.0  ## world px from tip to arc: the blade reaches ~28 px (#334), plus half a mob's hurt box
 @export var fill_color := Color("3d3a5c")  ## its alpha is replaced by the pulse below
 @export var fill_alpha_min := 0.40  ## the pulse starts here, the faint end
 @export var fill_alpha_max := 0.55
