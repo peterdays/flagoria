@@ -30,7 +30,7 @@ Preconditions: `doctor.sh` exits `0`. Time cost: `-- test_catalog_resolves_cells
 
 ## Gotchas
 
-- Cuts are saved in world saves (`world.object_changes`, `tests/saves/test_cut_save.gd`) and synced in two-player play: the host decides each cut and every peer shows the stump ([Cut sync](./cut-sync.md)). Regrowth is not synced yet (#298), so `regrow_due` does nothing while multiplayer is active.
+- Cuts are saved in world saves (`world.object_changes`, `tests/saves/test_cut_save.gd`) and synced in two-player play: the host decides each cut and every peer shows the stump ([Cut sync](./cut-sync.md)). Regrowth is the host's too (#298): a client's `regrow_due` does nothing while connected, and the host sends each regrowth to every peer.
 - `has_tree` is true for the tree and pine types; use `choppable(cell)` for any choppable.
 - A saved cut names its type by `save_key` and stores its age in seconds of play, so nothing regrows while the game is closed.
 - A type with a `hit_sheet` needs alternative tile `ChopAction.HIDDEN_ALT` (also `Interaction.HIDDEN_ALT`) in the TileSet, invisible and with the same collision, or the hit frames draw over the tile.

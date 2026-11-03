@@ -1,10 +1,17 @@
 extends SceneTree
 ## One peer of a cut sync session, run as its own headless process by
 ## test_cut_save_late_join (tests/saves/test_cut_save.gd) and
-## test_cut_sync_two_players (tests/net/test_cut_sync.gd).
+## test_cut_sync_two_players (tests/net/test_cut_sync.gd) and
+## test_regrow_sync_two_players (tests/net/test_regrow_sync.gd).
 ##   -- --port=N --out=PATH --host --save=SAVE  load SAVE and host it with a player
 ##   -- --port=N --out=PATH                     join localhost:N through the Join path
 ## Optional --cells=x,y;x,y lists cells to report besides the cut ones.
+## Optional --regrow=S sets this peer's map-wide regrow delay (seconds); its
+## player then steps 64 px away from its cuts 500 ms after the last one, so
+## it does not hold a stump back. The time (unix ms) each cut cell left the
+## cut list is in "regrown". While PATH.forge exists, a client sends the
+## host apply_regrow for each listed cell once, as a peer that tries to
+## regrow by itself would.
 ## Every 100 ms it writes PATH (JSON): its peer id, whether it has the map
 ## and its own player, its cut list, its wood and, for each cut or listed
 ## cell, what is drawn there and whether it blocks. While PATH.cut holds
@@ -53,6 +60,7 @@ func _run() -> void:
 	var save := ""
 	var out := ""
 	var host := false
+	var regrow := -1.0
 	var listed: Array[Vector2i] = []
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--port="):
@@ -63,6 +71,8 @@ func _run() -> void:
 			out = arg.trim_prefix("--out=")
 		elif arg.begins_with("--cells="):
 			listed = parse_cells(arg.trim_prefix("--cells="))
+		elif arg.begins_with("--regrow="):
+			regrow = arg.trim_prefix("--regrow=").to_float()
 		elif arg == "--host":
 			host = true
 	if port == 0 or out == "" or (host and save == "") or change_scene_to_file("res://flagoria_main.tscn") != OK:
@@ -85,7 +95,13 @@ func _run() -> void:
 		main.add_player_joined(port)
 	var world = main.get_node("World/worldMap")
 	var interaction: Interaction = main.get_node("World/Interaction")
+	if regrow >= 0.0:
+		world.regrow_delay = regrow
 	var done := {}
+	var seen_cut := {}
+	var regrown := {}
+	var forged := false
+	var moved_away := true
 	var deadline := Time.get_ticks_msec() + 90000
 	var next_write := 0
 	while Time.get_ticks_msec() < deadline and not FileAccess.file_exists(out + ".stop"):
@@ -99,9 +115,29 @@ func _run() -> void:
 				while Time.get_ticks_msec() < wait:
 					await process_frame
 				done[cell] = interaction._cut(cell)
+				moved_away = regrow < 0.0
+		if not moved_away and me:
+			var wait := Time.get_ticks_msec() + 500  # the host has decided the cuts
+			while Time.get_ticks_msec() < wait:
+				await process_frame
+			me.global_position += Vector2(0, 64)
+			moved_away = true
+		if not forged and not host and FileAccess.file_exists(out + ".forge"):
+			forged = true
+			for cell in listed:
+				interaction.apply_regrow.rpc_id(1, cell)
+		var now_cut: Dictionary = world.cut_changes()
+		var keys := {}
+		for chunk in now_cut:
+			for key in now_cut[chunk]:
+				keys[key] = true
+				seen_cut[key] = true
+		for key in seen_cut:
+			if not keys.has(key) and not regrown.has(key):
+				regrown[key] = int(Time.get_unix_time_from_system() * 1000.0)
 		if Time.get_ticks_msec() >= next_write:
 			next_write = Time.get_ticks_msec() + 100
-			_write(out, main, world, listed, me != null)
+			_write(out, main, world, listed, me != null, regrown)
 		await process_frame
 	quit(0)
 
@@ -115,7 +151,7 @@ static func cell_state(world, cell: Vector2i) -> Dictionary:
 	return {"plant": [plant.x, plant.y], "decor": [decor.x, decor.y], "clear": clear}
 
 
-func _write(out: String, main, world, listed: Array[Vector2i], has_player: bool) -> void:
+func _write(out: String, main, world, listed: Array[Vector2i], has_player: bool, regrown: Dictionary) -> void:
 	var cuts: Dictionary = world.cut_changes()
 	var cells := {}
 	if main.world_params != null:
@@ -132,6 +168,7 @@ func _write(out: String, main, world, listed: Array[Vector2i], has_player: bool)
 		"cuts": cuts,
 		"cells": cells,
 		"wood": inventory.count_of(Inventory.WOOD),
+		"regrown": regrown,
 		"errors": _errors.snapshot(),
 	}))
 	file.close()

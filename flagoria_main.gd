@@ -174,7 +174,7 @@ func _sync_map_params_to_peer(peer_id: int) -> void:
 	## and the host's tree and bush cuts in the world save format
 	## (TreeCuts.to_changes), so a joining peer draws the same stumps. Later
 	## cuts reach it through Interaction.apply_cut, sent after this on the
-	## same reliable channel; nothing regrows during multiplayer (#298).
+	## same reliable channel, and regrowth through Interaction.apply_regrow (#298).
 	if world_params == null:
 		return
 	var player = get_node_or_null("World/" + str(peer_id))
