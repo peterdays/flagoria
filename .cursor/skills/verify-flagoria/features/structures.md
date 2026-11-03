@@ -1,6 +1,6 @@
 # Structures (data format)
 
-Small hand-drawn structures (guard post, wall piece, camp) are stored as plain text in the `flagoria-structure 1` format: a header, one legend, then a `ground` and an `object` layer, up to 16 x 16, with tiles named by `TileCatalog`. `structures/guard_post.txt` is the first one. The game does not place structures in the world yet, so this is data and parser only.
+Small hand-drawn structures (guard post, wall piece, camp) are stored as plain text in the `flagoria-structure 1` format: a header, one legend, then a `ground` and an `object` layer, up to 16 x 16, with tiles named by `TileCatalog`. `structures/guard_post.txt` is the first one. Placing a parsed structure on the map is covered in [Structure placement](./structure-placement.md).
 
 ## Sub-features
 
