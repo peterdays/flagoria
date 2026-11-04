@@ -44,6 +44,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Cut sync (two-player)](./cut-sync.md) — host-decided tree and bush cuts, same stump on every peer, wood to the cutter, late joiners get the exact set, sent in parts of at most 500 cuts.
 - [Regrowth sync messages](./regrow-sync.md) — one `apply_regrow_cells` per regrowth tick, applied only when the host (peer 1) sent it.
 - [Dead player cuts nothing](./dead-player-cut.md) — interact-mode taps and drags ignored while the hero is dead, host refuses `request_cut` from a dead peer.
+- [Cut request limit](./cut-rate-limit.md) — host-side per-peer bucket on `request_cut` (162 at once, 162.5 a second), drops a flood with no reply, never limits a real drag or walk.
 - [Explored map](./explored-map.md) — minimap panel, cells revealed within 10 cells of the hero.
 - [Walls and bridges](./walls-and-bridges.md) — wall solver, plank bridges; live drive verified-unreachable until a build action lands.
 - [Audio](./audio.md) — buses, music, combat, UI and mob SFX, footsteps, `audio_check` gate.
