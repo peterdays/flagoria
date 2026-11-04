@@ -1,10 +1,11 @@
 extends "res://tests/helpers/test_helpers.gd"
 ## Tree sprouts in multiplayer (#361): the host decides them and sends one
-## apply_sprout_cells per sprout pass, a client applies it only from the
-## host and then shows the host's map, and a peer that joins later gets the
-## sprouts in the join cut list. In-process, with the MultiplayerAPI
-## stand-in of test_regrow_batch.gd, except test_sprout_sync_two_players,
-## which runs real peers in their own processes.
+## apply_sprout_cells per sprout pass (several past SPROUTS_PER_MESSAGE), a
+## client applies it only from the host and then shows the host's map, and a
+## peer that joins later gets the sprouts in the join cut list. In-process,
+## with the MultiplayerAPI stand-in of test_regrow_batch.gd, except
+## test_sprout_sync_two_players, which runs real peers in their own
+## processes.
 
 const Batch := preload("res://tests/net/test_regrow_batch.gd")
 const Sprouts := preload("res://tests/mechanics/trees/test_tree_sprouts.gd")
@@ -122,6 +123,33 @@ func _test_sprout_sync_one_rpc() -> int:
 	if fail == 0:
 		print("PASS test_sprout_sync_one_rpc (%d sprouts in 1 RPC)" % cells.size())
 	return fail
+
+
+func _test_sprout_sync_split() -> int:
+	## A sprout pass bigger than Interaction.SPROUTS_PER_MESSAGE goes out in
+	## several apply_sprout_cells, each at most that many cells, to every
+	## peer, together listing every cell once in order: 1201 cells in
+	## 500, 500 and 201.
+	print("-- test_sprout_sync_split")
+	var api := Batch.FakeApi.new()
+	var host := _sprout_scene(api)
+	var cells: Array[Vector2i] = []
+	for i in 1201:
+		cells.append(Vector2i(i % 40, i / 40))
+	api.sent.clear()
+	host["interaction"]._on_trees_sprouted(cells)
+	var rpcs: Array = api.sent.filter(func(r: Array) -> bool: return str(r[1]) == "apply_sprout_cells")
+	var sizes: Array = rpcs.map(func(r: Array) -> int: return r[2][0].size())
+	var listed: Array[Vector2i] = []
+	for r in rpcs:
+		listed.append_array(r[2][0])
+	await _drop(host)
+	if sizes != [500, 500, 201] or listed != cells or rpcs.any(func(r: Array) -> bool: return r[0] != 0):
+		printerr("FAIL sprout_sync_split: 1201 cells went out in messages of %s to peers %s, all listed in order: %s"
+				% [sizes, rpcs.map(func(r: Array) -> int: return r[0]), listed == cells])
+		return 1
+	print("PASS test_sprout_sync_split (1201 cells in %d messages of %s)" % [rpcs.size(), sizes])
+	return 0
 
 
 func _test_sprout_sync_late_join() -> int:
