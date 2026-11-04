@@ -56,7 +56,7 @@ func _window_cells(world, window: Rect2i) -> Dictionary:
 
 func _host_pass(label: String) -> Dictionary:
 	## A host with a peer connected runs one sprout pass (TreeSprouts.due,
-	## called until its area is counted). Returns {host, api, rpcs, cells};
+	## called until its area is counted and the pass is done). Returns {host, api, rpcs, cells};
 	## FAIL lines name `label`.
 	var api := Batch.FakeApi.new()
 	var host := _sprout_scene(api)
@@ -66,7 +66,7 @@ func _host_pass(label: String) -> Dictionary:
 		return out
 	var sprouts = host["world"]._tree_cuts.sprouts
 	for i in 200:
-		if sprouts._next_pass > 0.0:
+		if sprouts.passes._next_pass > 0.0 and not sprouts.passes.busy():
 			break
 		sprouts.due()
 	out["rpcs"] = api.sent.filter(func(r: Array) -> bool: return str(r[1]) == "apply_sprout_cells")

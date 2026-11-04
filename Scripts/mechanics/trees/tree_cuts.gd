@@ -44,6 +44,7 @@ func forget(cell: Vector2i) -> void:
 	## now covers it).
 	_cut_cells.erase(cell)
 	sprouts.erase(cell)
+	sprouts.touch(cell)
 
 
 func is_empty() -> bool:
@@ -136,6 +137,7 @@ func cut_grown(cell: Vector2i) -> InteractableType:
 
 func _add(cell: Vector2i, type: InteractableType, cut_at: float) -> void:
 	_cut_cells[cell] = [cut_at, type.leaves_atlas(), type]
+	sprouts.touch(cell)
 	_map._predict_cache.erase(cell)
 	if _map.get_cell_source_id(1, cell) != -1:  # drawn already: swap it like a chop
 		_map.erase_cell(1, cell)
