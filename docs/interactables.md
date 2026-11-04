@@ -30,6 +30,8 @@ The catalog is a fixed `preload` list. It does not scan `data/interactables/`, b
 
 0 changed meaning in #266 (PR #324). It used to mean "regrow at once"; it now means "never regrows", for both the type field and the override.
 
+**Sprouting (#361).** Trees lost for good (a structure built on their stumps) come back elsewhere. `TreeSprouts` (`Scripts/mechanics/trees/tree_sprouts.gd`) runs on the host, or a player alone, every 5 s of play: in the 3x3 chunks around each player, each biome may hold the smaller of its `BiomeCatalog.TREE_SHARE` of the land cells (water and bridges left out) and the trees the map generates there. A stump counts as its tree. Each missing tree sprouts with chance 5 s over the tree type's `regrow_delay` (or the map override; 0 turns sprouting off), so on average it is back after one regrow delay. It grows on a random free cell of that biome where the generator could grow a tree: walkable ground, not a beach with biomes on, and no structure, bridge, plant, stump, stones, mob or player. The tree is the one the generator would put there. The host sends each pass's sprouts as one `Interaction.apply_sprout_cells`, applied only when peer 1 sent it; saves and joining peers get them in the cut list (`docs/world-saves.md`). An untouched map never sprouts, and a table value above what the map generates has no effect.
+
 ## 2. Art
 
 - **Tiles:** add them to `art/flagoria/flagoria_tiles_v3.png` (16x16 cells), and name them in `Scripts/tile_catalog.gd`: a constant and an entry in `TILES`.

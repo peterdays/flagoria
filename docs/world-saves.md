@@ -70,7 +70,22 @@ again from 0 in every session.
 `TreeCuts.to_changes` writes the entries and `TreeCuts.restore` reads them
 back. On a load, an entry is dropped when its type is unknown or the map no
 longer grows that type on that cell (after a generator change, for example).
-Entries without `cut` belong to other features and are left alone.
+Entries with neither `cut` nor `sprout` belong to other features and are
+left alone.
+
+A tree that sprouted on a free cell (#361, see
+[Interactables](interactables.md), Sprouting) is an entry with `sprout`, the
+`save_key` of the tree that grew there; once chopped it also has `cut` and
+`age`:
+
+```json
+"world": {"object_changes": {"0,0": {"24,19": {"sprout": "tree"}, "25,19": {"sprout": "pine", "cut": "pine", "age": 12.0}}}}
+```
+
+`TreeSprouts.to_changes` and `TreeSprouts.restore` write and read them, in
+the same pass as the cuts; a sprout is dropped on a load when the map no
+longer grows that tree on that cell. Joining peers get them in the same cut
+list.
 
 ## Saving during play
 
