@@ -28,6 +28,10 @@ const BLOCK := 8
 ## Most squares whose counts are kept (the area of 256 chunks); past it they
 ## are all dropped and built again as needed.
 const MAX_BLOCK_TABLES := 4096
+## Milliseconds a due() call may spend counting squares not yet counted
+## around the players (_count_squares). A pass waits until its squares are
+## all counted, so no call pays for a fresh area at once.
+const COUNT_MS := 2.0
 
 ## Sprouted cell -> its tree atlas (sprout_tile).
 var _sprouts: Dictionary = {}
@@ -80,20 +84,23 @@ func sprout_tile(cell: Vector2i) -> Vector2i:
 
 
 func can_sprout(cell: Vector2i, blocked: Dictionary) -> Vector2i:
-	## The tree that may sprout on `cell` now, or NO_PLANT: the ground is
-	## walkable (not water) and not a beach with biomes on, there is no
-	## structure, bridge, plant, stump or stones on it, it is not in
-	## `blocked` (blocked_cells: under a mob or player, the spawn, the start
-	## castle's gate), and the map grows a tree there (sprout_tile). The
-	## cheap checks go first.
-	var p := _map.predict_cell(cell)
-	if p[1] != _WorldMap.NO_PLANT or blocked.has(cell):
-		return _WorldMap.NO_PLANT
-	if _map._structures.has_cell(cell) or _map._bridges.has_bridge(cell):
-		return _WorldMap.NO_PLANT
-	if not _walkable(p[0]) or (_map.biome_frequency > 0.0 and p[0] == TileCatalog.SAND):
+	## The tree that may sprout on `cell` now, or NO_PLANT: the untouched
+	## map's ground there is walkable (not water) and not a beach with biomes
+	## on, and grows a tree (sprout_tile; kept per square, _block_table), and
+	## _free_now(cell, blocked).
+	var square := Vector2i(floori(cell.x / float(BLOCK)), floori(cell.y / float(BLOCK)))
+	var local := cell - square * BLOCK
+	if _block_table(square)[1][local.y * BLOCK + local.x] == 0 or not _free_now(cell, blocked):
 		return _WorldMap.NO_PLANT
 	return sprout_tile(cell)
+
+
+func _free_now(cell: Vector2i, blocked: Dictionary) -> bool:
+	## No structure, bridge, plant, stump or stones on `cell`, and it is not
+	## in `blocked` (blocked_cells: under a mob or player, the spawn, the
+	## start castle's gate).
+	return _map.predict_cell(cell)[1] == _WorldMap.NO_PLANT and not blocked.has(cell) \
+			and not _map._structures.has_cell(cell) and not _map._bridges.has_bridge(cell)
 
 
 func blocked_cells() -> Dictionary:
@@ -204,16 +211,17 @@ func _natural(cell: Vector2i) -> Array:
 
 
 func _untouched(cell: Vector2i) -> Array:
-	## [biome, land, tree] of `cell` on the untouched map (no cuts, sprouts,
-	## structures or bridges): what _count_cell adds for it there.
+	## [biome, land, tree, may sprout] of `cell` on the untouched map (no
+	## cuts, sprouts, structures or bridges): what _count_cell adds for it
+	## there, and whether a tree may sprout there when nothing is on it.
 	var b := _map.biome_at(cell)
 	var alt := _map.cell_altitude(cell, b)
 	var moist := _map.moisture.get_noise_2d(cell.x, cell.y)
 	var chance := _map.items_chance.get_noise_2d(cell.x, cell.y)
 	var ground := _map.ground_tile(alt, moist, chance, b)
-	var tree := _walkable(ground) and (_map.biome_frequency <= 0.0 or ground != TileCatalog.SAND) \
-			and _map.plant_tile(alt, moist, chance, b) in TREES
-	return [b, ground != TileCatalog.WATER, tree]
+	var open := _walkable(ground) and (_map.biome_frequency <= 0.0 or ground != TileCatalog.SAND)
+	var tree := open and _map.plant_tile(alt, moist, chance, b) in TREES
+	return [b, ground != TileCatalog.WATER, tree, open and _map.plant_tile(alt, moist, 1.0, b) in TREES]
 
 
 func _static_counts(window: Rect2i, land: Dictionary, grown: Dictionary) -> void:
@@ -230,7 +238,7 @@ func _static_counts(window: Rect2i, land: Dictionary, grown: Dictionary) -> void
 				continue
 			var a := part.position - origin
 			var z := part.end - origin
-			var tables := _block_table(Vector2i(bx, by))
+			var tables: Dictionary = _block_table(Vector2i(bx, by))[0]
 			for b in tables:
 				var t: PackedInt32Array = tables[b]
 				for k in 2:
@@ -240,12 +248,15 @@ func _static_counts(window: Rect2i, land: Dictionary, grown: Dictionary) -> void
 					out[b] = out.get(b, 0) + n
 
 
-func _block_table(square: Vector2i) -> Dictionary:
-	## Biome id -> summed-area table of the BLOCK x BLOCK cells from
-	## square * BLOCK on the untouched map: entry (y * (BLOCK + 1) + x) * 2
-	## counts the land cells above and left of local (x, y), the next entry
-	## the tree cells. Built once per square and kept until the map params
-	## change (clear); at most MAX_BLOCK_TABLES.
+func _block_table(square: Vector2i) -> Array:
+	## The BLOCK x BLOCK cells from square * BLOCK on the untouched map, as
+	## [sums, may sprout, sprout spots]. sums: biome id -> summed-area table,
+	## where entry (y * (BLOCK + 1) + x) * 2 counts the land cells above and
+	## left of local (x, y), the next entry the tree cells. may sprout: 1 per
+	## local cell y * BLOCK + x where a tree may sprout (_untouched). sprout
+	## spots: biome id -> those local cells of the biome. Built once per
+	## square and kept until the map params change (clear); at most
+	## MAX_BLOCK_TABLES.
 	if _tables.has(square):
 		return _tables[square]
 	if _tables.size() >= MAX_BLOCK_TABLES:
@@ -253,11 +264,19 @@ func _block_table(square: Vector2i) -> Dictionary:
 	const W := BLOCK + 1
 	var cells := []
 	var biomes := {}
+	var may := PackedByteArray()
+	may.resize(BLOCK * BLOCK)
+	var spots := {}
 	for y in BLOCK:
 		for x in BLOCK:
 			var n := _untouched(square * BLOCK + Vector2i(x, y))
 			cells.append(n)
 			biomes[n[0]] = true
+			if n[3]:
+				may[y * BLOCK + x] = 1
+				if not spots.has(n[0]):
+					spots[n[0]] = PackedByteArray()
+				spots[n[0]].append(y * BLOCK + x)
 	var tables := {}
 	for b in biomes:
 		var t := PackedInt32Array()
@@ -270,8 +289,8 @@ func _block_table(square: Vector2i) -> Dictionary:
 					var v := 1 if n[0] == b and n[k + 1] else 0
 					t[at + k] = v + t[at + k - 2] + t[at + k - W * 2] - t[at + k - (W + 1) * 2]
 		tables[b] = t
-	_tables[square] = tables
-	return tables
+	_tables[square] = [tables, may, spots]
+	return _tables[square]
 
 
 func _generated_tree(cell: Vector2i, p: Array, stump: bool) -> bool:
@@ -286,8 +305,8 @@ func _generated_tree(cell: Vector2i, p: Array, stump: bool) -> bool:
 
 func candidates(window: Rect2i) -> Dictionary:
 	## Biome id -> every cell in `window` where a tree may sprout now
-	## (can_sprout), in row order. sprout_pass looks lazily instead
-	## (_pick_free); this full list is for checks.
+	## (can_sprout), in row order. sprout_pass looks only at sprout spots,
+	## until it has enough (_pick_free); this full list is for checks.
 	var blocked := blocked_cells()
 	var out := {}
 	for y in range(window.position.y, window.end.y):
@@ -326,39 +345,36 @@ func sprout_pass(window: Rect2i, chance: float, blocked: Variant = null) -> Arra
 
 func _pick_free(window: Rect2i, want: Dictionary, blocked: Dictionary) -> Array[Vector2i]:
 	## Up to want[b] cells of each biome b in `window` where a tree may
-	## sprout (can_sprout), looked at in a random order (a random start and a
-	## random step coprime to the cell count, so each cell comes once) until
-	## every want is met. `want` is used up.
+	## sprout (can_sprout), looked for in a random order until every want is
+	## met: the squares `window` overlaps in a random order, and
+	## in each the sprout spots of a wanted biome (_block_table) from a random
+	## one on. `want` is used up.
 	var out: Array[Vector2i] = []
-	var count := window.size.x * window.size.y
-	if count <= 0:
+	if not window.has_area():
 		return out
-	var step := _rng.randi_range(1, count)
-	while _gcd(step, count) != 1:
-		step += 1
-	var i := _rng.randi_range(0, count - 1)
-	for k in count:
-		var cell := window.position + Vector2i(i % window.size.x, i / window.size.x)
-		i = (i + step) % count
-		if _map.predict_cell(cell)[1] != _WorldMap.NO_PLANT:
-			continue
-		var b := _map.biome_at(cell)
-		if want.get(b, 0) > 0 and can_sprout(cell, blocked) != _WorldMap.NO_PLANT:
-			out.append(cell)
-			want[b] -= 1
-			if want[b] == 0:
-				want.erase(b)
-				if want.is_empty():
-					break
+	var first := Vector2i(floori(window.position.x / float(BLOCK)), floori(window.position.y / float(BLOCK)))
+	var cols := floori((window.end.x - 1) / float(BLOCK)) - first.x + 1
+	var rows := floori((window.end.y - 1) / float(BLOCK)) - first.y + 1
+	var order := range(cols * rows)
+	order.shuffle()
+	for i: int in order:
+		var square := first + Vector2i(i % cols, i / cols)
+		var spots: Dictionary = _block_table(square)[2]
+		for b in want.keys():
+			var list: PackedByteArray = spots.get(b, PackedByteArray())
+			var from := _rng.randi_range(0, list.size() - 1) if not list.is_empty() else 0
+			for k in list.size():
+				var local: int = list[(from + k) % list.size()]
+				var cell := square * BLOCK + Vector2i(local % BLOCK, local / BLOCK)
+				if window.has_point(cell) and _free_now(cell, blocked):
+					out.append(cell)
+					want[b] -= 1
+					if want[b] == 0:
+						want.erase(b)
+						break
+		if want.is_empty():
+			break
 	return out
-
-
-static func _gcd(a: int, b: int) -> int:
-	while b != 0:
-		var t := a % b
-		a = b
-		b = t
-	return a
 
 
 func due() -> Array[Vector2i]:
@@ -366,25 +382,47 @@ func due() -> Array[Vector2i]:
 	## AREA_CHUNKS area around each player, with chance PASS_SECONDS over the tree
 	## regrow delay (the map's regrow_delay when set; 0 = never). Emits the
 	## map's trees_sprouted with the cells. A client never sprouts on its own.
-	## The blocked cells are gathered once for all players.
+	## Each call first counts squares around the players for up to COUNT_MS
+	## (_count_squares); a pass runs only on a call that found them all
+	## counted, so it waits a few calls in an area not counted yet. The
+	## blocked cells are gathered once for all players.
 	var out: Array[Vector2i] = []
 	if Interaction.multiplayer_on(_map.multiplayer) and not _map.multiplayer.is_server():
 		return out
-	if _map.play_time < _next_pass:
-		return out
-	_next_pass = _map.play_time + PASS_SECONDS
 	var delay: float = _map.regrow_delay if _map.regrow_delay >= 0.0 else InteractableCatalog.by_id("tree").regrow_delay
 	if delay <= 0.0:
 		return out
 	var size_v := Vector2i(_map.chunk_width, _map.chunk_height) * AREA_CHUNKS
-	var blocked := blocked_cells()
+	var windows: Array[Rect2i] = []
 	for node in _map.get_parent().get_children():
 		if node is CharacterBody2D and str(node.name).is_valid_int():
-			var at := _map.local_to_map(_map.to_local(node.global_position))
-			out.append_array(sprout_pass(Rect2i(at - size_v / 2, size_v), minf(1.0, PASS_SECONDS / delay), blocked))
+			windows.append(Rect2i(_map.local_to_map(_map.to_local(node.global_position)) - size_v / 2, size_v))
+	if not _count_squares(windows) or _map.play_time < _next_pass:
+		return out
+	_next_pass = _map.play_time + PASS_SECONDS
+	var blocked := blocked_cells()
+	for window in windows:
+		out.append_array(sprout_pass(window, minf(1.0, PASS_SECONDS / delay), blocked))
 	if not out.is_empty():
 		_map.trees_sprouted.emit(out)
 	return out
+
+
+func _count_squares(windows: Array[Rect2i]) -> bool:
+	## Build the _block_table of squares `windows` overlap that are not
+	## counted yet, until COUNT_MS have gone by. True when they all were
+	## counted before this call.
+	var start := Time.get_ticks_usec()
+	var ready := true
+	for window in windows:
+		for by in range(floori(window.position.y / float(BLOCK)), floori((window.end.y - 1) / float(BLOCK)) + 1):
+			for bx in range(floori(window.position.x / float(BLOCK)), floori((window.end.x - 1) / float(BLOCK)) + 1):
+				if not _tables.has(Vector2i(bx, by)):
+					ready = false
+					if Time.get_ticks_usec() - start >= COUNT_MS * 1000.0:
+						return false
+					_block_table(Vector2i(bx, by))
+	return ready
 
 
 func to_changes(out: Dictionary) -> void:
