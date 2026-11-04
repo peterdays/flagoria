@@ -68,3 +68,22 @@ static func parse_cell(key: String) -> Variant:
 	if parts.size() != 2 or not parts[0].is_valid_int() or not parts[1].is_valid_int():
 		return null
 	return Vector2i(parts[0].to_int(), parts[1].to_int())
+
+
+static func split_changes(changes: Dictionary, per_part: int) -> Array[Dictionary]:
+	## `changes` (chunk -> {cell: entry}) cut into parts of at most
+	## `per_part` cell entries each, in the same chunk -> cell shape; always
+	## at least one part (empty when `changes` is). Used for the join cut list
+	## (#354).
+	var parts: Array[Dictionary] = [{}]
+	var in_part := 0
+	for chunk in changes:
+		for key in changes[chunk]:
+			if in_part == per_part:
+				parts.append({})
+				in_part = 0
+			if not parts[-1].has(chunk):
+				parts[-1][chunk] = {}
+			parts[-1][chunk][key] = changes[chunk][key]
+			in_part += 1
+	return parts

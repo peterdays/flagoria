@@ -92,7 +92,9 @@ server started with `--params` reads the params only.
 
 A player who joins gets the host's current cut list with the map params
 (`receive_map_params`, in the same entry format) and restores it before
-drawing any chunk, so both see the same stumps. The list replaces whatever
+drawing any chunk, so both see the same stumps. The list goes at most 500
+cuts per message (`JOIN_CUTS_PER_MESSAGE` in `flagoria_main.gd`, #354): the
+first part with the params, the rest in `receive_join_cuts` right after. The list replaces whatever
 cuts the joiner held, so it ends with exactly the host's set. Cuts made
 during play go through the host and reach every peer as they happen
 (`Interaction.apply_cut`, after the join list on the same reliable channel).

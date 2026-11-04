@@ -439,16 +439,14 @@ func player_on_cell(cell: Vector2i) -> bool:
 	return false
 
 
+func mob_cells() -> Dictionary:
+	## The cells under any mob's feet box (Mob.cells_under World/Mobs, next to
+	## this map): a plant regrowing on one would trap that mob (#232).
+	return Mob.cells_under(get_parent().get_node_or_null("Mobs"))
+
+
 func mob_on_cell(cell: Vector2i) -> bool:
-	## True when a mob's feet box (a Mob under World/Mobs, next to this map)
-	## covers the cell, so a plant regrowing there would trap it (#232).
-	var mobs := get_parent().get_node_or_null("Mobs")
-	if mobs == null:
-		return false
-	for node in mobs.get_children():
-		if node is Mob and (node as Mob).feet_cells().has(cell):
-			return true
-	return false
+	return mob_cells().has(cell)
 
 
 func ground_is_walkable(atlas: Vector2i) -> bool:
