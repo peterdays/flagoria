@@ -4,7 +4,8 @@ extends SceneTree
 ## test_cut_sync_two_players (tests/net/test_cut_sync.gd) and
 ## test_regrow_sync_two_players (tests/net/test_regrow_sync.gd) and
 ## test_structure_sync_join and test_castle_sync_join (tests/net/test_structure_sync.gd)
-## and test_dead_cut_client (tests/net/test_cut_sync.gd).
+## and test_dead_cut_client (tests/net/test_cut_sync.gd) and
+## test_sprout_sync_two_players (tests/net/test_sprout_sync.gd).
 ##   -- --port=N --out=PATH --host --save=SAVE  load SAVE and host it with a player
 ##   -- --port=N --out=PATH                     join localhost:N through the Join path
 ## Optional --cells=x,y;x,y lists cells to report besides the cut ones.
@@ -18,6 +19,7 @@ extends SceneTree
 ## anchor on x,y while the host is still alone, before its own player. While
 ## PATH.forge_place exists, a client sends every other client a forged
 ## receive_map_params carrying one placement, once.
+## While PATH.regrow holds S, this peer's map-wide regrow delay is S.
 ## While PATH.kill holds a peer id (host), it sets that peer's player's health
 ## to 0 once, with a 600 s respawn delay. While PATH.dead_cut holds cells, once
 ## its own player is dead it steps next to each cell, waits 300 ms, drags a
@@ -148,6 +150,8 @@ func _run() -> void:
 				await process_frame
 			me.global_position += Vector2(0, 64)
 			moved_away = true
+		if FileAccess.file_exists(out + ".regrow"):
+			world.regrow_delay = FileAccess.get_file_as_string(out + ".regrow").to_float()
 		if not killed and host and FileAccess.file_exists(out + ".kill"):
 			var victim: Node2D = main.get_node_or_null("World/" + FileAccess.get_file_as_string(out + ".kill").strip_edges())
 			if victim:
