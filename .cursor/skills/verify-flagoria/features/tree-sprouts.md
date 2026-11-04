@@ -27,6 +27,6 @@ Preconditions: `doctor.sh` exits `0`. Time cost per run (with `--only=`, against
 
 - The tests read `BiomeCatalog.TREE_SHARE` and `TreeSprouts` through `load()`, so on a tree without them they fail with a message instead of a parse error that would hang the runner.
 - The client draws all 3x3 chunks of the area before it applies the sprouts, or the cells it compares are not drawn yet.
-- Counting a square costs about 0.25 ms in noise reads; a fresh 3x3 area (169 squares) takes about 20 calls (5 s), so the first pass after the map loads, a second player arriving or sprouting being turned on waits about that long. `sprout_pass` and `deficits` called directly still count missing squares at once.
+- Counting a square costs about 0.25 ms in noise reads; a fresh 3x3 area takes about 20-24 calls (5-6 s), so the first pass after the map loads, a second player arriving or sprouting being turned on waits about that long. `sprout_pass` and `deficits` called directly still count missing squares at once.
 - `test_sprout_deficits_match_count` passes on the old full count too: it guards the tables' equivalence, not the speed. The `PASS` line of `test_sprouts_skip_blocked_cells` is preceded by `spawn ..., gate ..., gate front ...: no candidates`.
 - OCEANIC's share rounds down to 0 trees in any area, so it never sprouts.
