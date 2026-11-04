@@ -439,8 +439,11 @@ func _test_sprout_pass_time() -> int:
 	## 0.25 s of play as TileMap does: on a map not counted yet until the
 	## first pass sprouts, then with a second player and trees still missing
 	## (the sprouts are taken out again), then walking 2 cells a call (40 a
-	## pass, the fastest walk). One call may reach SPIKE_MS, and a run that
-	## breaks the limits runs once more from no counts, for a busy CI host.
+	## pass, the fastest walk). Run with one guard post, then with 25 or more
+	## (hundreds of trees missing), then with 12000 trees cut around them
+	## too, where deficits still matches the full recount. One call may
+	## reach SPIKE_MS, and a run that breaks the limits runs once more from
+	## no counts, for a busy CI host.
 	const PASS_MS := 4.0
 	const SPIKE_MS := 6.0
 	print("-- test_sprout_pass_time")
@@ -448,23 +451,63 @@ func _test_sprout_pass_time() -> int:
 	var world = s["world"]
 	var sprouts = _sprouts_of(world, "sprout_pass_time")
 	var d := deficit_world(world, guard_post()) if sprouts != null else {}
-	var run := []
-	for attempt in 2 if not d.is_empty() else 0:
-		sprouts.clear()
-		run = _time_due(s["scene"], world, sprouts, d["anchor"])
-		if run[1] >= 0 and run[0][-1] < SPIKE_MS and run[0][-2] < PASS_MS:
-			break
+	var fail := 0 if not d.is_empty() else 1
+	for stage: String in ["1 post", "posts", "cuts"] if not d.is_empty() else []:
+		var label := stage
+		if stage == "posts":
+			label = "%d posts" % _crowd(world, d["window"])
+			label += ", %d trees missing" % sprouts.deficits(d["window"]).values().reduce(func(a: int, b: int) -> int: return a + b, 0)
+		elif stage == "cuts":
+			label += " %d cut" % _cut_around(world, d["anchor"], 12000)
+			if sprouts.deficits(d["window"]) != counted_deficits(world, d["window"]):
+				printerr("FAIL sprout_pass_time: with %s, deficits %s, counted %s"
+						% [label, sprouts.deficits(d["window"]), counted_deficits(world, d["window"])])
+				fail += 1
+		var run := []
+		for attempt in 2:
+			sprouts.clear()
+			run = _time_due(s["scene"], world, sprouts, d["anchor"])
+			if run[1] >= 0 and run[0][-1] < SPIKE_MS and run[0][-2] < PASS_MS:
+				break
+		if run[1] < 0 or run[0][-1] >= SPIKE_MS or run[0][-2] >= PASS_MS:
+			printerr("FAIL sprout_pass_time: %s: first sprouts on call %d; slowest calls %s ms (limit %.1f, one up to %.1f), twice"
+					% [label, run[1], run[0].slice(-5), PASS_MS, SPIKE_MS])
+			fail += 1
+		else:
+			print("   %s: %d calls, first sprouts on call %d, slowest %s ms, %d sprouted"
+					% [label, run[0].size(), run[1], run[0].slice(-3), run[2]])
 	s["scene"].queue_free()
 	await process_frame
-	if run.is_empty():
-		return 1
-	if run[1] < 0 or run[0][-1] >= SPIKE_MS or run[0][-2] >= PASS_MS:
-		printerr("FAIL sprout_pass_time: first sprouts on call %d; slowest calls %s ms (limit %.1f, one up to %.1f), twice"
-				% [run[1], run[0].slice(-5), PASS_MS, SPIKE_MS])
-		return 1
-	print("PASS test_sprout_pass_time (%d calls, first sprouts on call %d, slowest %s ms, %d sprouted)"
-			% [run[0].size(), run[1], run[0].slice(-3), run[2]])
-	return 0
+	if fail == 0:
+		print("PASS test_sprout_pass_time")
+	return fail
+
+
+func _crowd(world, window: Rect2i) -> int:
+	## Guard posts every 3 cells across `window` where they fit once the
+	## trees and bushes on the footprint are chopped. Returns how many.
+	var placed := 0
+	var post := guard_post()
+	for y in range(window.position.y + 2, window.end.y - 6, 3):
+		for x in range(window.position.x + 2, window.end.x - 6, 3):
+			for c: Vector2i in StructurePlacer.footprint(post, Vector2i(x, y)):
+				world.cut_grown(c)
+			if world.place_structure(post, Vector2i(x, y), 1) > 0:
+				placed += 1
+	return placed
+
+
+func _cut_around(world, centre: Vector2i, count: int) -> int:
+	## Chop trees and bushes in rings around `centre` until `count` are cut.
+	var cut := 0
+	for r in 400:
+		for k in range(-r, r + 1):
+			for c: Vector2i in [Vector2i(k, -r), Vector2i(k, r), Vector2i(-r, k), Vector2i(r, k)]:
+				if world.cut_grown(centre + c) != null:
+					cut += 1
+					if cut == count:
+						return cut
+	return cut
 
 
 func _time_due(scene, world, sprouts, anchor: Vector2i) -> Array:
