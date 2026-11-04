@@ -65,13 +65,15 @@ const STRUCTURES := {
 }
 
 
-static func from_noise(value: float) -> int:
-	## Map FastNoiseLite output in roughly [-1, 1] to a biome id.
-	if value < -0.5:
+static func from_noise(value: float, edge: float = 0.5) -> int:
+	## Map FastNoiseLite output in roughly [-1, 1] to a biome id. Values below
+	## -edge are OCEANIC and values from edge up are ARCHIPELAGO_DENSE
+	## (MapGenParams.biome_edge; 0.5 is the cut-off used before it existed).
+	if value < -edge:
 		return OCEANIC
 	if value < 0.0:
 		return TEMPERATE
-	if value < 0.5:
+	if value < edge:
 		return CONTINENTAL
 	return ARCHIPELAGO_DENSE
 

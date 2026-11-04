@@ -570,13 +570,36 @@ func _test_new_world_biomes_on() -> int:
 	var world = scene.get_node("World/worldMap")
 	world.apply_map_params(params)
 	var seen := {}
+	var samples := 0
 	for x in range(-2048, 2048, 64):
 		for y in range(-2048, 2048, 64):
-			seen[world.biome_at(Vector2i(x, y))] = true
+			var bid: int = world.biome_at(Vector2i(x, y))
+			seen[bid] = int(seen.get(bid, 0)) + 1
+			samples += 1
 	scene.queue_free()
+	# Every biome is a real share of the world, not a sliver: at the default
+	# biome_edge each one covers at least a tenth of a 4096-tile area.
 	for b in [BiomeCatalog.OCEANIC, BiomeCatalog.TEMPERATE, BiomeCatalog.CONTINENTAL, BiomeCatalog.ARCHIPELAGO_DENSE]:
-		if not seen.has(b):
-			printerr("FAIL new_world_biomes_on: biome %s missing from a 4096-tile area" % b)
+		var share := float(seen.get(b, 0)) / float(samples)
+		if share < 0.1:
+			printerr("FAIL new_world_biomes_on: biome %s covers %.1f %% of a 4096-tile area" % [b, share * 100.0])
+			fail += 1
+
+	# biome_edge sets the outer cut-offs; 0.5 is the cut-off before the field.
+	# [noise value, edge, expected biome]
+	var edge_cases := [
+		[-0.3, 0.2, BiomeCatalog.OCEANIC],
+		[-0.3, 0.5, BiomeCatalog.TEMPERATE],
+		[-0.1, 0.2, BiomeCatalog.TEMPERATE],
+		[0.1, 0.2, BiomeCatalog.CONTINENTAL],
+		[0.3, 0.2, BiomeCatalog.ARCHIPELAGO_DENSE],
+		[0.3, 0.5, BiomeCatalog.CONTINENTAL],
+		[0.6, 0.5, BiomeCatalog.ARCHIPELAGO_DENSE],
+	]
+	for c in edge_cases:
+		var got := BiomeCatalog.from_noise(c[0], c[1])
+		if got != c[2]:
+			printerr("FAIL new_world_biomes_on: from_noise(%s, %s)=%s want %s" % [c[0], c[1], got, c[2]])
 			fail += 1
 
 	var legacy := _pre_biome_defaults()
@@ -600,8 +623,26 @@ func _test_new_world_biomes_on() -> int:
 	var saved = MapSave.save_map(current, "test_biome_save")
 	var reloaded = MapSave.load_map(saved["path"])
 	DirAccess.remove_absolute(saved["path"])
-	if reloaded["error"] != "" or reloaded["params"].biome_frequency != current.biome_frequency:
+	if reloaded["error"] != "" or reloaded["params"].biome_frequency != current.biome_frequency \
+			or reloaded["params"].biome_edge != current.biome_edge:
 		printerr("FAIL new_world_biomes_on: biome save reloaded error=%s" % reloaded["error"])
+		fail += 1
+
+	# A biomes-on save from before biome_edge loads with the old 0.5 cut-off,
+	# so its biome regions regenerate where they were.
+	var pre_edge := MapGenParams.make_defaults()
+	pre_edge.ensure_seeds()
+	var edge_data: Dictionary = pre_edge.to_dict()
+	edge_data.erase("biome_edge")
+	var edge_path := MapSave.path_for("test_pre_edge_save")
+	var edge_file := FileAccess.open(edge_path, FileAccess.WRITE)
+	edge_file.store_string(JSON.stringify({"format_version": 1, "params": edge_data}))
+	edge_file.close()
+	var edge_loaded = MapSave.load_map(edge_path)
+	DirAccess.remove_absolute(edge_path)
+	if edge_loaded["error"] != "" or edge_loaded["params"].biome_edge != 0.5 \
+			or edge_loaded["params"].biome_frequency != pre_edge.biome_frequency:
+		printerr("FAIL new_world_biomes_on: pre-edge save loaded error=%s" % edge_loaded["error"])
 		fail += 1
 	if fail == 0:
 		print("PASS test_new_world_biomes_on (%s biomes seen)" % seen.size())

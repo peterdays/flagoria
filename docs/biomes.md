@@ -27,6 +27,26 @@ Biome frequency to 0 in Map Settings turns biomes off. Map saves written
 before biomes existed have no `biome_frequency` and load with biomes off,
 so they regenerate unchanged.
 
+## Biome mix
+
+`BiomeCatalog.from_noise` turns the biome noise into a biome id: below
+`-biome_edge` is OCEANIC, up to 0 TEMPERATE, up to `biome_edge` CONTINENTAL,
+and the rest ARCHIPELAGO_DENSE. `biome_edge` is a Map Settings field
+(`MapGenParams.biome_edge`, default 0.2). The default fractal noise stays
+within about +/-0.33 for 80 % of the world, so the old fixed cut-off of 0.5
+left OCEANIC and ARCHIPELAGO_DENSE under 2 % each. At 0.2 (seeds 11, 42, 99,
+wide render):
+
+| Biome             | Coverage at 0.5 (before) | Coverage at 0.2 |
+|-------------------|--------------------------|-----------------|
+| OCEANIC           | 1.4-1.9 %                | 21.7-23.2 %     |
+| TEMPERATE         | 47.9-48.5 %              | 26.5-28.1 %     |
+| CONTINENTAL       | 48.3-48.7 %              | 26.8-28.3 %     |
+| ARCHIPELAGO_DENSE | 1.4-2.0 %                | 21.9-23.5 %     |
+
+Map saves written before `biome_edge` load with 0.5, so their biome regions
+regenerate where they were.
+
 ## Output
 
 - `<out>_seed_<seed>.png`: biome map on the left, terrain in the middle
