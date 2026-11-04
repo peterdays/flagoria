@@ -176,7 +176,7 @@ func regrow_due() -> Array[Vector2i]:
 	## stump, and each stump is looked up in that set (#354).
 	## Returns the cells that regrew.
 	var regrown: Array[Vector2i] = []
-	if Interaction.multiplayer_on(_map.multiplayer) and not _map.multiplayer.is_server():
+	if _cut_cells.is_empty() or Interaction.multiplayer_on(_map.multiplayer) and not _map.multiplayer.is_server():
 		return regrown
 	var under_mobs: Variant = null  # Dictionary once a stump is due
 	for cell in _cut_cells.keys():
