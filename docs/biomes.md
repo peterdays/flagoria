@@ -90,6 +90,24 @@ and `bush_min_chance`, so higher means fewer plants:
 and the render tool share it. With `biome_frequency = 0` none of this
 applies and the plants are unchanged.
 
+### Target tree share
+
+`BiomeCatalog.TREE_SHARE` is the share of each biome's land that holds a
+tree, bushy tree or pine. Where trees are lost for good, trees sprout back up
+to it (#361, `docs/interactables.md`, Sprouting), never past what the map
+generates in the 3x3 chunks around a player. The defaults are what
+generation produces on the `render_biomes` wide grid, pooled over seeds 11,
+42 and 99, rounded; they are a taste call to tune:
+
+| Biome             | `TREE_SHARE` | Generated (11 / 42 / 99)      |
+|-------------------|--------------|-------------------------------|
+| OCEANIC           | 0.0005       | 0.0013 / 0 / 0                |
+| TEMPERATE         | 0.04         | 0.0391 / 0.0393 / 0.0407      |
+| CONTINENTAL       | 0.27         | 0.2704 / 0.2700 / 0.2707      |
+| ARCHIPELAGO_DENSE | 0.01         | 0.0126 / 0.0119 / 0.0056      |
+
+OCEANIC's value rounds to 0 trees in a 3x3-chunk area, so it never sprouts.
+
 ### Pines
 
 With biomes on, `TileMap.plant_tile` also grows small pines

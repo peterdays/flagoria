@@ -24,6 +24,8 @@ extends Node2D
 ## client never regrows a stump on its own, and when stumps regrow on the host
 ## (TileMap.regrow_due) the host sends every peer one apply_regrow_cells per
 ## tick (#353), which a client applies only when it came from the host.
+## Trees that sprout on the host (TreeSprouts, #361) go out the same way, in
+## apply_sprout_cells per sprout pass, SPROUTS_PER_MESSAGE cells at most each.
 
 signal mode_changed(mode: Mode)
 ## A chop's axe landed on `cell`; `hit` counts from 1 to the type's `hits`.
@@ -35,6 +37,8 @@ const REACH := 80.0  ## world px from the player to a plant it can cut
 ## Extra world px the host allows a client's cut, as its copy of that
 ## player's position can lag a little behind.
 const REACH_SLACK := 24.0
+## Most cells in one apply_sprout_cells; a bigger pass goes in several.
+const SPROUTS_PER_MESSAGE := 500
 const DRAG_START := 6.0  ## viewport px a touch moves before it is a range, not a tap
 ## The invisible alternative tile a chop swaps in (kept in ChopAction).
 const HIDDEN_ALT := ChopAction.HIDDEN_ALT
@@ -90,6 +94,7 @@ func _ready() -> void:
 	_chop.setup()
 	_chop.chop_hit.connect(chop_hit.emit)
 	world_map.plants_regrown.connect(_on_plants_regrown)
+	world_map.trees_sprouted.connect(_on_trees_sprouted)
 	var button := get_node_or_null(BUTTON_PATH) as Button
 	if button:
 		InGameMenu.fit_icon_button(button)
@@ -322,6 +327,24 @@ func apply_regrow_cells(cells: Array[Vector2i]) -> void:
 		return
 	for cell in cells:
 		world_map.grow_back(cell)
+
+
+func _on_trees_sprouted(cells: Array[Vector2i]) -> void:
+	## Host: trees sprouted in one pass; sprout them on every peer too, at
+	## most SPROUTS_PER_MESSAGE cells per message (like the join cut list, #354).
+	if multiplayer_on(multiplayer) and multiplayer.is_server():
+		for i in range(0, cells.size(), SPROUTS_PER_MESSAGE):
+			apply_sprout_cells.rpc(cells.slice(i, i + SPROUTS_PER_MESSAGE))
+
+
+@rpc("authority", "reliable", "call_remote")
+func apply_sprout_cells(cells: Array[Vector2i]) -> void:
+	## Sprouts the host decided, added here at once. Applied only when the
+	## host (peer 1) sent it.
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	for cell in cells:
+		world_map._tree_cuts.sprouts.add(cell)
 
 
 @rpc("authority", "reliable", "call_remote")

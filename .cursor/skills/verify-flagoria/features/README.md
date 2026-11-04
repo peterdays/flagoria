@@ -43,6 +43,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Chop trees (live drive)](./chop-trees.md) — mode button, tap a tree in reach, two hits, tree hit frames and sounds, stump and wood once.
 - [Cut sync (two-player)](./cut-sync.md) — host-decided tree and bush cuts, same stump on every peer, wood to the cutter, late joiners get the exact set, sent in parts of at most 500 cuts.
 - [Regrowth sync messages](./regrow-sync.md) — one `apply_regrow_cells` per regrowth tick, applied only when the host (peer 1) sent it.
+- [Tree sprouts](./tree-sprouts.md) — trees sprout on free cells where a biome is below its target tree share, host-decided, one `apply_sprout_cells` per pass, kept in saves and join lists.
 - [Dead player cuts nothing](./dead-player-cut.md) — interact-mode taps and drags ignored while the hero is dead, host refuses `request_cut` from a dead peer.
 - [Cut request limit](./cut-rate-limit.md) — host-side per-peer bucket on `request_cut` (162 at once, 162.5 a second), drops a flood with no reply, never limits a real drag or walk.
 - [Explored map](./explored-map.md) — minimap panel, cells revealed within 10 cells of the hero.
