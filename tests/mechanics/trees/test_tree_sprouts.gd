@@ -199,7 +199,8 @@ func _test_sprouts_stop_at_target() -> int:
 
 func _test_sprouts_skip_blocked_cells() -> int:
 	## Where an area is short of trees, no free-cell candidate is under a
-	## player or a mob, on a structure, on a plant or stump, on water, on a
+	## player or a mob, on the spawn cell or the start castle's gate
+	## (_spawn_and_gate), on a structure, on a plant or stump, on water, on a
 	## bridge, or on a beach with biomes on, though the map would grow a tree
 	## on each such cell (sprout_tile). Water, bridge and beach are checked
 	## with tree_min_alt lowered, so the noise alone would put trees there.
@@ -256,6 +257,7 @@ func _test_sprouts_skip_blocked_cells() -> int:
 		fail += 1
 	player.queue_free()
 	mob.queue_free()
+	fail += _spawn_and_gate(world, sprouts, window)
 	fail += _water_bridge_beach(world, sprouts)
 	scene.queue_free()
 	await process_frame
@@ -267,7 +269,8 @@ func _test_sprouts_skip_blocked_cells() -> int:
 func _water_bridge_beach(world, sprouts) -> int:
 	## Biomes on, tree_min_alt -1: water, a bridge over it and beach sand
 	## near the origin would each grow a tree by the noise, and none is a
-	## candidate.
+	## candidate; and deficits there matches counted_deficits (bridge cells
+	## are not land).
 	var params := _static_params(42)
 	params.biome_frequency = 0.003
 	params.tree_min_alt = -1.0
@@ -304,6 +307,10 @@ func _water_bridge_beach(world, sprouts) -> int:
 		if free.is_empty() or not bad.is_empty():
 			printerr("FAIL sprouts_skip_blocked_cells: %d candidates; water, bridge or beach cells among them: %s"
 					% [free.size(), bad])
+			return 1
+		if sprouts.deficits(window) != counted_deficits(world, window):
+			printerr("FAIL sprouts_skip_blocked_cells: bridge at %s: deficits %s, counted %s"
+					% [bridge[0], sprouts.deficits(window), counted_deficits(world, window)])
 			return 1
 		return 0
 	printerr("FAIL sprouts_skip_blocked_cells: no area on seed 42 with water, a bridge and beach sand")
@@ -357,8 +364,9 @@ static func _untouched_tree(world, cell: Vector2i, p: Array, stump: bool) -> boo
 func _test_sprout_deficits_match_count() -> int:
 	## deficits, which reads the untouched map from per-square tables and
 	## counts only changed cells, gives what counting every cell gives:
-	## after a guard post on chopped trees, more chopped trees and bushes, a
-	## sprout pass, and (biomes on) a bridge, on windows off the square grid.
+	## after a guard post on chopped trees, more chopped trees and bushes,
+	## and a sprout pass, on windows off the square grid (a bridge:
+	## _water_bridge_beach).
 	print("-- test_sprout_deficits_match_count")
 	var s := _scene()
 	var world = s["world"]
@@ -392,82 +400,48 @@ func _test_sprout_deficits_match_count() -> int:
 			if got != want:
 				printerr("FAIL sprout_deficits_match_count: step %d window %s: deficits %s, counted %s" % [step, w, got, want])
 				fail += 1
-	fail += _deficits_with_bridge(world, sprouts)
 	s["scene"].queue_free()
 	await process_frame
 	if fail == 0:
-		print("PASS test_sprout_deficits_match_count (%d windows, missing %s at first)" % [states + 1, d["target"] - (d["before"] - d["lost"].size())])
+		print("PASS test_sprout_deficits_match_count (%d windows, missing %s at first)" % [states, d["target"] - (d["before"] - d["lost"].size())])
 	return fail
 
 
-func _deficits_with_bridge(world, sprouts) -> int:
-	## Biomes on, seed 42: deficits matches the full count around a bridge.
-	var params := _static_params(42)
-	params.biome_frequency = 0.003
-	for r in range(0, 400, 32):
-		world.apply_map_params(params)
-		var window := window_at(world, Vector2i(r, 0))
-		for y in range(window.position.y, window.end.y):
-			for x in range(window.position.x, window.end.x):
-				var c := Vector2i(x, y)
-				if world.predict_cell(c)[0] == TileCatalog.WATER and world.build_bridge(c, c + Vector2i.RIGHT):
-					var got: Dictionary = sprouts.deficits(window)
-					var want := counted_deficits(world, window)
-					if got != want:
-						printerr("FAIL sprout_deficits_match_count: bridge at %s: deficits %s, counted %s" % [c, got, want])
-						return 1
-					return 0
-	printerr("FAIL sprout_deficits_match_count: no bridge built on seed 42")
-	return 1
-
-
-func _test_sprouts_skip_spawn_and_gate() -> int:
-	## No tree sprouts on the spawn cell, the start castle's gate, or the cell
+func _spawn_and_gate(world, sprouts, window: Rect2i) -> int:
+	## No candidate on the spawn cell, the start castle's gate, or the cell
 	## outside the gate (TileMap._castle_front), though each is a free cell.
-	print("-- test_sprouts_skip_spawn_and_gate")
-	var s := _scene()
-	var world = s["world"]
-	var sprouts = _sprouts_of(world, "sprouts_skip_spawn_and_gate")
-	var d := deficit_world(world, guard_post()) if sprouts != null else {}
-	if d.is_empty():
-		s["scene"].queue_free()
-		await process_frame
-		return 1
-	var window: Rect2i = d["window"]
 	var free: Array = sprouts.candidates(window).get(BiomeCatalog.TEMPERATE, [])
 	var front: Variant = null
 	for c: Vector2i in free:
-		if c - StartCastle.GATE_FRONT in free and c != free[0]:
+		if c - StartCastle.GATE_FRONT in free and not free[0] in [c, c - StartCastle.GATE_FRONT]:
 			front = c
 			break
-	if free.is_empty() or front == null:
-		printerr("FAIL sprouts_skip_spawn_and_gate: no free cell with a free cell above it in %s" % window)
-		s["scene"].queue_free()
-		await process_frame
+	if front == null:
+		printerr("FAIL sprouts_skip_blocked_cells: no free cell with a free cell above it in %s" % window)
 		return 1
 	var spawn: Vector2i = free[0]
 	var gate: Vector2i = front - StartCastle.GATE_FRONT
 	world.spawn_point = spawn
 	world._castle_front = front
 	free = sprouts.candidates(window).get(BiomeCatalog.TEMPERATE, [])
-	var bad := [spawn, front, gate].filter(func(c: Vector2i) -> bool: return c in free)
 	world._castle_front = null
-	s["scene"].queue_free()
-	await process_frame
+	var bad := [spawn, front, gate].filter(func(c: Vector2i) -> bool: return c in free)
 	if not bad.is_empty():
-		printerr("FAIL sprouts_skip_spawn_and_gate: spawn %s, gate %s or gate front %s is a candidate: %s"
+		printerr("FAIL sprouts_skip_blocked_cells: spawn %s, gate %s or gate front %s is a candidate: %s"
 				% [spawn, gate, front, bad])
 		return 1
-	print("PASS test_sprouts_skip_spawn_and_gate (spawn %s, gate %s, gate front %s)" % [spawn, gate, front])
+	print("   spawn %s, gate %s, gate front %s: no candidates" % [spawn, gate, front])
 	return 0
 
 
 func _test_sprout_pass_time() -> int:
-	## One sprout pass on an area short of trees (3 x 3 chunks), the map
-	## already counted once, takes under PASS_MS headless (median of REPS).
-	## Every rep sprouts the missing trees, and they are taken out again.
+	## No TreeSprouts.due call takes PASS_MS or more headless, called every
+	## 0.25 s of play as TileMap does: on a map not counted yet until the
+	## first pass sprouts, then with a second player and trees still missing
+	## (the sprouts are taken out again), then walking 2 cells a call (40 a
+	## pass, the fastest walk). One call may reach SPIKE_MS, for a busy CI host.
 	const PASS_MS := 4.0
-	const REPS := 7
+	const SPIKE_MS := 6.0
 	print("-- test_sprout_pass_time")
 	var s := _scene()
 	var world = s["world"]
@@ -477,27 +451,44 @@ func _test_sprout_pass_time() -> int:
 		s["scene"].queue_free()
 		await process_frame
 		return 1
-	var window: Rect2i = d["window"]
+	var players := []
+	for at: Vector2i in [d["anchor"], d["anchor"] + Vector2i(40, 12)]:
+		players.append(load("res://Player/character_body_2d.tscn").instantiate())
+		players[-1].name = str(players.size())
+		players[-1].position = world.to_global(world.map_to_local(at))
+	s["scene"].get_node("World").add_child(players[0])
+	world.regrow_delay = 5.0
+	world.play_time = 0.0
 	var times: Array[float] = []
-	var sizes := {}
-	for i in REPS + 1:
+	var sprouted := []
+	var first_pass := -1
+	for i in 260:
+		if i == first_pass + 1 and first_pass >= 0:
+			s["scene"].get_node("World").add_child(players[1])
+		if i == first_pass + 60 and first_pass >= 0:
+			players[1].free()
+		if i >= first_pass + 60 and first_pass >= 0:
+			players[0].position += world.global_scale * Vector2(32, 0)
+		world.play_time += 0.25
 		var t0 := Time.get_ticks_usec()
-		var cells: Array = sprouts.sprout_pass(window, 1.0)
-		var ms := (Time.get_ticks_usec() - t0) / 1000.0
+		var cells: Array = sprouts.due()
+		times.append((Time.get_ticks_usec() - t0) / 1000.0)
 		for c: Vector2i in cells:
 			sprouts.erase(c)
 			world._predict_cache.erase(c)
-		sizes[cells.size()] = true
-		if i > 0:  # the first pass counts the untouched map
-			times.append(ms)
-	times.sort()
-	var median: float = times[times.size() / 2]
+		sprouted.append(cells.size())
+		if first_pass < 0 and not cells.is_empty():
+			first_pass = i
+		elif first_pass < 0 and i >= 120:
+			break
+	var slow := times.duplicate()
+	slow.sort()
 	s["scene"].queue_free()
 	await process_frame
-	if sizes.has(0) or median >= PASS_MS:
-		printerr("FAIL sprout_pass_time: median %.2f ms (limit %.1f), sorted %s, sprouted %s per pass"
-				% [median, PASS_MS, times, sizes.keys()])
+	if first_pass < 0 or slow[-1] >= SPIKE_MS or slow[-2] >= PASS_MS:
+		printerr("FAIL sprout_pass_time: first sprouts on call %d; slowest calls %s ms (limit %.1f, one up to %.1f)"
+				% [first_pass, slow.slice(-5), PASS_MS, SPIKE_MS])
 		return 1
-	print("PASS test_sprout_pass_time (median %.2f ms of %d, max %.2f ms, %s sprouted per pass)"
-			% [median, REPS, times.back(), sizes.keys()])
+	print("PASS test_sprout_pass_time (%d calls, first sprouts on call %d, slowest %s ms, %d sprouted)"
+			% [times.size(), first_pass, slow.slice(-3), sprouted.reduce(func(a, b): return a + b, 0)])
 	return 0

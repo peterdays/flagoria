@@ -55,15 +55,20 @@ func _window_cells(world, window: Rect2i) -> Dictionary:
 
 
 func _host_pass(label: String) -> Dictionary:
-	## A host with a peer connected runs one sprout pass (TreeSprouts.due).
-	## Returns {host, api, rpcs, cells}; FAIL lines name `label`.
+	## A host with a peer connected runs one sprout pass (TreeSprouts.due,
+	## called until its area is counted). Returns {host, api, rpcs, cells};
+	## FAIL lines name `label`.
 	var api := Batch.FakeApi.new()
 	var host := _sprout_scene(api)
 	var out := {"host": host, "api": api, "rpcs": [], "cells": []}
 	if host["d"].is_empty() or not "sprouts" in host["world"]._tree_cuts:
 		printerr("FAIL %s: no area short of trees, or the map has no tree sprouts" % label)
 		return out
-	host["world"]._tree_cuts.sprouts.due()
+	var sprouts = host["world"]._tree_cuts.sprouts
+	for i in 200:
+		if sprouts._next_pass > 0.0:
+			break
+		sprouts.due()
 	out["rpcs"] = api.sent.filter(func(r: Array) -> bool: return str(r[1]) == "apply_sprout_cells")
 	if out["rpcs"].size() == 1 and out["rpcs"][0][2].size() == 1:
 		out["cells"] = out["rpcs"][0][2][0]
