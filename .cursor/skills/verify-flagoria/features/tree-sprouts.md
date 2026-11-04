@@ -7,7 +7,7 @@ Where a biome holds fewer trees than its target share, a tree sprouts on a free 
 - `sprout-target` a pass at chance 1 sprouts exactly the missing trees, more passes add none, an area still at its share after a loss sprouts none, and a chopped sprout regrows as itself.
 - `sprout-blocked` no candidate cell is under a player or mob, on the spawn cell, the start castle's gate or the cell outside it, on a structure, bridge, plant, stump, water, or beach sand.
 - `sprout-count` `deficits` from the per-square tables equals a count of every cell, after chops, a guard post and sprouts, on windows off the square grid, and (biomes on, in `test_sprouts_skip_blocked_cells`) next to a bridge.
-- `sprout-cost` no `due()` call takes 4 ms or more headless (one may reach 6 ms) over 260 calls: on a map not counted yet until the first pass, with a second player and trees missing, and walking 40 cells a pass; about 2.2-2.5 ms at most locally.
+- `sprout-cost` no `due()` call takes 4 ms or more headless (one may reach 6 ms, and a run over the limits runs once more) over 260 calls: on a map not counted yet until the first pass, with a second player and trees missing, and walking 40 cells a pass; about 2.2-2.5 ms at most locally.
 - `sprout-sync` one `apply_sprout_cells` per pass, a client applies it only from the host and then shows the host's map; a peer joining later gets the sprouts.
 - `sprout-split` a pass of more than 500 cells goes out in several `apply_sprout_cells` of at most 500 (1201 cells: 500, 500, 201).
 
