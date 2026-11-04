@@ -15,8 +15,9 @@ extends Node2D
 ## dead, taps and drags do nothing (#349).
 ## While multiplayer is active (a client, or a host with a peer connected)
 ## the host decides every cut (#223): a client asks it with request_cut, the
-## host checks the plant is there and the cutter is alive (#349) and in
-## reach, cuts it, sends apply_cut to every other peer and tells the cutter
+## host drops the request when that peer is over its CutRateLimit (#355),
+## checks the plant is there and the cutter is alive (#349) and in reach,
+## cuts it, sends apply_cut to every other peer and tells the cutter
 ## its yields with receive_yields. A client's stump appears when the host's
 ## apply_cut comes back. Peers that join later get the host's cuts, with
 ## their ages, with the map params. Regrowth is the host's too (#298): a
@@ -66,6 +67,8 @@ var chop_type: InteractableType:
 var chop_time: float:
 	get:
 		return _chop.chop_time
+## The host's per-peer ceiling on request_cut (#355).
+var cut_limit := CutRateLimit.new()
 var sfx_log: Array[AudioStream]:
 	get:
 		return _chop.sfx_log
@@ -280,11 +283,14 @@ func host_cut(cell: Vector2i) -> InteractableType:
 
 @rpc("any_peer", "reliable", "call_remote")
 func request_cut(cell: Vector2i) -> void:
-	## Host: a client asks to cut `cell`. Cut when that client's player is
-	## alive and in reach of it, and send the client its yields.
+	## Host: a client asks to cut `cell`. Dropped when the client is over its
+	## CutRateLimit; cut when its player is alive and in reach of it, and
+	## send the client its yields.
 	if not multiplayer.is_server():
 		return
 	var peer := multiplayer.get_remote_sender_id()
+	if not cut_limit.allow(peer):
+		return
 	var cutter := get_node_or_null("../" + str(peer)) as Node2D
 	if cutter == null or player_dead(cutter) \
 			or cutter.global_position.distance_to(cell_center(cell)) > REACH + REACH_SLACK:
