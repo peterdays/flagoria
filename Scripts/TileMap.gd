@@ -6,8 +6,9 @@ extends TileMap
 signal ground_changed(cells: Rect2i)
 ## Stumps regrew in these cells in one regrow_due tick (sent as one RPC, #353).
 signal plants_regrown(cells: Array[Vector2i])
+## Trees sprouted in these cells in one sprout pass (TreeSprouts.due, #361).
+signal trees_sprouted(cells: Array[Vector2i])
 
-var rng = RandomNumberGenerator.new()
 var count = 0
 var moisture = FastNoiseLite.new()
 var temperature = FastNoiseLite.new()
@@ -154,8 +155,9 @@ func _configure_noise(noise: FastNoiseLite, seed_value: int, frequency: float, p
 func _process(delta):
 	play_time += delta
 	count += 1
-	if (count % chunk_refresh_frames) == 0 and not _tree_cuts.is_empty():
+	if (count % chunk_refresh_frames) == 0:
 		regrow_due()
+		_tree_cuts.sprouts.due()
 	if (count % chunk_refresh_frames) == 0 and player_spawned:
 		var current_player_id = str(multiplayer.get_unique_id())
 		count = 0
@@ -275,7 +277,7 @@ func set_tile_type_z1(pos_vec, alt, moist, _temp, chance, biome_id: int = BiomeC
 	if biome_frequency <= 0.0 or get_cell_atlas_coords(0, pos_vec) != TileCatalog.SAND:
 		tile = plant_tile(alt, moist, chance, biome_id)
 	if tile == NO_PLANT:
-		tile = structure_tile(chance, biome_id)
+		tile = _tree_cuts.sprouts.tile_or(pos_vec, structure_tile(chance, biome_id))
 	if tile == TileCatalog.FLOWER or tile == TileCatalog.STONES:
 		set_cell(GROUND_DECOR_LAYER, pos_vec, TileCatalog.SOURCE_ID, tile)
 	elif tile != NO_PLANT:
@@ -337,7 +339,7 @@ func predict_cell(cell: Vector2i) -> Array:
 		if biome_frequency <= 0.0 or ground != TileCatalog.SAND:
 			top = plant_tile(alt, moist, chance, b)
 		if top == NO_PLANT:
-			top = structure_tile(chance, b)
+			top = _tree_cuts.sprouts.tile_or(cell, structure_tile(chance, b))
 		if _tree_cuts.has_cut(cell):
 			top = _tree_cuts.leftover(cell)
 	var out := [ground, top]

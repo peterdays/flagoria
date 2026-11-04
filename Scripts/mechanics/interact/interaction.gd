@@ -24,6 +24,8 @@ extends Node2D
 ## client never regrows a stump on its own, and when stumps regrow on the host
 ## (TileMap.regrow_due) the host sends every peer one apply_regrow_cells per
 ## tick (#353), which a client applies only when it came from the host.
+## Trees that sprout on the host (TreeSprouts, #361) go out the same way, in
+## one apply_sprout_cells per sprout pass.
 
 signal mode_changed(mode: Mode)
 ## A chop's axe landed on `cell`; `hit` counts from 1 to the type's `hits`.
@@ -90,6 +92,7 @@ func _ready() -> void:
 	_chop.setup()
 	_chop.chop_hit.connect(chop_hit.emit)
 	world_map.plants_regrown.connect(_on_plants_regrown)
+	world_map.trees_sprouted.connect(_on_trees_sprouted)
 	var button := get_node_or_null(BUTTON_PATH) as Button
 	if button:
 		InGameMenu.fit_icon_button(button)
@@ -322,6 +325,22 @@ func apply_regrow_cells(cells: Array[Vector2i]) -> void:
 		return
 	for cell in cells:
 		world_map.grow_back(cell)
+
+
+func _on_trees_sprouted(cells: Array[Vector2i]) -> void:
+	## Host: trees sprouted in one pass; sprout them on every peer too.
+	if multiplayer_on(multiplayer) and multiplayer.is_server():
+		apply_sprout_cells.rpc(cells)
+
+
+@rpc("authority", "reliable", "call_remote")
+func apply_sprout_cells(cells: Array[Vector2i]) -> void:
+	## Sprouts the host decided, added here at once. Applied only when the
+	## host (peer 1) sent it.
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	for cell in cells:
+		world_map._tree_cuts.sprouts.add(cell)
 
 
 @rpc("authority", "reliable", "call_remote")

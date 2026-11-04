@@ -15,11 +15,14 @@ var _cut_cells: Dictionary = {}
 ## overriding each type's regrow_delay (0 = never); negative, the default,
 ## uses the type's.
 var regrow_delay: float = -1.0
+## Trees sprouted on free cells (#361); kept here so they share the cut list.
+var sprouts: TreeSprouts
 var _map: _WorldMap
 
 
 func _init(map: _WorldMap) -> void:
 	_map = map
+	sprouts = TreeSprouts.new(map)
 
 
 func has_cut(cell: Vector2i) -> bool:
@@ -31,9 +34,16 @@ func leftover(cell: Vector2i) -> Vector2i:
 	return _cut_cells[cell][1]
 
 
+func cut_type(cell: Vector2i) -> InteractableType:
+	## The type cut on `cell` (has_cut must be true).
+	return _cut_cells[cell][2]
+
+
 func forget(cell: Vector2i) -> void:
-	## Drop the cut on `cell` without regrowing it (a structure now covers it).
+	## Drop the cut and sprout on `cell` without regrowing it (a structure
+	## now covers it).
 	_cut_cells.erase(cell)
+	sprouts.erase(cell)
 
 
 func is_empty() -> bool:
@@ -42,6 +52,7 @@ func is_empty() -> bool:
 
 func clear() -> void:
 	_cut_cells.clear()
+	sprouts.clear()
 
 
 func to_changes() -> Dictionary[String, Dictionary]:
@@ -49,6 +60,7 @@ func to_changes() -> Dictionary[String, Dictionary]:
 	## docs/world-saves.md): chunk -> {cell: {"cut": the type's save_key,
 	## "age": seconds of play since the cut}}. The age, not the cut's
 	## play_time, so a loaded cut keeps its place in the regrowth wait.
+	## A sprouted cell's entry also has "sprout" (TreeSprouts.to_changes).
 	var out: Dictionary[String, Dictionary] = {}
 	for cell: Vector2i in _cut_cells:
 		var type: InteractableType = _cut_cells[cell][2]
@@ -56,6 +68,7 @@ func to_changes() -> Dictionary[String, Dictionary]:
 		if not out.has(chunk):
 			out[chunk] = {}
 		out[chunk][WorldSave.cell_key(cell)] = {"cut": type.save_key, "age": _map.play_time - _cut_cells[cell][0]}
+	sprouts.to_changes(out)
 	return out
 
 
@@ -65,6 +78,8 @@ func restore(changes: Dictionary) -> int:
 	## puts the stumps in (a cell drawn already is swapped like a cut). Entries that are not cuts are left to their own
 	## readers. A cut is dropped when its type is unknown or the map no
 	## longer grows that type on its cell. Returns how many cuts were added.
+	## Sprouts ("sprout") are added first, so a cut sprouted tree is kept.
+	sprouts.restore(changes)
 	var added := 0
 	for chunk in changes:
 		for key in changes[chunk]:
@@ -85,6 +100,11 @@ func replace(changes: Dictionary) -> int:
 	## restore checks them: a cut not listed grows back, a listed one is
 	## added once. A joining peer applies the host's list this way, so it ends
 	## with the host's set whatever it held before. Returns how many it holds.
+	## Sprouts are made the listed ones the same way; a dropped sprout loses
+	## its cut and is drawn again.
+	for cell in sprouts.replace(changes):
+		_cut_cells.erase(cell)
+		_redraw(cell)
 	var listed := {}
 	for chunk in changes:
 		for key in changes[chunk]:
@@ -182,9 +202,15 @@ func grow_back(cell: Vector2i) -> bool:
 func _grow_back(cell: Vector2i) -> bool:
 	## Drop the cut on `cell`; true when its plant was drawn back in.
 	_cut_cells.erase(cell)
+	return _redraw(cell)
+
+
+func _redraw(cell: Vector2i) -> bool:
+	## Draw `cell`'s foliage again from the map; true when it is drawn.
 	_map._predict_cache.erase(cell)
 	if _map.get_cell_source_id(0, cell) == -1:
 		return false  # not drawn yet: generate_chunk draws the plant
+	_map.erase_cell(1, cell)
 	_map.erase_cell(_map.GROUND_DECOR_LAYER, cell)
 	var b := _map.biome_at(cell)
 	_map.set_tile_type_z1(cell, _map.cell_altitude(cell, b), _map.moisture.get_noise_2d(cell.x, cell.y),

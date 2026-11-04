@@ -64,6 +64,18 @@ const STRUCTURES := {
 	ARCHIPELAGO_DENSE: {"stone_chance": 2.0},
 }
 
+## Target tree share per biome (#361): trees, bushy trees and pines as a
+## share of the biome's land. Where the 3x3 chunks around a player hold fewer, a
+## tree sprouts on a free cell (TreeSprouts), never past what the map
+## generates there. Defaults are the share map generation produces (wide
+## render, seeds 11, 42 and 99, docs/biomes.md); a taste call to tune.
+const TREE_SHARE := {
+	OCEANIC: 0.0005,
+	TEMPERATE: 0.04,
+	CONTINENTAL: 0.27,
+	ARCHIPELAGO_DENSE: 0.01,
+}
+
 
 static func from_noise(value: float) -> int:
 	## Map FastNoiseLite output in roughly [-1, 1] to a biome id.
@@ -100,3 +112,8 @@ static func structures(biome_id: int, key: String) -> float:
 	## One STRUCTURES value; unknown biomes fall back to the TEMPERATE row.
 	var row: Dictionary = STRUCTURES.get(biome_id, STRUCTURES[TEMPERATE])
 	return float(row[key])
+
+
+static func tree_share(biome_id: int) -> float:
+	## One TREE_SHARE value; unknown biomes fall back to TEMPERATE.
+	return float(TREE_SHARE.get(biome_id, TREE_SHARE[TEMPERATE]))
