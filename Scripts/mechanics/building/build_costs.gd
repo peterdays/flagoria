@@ -1,7 +1,7 @@
 class_name BuildCosts
 extends RefCounted
 ## What each buildable costs in wood (#272), and buying one: check the wood,
-## place, then spend. The shared construction placement module (#296) is
+## spend, then place. The shared construction placement module (#296) is
 ## calls buy; the placement UI (#225) talks only to that module. Tests also
 ## call buy directly for the cost table.
 ## Wood is local to each game (Inventory) and not synced yet, so buy refuses
@@ -29,8 +29,9 @@ const NOT_ENOUGH_WOOD := "not enough wood"
 const MULTIPLAYER_ON := "multiplayer on"
 const UNKNOWN_KIND := "unknown kind"
 const NOT_PLACED := "not placed"
-## Place wrote the build but spend then failed (for example the place callable
-## emptied the inventory). The build stays; callers treat this as failure.
+## Spend refused after the refusal check (for example a stub inventory).
+## Nothing is written (#380 item 3: charge before write, so a failed spend
+## cannot leave tiles in place).
 const SPEND_FAILED := "spend failed"
 
 
@@ -59,16 +60,20 @@ static func refusal(inventory: Inventory, kind: StringName, units := 1) -> Strin
 
 
 static func buy(inventory: Inventory, kind: StringName, units: int, place: Callable) -> String:
-	## Buy `units` of `kind`: when refusal gives no reason, call `place` (a
-	## writer such as build_bridge or place_structure) and spend the cost only
-	## when it placed (true, or an id above 0). Returns "" on success, else
-	## the reason; a refused or failed placement spends nothing.
+	## Buy `units` of `kind`: when refusal gives no reason, take the wood
+	## first, then call `place` (a writer such as build_bridge or
+	## place_structure). Returns "" on success. A refused buy spends nothing
+	## and writes nothing. If spend fails after the check, return spend failed
+	## without writing. If the writer refuses after the spend, put the wood
+	## back and return not placed — charge and write stay atomic (#380 item 3).
 	var why := refusal(inventory, kind, units)
 	if why != "":
 		return why
-	var placed: Variant = place.call()
-	if not ((placed is bool and placed) or (placed is int and placed > 0)):
-		return NOT_PLACED
-	if not inventory.spend(Inventory.WOOD, cost(kind, units)):
+	var wood := cost(kind, units)
+	if not inventory.spend(Inventory.WOOD, wood):
 		return SPEND_FAILED
-	return ""
+	var placed: Variant = place.call()
+	if (placed is bool and placed) or (placed is int and placed > 0):
+		return ""
+	inventory.add(Inventory.WOOD, wood)
+	return NOT_PLACED

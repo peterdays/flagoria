@@ -156,22 +156,87 @@ func _test_construction_placer_plank() -> int:
 	return fail
 
 
+
+func _test_construction_placer_atomic_spend() -> int:
+	## place() must not leave a written run when the charge fails (#380 item 3).
+	## An inventory stub reports enough wood for can_place, but spend always
+	## fails; after place returns false the water cells must still be bare.
+	## Time cost: about 0.1 s in tools/verify.sh (~1.8 s alone with
+	## --only=construction_placer_atomic_spend, against ~1.7 s runner start-up).
+	print("-- test_construction_placer_atomic_spend")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var stub: Inventory = (load("res://tests/mechanics/building/spend_fail_inventory.gd") as GDScript).new()
+	scene.add_child(stub)
+	var placer := ConstructionPlacer.new(world)
+	var land := func(c: Vector2i) -> bool:
+		return not world.has_bridge(c) and world.ground_is_walkable(world.predict_cell(c)[0])
+	var water_run: Array[Vector2i] = []
+	for s in [11, 42, 7, 1, 99, 3, 5]:
+		world.apply_map_params(_spawn_params(s, 0.0))
+		world.generate_chunk(Vector2(0, 0))
+		for cell in world.get_used_cells(0):
+			if not land.call(cell):
+				continue
+			var run: Array[Vector2i] = []
+			for i in range(1, 4):
+				var w: Vector2i = cell + Vector2i(i, 0)
+				if world.predict_cell(w)[0] != TileCatalog.WATER or world.has_bridge(w):
+					break
+				run.append(w)
+			if run.size() >= 2:
+				water_run = run
+				break
+		if not water_run.is_empty():
+			break
+	if water_run.is_empty():
+		printerr("FAIL construction_placer_atomic_spend: no 2+ water cells east of land")
+		scene.queue_free()
+		return 1
+	stub.add(Inventory.WOOD, water_run.size())
+	var reasons := placer.can_place(BuildCosts.PLANK, water_run, stub)
+	var placed := placer.place(BuildCosts.PLANK, water_run, stub)
+	var any_bridge := water_run.any(func(c: Vector2i) -> bool: return world.has_bridge(c))
+	# Invariant: a failed place leaves no run written (charge and write are atomic).
+	if not reasons.is_empty() or placed or any_bridge or stub.count_of(Inventory.WOOD) != water_run.size():
+		printerr("FAIL construction_placer_atomic_spend: reasons %s, placed %s, bridge %s, wood %d"
+				% [reasons, placed, any_bridge, stub.count_of(Inventory.WOOD)])
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_construction_placer_atomic_spend")
+	return fail
+
+
 func _test_build_costs_spend_failed() -> int:
-	## When the place callable empties the inventory, buy still reports
-	## spend failed and does not pretend the purchase succeeded (#377).
-	## Uses the scene Inventory so multiplayer_on has a MultiplayerAPI.
+	## Spend runs before the writer (#380 item 3). A stub inventory whose
+	## spend always fails returns spend failed and never calls the writer.
+	## When the writer refuses after a real spend, the wood is put back.
+	## Uses the scene tree so multiplayer_on has a MultiplayerAPI.
 	## Time cost: about 0.15 s in tools/verify.sh (~1.8 s alone with --only=).
 	print("-- test_build_costs_spend_failed")
 	var fail := 0
 	var scene = load("res://flagoria_main.tscn").instantiate()
 	root.add_child(scene)
+	var stub: Inventory = (load("res://tests/mechanics/building/spend_fail_inventory.gd") as GDScript).new()
+	scene.add_child(stub)
+	stub.add(Inventory.WOOD, 1)
+	var called := [false]
+	var why := BuildCosts.buy(stub, BuildCosts.PLANK, 1, func() -> bool:
+		called[0] = true
+		return true)
+	if why != BuildCosts.SPEND_FAILED or called[0] or stub.count_of(Inventory.WOOD) != 1:
+		printerr("FAIL build_costs_spend_failed: got '%s' called %s wood %d"
+				% [why, called[0], stub.count_of(Inventory.WOOD)])
+		fail += 1
 	var inventory: Inventory = scene.get_node("Inventory")
 	inventory.add(Inventory.WOOD, 1)
-	var why := BuildCosts.buy(inventory, BuildCosts.PLANK, 1, func() -> bool:
-		inventory.spend(Inventory.WOOD, 1)
-		return true)
-	if why != BuildCosts.SPEND_FAILED or inventory.count_of(Inventory.WOOD) != 0:
-		printerr("FAIL build_costs_spend_failed: got '%s' with %d wood"
+	why = BuildCosts.buy(inventory, BuildCosts.PLANK, 1, func() -> bool: return false)
+	if why != BuildCosts.NOT_PLACED or inventory.count_of(Inventory.WOOD) != 1:
+		printerr("FAIL build_costs_spend_failed: writer refuse got '%s' with %d wood"
 				% [why, inventory.count_of(Inventory.WOOD)])
 		fail += 1
 	scene.queue_free()

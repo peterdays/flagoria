@@ -11,7 +11,7 @@ What each buildable costs in wood, and buying one. `BuildCosts` (`Scripts/mechan
 
 A removal gives back `REFUND_SHARE` (half) of the total cost of the units removed together, rounded down. Nothing removes a build yet, so nothing reads it in play.
 
-`buy(inventory, kind, units, place)` checks first, then calls the writer `place` (for example `build_bridge`), and spends only when the writer placed. Refusals, with nothing placed and nothing spent: `not enough wood`, `multiplayer on`, `unknown kind`, and `not placed` when the writer itself refuses. If the writer placed but `spend` then fails (for example the callable emptied the inventory), `buy` returns `spend failed` (#377).
+`buy(inventory, kind, units, place)` checks first, takes the wood, then calls the writer `place` (for example `build_bridge`). Refusals, with nothing placed and nothing spent: `not enough wood`, `multiplayer on`, `unknown kind`. If `spend` fails after the check, `buy` returns `spend failed` and never calls the writer. If the writer refuses after the spend, the wood is put back and `buy` returns `not placed`. Charge and write stay atomic (#380 item 3).
 
 With peers connected: wood is local to each game and not synced, so `buy` refuses with `multiplayer on` for a client and for a host with a peer, the same rule as `StructurePlacer`. Per-player wood for connected peers is #278.
 
@@ -35,4 +35,4 @@ Preconditions: `doctor.sh` exits `0`. Time cost: `test_build_cost_table` and `te
 ## Gotchas
 
 - Never add wood from a drive to make a purchase pass in a live game; a drive that can't reach the feature reports that.
-- `buy` must be the only place that spends wood for a build, so the check, the placement and the spend stay in one order.
+- `buy` must be the only place that spends wood for a build, so the check, the spend and the placement stay in one order (spend before write).
