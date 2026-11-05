@@ -118,10 +118,11 @@ func _scene() -> Dictionary:
 
 
 func _sprouts_of(world, label: String) -> Variant:
-	if not "sprouts" in world._tree_cuts:
+	var sprouts = world.tree_sprouts()
+	if sprouts == null:
 		printerr("FAIL %s: the map has no tree sprouts (TreeCuts.sprouts)" % label)
 		return null
-	return world._tree_cuts.sprouts
+	return sprouts
 
 
 func _test_sprouts_stop_at_target() -> int:
@@ -328,12 +329,11 @@ static func counted_deficits(world, window: Rect2i) -> Dictionary:
 		for x in range(window.position.x, window.end.x):
 			var cell := Vector2i(x, y)
 			var p: Array = world.predict_cell(cell)
-			if p[0] == TileCatalog.WATER or world._bridges.has_bridge(cell):
+			if p[0] == TileCatalog.WATER or world.has_bridge(cell):
 				continue
 			var b: int = world.biome_at(cell)
 			land[b] = land.get(b, 0) + 1
-			var cuts = world._tree_cuts
-			var stump: bool = cuts.has_cut(cell) and cuts.cut_type(cell).id != "bush"
+			var stump: bool = world.has_cut(cell) and world.cut_type(cell).id != "bush"
 			if p[1] in TREES or stump:
 				now[b] = now.get(b, 0) + 1
 			if _untouched_tree(world, cell, p, stump):
@@ -347,10 +347,10 @@ static func counted_deficits(world, window: Rect2i) -> Dictionary:
 
 
 static func _untouched_tree(world, cell: Vector2i, p: Array, stump: bool) -> bool:
-	if world._tree_cuts.sprouts.has(cell):
+	if world.tree_sprouts().has(cell):
 		return false
 	if not world._structures.has_cell(cell):
-		return stump or (p[1] in TREES and not world._tree_cuts.has_cut(cell))
+		return stump or (p[1] in TREES and not world.has_cut(cell))
 	var b: int = world.biome_at(cell)
 	var alt: float = world.cell_altitude(cell, b)
 	var moist: float = world.moisture.get_noise_2d(cell.x, cell.y)

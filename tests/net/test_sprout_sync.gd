@@ -61,10 +61,10 @@ func _host_pass(label: String) -> Dictionary:
 	var api := Batch.FakeApi.new()
 	var host := _sprout_scene(api)
 	var out := {"host": host, "api": api, "rpcs": [], "cells": []}
-	if host["d"].is_empty() or not "sprouts" in host["world"]._tree_cuts:
+	if host["d"].is_empty() or host["world"].tree_sprouts() == null:
 		printerr("FAIL %s: no area short of trees, or the map has no tree sprouts" % label)
 		return out
-	var sprouts = host["world"]._tree_cuts.sprouts
+	var sprouts = host["world"].tree_sprouts()
 	for i in 200:
 		if sprouts.passes._next_pass > 0.0 and not sprouts.passes.busy():
 			break
@@ -101,16 +101,16 @@ func _test_sprout_sync_one_rpc() -> int:
 	for cy in range(-1, 2):
 		for cx in range(-1, 2):
 			world.generate_chunk(world.map_to_local(window.get_center() + step * Vector2i(cx, cy)))
-	if not world._tree_cuts.sprouts.due().is_empty():
+	if not world.tree_sprouts().due().is_empty():
 		printerr("FAIL sprout_sync_one_rpc: the client sprouted trees on its own")
 		fail += 1
 	for from in [3, 0]:
 		api.sender = from
 		client["interaction"].apply_sprout_cells(cells)
-		if world._tree_cuts.sprouts.size() != 0:
+		if world.tree_sprouts().size() != 0:
 			printerr("FAIL sprout_sync_one_rpc: a message from peer %d sprouted trees" % from)
 			fail += 1
-			world._tree_cuts.sprouts.clear()
+			world.tree_sprouts().clear()
 	api.sender = 1
 	client["interaction"].callv(h["rpcs"][0][1], h["rpcs"][0][2])
 	var got := _window_cells(world, window)

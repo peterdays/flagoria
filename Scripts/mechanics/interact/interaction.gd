@@ -352,7 +352,7 @@ func apply_sprout_cells(cells: Array[Vector2i]) -> void:
 	if multiplayer.get_remote_sender_id() != 1:
 		return
 	for cell in cells:
-		world_map._tree_cuts.sprouts.add(cell)
+		world_map.add_sprout(cell)
 
 
 @rpc("authority", "reliable", "call_remote")

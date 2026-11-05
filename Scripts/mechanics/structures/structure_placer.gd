@@ -80,7 +80,7 @@ func can_place(structure: Structure, anchor_cell: Vector2i) -> Array[String]:
 		found[MULTIPLAYER_ON] = true
 	for cell: Vector2i in footprint(structure, anchor_cell):
 		var p: Array = _map.predict_cell(cell)
-		if not _map.ground_is_walkable(p[0]) or _map._bridges.has_bridge(cell):
+		if not _map.ground_is_walkable(p[0]) or _map.has_bridge(cell):
 			found[WATER] = true
 		elif p[1] == TileCatalog.TREE or p[1] == TileCatalog.TREE_BUSHY or p[1] == TileCatalog.PINE:
 			found[TREE] = true
@@ -173,7 +173,7 @@ func _write(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
 				flags.append(cell)
 			object = _atlas(tile)
 		_cells[cell] = [ground, object]
-		_map._tree_cuts.forget(cell)
+		_map.forget_cut(cell)
 		_map._predict_cache.erase(cell)
 		if _map.get_cell_source_id(0, cell) == -1:
 			continue  # not drawn yet: generate_chunk draws it

@@ -101,7 +101,7 @@ func _resolve(changed: Array[Vector2i]) -> void:
 		var name: String = solved.get(cell, "PALISADE_POST")
 		var atlas: Vector2i = TileCatalog.TILES[name]["atlas"]
 		_pieces[cell] = atlas
-		_map._tree_cuts.forget(cell)
+		_map.forget_cut(cell)
 		_map._predict_cache.erase(cell)
 		if _map.get_cell_source_id(0, cell) == -1:
 			continue

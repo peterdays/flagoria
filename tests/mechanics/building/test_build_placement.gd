@@ -470,7 +470,7 @@ func _test_build_preview_matches_commit_mid_invalid() -> int:
 	# Force-occupy mid cell without going through adjacency (mid alone is not
 	# next to land). Same check commit/preview see: has_bridge(cell).
 	var mid_cell: Vector2i = drag[2]
-	world._bridges._bridge_cells[mid_cell] = TileCatalog.TILES["BRIDGE_PLANK_H_WATER"]["atlas"]
+	world.set_bridge_cell(mid_cell, TileCatalog.TILES["BRIDGE_PLANK_H_WATER"]["atlas"])
 	inventory.add(Inventory.WOOD, 10)
 	interaction.set_mode(Interaction.Mode.INTERACT)
 	interaction.build.set_tool(BuildPlacement.Tool.PLANK)
