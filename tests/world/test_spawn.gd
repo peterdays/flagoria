@@ -58,13 +58,15 @@ func _test_spawn_on_land() -> int:
 func _test_spawn_reachable() -> int:
 	## The spawn cell is clear ground (no tree, bush or stones) and the player
 	## can walk from it to at least SPAWN_MIN_REACHABLE clear cells. Seed 7 with
-	## biomes on used to spawn on a single sand cell surrounded by water.
+	## biomes on used to spawn on a single sand cell surrounded by water. Seeds
+	## 11, 42 and 99 are pinned by #360; high-water seeds 1, 3 and 33 used to
+	## fall back inside max_radius 96.
 	print("-- test_spawn_reachable")
 	var scene = load("res://flagoria_main.tscn").instantiate()
 	root.add_child(scene)
 	var world = scene.get_node("World/worldMap")
 	var need: int = world.SPAWN_MIN_REACHABLE
-	var cases := [[7, 0.003]]
+	var cases := [[7, 0.003], [11, 0.003], [42, 0.003], [99, 0.003]]
 	for biome_frequency in [0.003, 0.0]:
 		for seed_value in range(1, 51):
 			cases.append([seed_value, biome_frequency])
@@ -81,10 +83,53 @@ func _test_spawn_reachable() -> int:
 		if reach < need:
 			printerr("FAIL spawn_reachable %s reaches %s cells, need %s" % [label, reach, need])
 			fail += 1
+	# High water: sparse land used to leave a pocket under 200 inside radius 96.
+	for seed_value in [1, 3, 33]:
+		var params := _spawn_params(seed_value, 0.003)
+		params.water_max_alt = 0.45
+		params.sand_max_alt = 0.5
+		world.apply_map_params(params)
+		var hw_cell: Vector2i = world.resolve_player_spawn()
+		var hw_label := "high_water seed=%s cell=%s" % [seed_value, hw_cell]
+		if not world.is_clear_ground(hw_cell):
+			printerr("FAIL spawn_reachable %s is not clear ground" % hw_label)
+			fail += 1
+			continue
+		var hw_reach: int = world.reachable_clear_cells(hw_cell, need).size()
+		if hw_reach < need:
+			printerr("FAIL spawn_reachable %s reaches %s cells, need %s" % [hw_label, hw_reach, need])
+			fail += 1
+		if SpawnFinder.last_fallback_size != -1:
+			printerr("FAIL spawn_reachable %s fell back (size %s)" % [hw_label, SpawnFinder.last_fallback_size])
+			fail += 1
 	if fail == 0:
-		print("PASS test_spawn_reachable (%s maps, %s+ cells each)" % [cases.size(), need])
+		print("PASS test_spawn_reachable (%s maps + 3 high-water, %s+ cells each)" % [cases.size(), need])
 	scene.queue_free()
 	return fail
+
+
+func _test_spawn_fallback_warns() -> int:
+	## When no clear pocket of SPAWN_MIN_REACHABLE cells exists inside the
+	## search radius, resolve_player_spawn keeps the largest pocket and records
+	## last_fallback_size (and push_warning). Radius 0 forces that path.
+	print("-- test_spawn_fallback_warns")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	world.apply_map_params(_spawn_params(1, 0.003))
+	var cell: Vector2i = SpawnFinder.resolve_player_spawn(world, Vector2i(0, 0), 0)
+	var size: int = SpawnFinder.last_fallback_size
+	if size < 0:
+		printerr("FAIL spawn_fallback_warns: last_fallback_size %s, want a recorded fallback" % size)
+		scene.queue_free()
+		return 1
+	if size >= SpawnFinder.SPAWN_MIN_REACHABLE:
+		printerr("FAIL spawn_fallback_warns: fallback size %s at %s met the bar" % [size, cell])
+		scene.queue_free()
+		return 1
+	print("PASS test_spawn_fallback_warns (fallback size %s at %s)" % [size, cell])
+	scene.queue_free()
+	return 0
 
 
 func _test_spawn_radius_no_overlap() -> int:
