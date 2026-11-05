@@ -3,7 +3,7 @@
 The map uses the in-house Flagoria tileset v3.1 (Solaria replacement, #97 / #100). All tiles are 16×16 px. Atlas coordinates are `(column, row)` in 16 px cells.
 
 - Atlas: `art/flagoria/flagoria_tiles_v3.png`, 448×304 px, 28×19 cells. Rows 15-18 hold the wood pieces; the plank bridge cells (columns 8-15) are named, the railed bridge cells (columns 16-23) are not named yet.
-- TileSet: `art/flagoria/flagoria_tiles_v3.tres`, one `TileSetAtlasSource` (source id `0`) with 240 named cells, one physics layer, and terrain set `0` (Match Corners and Sides) with terrain `0` "Island".
+- TileSet: `art/flagoria/flagoria_tiles_v3.tres`, one `TileSetAtlasSource` (source id `0`) with 242 named cells, one physics layer, and terrain set `0` (Match Corners and Sides) with terrain `0` "Island".
 - Names: `Scripts/tile_catalog.gd` (`TileCatalog`) is the only place that maps names to source id and atlas coords. Credits: `art/flagoria/CREDITS.md`.
 
 ## Where tiles are referenced
@@ -150,6 +150,8 @@ Older single edge tiles, kept for hand-placed maps.
 | PROP_FLAG_RED | (3, 7) |
 | PROP_FLAG_NEUTRAL | (4, 7), placeholder: a tower nobody owns (#274) |
 | PROP_FLAG_MOBS | (5, 7), placeholder: a tower the mobs took (#274) |
+| TOWER_WOOD_POST | (6, 7), placeholder wooden tower post (#273) |
+| TOWER_WOOD_WALL | (7, 7), placeholder wooden tower wall (#273) |
 | CLOUD_S | (0, 8) |
 | CLOUD_M_0 | (1, 8) |
 | CLOUD_M_1 | (2, 8) |
