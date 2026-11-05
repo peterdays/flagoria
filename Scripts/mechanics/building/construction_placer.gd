@@ -118,7 +118,7 @@ func _check_wall(cells: Array[Vector2i], found: Dictionary) -> void:
 	## Land only; refuse structures, existing walls, players, mobs, trees and
 	## bushes. A multi-cell run must be one contiguous H/V segment (no gaps,
 	## no bends). Every placement must 4-touch an existing wall, tower or
-	## castle so the first block cannot float free (Pedro card t288s1054);
+	## castle so the first block cannot float free (design decision for #276);
 	## tip adjacency is still enforced by BuildPlacement before place.
 	if cells.is_empty():
 		return
