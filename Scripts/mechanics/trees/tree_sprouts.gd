@@ -102,7 +102,7 @@ func _free_now(cell: Vector2i, blocked: Dictionary) -> bool:
 	## in `blocked` (blocked_cells: under a mob or player, the spawn, the
 	## start castle's gate).
 	return _map.predict_cell(cell)[1] == _WorldMap.NO_PLANT and not blocked.has(cell) \
-			and not _map._structures.has_cell(cell) and not _map._bridges.has_bridge(cell)
+			and not _map._structures.has_cell(cell) and not _map.has_bridge(cell)
 
 
 func blocked_cells() -> Dictionary:
@@ -151,7 +151,7 @@ func add(cell: Vector2i) -> bool:
 	_sprouts[cell] = tile
 	touch(cell)
 	_map._predict_cache.erase(cell)
-	if _map.get_cell_source_id(0, cell) != -1 and not _map._tree_cuts.has_cut(cell):
+	if _map.get_cell_source_id(0, cell) != -1 and not _map.has_cut(cell):
 		_map.set_cell(1, cell, TileCatalog.SOURCE_ID, tile)
 	return true
 
@@ -192,11 +192,11 @@ func _count_cell(cell: Vector2i, land: Dictionary, grown: Dictionary, now: Dicti
 	## land (not water or a bridge), trees, sprouts and tree stumps on it
 	## (now), and whether the generated map has a tree there (grown).
 	var p := _map.predict_cell(cell)
-	if p[0] == TileCatalog.WATER or _map._bridges.has_bridge(cell):
+	if p[0] == TileCatalog.WATER or _map.has_bridge(cell):
 		return
 	var b := _map.biome_at(cell)
 	land[b] = land.get(b, 0) + 1
-	var stump := _map._tree_cuts.has_cut(cell) and _map._tree_cuts.cut_type(cell).id != "bush"
+	var stump := _map.has_cut(cell) and _map.cut_type(cell).id != "bush"
 	if p[1] in TREES or stump:
 		now[b] = now.get(b, 0) + 1
 	if _generated_tree(cell, p, stump):
@@ -250,7 +250,7 @@ func _count_square(square: Vector2i, window: Rect2i, counts: Array) -> void:
 	for cell: Vector2i in cells.keys():
 		if not part.has_point(cell):
 			continue
-		if not (_map._tree_cuts.has_cut(cell) or _sprouts.has(cell) or _map._structures.has_cell(cell) or _map._bridges.has_bridge(cell)):
+		if not (_map.has_cut(cell) or _sprouts.has(cell) or _map._structures.has_cell(cell) or _map.has_bridge(cell)):
 			cells.erase(cell)
 			continue
 		var n := _natural(cell)
@@ -322,7 +322,7 @@ func _generated_tree(cell: Vector2i, p: Array, stump: bool) -> bool:
 	if _sprouts.has(cell):
 		return false
 	if not _map._structures.has_cell(cell):
-		return stump or (p[1] in TREES and not _map._tree_cuts.has_cut(cell))
+		return stump or (p[1] in TREES and not _map.has_cut(cell))
 	return _natural(cell)[2]
 
 

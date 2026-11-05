@@ -384,6 +384,28 @@ func has_bridge(cell: Vector2i) -> bool:
 	return _bridges.has_bridge(cell)
 
 
+func set_bridge_cell(cell: Vector2i, atlas: Vector2i) -> void:
+	## Bridge piece with no adjacency checks (tests: occupied mid-run cell).
+	_bridges.set_cell(cell, atlas)
+
+
+func forget_cut(cell: Vector2i) -> void:
+	## Drop stump/sprout on `cell` without regrowing (structure or wall covers it).
+	_tree_cuts.forget(cell)
+
+
+func has_cut(cell: Vector2i) -> bool:
+	return _tree_cuts.has_cut(cell)
+
+
+func cut_type(cell: Vector2i) -> InteractableType:
+	return _tree_cuts.cut_type(cell)
+
+
+func tree_sprouts() -> TreeSprouts:
+	return _tree_cuts.sprouts
+
+
 func place_wall_cells(cells: Array[Vector2i]) -> bool:
 	return _walls.place_cells(cells)
 

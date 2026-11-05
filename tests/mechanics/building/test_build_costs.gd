@@ -84,15 +84,15 @@ func _test_build_costs_buy() -> int:
 	var bridge := func() -> bool: return world.build_bridge(start, run_end)
 	inventory.add(Inventory.WOOD, 2)
 	var why := BuildCosts.buy(inventory, BuildCosts.PLANK, 3, bridge)
-	if why != BuildCosts.NOT_ENOUGH_WOOD or inventory.count_of(Inventory.WOOD) != 2 or world._bridges.has_bridge(start):
+	if why != BuildCosts.NOT_ENOUGH_WOOD or inventory.count_of(Inventory.WOOD) != 2 or world.has_bridge(start):
 		printerr("FAIL build_costs_buy: 2 wood for 3 planks gave '%s', %d wood, bridge %s"
-				% [why, inventory.count_of(Inventory.WOOD), world._bridges.has_bridge(start)])
+				% [why, inventory.count_of(Inventory.WOOD), world.has_bridge(start)])
 		fail += 1
 	inventory.add(Inventory.WOOD, 1)
 	why = BuildCosts.buy(inventory, BuildCosts.PLANK, 3, bridge)
-	if why != "" or inventory.count_of(Inventory.WOOD) != 0 or not world._bridges.has_bridge(start) or not world._bridges.has_bridge(run_end):
+	if why != "" or inventory.count_of(Inventory.WOOD) != 0 or not world.has_bridge(start) or not world.has_bridge(run_end):
 		printerr("FAIL build_costs_buy: 3 wood for 3 planks gave '%s', %d wood, bridge %s"
-				% [why, inventory.count_of(Inventory.WOOD), world._bridges.has_bridge(start)])
+				% [why, inventory.count_of(Inventory.WOOD), world.has_bridge(start)])
 		fail += 1
 	inventory.add(Inventory.WOOD, 3)
 	why = BuildCosts.buy(inventory, BuildCosts.PLANK, 3, bridge)

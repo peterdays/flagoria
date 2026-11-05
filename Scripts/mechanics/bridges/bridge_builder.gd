@@ -20,6 +20,11 @@ func has_bridge(cell: Vector2i) -> bool:
 	return _bridge_cells.has(cell)
 
 
+func set_cell(cell: Vector2i, atlas: Vector2i) -> void:
+	## Record a piece at `cell` with no adjacency checks (TileMap.set_bridge_cell).
+	_bridge_cells[cell] = atlas
+
+
 func piece(cell: Vector2i) -> Vector2i:
 	## The plank piece at `cell` (has_bridge must be true).
 	return _bridge_cells[cell]
@@ -60,7 +65,7 @@ func build_bridge(from: Vector2i, to: Vector2i) -> bool:
 	for i in length:
 		var c := first + step * i
 		_bridge_cells[c] = pieces[i]
-		_map._tree_cuts.sprouts.touch(c)
+		_map.tree_sprouts().touch(c)
 		_map._predict_cache.erase(c)
 		if _map.get_cell_source_id(0, c) != -1:
 			_map.set_cell(0, c, TileCatalog.SOURCE_ID, pieces[i])

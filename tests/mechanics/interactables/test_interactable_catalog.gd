@@ -83,9 +83,9 @@ func _test_regrow_delay_per_type() -> int:
 	world.play_time = 10000.0
 	var later: int = world.regrow_due()
 	bush.regrow_delay = 300.0
-	if grown != 1 or later != 0 or not world._tree_cuts.has_cut(Vector2i(2, 0)):
+	if grown != 1 or later != 0 or not world.has_cut(Vector2i(2, 0)):
 		printerr("FAIL regrow_delay_per_type: regrew %d at 300 s and %d later, bush still cut %s; want 1, 0, true"
-				% [grown, later, world._tree_cuts.has_cut(Vector2i(2, 0))])
+				% [grown, later, world.has_cut(Vector2i(2, 0))])
 		fail += 1
 	scene.queue_free()
 	return fail

@@ -210,6 +210,41 @@ func _test_structure_place_refused() -> int:
 	return fail
 
 
+func _test_structure_place_refuses_bridge() -> int:
+	## A bridge cell under the footprint is refused as water (same reason as
+	## open water). Pins StructurePlacer reading has_bridge, not the map's
+	## private bridge store (#358). Time cost: ~0.2 s in verify (~1.7 s alone).
+	print("-- test_structure_place_refuses_bridge")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var s := _guard_post()
+	var anchor: Variant = null
+	for sv in [11, 42, 99]:
+		world.apply_map_params(_spawn_params(sv, 0.0))
+		world.generate_chunk(Vector2(0, 0))
+		anchor = _find_anchor(world, s, func(cells): return cells.all(world.predicted_clear))
+		if anchor != null:
+			break
+	if anchor == null:
+		printerr("FAIL structure_place_refuses_bridge: no clear 5x4 spot on seeds 11, 42, 99")
+		scene.queue_free()
+		return 1
+	var cell: Vector2i = _footprint(s, anchor).keys()[0]
+	world.set_bridge_cell(cell, TileCatalog.TILES["BRIDGE_PLANK_H_WATER"]["atlas"])
+	var reasons: Array = world.can_place_structure(s, anchor)
+	if not "water" in reasons or world.place_structure(s, anchor, 1) != -1:
+		printerr("FAIL structure_place_refuses_bridge: reasons %s at %s (bridge on %s), want water and no place"
+				% [reasons, anchor, cell])
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_structure_place_refuses_bridge")
+	return fail
+
+
 func _test_structure_place_over_stump() -> int:
 	## A guard post placed over a stump drops the cut, so a regrowth tick
 	## long after it leaves the structure's cell as placed (no plant grows
