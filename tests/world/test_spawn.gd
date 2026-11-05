@@ -185,22 +185,29 @@ func _test_spawn_full_area_searches_outward() -> int:
 	if full_radius != outside or full_radius.distance_to(origin) <= world.SPAWN_RADIUS:
 		printerr("FAIL spawn_full_area full radius -> %s, want nearest outside %s" % [full_radius, outside])
 		fail += 1
-	# Every spot the usual search walks is taken: the next one out is free.
-	var beyond: Array[Vector2] = world.spawn_spots(cell, spots.size() * 4)
-	var want := Vector2.INF
-	for spot in beyond:
-		if spot not in spots:
-			want = spot
-			break
+	# Every spot the usual search walks is taken: the search keeps going to a
+	# reachable spot clear of all of them, not back to the spawn point. Which
+	# spot that is depends on the map: the wider search can reach nearer
+	# cells by a longer path round water, so only its properties are checked.
+	var beyond: Array[Vector2] = world.spawn_spots(cell, spots.size() * 50)
 	var all_taken: Vector2 = world.free_spawn_position(cell, spots)
-	if all_taken != want or all_taken == origin or not world.is_clear_ground(world.local_to_map(all_taken)):
-		printerr("FAIL spawn_full_area %s spots taken -> %s, want the next free spot %s (spawn %s)"
+	var want := "a reachable clear spot away from all %s taken" % spots.size()
+	if all_taken not in beyond or all_taken == origin or not world.is_clear_ground(world.local_to_map(all_taken)) \
+			or not _clear_of_all(all_taken, spots, world.SPAWN_CLEARANCE):
+		printerr("FAIL spawn_full_area %s spots taken -> %s, want %s (spawn %s)"
 				% [spots.size(), all_taken, want, origin])
 		fail += 1
 	scene.queue_free()
 	if fail == 0:
 		print("PASS test_spawn_full_area_searches_outward (%s in radius, next free %s)" % [inside.size(), all_taken])
 	return fail
+
+
+func _clear_of_all(at: Vector2, taken: Array[Vector2], clearance: float) -> bool:
+	for other in taken:
+		if at.distance_to(other) < clearance:
+			return false
+	return true
 
 
 func _test_spawn_late_join() -> int:

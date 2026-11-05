@@ -10,6 +10,7 @@ The world is split into biomes (oceanic, temperate, continental, dense archipela
 - `biome-structures` stones on oceanic and continental land.
 - `world-shape` Map Settings shaping params (`tests/world/test_island_shape.gd`): `island_radius` raises the origin and sinks cells past 1.5 radii; `archipelago_spacing` raises a jittered centre per grid square and sinks the sea between; `archipelago_island_count` (with or without `archipelago_world_extent`) keeps N seed-stable squares, always the spawn square. 0 leaves altitude alone.
 - `biome-default-on` a new world has biomes on; a save written before biomes existed (no `biome_frequency`) loads with them off and regenerates unchanged (#178).
+- `biome-mix` Map Settings `biome_edge` (default 0.2) sets the noise cut-offs between biomes, so each covers about a fifth to a quarter of the world; `-- test_new_world_biomes_on` fails if any biome covers under 10 % of a 4096-tile area. A save written before `biome_edge` loads with 0.5, the old cut-off.
 - `biome-render` wide render with coverage % per biome (`tools/render_biomes.gd`, see `docs/biomes.md`).
 
 ## How to get to it (user POV)

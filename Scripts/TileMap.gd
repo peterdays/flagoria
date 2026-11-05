@@ -70,6 +70,7 @@ var pine_min_chance: float = 0.3
 var bushy_tree_min_moist: float = 0.3
 var biome_frequency: float = 0.0
 var biome_seed: int = 0
+var biome_edge: float = 0.2
 
 # Walkable ground decorations (flowers, stones) sit on their own layer at the ground's
 # z_index so the player always draws over them; layer 1 (bushes, trees) is z 1.
@@ -99,6 +100,7 @@ func apply_map_params(p: MapGenParams) -> void:
 
 	biome_frequency = working.biome_frequency
 	biome_seed = working.biome_seed
+	biome_edge = working.biome_edge
 	if biome_frequency > 0.0:
 		_configure_noise(biome, working.biome_seed, working.biome_frequency, working)
 
@@ -210,7 +212,7 @@ func biome_at(cell: Vector2i) -> int:
 	## Biome id at a cell. Frequency 0 keeps everything temperate (biomes off).
 	if biome_frequency <= 0.0:
 		return BiomeCatalog.TEMPERATE
-	return BiomeCatalog.from_noise(biome.get_noise_2d(cell.x, cell.y))
+	return BiomeCatalog.from_noise(biome.get_noise_2d(cell.x, cell.y), biome_edge)
 
 
 func set_tile_type_z0(pos_vec, alt, moist, _temp, chance, biome_id: int = BiomeCatalog.TEMPERATE):
