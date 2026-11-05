@@ -77,6 +77,8 @@ func _test_flags_held_awards_per_tower() -> int:
 		printerr("FAIL flags_held_awards_per_tower: after loss awards %s" % [seen])
 		fail += 1
 	t["scene"].queue_free()
+	if fail == 0:
+		print("PASS test_flags_held_awards_per_tower")
 	return fail
 
 
@@ -94,6 +96,8 @@ func _test_flags_held_skips_non_players() -> int:
 		printerr("FAIL flags_held_skips_non_players: paid %s total %s" % [paid, t["points"].total_of(1)])
 		fail += 1
 	t["scene"].queue_free()
+	if fail == 0:
+		print("PASS test_flags_held_skips_non_players")
 	return fail
 
 
@@ -124,4 +128,6 @@ func _test_flags_held_off_in_multiplayer() -> int:
 				% [paid, t["points"].total_of(1)])
 		fail += 1
 	t["scene"].queue_free()
+	if fail == 0:
+		print("PASS test_flags_held_off_in_multiplayer")
 	return fail
