@@ -41,6 +41,8 @@ var _tree_cuts := TreeCuts.new(self)
 var _bridges := BridgeBuilder.new(self)
 ## Placed structures (#270); generate_chunk draws their cells.
 var _structures := StructurePlacer.new(self)
+## Free-form palisade walls (#276); generate_chunk redraws their pieces.
+var _walls := WallBuilder.new(self)
 var _castle_front: Variant = null  # outside the starting castle's gate (#271): the spawn once set
 ## Seconds of play after a cut before any stump regrows, overriding each type's
 ## regrow_delay; negative (the default) uses the type's. Kept in TreeCuts.
@@ -140,6 +142,7 @@ func apply_map_params(p: MapGenParams) -> void:
 	_tree_cuts.clear()
 	_bridges.clear()
 	_structures.clear()
+	_walls.clear()
 	_castle_front = null
 	spawn_point = Vector2i(0, 0)
 	ground_changed.emit(Rect2i())
@@ -269,6 +272,9 @@ func set_tile_type_z1(pos_vec, alt, moist, _temp, chance, biome_id: int = BiomeC
 		if _structures.object_at(pos_vec) != NO_PLANT:
 			set_cell(1, pos_vec, TileCatalog.SOURCE_ID, _structures.object_at(pos_vec))
 		return
+	if _walls.has_wall(pos_vec):
+		set_cell(1, pos_vec, TileCatalog.SOURCE_ID, _walls.piece(pos_vec))
+		return
 	if not is_walkable_land(pos_vec) or _bridges.has_bridge(pos_vec):
 		return
 	if _tree_cuts.has_cut(pos_vec):
@@ -309,6 +315,8 @@ func predict_cell(cell: Vector2i) -> Array:
 	var top := NO_PLANT
 	if _structures.has_cell(cell):
 		top = _structures.object_at(cell)
+	elif _walls.has_wall(cell):
+		top = _walls.piece(cell)
 	elif ground_is_walkable(ground) and not _bridges.has_bridge(cell):
 		if biome_frequency <= 0.0 or ground != TileCatalog.SAND:
 			top = plant_tile(alt, moist, chance, b)
@@ -374,6 +382,14 @@ func build_bridge(from: Vector2i, to: Vector2i) -> bool:
 
 func has_bridge(cell: Vector2i) -> bool:
 	return _bridges.has_bridge(cell)
+
+
+func place_wall_cells(cells: Array[Vector2i]) -> bool:
+	return _walls.place_cells(cells)
+
+
+func has_wall(cell: Vector2i) -> bool:
+	return _walls.has_wall(cell)
 
 
 func can_place_structure(structure: Structure, anchor_cell: Vector2i) -> Array[String]:
