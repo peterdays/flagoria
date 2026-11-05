@@ -98,3 +98,87 @@ func _test_letter_keyboard_minus_key() -> int:
 	if fail == 0:
 		print("PASS test_letter_keyboard_minus_key")
 	return fail
+
+
+func _test_letter_keyboard_first_minus_replaces() -> int:
+	## With the address selected, the first "-" replaces the text with "-"
+	## (letter Minus types; it does not negate) (#356). Time cost: ~0.15 s in
+	## verify (~1.5 s alone with --only=, Godot boot dominates).
+	print("-- test_letter_keyboard_first_minus_replaces")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	await process_frame
+	var menu = scene.get_node("CanvasLayer2/MainMenu")
+	var field: LineEdit = menu.address_entry
+	var kb = menu.get_node("LetterKeyboard")
+	var fail := 0
+	field.text = "old.host"
+	field.grab_focus()
+	await process_frame
+	await process_frame
+	if field.get_selected_text() != "old.host":
+		printerr("FAIL letter_keyboard_first_minus_replaces: address not selected on open (%s)"
+				% field.get_selected_text())
+		fail += 1
+	kb.find_child("Minus", true, false).pressed.emit()
+	if field.text != "-":
+		printerr("FAIL letter_keyboard_first_minus_replaces: first Minus gave %s want -" % field.text)
+		fail += 1
+	kb.close()
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_letter_keyboard_first_minus_replaces")
+	return fail
+
+
+func _test_letter_keyboard_third_row_fits() -> int:
+	## Third letter row is 11 keys (a–l, Colon, Minus) and the keyboard panel
+	## still fits the 480x270 viewport (#356). Time cost: ~0.15 s in verify
+	## (~1.5 s alone with --only=).
+	print("-- test_letter_keyboard_third_row_fits")
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	await process_frame
+	var menu = scene.get_node("CanvasLayer2/MainMenu")
+	var field: LineEdit = menu.address_entry
+	var kb: NumberPad = menu.get_node("LetterKeyboard")
+	var fail := 0
+	field.grab_focus()
+	await process_frame
+	await process_frame
+	var rows: Array = NumberPad.LETTER_ROWS
+	if rows.size() != 4:
+		printerr("FAIL letter_keyboard_third_row_fits: %s rows, want 4" % rows.size())
+		fail += 1
+	else:
+		var counts := [rows[0].size(), rows[1].size(), rows[2].size(), rows[3].size()]
+		if counts != [10, 10, 11, 10]:
+			printerr("FAIL letter_keyboard_third_row_fits: row sizes %s want [10, 10, 11, 10]" % [counts])
+			fail += 1
+		if rows[2][-1] != "Minus" or rows[2][-2] != "Colon":
+			printerr("FAIL letter_keyboard_third_row_fits: third row ends %s, want Colon then Minus" % [rows[2].slice(-2)])
+			fail += 1
+	var panel: Control = kb.get_node("Panel")
+	var pad_w: float = panel.get_combined_minimum_size().x
+	var screen_w: float = kb.get_viewport_rect().size.x
+	if pad_w > screen_w + 0.5:
+		printerr("FAIL letter_keyboard_third_row_fits: panel width %s > viewport %s" % [pad_w, screen_w])
+		fail += 1
+	else:
+		print("letter_keyboard_third_row_fits: panel_w=%s viewport_w=%s" % [pad_w, screen_w])
+	# Every third-row key is present and has a positive size (tappable).
+	for key in rows[2]:
+		var node_name: String = ("Digit" + key) if key.is_valid_int() else key
+		var b: Button = kb.find_child(node_name, true, false)
+		if b == null or b.size.x < 1.0 or b.size.y < 1.0:
+			printerr("FAIL letter_keyboard_third_row_fits: key %s missing or untappable size %s"
+					% [key, b.size if b else Vector2.ZERO])
+			fail += 1
+	kb.close()
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_letter_keyboard_third_row_fits")
+	return fail
+

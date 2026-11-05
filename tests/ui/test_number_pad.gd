@@ -119,3 +119,35 @@ func _test_number_pad_keycap_style() -> int:
 	if fail == 0:
 		print("PASS test_number_pad_keycap_style")
 	return fail
+
+
+func _test_number_pad_minus_zero_commits_zero() -> int:
+	## A number field holding "-0" commits as 0 when the pad closes (#356).
+	## Time cost: ~0.1 s in verify (~1.5 s alone with --only=).
+	print("-- test_number_pad_minus_zero_commits_zero")
+	var pad: NumberPad = load("res://number_pad.tscn").instantiate()
+	var field := LineEdit.new()
+	var committed := {"v": NAN}
+	root.add_child(field)
+	root.add_child(pad)
+	pad.attach(field, true, true, func() -> void:
+		committed["v"] = field.text.to_float())
+	await process_frame
+	field.text = "1"
+	field.grab_focus()
+	await process_frame
+	await process_frame
+	field.text = "-0"
+	pad.find_child("OK", true, false).pressed.emit()
+	await process_frame
+	var fail := 0
+	if not is_equal_approx(committed["v"], 0.0):
+		printerr("FAIL number_pad_minus_zero_commits_zero: commit %s want 0" % committed["v"])
+		fail += 1
+	pad.queue_free()
+	field.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_number_pad_minus_zero_commits_zero")
+	return fail
+
