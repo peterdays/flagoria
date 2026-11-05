@@ -175,16 +175,15 @@ func _test_build_plank_preview_tint_and_cost() -> int:
 		printerr("FAIL build_plank_preview_tint_and_cost: land should be red, ok=%s reasons=%s"
 				% [interaction.build.cell_ok, interaction.build.reasons])
 		fail += 1
-	# Too little wood: all red and reason shown.
+	# Zero wood on a water run: nothing placeable, all red, refusal shown.
 	inventory.spend(Inventory.WOOD, inventory.count_of(Inventory.WOOD))
-	inventory.add(Inventory.WOOD, 1)
-	if water_run.size() > 1:
-		interaction.build.update_preview(start, end)
-		if interaction.build.cell_ok.any(func(ok: bool) -> bool: return ok) \
-				or ConstructionPlacer.NOT_ENOUGH_WOOD not in interaction.build.reasons:
-			printerr("FAIL build_plank_preview_tint_and_cost: short wood ok=%s reasons=%s"
-					% [interaction.build.cell_ok, interaction.build.reasons])
-			fail += 1
+	interaction.build.update_preview(start, end)
+	if interaction.build.cell_ok.any(func(ok: bool) -> bool: return ok) \
+			or ConstructionPlacer.NOT_ENOUGH_WOOD not in interaction.build.reasons \
+			or interaction.build.cost != 0:
+		printerr("FAIL build_plank_preview_tint_and_cost: zero wood ok=%s cost=%d reasons=%s"
+				% [interaction.build.cell_ok, interaction.build.cost, interaction.build.reasons])
+		fail += 1
 	ctx["scene"].queue_free()
 	await process_frame
 	if fail == 0:
@@ -338,4 +337,176 @@ func _test_build_plank_drag_places() -> int:
 	await process_frame
 	if fail == 0:
 		print("PASS test_build_plank_drag_places")
+	return fail
+
+
+func _shore_run_min(world, want: int) -> Dictionary:
+	## `{shore, water_run}` with at least `want` water cells off land (H or V).
+	var land := func(c: Vector2i) -> bool:
+		return not world.has_bridge(c) and world.ground_is_walkable(world.predict_cell(c)[0])
+	var dirs: Array[Vector2i] = [
+		Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
+	]
+	for s in range(1, 120):
+		world.apply_map_params(_spawn_params(s, 0.0))
+		world.generate_chunk(Vector2(0, 0))
+		for cell in world.get_used_cells(0):
+			if not land.call(cell):
+				continue
+			for d in dirs:
+				var run: Array[Vector2i] = []
+				for i in range(1, want + 6):
+					var w: Vector2i = cell + d * i
+					if world.predict_cell(w)[0] != TileCatalog.WATER or world.has_bridge(w):
+						break
+					run.append(w)
+				if run.size() >= want:
+					return {"shore": cell, "water_run": run.slice(0, want)}
+	return {}
+
+
+func _boot_shore_min(want: int) -> Dictionary:
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var menu: Node = scene.get_node("CanvasLayer2/MainMenu")
+	menu.hide()
+	menu.set_process_unhandled_input(false)
+	scene.get_node("CanvasLayer1").show()
+	var world = scene.get_node("World/worldMap")
+	var found := _shore_run_min(world, want)
+	await process_frame
+	var interaction: Interaction = scene.get_node("World/Interaction")
+	var inventory: Inventory = scene.get_node("Inventory")
+	var player = load("res://Player/character_body_2d.tscn").instantiate()
+	player.name = str(scene.multiplayer.get_unique_id())
+	var place_cell: Vector2i = found.get("shore", Vector2i(10, 10))
+	player.position = world.to_global(world.map_to_local(place_cell))
+	scene.get_node("World").add_child(player)
+	interaction.bind(player)
+	await process_frame
+	return {
+		"scene": scene, "world": world, "interaction": interaction,
+		"inventory": inventory, "player": player, "found": found,
+	}
+
+
+func _preview_green(build: BuildPlacement) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for i in build.cells.size():
+		if build.cell_ok[i]:
+			out.append(build.cells[i])
+	return out
+
+
+func _test_build_preview_matches_commit_short_wood() -> int:
+	## With 1 wood and a 5-cell water drag, preview greens exactly the 1 cell
+	## commit will place and shows cost 1; the rest is red. Time cost: about
+	## 0.2 s in tools/verify.sh (~1.9 s alone with --only=).
+	print("-- test_build_preview_matches_commit_short_wood")
+	var fail := 0
+	var ctx: Dictionary = await _boot_shore_min(5)
+	var found: Dictionary = ctx["found"]
+	if found.is_empty():
+		printerr("FAIL preview_matches_commit_short_wood: no 5-cell shore run")
+		ctx["scene"].queue_free()
+		await process_frame
+		return 1
+	var interaction: Interaction = ctx["interaction"]
+	var inventory: Inventory = ctx["inventory"]
+	var world = ctx["world"]
+	var drag: Array[Vector2i] = found["water_run"]
+	inventory.add(Inventory.WOOD, 1)
+	interaction.set_mode(Interaction.Mode.INTERACT)
+	interaction.build.set_tool(BuildPlacement.Tool.PLANK)
+	var start := _cell_vp(interaction, world, drag[0])
+	var end := _cell_vp(interaction, world, drag[drag.size() - 1])
+	interaction.build.update_preview(start, end)
+	var green := _preview_green(interaction.build)
+	var preview_cost := interaction.build.cost
+	if green != [drag[0]] or preview_cost != 1 or not interaction.build.reasons.is_empty():
+		printerr("FAIL preview_matches_commit_short_wood: green %s cost %d reasons %s cell_ok %s"
+				% [green, preview_cost, interaction.build.reasons, interaction.build.cell_ok])
+		fail += 1
+	var before := inventory.count_of(Inventory.WOOD)
+	if not interaction.build.commit():
+		printerr("FAIL preview_matches_commit_short_wood: commit false")
+		fail += 1
+	var placed: Array[Vector2i] = []
+	for cell in drag:
+		if world.has_bridge(cell):
+			placed.append(cell)
+	if placed != green:
+		printerr("FAIL preview_matches_commit_short_wood: placed %s want green %s"
+				% [placed, green])
+		fail += 1
+	if inventory.count_of(Inventory.WOOD) != before - preview_cost:
+		printerr("FAIL preview_matches_commit_short_wood: wood %d -> %d (cost %d)"
+				% [before, inventory.count_of(Inventory.WOOD), preview_cost])
+		fail += 1
+	ctx["scene"].queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_build_preview_matches_commit_short_wood")
+	return fail
+
+
+func _test_build_preview_matches_commit_mid_invalid() -> int:
+	## An occupied cell mid-run: preview greens exactly the water prefix commit
+	## will place and shows that cost; cells from the occupied one onward are
+	## red. Time cost: about 0.2 s in tools/verify.sh (~1.9 s alone with --only=).
+	print("-- test_build_preview_matches_commit_mid_invalid")
+	var fail := 0
+	var ctx: Dictionary = await _boot_shore_min(5)
+	var found: Dictionary = ctx["found"]
+	if found.is_empty():
+		printerr("FAIL preview_matches_commit_mid_invalid: no 5-cell shore run")
+		ctx["scene"].queue_free()
+		await process_frame
+		return 1
+	var interaction: Interaction = ctx["interaction"]
+	var inventory: Inventory = ctx["inventory"]
+	var world = ctx["world"]
+	var drag: Array[Vector2i] = found["water_run"]
+	# Force-occupy mid cell without going through adjacency (mid alone is not
+	# next to land). Same check commit/preview see: has_bridge(cell).
+	var mid_cell: Vector2i = drag[2]
+	world._bridges._bridge_cells[mid_cell] = TileCatalog.TILES["BRIDGE_PLANK_H_WATER"]["atlas"]
+	inventory.add(Inventory.WOOD, 10)
+	interaction.set_mode(Interaction.Mode.INTERACT)
+	interaction.build.set_tool(BuildPlacement.Tool.PLANK)
+	var start := _cell_vp(interaction, world, drag[0])
+	var end := _cell_vp(interaction, world, drag[drag.size() - 1])
+	interaction.build.update_preview(start, end)
+	var green := _preview_green(interaction.build)
+	var preview_cost := interaction.build.cost
+	var want_green: Array[Vector2i] = [drag[0], drag[1]]
+	if green != want_green or preview_cost != want_green.size() \
+			or not interaction.build.reasons.is_empty():
+		printerr("FAIL preview_matches_commit_mid_invalid: green %s cost %d reasons %s cell_ok %s"
+				% [green, preview_cost, interaction.build.reasons, interaction.build.cell_ok])
+		fail += 1
+	for i in range(2, drag.size()):
+		if i < interaction.build.cell_ok.size() and interaction.build.cell_ok[i]:
+			printerr("FAIL preview_matches_commit_mid_invalid: cell %d should be red" % i)
+			fail += 1
+	var before := inventory.count_of(Inventory.WOOD)
+	if not interaction.build.commit():
+		printerr("FAIL preview_matches_commit_mid_invalid: commit false")
+		fail += 1
+	var placed_now: Array[Vector2i] = []
+	for cell in want_green:
+		if world.has_bridge(cell):
+			placed_now.append(cell)
+	if placed_now != green:
+		printerr("FAIL preview_matches_commit_mid_invalid: placed %s want green %s"
+				% [placed_now, green])
+		fail += 1
+	if inventory.count_of(Inventory.WOOD) != before - preview_cost:
+		printerr("FAIL preview_matches_commit_mid_invalid: wood %d -> %d (cost %d)"
+				% [before, inventory.count_of(Inventory.WOOD), preview_cost])
+		fail += 1
+	ctx["scene"].queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_build_preview_matches_commit_mid_invalid")
 	return fail

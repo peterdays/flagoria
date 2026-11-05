@@ -3,6 +3,7 @@ extends RefCounted
 ## Interact-mode build tool (#225): Cut vs Plank picker, H/V-snapped plank
 ## drag, green/red preview and wood cost. Placement goes only through
 ## ConstructionPlacer. Walls and towers are later kinds, not in this picker.
+## Preview green cells and cost match exactly what commit places and charges.
 
 enum Tool { CUT, PLANK }
 
@@ -21,7 +22,7 @@ const TOOL_TIPS := {Tool.CUT: "Cut", Tool.PLANK: "Plank"}
 
 var tool := Tool.CUT
 var cells: Array[Vector2i] = []  ## snapped run under the finger
-var cell_ok: Array[bool] = []  ## parallel to cells: green when true
+var cell_ok: Array[bool] = []  ## parallel to cells: green iff commit will place
 var cost := 0
 var reasons: Array[String] = []
 var cost_viewport := Vector2.ZERO  ## where the cost label sits (finger)
@@ -30,6 +31,9 @@ var _interaction: Interaction
 var _placer: ConstructionPlacer
 var _picker: HBoxContainer
 var _buttons: Dictionary = {}  ## Tool -> Button
+var _snap_from := Vector2i.ZERO
+var _snap_to := Vector2i.ZERO
+var _snap_valid := false
 
 
 func setup(interaction: Interaction) -> void:
@@ -54,6 +58,7 @@ func clear_preview() -> void:
 	cost = 0
 	reasons.clear()
 	cost_viewport = Vector2.ZERO
+	_snap_valid = false
 
 
 static func snap_run(from_cell: Vector2i, to_cell: Vector2i) -> Array[Vector2i]:
@@ -75,33 +80,44 @@ static func snap_run(from_cell: Vector2i, to_cell: Vector2i) -> Array[Vector2i]:
 
 
 func update_preview(start_viewport: Vector2, end_viewport: Vector2) -> void:
-	## Recompute the snapped plank run and per-cell tint from a drag.
-	clear_preview()
+	## Recompute the snapped plank run from the same longest_placeable commit
+	## uses: green = cells that will place, cost = what will be charged; red
+	## for the rest. Refusal reason only when nothing is placeable. Skips the
+	## snap / can_place work when the snapped end cells have not moved.
 	if tool != Tool.PLANK or _interaction == null or _interaction.player == null:
+		clear_preview()
 		return
 	var inventory := _inventory()
 	if inventory == null:
+		clear_preview()
 		return
 	var from_cell := _cell_at(start_viewport)
 	var to_cell := _cell_at(end_viewport)
-	cells = snap_run(from_cell, to_cell)
 	cost_viewport = end_viewport
+	if _snap_valid and from_cell == _snap_from and to_cell == _snap_to:
+		return
+	_snap_from = from_cell
+	_snap_to = to_cell
+	_snap_valid = true
+	cells = snap_run(from_cell, to_cell)
 	var in_reach: Array[Vector2i] = []
 	for cell in cells:
-		var ok := _interaction.in_reach(cell) and _cell_looks_placeable(cell)
-		cell_ok.append(ok)
 		if _interaction.in_reach(cell):
 			in_reach.append(cell)
 	var placeable := longest_placeable(in_reach, inventory)
-	cost = _placer.cost(BuildCosts.PLANK, placeable) if not placeable.is_empty() \
-			else _placer.cost(BuildCosts.PLANK, in_reach)
-	reasons = _placer.can_place(BuildCosts.PLANK, in_reach, inventory) if not in_reach.is_empty() \
-			else [ConstructionPlacer.EMPTY_CELLS]
-	# When the whole in-reach run is refused, mark every cell red so the
-	# preview matches the refusal (for example not enough wood).
-	if not reasons.is_empty():
-		for i in cell_ok.size():
-			cell_ok[i] = false
+	var placeable_set := {}
+	for cell in placeable:
+		placeable_set[cell] = true
+	cell_ok.clear()
+	for cell in cells:
+		cell_ok.append(placeable_set.has(cell))
+	if placeable.is_empty():
+		cost = 0
+		reasons = _placer.can_place(BuildCosts.PLANK, in_reach, inventory) if not in_reach.is_empty() \
+				else [ConstructionPlacer.EMPTY_CELLS]
+	else:
+		cost = _placer.cost(BuildCosts.PLANK, placeable)
+		reasons = []
 
 
 func longest_placeable(run: Array[Vector2i], inventory: Inventory) -> Array[Vector2i]:
@@ -148,7 +164,7 @@ func draw_preview(ci: CanvasItem) -> void:
 	var font: Font = ThemeDB.fallback_font
 	var font_size := 10
 	if cost > 0 or not reasons.is_empty():
-		var label := "%d wood" % cost if cost >= 0 else ""
+		var label := "%d wood" % cost if cost > 0 else ""
 		if not reasons.is_empty():
 			label = ("%s — %s" % [label, ", ".join(PackedStringArray(reasons))]).strip_edges()
 			if label.begins_with("—"):
@@ -202,8 +218,14 @@ func _ensure_picker() -> void:
 
 
 func _refresh_picker_visible() -> void:
-	if _picker:
-		_picker.visible = _interaction != null and _interaction.mode == Interaction.Mode.INTERACT
+	if _picker == null or _interaction == null:
+		return
+	_picker.visible = _interaction.mode == Interaction.Mode.INTERACT
+	var mp := Interaction.multiplayer_on(_interaction.multiplayer)
+	if _buttons.has(Tool.PLANK):
+		(_buttons[Tool.PLANK] as Button).visible = not mp
+	if mp and tool == Tool.PLANK:
+		set_tool(Tool.CUT)
 
 
 func _inventory() -> Inventory:
@@ -216,7 +238,6 @@ func _cell_at(viewport_pos: Vector2) -> Vector2i:
 
 
 func _cell_looks_placeable(cell: Vector2i) -> bool:
-	## Cheap per-cell check for tint: water, empty of plank. Full rules stay
-	## in ConstructionPlacer.can_place.
+	## Cheap per-cell check kept for callers; tint now follows longest_placeable.
 	return not _interaction.world_map.has_bridge(cell) \
 			and _interaction.world_map.predict_cell(cell)[0] == TileCatalog.WATER
