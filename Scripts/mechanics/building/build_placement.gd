@@ -1,11 +1,11 @@
 class_name BuildPlacement
 extends RefCounted
-## Interact-mode build tool (#225): Cut vs Plank picker, H/V-snapped plank
-## drag, green/red preview and wood cost. Placement goes only through
-## ConstructionPlacer. Walls and towers are later kinds, not in this picker.
-## Preview green cells and cost match exactly what commit places and charges.
+## Interact-mode build tool (#225 / #273): Cut / Plank / Tower picker, H/V-
+## snapped plank drag, single-anchor tower preview, green/red preview and wood
+## cost. Placement goes only through ConstructionPlacer. Preview green cells
+## and cost match exactly what commit places and charges.
 
-enum Tool { CUT, PLANK }
+enum Tool { CUT, PLANK, TOWER }
 
 const VALID_TINT := Color(0.2, 0.85, 0.3, 0.42)
 const INVALID_TINT := Color(0.92, 0.22, 0.18, 0.48)
@@ -17,11 +17,14 @@ const InGameMenuScript := preload("res://Scripts/ingame_menu.gd")
 const TOOL_ICONS := {
 	Tool.CUT: preload("res://art/ui/ui_tool_cut.png"),
 	Tool.PLANK: preload("res://art/ui/ui_tool_plank.png"),
+	Tool.TOWER: preload("res://art/ui/ui_tool_tower.png"),
 }
-const TOOL_TIPS := {Tool.CUT: "Cut", Tool.PLANK: "Plank"}
+const TOOL_TIPS := {Tool.CUT: "Cut", Tool.PLANK: "Plank", Tool.TOWER: "Tower"}
+## Tools refused while multiplayer is on (same gate as ConstructionPlacer).
+const MP_HIDDEN := [Tool.PLANK, Tool.TOWER]
 
 var tool := Tool.CUT
-var cells: Array[Vector2i] = []  ## snapped run under the finger
+var cells: Array[Vector2i] = []  ## snapped run or tower footprint under the finger
 var cell_ok: Array[bool] = []  ## parallel to cells: green iff commit will place
 var cost := 0
 var reasons: Array[String] = []
@@ -80,44 +83,22 @@ static func snap_run(from_cell: Vector2i, to_cell: Vector2i) -> Array[Vector2i]:
 
 
 func update_preview(start_viewport: Vector2, end_viewport: Vector2) -> void:
-	## Recompute the snapped plank run from the same longest_placeable commit
-	## uses: green = cells that will place, cost = what will be charged; red
-	## for the rest. Refusal reason only when nothing is placeable. Skips the
-	## snap / can_place work when the snapped end cells have not moved.
-	if tool != Tool.PLANK or _interaction == null or _interaction.player == null:
+	## Recompute the preview for the active tool. Plank: snapped run, green =
+	## longest placeable prefix. Tower: footprint of the anchor under the
+	## finger, all green iff commit will place, else all red. Skips work when
+	## the cell under the finger has not moved.
+	if tool == Tool.CUT or _interaction == null or _interaction.player == null:
 		clear_preview()
 		return
 	var inventory := _inventory()
 	if inventory == null:
 		clear_preview()
 		return
-	var from_cell := _cell_at(start_viewport)
-	var to_cell := _cell_at(end_viewport)
 	cost_viewport = end_viewport
-	if _snap_valid and from_cell == _snap_from and to_cell == _snap_to:
+	if tool == Tool.TOWER:
+		_update_tower_preview(end_viewport, inventory)
 		return
-	_snap_from = from_cell
-	_snap_to = to_cell
-	_snap_valid = true
-	cells = snap_run(from_cell, to_cell)
-	var in_reach: Array[Vector2i] = []
-	for cell in cells:
-		if _interaction.in_reach(cell):
-			in_reach.append(cell)
-	var placeable := longest_placeable(in_reach, inventory)
-	var placeable_set := {}
-	for cell in placeable:
-		placeable_set[cell] = true
-	cell_ok.clear()
-	for cell in cells:
-		cell_ok.append(placeable_set.has(cell))
-	if placeable.is_empty():
-		cost = 0
-		reasons = _placer.can_place(BuildCosts.PLANK, in_reach, inventory) if not in_reach.is_empty() \
-				else [ConstructionPlacer.EMPTY_CELLS]
-	else:
-		cost = _placer.cost(BuildCosts.PLANK, placeable)
-		reasons = []
+	_update_plank_preview(start_viewport, end_viewport, inventory)
 
 
 func longest_placeable(run: Array[Vector2i], inventory: Inventory) -> Array[Vector2i]:
@@ -132,27 +113,26 @@ func longest_placeable(run: Array[Vector2i], inventory: Inventory) -> Array[Vect
 
 
 func commit() -> bool:
-	## Place the longest valid prefix of the current preview; false when none.
-	if tool != Tool.PLANK or cells.is_empty():
+	## Place what the current preview greens; false when none.
+	if tool == Tool.CUT or cells.is_empty():
 		clear_preview()
 		return false
 	var inventory := _inventory()
 	if inventory == null:
 		clear_preview()
 		return false
-	var in_reach: Array[Vector2i] = []
-	for cell in cells:
-		if _interaction.in_reach(cell):
-			in_reach.append(cell)
-	var placeable := longest_placeable(in_reach, inventory)
-	var ok := not placeable.is_empty() and _placer.place(BuildCosts.PLANK, placeable, inventory)
+	var ok := false
+	if tool == Tool.TOWER:
+		ok = _commit_tower(inventory)
+	elif tool == Tool.PLANK:
+		ok = _commit_plank(inventory)
 	clear_preview()
 	return ok
 
 
 func draw_preview(ci: CanvasItem) -> void:
 	## Green/red cell tints, wood cost and refusal reason near the finger.
-	if tool != Tool.PLANK or cells.is_empty() or _interaction == null:
+	if tool == Tool.CUT or cells.is_empty() or _interaction == null:
 		return
 	var map: TileMap = _interaction.world_map
 	var half: Vector2 = Vector2(map.tile_set.tile_size) * map.global_scale / 2.0
@@ -179,6 +159,86 @@ func on_mode_changed(mode: Interaction.Mode) -> void:
 	_refresh_picker_visible()
 
 
+func _update_plank_preview(start_viewport: Vector2, end_viewport: Vector2, inventory: Inventory) -> void:
+	var from_cell := _cell_at(start_viewport)
+	var to_cell := _cell_at(end_viewport)
+	if _snap_valid and from_cell == _snap_from and to_cell == _snap_to:
+		return
+	_snap_from = from_cell
+	_snap_to = to_cell
+	_snap_valid = true
+	cells = snap_run(from_cell, to_cell)
+	var in_reach: Array[Vector2i] = []
+	for cell in cells:
+		if _interaction.in_reach(cell):
+			in_reach.append(cell)
+	var placeable := longest_placeable(in_reach, inventory)
+	var placeable_set := {}
+	for cell in placeable:
+		placeable_set[cell] = true
+	cell_ok.clear()
+	for cell in cells:
+		cell_ok.append(placeable_set.has(cell))
+	if placeable.is_empty():
+		cost = 0
+		reasons = _placer.can_place(BuildCosts.PLANK, in_reach, inventory) if not in_reach.is_empty() \
+				else [ConstructionPlacer.EMPTY_CELLS]
+	else:
+		cost = _placer.cost(BuildCosts.PLANK, placeable)
+		reasons = []
+
+
+func _update_tower_preview(end_viewport: Vector2, inventory: Inventory) -> void:
+	## Footprint of the anchor under the finger. All green and cost 10 when
+	## commit will place; all red with reasons otherwise.
+	var anchor := _cell_at(end_viewport)
+	if _snap_valid and anchor == _snap_from:
+		return
+	_snap_from = anchor
+	_snap_to = anchor
+	_snap_valid = true
+	cells = _placer.tower_footprint(anchor)
+	cell_ok.clear()
+	var one: Array[Vector2i] = [anchor]
+	var placeable := false
+	reasons.clear()
+	if cells.is_empty():
+		reasons.append(ConstructionPlacer.EMPTY_CELLS)
+	elif not _interaction.in_reach(anchor):
+		var why := _placer.can_place(BuildCosts.TOWER, one, inventory)
+		if why.is_empty():
+			reasons.append(ConstructionPlacer.OCCUPIED)
+		else:
+			reasons = why
+	else:
+		var why := _placer.can_place(BuildCosts.TOWER, one, inventory)
+		placeable = why.is_empty()
+		if not placeable:
+			reasons = why
+	for _i in cells.size():
+		cell_ok.append(placeable)
+	cost = _placer.cost(BuildCosts.TOWER, one) if placeable else 0
+
+
+func _commit_plank(inventory: Inventory) -> bool:
+	var in_reach: Array[Vector2i] = []
+	for cell in cells:
+		if _interaction.in_reach(cell):
+			in_reach.append(cell)
+	var placeable := longest_placeable(in_reach, inventory)
+	return not placeable.is_empty() and _placer.place(BuildCosts.PLANK, placeable, inventory)
+
+
+func _commit_tower(inventory: Inventory) -> bool:
+	## Place on the preview's anchor (centre of the footprint's first cell set
+	## via _snap_from). Green preview means can_place already passed.
+	var anchor := _snap_from
+	if not _interaction.in_reach(anchor):
+		return false
+	var one: Array[Vector2i] = [anchor]
+	return _placer.place(BuildCosts.TOWER, one, inventory)
+
+
 func _ensure_picker() -> void:
 	var hud := _interaction.get_node_or_null("/root/Flagoria/CanvasLayer1") as CanvasLayer
 	if hud == null:
@@ -191,7 +251,7 @@ func _ensure_picker() -> void:
 		hud.add_child(_picker)
 	_picker.anchor_left = 1.0
 	_picker.anchor_right = 1.0
-	_picker.offset_left = -90.0
+	_picker.offset_left = -110.0
 	_picker.offset_top = 4.0
 	_picker.offset_right = -48.0
 	_picker.offset_bottom = 22.0
@@ -201,7 +261,7 @@ func _ensure_picker() -> void:
 		child.queue_free()
 	_buttons.clear()
 	var theme: Theme = load("res://art/ui/main_menu_theme.tres")
-	for t in [Tool.CUT, Tool.PLANK]:
+	for t in [Tool.CUT, Tool.PLANK, Tool.TOWER]:
 		var button := Button.new()
 		button.toggle_mode = true
 		button.focus_mode = Control.FOCUS_NONE
@@ -222,9 +282,10 @@ func _refresh_picker_visible() -> void:
 		return
 	_picker.visible = _interaction.mode == Interaction.Mode.INTERACT
 	var mp := Interaction.multiplayer_on(_interaction.multiplayer)
-	if _buttons.has(Tool.PLANK):
-		(_buttons[Tool.PLANK] as Button).visible = not mp
-	if mp and tool == Tool.PLANK:
+	for t in MP_HIDDEN:
+		if _buttons.has(t):
+			(_buttons[t] as Button).visible = not mp
+	if mp and tool in MP_HIDDEN:
 		set_tool(Tool.CUT)
 
 

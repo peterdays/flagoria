@@ -209,7 +209,8 @@ const PROP_FLAG_BLUE := Vector2i(2, 7)
 const PROP_FLAG_RED := Vector2i(3, 7)
 const PROP_FLAG_NEUTRAL := Vector2i(4, 7)  ## placeholder (#274): a tower nobody owns
 const PROP_FLAG_MOBS := Vector2i(5, 7)  ## placeholder (#274): a tower the mobs took
-
+const TOWER_WOOD_POST := Vector2i(6, 7)  ## placeholder (#273): wooden tower post
+const TOWER_WOOD_WALL := Vector2i(7, 7)  ## placeholder (#273): wooden tower wall
 ## Clouds. CLOUD_M_* and CLOUD_L_* are parts of multi-cell clouds, row-major.
 const CLOUD_S := Vector2i(0, 8)
 const CLOUD_M_0 := Vector2i(1, 8)
@@ -220,7 +221,6 @@ const CLOUD_L_2 := Vector2i(2, 9)
 const CLOUD_L_3 := Vector2i(0, 10)
 const CLOUD_L_4 := Vector2i(1, 10)
 const CLOUD_L_5 := Vector2i(2, 10)
-
 ## Castle walls (overlay layer, transparent background)
 const WALL_POST := Vector2i(16, 0)
 const WALL_END_N := Vector2i(17, 0)
@@ -248,7 +248,6 @@ const WALL_GATE_V := Vector2i(22, 2)
 const WALL_H_DMG_CRACK := Vector2i(23, 2)
 const WALL_H_DMG_CHUNK := Vector2i(16, 3)
 const WALL_V_DMG_CRACK := Vector2i(17, 3)
-
 ## Wooden palisade walls (overlay layer, transparent background). Slot i
 ## matches stone slot i: WALL_* (16 + i % 8, i / 8) -> PALISADE_* (i % 8, 15 + i / 8).
 ## GATE_V_OPEN and the _JOIN_ pieces (a straight run whose end meets a stone
@@ -284,7 +283,6 @@ const PALISADE_H_JOIN_E := Vector2i(3, 18)
 const PALISADE_H_JOIN_W := Vector2i(4, 18)
 const PALISADE_V_JOIN_N := Vector2i(5, 18)
 const PALISADE_V_JOIN_S := Vector2i(6, 18)
-
 ## Name -> {source_id, atlas}. Every constant above appears here.
 const TILES := {
 	"WATER": {"source_id": SOURCE_ID, "atlas": WATER},
@@ -465,6 +463,8 @@ const TILES := {
 	"PROP_FLAG_RED": {"source_id": SOURCE_ID, "atlas": PROP_FLAG_RED},
 	"PROP_FLAG_NEUTRAL": {"source_id": SOURCE_ID, "atlas": PROP_FLAG_NEUTRAL},
 	"PROP_FLAG_MOBS": {"source_id": SOURCE_ID, "atlas": PROP_FLAG_MOBS},
+	"TOWER_WOOD_POST": {"source_id": SOURCE_ID, "atlas": TOWER_WOOD_POST},
+	"TOWER_WOOD_WALL": {"source_id": SOURCE_ID, "atlas": TOWER_WOOD_WALL},
 	"CLOUD_S": {"source_id": SOURCE_ID, "atlas": CLOUD_S},
 	"CLOUD_M_0": {"source_id": SOURCE_ID, "atlas": CLOUD_M_0},
 	"CLOUD_M_1": {"source_id": SOURCE_ID, "atlas": CLOUD_M_1},

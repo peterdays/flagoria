@@ -16,6 +16,7 @@ const BUSH := "bush"
 const OUT_OF_MAP := "out of map"
 const OVERLAPS_STRUCTURE := "overlaps another structure"
 const OVERLAPS_PLAYER := "overlaps a player"
+const OVERLAPS_MOB := "overlaps a mob"
 const MULTIPLAYER_ON := "multiplayer on"
 ## Owners that are not a peer id (#274): a tower nobody holds, and one the
 ## mobs took.
@@ -91,8 +92,10 @@ func can_place(structure: Structure, anchor_cell: Vector2i) -> Array[String]:
 			found[OVERLAPS_STRUCTURE] = true
 		if _map.player_on_cell(cell):
 			found[OVERLAPS_PLAYER] = true
+		if _map.mob_on_cell(cell):
+			found[OVERLAPS_MOB] = true
 	var out: Array[String] = []
-	for reason in [WATER, TREE, BUSH, OUT_OF_MAP, OVERLAPS_STRUCTURE, OVERLAPS_PLAYER, MULTIPLAYER_ON]:
+	for reason in [WATER, TREE, BUSH, OUT_OF_MAP, OVERLAPS_STRUCTURE, OVERLAPS_PLAYER, OVERLAPS_MOB, MULTIPLAYER_ON]:
 		if found.has(reason):
 			out.append(reason)
 	return out

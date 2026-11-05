@@ -2,11 +2,11 @@ class_name ConstructionPlacer
 extends RefCounted
 ## Shared construction placement (#296): one API for every buildable kind.
 ## Checks, wood cost and the writer live here so bridges, walls and towers
-## share the same path. The plank bridge is the first kind; walls (#276) and
-## towers (#273) register as more kinds later. The placement UI (#225) only
-## talks to this module.
+## share the same path. Plank bridges and wooden towers (#273) are registered;
+## walls (#276) add another kind later. The placement UI (#225) only talks to
+## this module.
 ## Host-alone first: while multiplayer is on nothing is placed (same gate as
-## BuildCosts and StructurePlacer). Peer sync of placed blocks is #297.
+## BuildCosts and StructurePlacer). Peer sync of placed blocks is #297 / #278.
 
 const _WorldMap := preload("res://Scripts/TileMap.gd")
 
@@ -23,7 +23,10 @@ const UNKNOWN_KIND := BuildCosts.UNKNOWN_KIND
 ## adds a line here and a `_check_<kind>` / `_write_<kind>` pair.
 const KINDS := {
 	BuildCosts.PLANK: true,
+	BuildCosts.TOWER: true,
 }
+
+const TOWER_STRUCTURE := "tower_wood"
 
 const _REASON_ORDER := [
 	EMPTY_CELLS, UNKNOWN_KIND, WRONG_GROUND, OCCUPIED, NOT_STRAIGHT, NOT_ADJACENT,
@@ -40,6 +43,7 @@ func _init(map: _WorldMap) -> void:
 func can_place(kind: StringName, cells: Array[Vector2i], inventory: Inventory) -> Array[String]:
 	## Why `kind` cannot go on `cells`; empty when it can. Each reason appears
 	## once, in `_REASON_ORDER`. Wood and multiplayer come from BuildCosts.
+	## A tower takes exactly one cell (its anchor); a plank takes the run.
 	var found := {}
 	if cells.is_empty():
 		found[EMPTY_CELLS] = true
@@ -49,16 +53,22 @@ func can_place(kind: StringName, cells: Array[Vector2i], inventory: Inventory) -
 		match kind:
 			BuildCosts.PLANK:
 				_check_plank(cells, found)
+			BuildCosts.TOWER:
+				_check_tower(cells, found)
 	if not cells.is_empty() and KINDS.has(kind):
-		var why := BuildCosts.refusal(inventory, kind, cells.size())
+		var units := _units(kind, cells)
+		var why := BuildCosts.refusal(inventory, kind, units)
 		if why != "":
 			found[why] = true
 	return _ordered(found)
 
 
 func cost(kind: StringName, cells: Array) -> int:
-	## Wood for placing `kind` on every cell in `cells`; -1 for an unknown kind.
-	return BuildCosts.cost(kind, cells.size())
+	## Wood for placing `kind` on `cells`; -1 for an unknown kind. A tower is
+	## always one unit (10 wood) regardless of footprint size.
+	if not KINDS.has(kind) and not BuildCosts.WOOD.has(kind):
+		return -1
+	return BuildCosts.cost(kind, _units(kind, cells))
 
 
 func place(kind: StringName, cells: Array[Vector2i], inventory: Inventory) -> bool:
@@ -70,7 +80,24 @@ func place(kind: StringName, cells: Array[Vector2i], inventory: Inventory) -> bo
 	match kind:
 		BuildCosts.PLANK:
 			return _place_plank(cells, inventory)
+		BuildCosts.TOWER:
+			return _place_tower(cells, inventory)
 	return false
+
+
+func tower_footprint(anchor_cell: Vector2i) -> Array[Vector2i]:
+	## Map cells the wooden tower would cover with its anchor on `anchor_cell`.
+	var structure := StructurePlacer.load_named(TOWER_STRUCTURE)
+	if structure == null:
+		return []
+	var out: Array[Vector2i] = []
+	for cell: Vector2i in StructurePlacer.footprint(structure, anchor_cell):
+		out.append(cell)
+	return out
+
+
+func _units(kind: StringName, cells: Array) -> int:
+	return 1 if kind == BuildCosts.TOWER else cells.size()
 
 
 func _place_plank(cells: Array[Vector2i], inventory: Inventory) -> bool:
@@ -81,6 +108,21 @@ func _place_plank(cells: Array[Vector2i], inventory: Inventory) -> bool:
 	var to: Vector2i = ends[1]
 	var why := BuildCosts.buy(inventory, BuildCosts.PLANK, cells.size(), func() -> bool:
 		return _map.build_bridge(from, to))
+	return why == ""
+
+
+func _place_tower(cells: Array[Vector2i], inventory: Inventory) -> bool:
+	## One tower: spend 10 wood, then StructurePlacer writes tower_wood owned
+	## by the local peer so TowerCapture can take it (#274).
+	if cells.size() != 1:
+		return false
+	var structure := StructurePlacer.load_named(TOWER_STRUCTURE)
+	if structure == null:
+		return false
+	var anchor: Vector2i = cells[0]
+	var owner := inventory.multiplayer.get_unique_id()
+	var why := BuildCosts.buy(inventory, BuildCosts.TOWER, 1, func() -> bool:
+		return _map.place_structure(structure, anchor, owner) > 0)
 	return why == ""
 
 
@@ -96,6 +138,28 @@ func _check_plank(cells: Array[Vector2i], found: Dictionary) -> void:
 		found[NOT_STRAIGHT] = true
 	elif not _run_touches_support(cells):
 		found[NOT_ADJACENT] = true
+
+
+func _check_tower(cells: Array[Vector2i], found: Dictionary) -> void:
+	## Anchor must be exactly one cell; StructurePlacer reasons map onto the
+	## shared vocabulary (land only, no overlap with structures/players/mobs).
+	if cells.size() != 1:
+		found[EMPTY_CELLS] = true
+		return
+	var structure := StructurePlacer.load_named(TOWER_STRUCTURE)
+	if structure == null:
+		found[UNKNOWN_KIND] = true
+		return
+	for reason in _map.can_place_structure(structure, cells[0]):
+		match reason:
+			StructurePlacer.WATER, StructurePlacer.OUT_OF_MAP:
+				found[WRONG_GROUND] = true
+			StructurePlacer.TREE, StructurePlacer.BUSH, \
+			StructurePlacer.OVERLAPS_STRUCTURE, StructurePlacer.OVERLAPS_PLAYER, \
+			StructurePlacer.OVERLAPS_MOB:
+				found[OCCUPIED] = true
+			StructurePlacer.MULTIPLAYER_ON:
+				found[MULTIPLAYER_ON] = true
 
 
 func _run_touches_support(cells: Array[Vector2i]) -> bool:
