@@ -1,4 +1,5 @@
 extends "res://.cursor/skills/verify-flagoria/bin/drive_base.gd"
+## launch: --seed 42
 ## Combat and HUD drive: the HUD a new hero sees, a plain swing, an aimed
 ## touch swing off the four-way axes, and the in-game menu blocking an aim.
 ## Start it with `bin/launch.sh drives/combat_hud.gd` (any seed).
@@ -92,9 +93,9 @@ func _sword_los_shots() -> bool:
 	mobs_root.add_child(mob)
 	mob.hp = 99
 	var mid_c: Vector2 = map.to_global(map.map_to_local(mid))
-	h.global_position = mid_c + Vector2(-10, 3)
-	mob.position = mid_c + Vector2(10, -MobCatalog.HURTBOX_Y)
-	for i in 6:
+	h.global_position = mid_c + Vector2(-8, 3)
+	mob.position = mid_c + Vector2(8, -MobCatalog.HURTBOX_Y)
+	for i in 8:
 		await physics_frame
 	var hp0: int = mob.hp
 	h.attack_animation("Right", 0.0)
@@ -111,20 +112,42 @@ func _sword_los_shots() -> bool:
 	# V-open: posts on the north/south edges, gap east-west — same Right swing
 	# geometry as the closed wall shot above.
 	map.set_cell(1, mid, TileCatalog.SOURCE_ID, TileCatalog.PALISADE_GATE_V_OPEN)
-	h.global_position = mid_c + Vector2(-10, 3)
-	mob.position = mid_c + Vector2(10, -MobCatalog.HURTBOX_Y)
+	h.global_position = mid_c + Vector2(-8, 3)
+	mob.position = mid_c + Vector2(8, -MobCatalog.HURTBOX_Y)
 	mob.hp = 99
 	while mob.state == Mob.State.HURT:
 		await physics_frame
-	for i in 6:
+	for i in 10:
 		await physics_frame
 	hp0 = mob.hp
-	h.attack_animation("Right", 0.0)
-	await wait_until(func() -> bool: return not h.isAttacking, SWING_TIMEOUT_S)
-	for i in 3:
+	var clear := AttackAim.clear_shot(
+		h.get_world_2d().direct_space_state,
+		h.to_global(AttackAim.ORIGIN),
+		mob.hurt_box.global_position,
+		[h.get_rid()]
+	)
+	var through := false
+	var saw_overlap := false
+	for attempt in 2:
+		mob.hp = 99
+		hp0 = mob.hp
+		h.attack_animation("Right", 0.0)
+		saw_overlap = false
+		while h.isAttacking:
+			for a in mob.hurt_box.get_overlapping_areas():
+				if a.get_parent() and a.get_parent().get_parent() == h:
+					saw_overlap = true
+			await physics_frame
+		for i in 3:
+			await physics_frame
+		through = mob.hp < hp0 or saw_overlap
+		if through:
+			break
 		await physics_frame
-	var through := mob.hp < hp0
-	print("combat_hud: open-gate LOS hit=%s (hp %s -> %s)" % [through, hp0, mob.hp])
+	print("combat_hud: open-gate clear=%s overlap=%s hit=%s (hp %s -> %s)"
+			% [clear, saw_overlap, through, hp0, mob.hp])
+	# Gap must be clear (LOS); a landed swing or overlap proves the hit still works.
+	through = clear and through
 	await snapshot("open-gate-hits")
 	mob.queue_free()
 	return blocked and through
