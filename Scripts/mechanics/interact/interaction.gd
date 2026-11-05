@@ -161,7 +161,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				_cancel()  # a second finger: a pinch, not a selection
 		elif event.index == _touch:
 			_end = event.position
-			if build.tool == BuildPlacement.Tool.PLANK:
+			if build.tool in [BuildPlacement.Tool.PLANK, BuildPlacement.Tool.TOWER]:
 				build.update_preview(_start, _end)
 				build.commit()
 			elif _dragging:
@@ -174,7 +174,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_end = event.position
 		if _start.distance_to(_end) > DRAG_START:
 			_dragging = true
-		if build.tool == BuildPlacement.Tool.PLANK:
+		if build.tool in [BuildPlacement.Tool.PLANK, BuildPlacement.Tool.TOWER]:
 			build.update_preview(_start, _end)
 
 
@@ -369,7 +369,7 @@ func _draw() -> void:
 	if mode != Mode.INTERACT or player == null:
 		return
 	draw_arc(to_local(player.global_position), REACH, 0.0, TAU, 48, FILL_COLOR, 1.0)
-	if build.tool == BuildPlacement.Tool.PLANK:
+	if build.tool in [BuildPlacement.Tool.PLANK, BuildPlacement.Tool.TOWER]:
 		build.draw_preview(self)
 	elif _dragging:
 		var rect := selection_rect()

@@ -15,7 +15,7 @@ const ATTRIBUTES := ["auto", "team", "open"]
 ## and team colours are chosen by the game when a structure is placed.
 const ALLOWED := {
 	"ground": ["GRASS_A", "GRASS_B", "GRASS_C", "GRASS_D", "SAND", "STONES", "FLOWER"],
-	"object": ["WALL_H", "WALL_GATE_H", "WALL_POST", "PROP_FLAG_BLUE", "BUSH", "TREE", "TREE_PINE_SMALL"],
+	"object": ["WALL_H", "WALL_GATE_H", "WALL_POST", "TOWER_WOOD_POST", "TOWER_WOOD_WALL", "PROP_FLAG_BLUE", "BUSH", "TREE", "TREE_PINE_SMALL"],
 }
 
 var name := ""

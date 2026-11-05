@@ -1,0 +1,20 @@
+flagoria-structure 1
+name: tower_wood
+version: 1
+size: 3x3
+anchor: 1,2
+tags: defense, buildable
+; Small wooden palisade tower; the flag takes the owner's colour.
+legend:
+  # = TOWER_WOOD_WALL
+  F = PROP_FLAG_BLUE team
+  T = TOWER_WOOD_POST
+  s = SAND
+ground:
+  ...
+  .s.
+  .s.
+object:
+  T#T
+  #F#
+  T#T

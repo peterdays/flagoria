@@ -1,26 +1,28 @@
 # Build placement
 
-Interact-mode build picker and plank preview (#225). Entering interact mode
-shows a small Cut / Plank icon row next to the mode button. Cut keeps the
+Interact-mode build picker (#225 / #273). Entering interact mode shows a
+small Cut / Plank / Tower icon row next to the mode button. Cut keeps the
 existing tap, drag and chop behaviour. Plank snaps a drag to a horizontal or
-vertical cell run. The preview greens exactly the cells `commit` will place
-(the longest placeable prefix) and shows that wood cost; the rest of the drag
-is red. A refusal reason appears only when nothing is placeable. On release,
-placement goes through `ConstructionPlacer` (`can_place` / `cost` / `place`).
-Wall and tower kinds are not in the picker yet. Ghost tiles wait on art.
-Dead-player gating stays on `Interaction.player_dead`. While multiplayer is
-on, the Plank icon is hidden so it never shows a cost for something that
-cannot be placed. `update_preview` skips the snap / `can_place` work when the
-snapped start and end cells have not moved. The Cut icon uses the AxeTool
-sprite padded into `art/ui/ui_tool_cut.png`.
+vertical cell run. Tower previews the 3×3 `tower_wood` footprint under the
+finger (see [Build tower](./build-tower.md)). The preview greens exactly the
+cells `commit` will place and shows that wood cost; the rest is red. A
+refusal reason appears only when nothing is placeable. On release, placement
+goes through `ConstructionPlacer` (`can_place` / `cost` / `place`). Wall
+kinds are not in the picker yet. Ghost tiles wait on art. Dead-player gating
+stays on `Interaction.player_dead`. While multiplayer is on, the Plank and
+Tower icons are hidden so they never show a cost for something that cannot
+be placed. `update_preview` skips the snap / `can_place` work when the cell
+under the finger has not moved. The Cut icon uses the AxeTool sprite padded
+into `art/ui/ui_tool_cut.png`; the Tower icon is `art/ui/ui_tool_tower.png`.
 
 Reach (`Interaction.REACH`) is the length bound for a drag preview; no separate
 run-length cap was added (#380 item 1 left open).
 
 ## Sub-features
 
-- `build-picker` Cut and Plank icons appear in interact mode, hide in combat,
-  and switch `BuildPlacement.tool`. Plank is hidden while multiplayer is on.
+- `build-picker` Cut, Plank and Tower icons appear in interact mode, hide in
+  combat, and switch `BuildPlacement.tool`. Plank and Tower are hidden while
+  multiplayer is on.
 - `build-plank-snap` a diagonal drag becomes a straight H or V cell run.
 - `build-plank-preview` green cells and cost match what commit places and
   charges; red for the rest of the drag; refusal only when nothing places.
@@ -30,9 +32,11 @@ run-length cap was added (#380 item 1 left open).
 ## How to get to it (user POV)
 
 1. Start a local game (Host alone or offline).
-2. Tap the mode button to enter interact mode; the Cut / Plank picker appears.
+2. Tap the mode button to enter interact mode; the Cut / Plank / Tower picker
+   appears.
 3. Tap Plank, drag across water next to land; green cells and the wood cost
-   follow the finger (green = what will place). Lift to place.
+   follow the finger (green = what will place). Lift to place. Tower: see
+   [Build tower](./build-tower.md).
 
 ## Driving it with verify-flagoria helpers
 

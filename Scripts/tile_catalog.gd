@@ -209,6 +209,8 @@ const PROP_FLAG_BLUE := Vector2i(2, 7)
 const PROP_FLAG_RED := Vector2i(3, 7)
 const PROP_FLAG_NEUTRAL := Vector2i(4, 7)  ## placeholder (#274): a tower nobody owns
 const PROP_FLAG_MOBS := Vector2i(5, 7)  ## placeholder (#274): a tower the mobs took
+const TOWER_WOOD_POST := Vector2i(6, 7)  ## placeholder (#273): wooden tower post
+const TOWER_WOOD_WALL := Vector2i(7, 7)  ## placeholder (#273): wooden tower wall
 
 ## Clouds. CLOUD_M_* and CLOUD_L_* are parts of multi-cell clouds, row-major.
 const CLOUD_S := Vector2i(0, 8)
@@ -465,6 +467,8 @@ const TILES := {
 	"PROP_FLAG_RED": {"source_id": SOURCE_ID, "atlas": PROP_FLAG_RED},
 	"PROP_FLAG_NEUTRAL": {"source_id": SOURCE_ID, "atlas": PROP_FLAG_NEUTRAL},
 	"PROP_FLAG_MOBS": {"source_id": SOURCE_ID, "atlas": PROP_FLAG_MOBS},
+	"TOWER_WOOD_POST": {"source_id": SOURCE_ID, "atlas": TOWER_WOOD_POST},
+	"TOWER_WOOD_WALL": {"source_id": SOURCE_ID, "atlas": TOWER_WOOD_WALL},
 	"CLOUD_S": {"source_id": SOURCE_ID, "atlas": CLOUD_S},
 	"CLOUD_M_0": {"source_id": SOURCE_ID, "atlas": CLOUD_M_0},
 	"CLOUD_M_1": {"source_id": SOURCE_ID, "atlas": CLOUD_M_1},
