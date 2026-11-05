@@ -10,6 +10,7 @@ Players earn points for discovering ground and for killing mobs. The host owns e
 - `points-discovery` `Scripts/discovery_points.gd`: `DISCOVERY_POINTS` 1 per new chunk-sized square walked into, checked every `CHECK_FRAMES` (15) frames and counted after two checks in a row.
 - `points-mob-kill` `MOB_KILL_POINTS` slime 5, crab 8, piglet 10, paid to the player whose hit kills.
 - `points-hud` `ScoreHud` shows `N pts` for the local player.
+- `points-flags-held` `FlagsHeldPoints` (`Scripts/mechanics/conquest/flags_held_points.gd`): `FLAGS_HELD_POINTS` 1 per owned flag tower every `INTERVAL` (5 s), reason `flags_held`; host alone. See [Flags held points](./flags-held-points.md).
 
 ## How to get to it (user POV)
 

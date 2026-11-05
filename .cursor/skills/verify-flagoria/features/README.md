@@ -65,6 +65,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Starting castle](./start-castle.md) — each player's castle next to the spawn, player starts outside the gate; placed by the host while alone, sent to joining peers.
 - [Cities](./cities.md) — closed wall loop around a flag tower makes a city; tint + minimap; capture transfers; host alone (#277).
 - [Tower capture](./tower-capture.md) — flag towers taken by a lone other side or mobs standing by the flag for 5 s, defenders pause, empty drains, contested freezes; host alone only.
+- [Flags held points](./flags-held-points.md) — 1 point per owned flag tower every 5 s (`flags_held`); host alone (#275).
 - [Hero sprites](./hero-sprites.md) — layered hero sheet generator, checked by the generator smoke.
 - [App icon](./app-icon.md) — icon generator and wiring, checked by the generator smoke.
 
