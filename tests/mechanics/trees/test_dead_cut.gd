@@ -6,6 +6,8 @@ extends "res://tests/helpers/test_helpers.gd"
 func _test_dead_cut_alone() -> int:
 	## Alone, with the hero dead: a drag over a tree in reach and a tap on it
 	## leave the tree and add no wood. After the respawn the same drag cuts it.
+	## Time cost: about 0.5 s alone with --only=dead_cut_alone (~2 s runner
+	## start-up). Isolation: the painted patch must survive respawn (#359).
 	print("-- test_dead_cut_alone")
 	var fail := 0
 	var scene = load("res://flagoria_main.tscn").instantiate()
@@ -14,15 +16,22 @@ func _test_dead_cut_alone() -> int:
 	menu.hide()
 	menu.set_process_unhandled_input(false)
 	var world = scene.get_node("World/worldMap")
+	# Painted scenes: freeze chunk redraw and pin spawn so respawn's
+	# resolve_player_spawn does not generate_chunk over the paint (#359).
+	MapGen.reset_to_defaults()
+	world.set_process(false)
 	world.clear()
 	for x in range(4, 16):
 		for y in range(4, 14):
 			world.set_cell(0, Vector2i(x, y), TileCatalog.SOURCE_ID, TileCatalog.GRASS_A)
 	var tree := Vector2i(10, 8)
 	world.set_cell(1, tree, TileCatalog.SOURCE_ID, TileCatalog.TREE)
+	var stand := Vector2i(10, 10)
+	world.spawn_point = stand
+	world._castle_front = stand
 	var player = load("res://Player/character_body_2d.tscn").instantiate()
 	player.name = str(scene.multiplayer.get_unique_id())
-	var below: Vector2 = world.to_global(world.map_to_local(Vector2i(10, 10)))
+	var below: Vector2 = world.to_global(world.map_to_local(stand))
 	player.position = below
 	scene.get_node("World").add_child(player)
 	await process_frame
@@ -54,7 +63,9 @@ func _test_dead_cut_alone() -> int:
 		printerr("FAIL dead_cut_alone: dead, the drag and tap left tree %s, wood %s, chopping %s"
 				% [world.has_tree(tree), inventory.count_of(Inventory.WOOD), interaction.chopping()])
 		fail += 1
-	health.respawn()
+	# Revive without resolve_player_spawn: respawn() searches from the origin
+	# and generate_chunk would redraw the painted patch (#359).
+	health.set_health_now(health.max_health)
 	player.position = below
 	swipe.call()
 	if world.has_tree(tree) or inventory.count_of(Inventory.WOOD) != InteractableCatalog.by_id("tree").amount_of(Inventory.WOOD):
@@ -66,4 +77,51 @@ func _test_dead_cut_alone() -> int:
 	await process_frame
 	if fail == 0:
 		print("PASS test_dead_cut_alone")
+	return fail
+
+
+func _test_painted_tree_survives_respawn() -> int:
+	## With MapGen seeds that grow a bush at (10, 8), a painted TREE there
+	## must still be a tree after health.respawn() (#359). A wide grass pad
+	## plus a pinned stand cell keeps resolve_player_spawn on painted land
+	## so it never generate_chunk. Time cost: about 0.5 s alone with
+	## --only=painted_tree_survives_respawn.
+	print("-- test_painted_tree_survives_respawn")
+	var fail := 0
+	var p := MapGenParams.make_defaults()
+	for key in ["altitude_seed", "moisture_seed", "temperature_seed", "items_seed", "biome_seed"]:
+		p.set(key, 6)
+	MapGen.params = p
+	MapGen.save_to_disk()
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	MapGen.reset_to_defaults()
+	world.set_process(false)
+	world.clear()
+	for x in range(-48, 49):
+		for y in range(-48, 49):
+			world.set_cell(0, Vector2i(x, y), TileCatalog.SOURCE_ID, TileCatalog.GRASS_A)
+	var tree := Vector2i(10, 8)
+	world.set_cell(1, tree, TileCatalog.SOURCE_ID, TileCatalog.TREE)
+	var stand := Vector2i(10, 10)
+	world.spawn_point = stand
+	world._castle_front = stand
+	var player = load("res://Player/character_body_2d.tscn").instantiate()
+	player.name = str(scene.multiplayer.get_unique_id())
+	var below: Vector2 = world.to_global(world.map_to_local(stand))
+	player.position = below
+	scene.get_node("World").add_child(player)
+	await process_frame
+	player.health.set_health_now(0)
+	player.health.respawn()
+	if not world.has_tree(tree) or world.get_cell_atlas_coords(1, tree) != TileCatalog.TREE:
+		printerr("FAIL painted_tree_survives_respawn: after respawn cell %s atlas %s has_tree %s"
+				% [tree, world.get_cell_atlas_coords(1, tree), world.has_tree(tree)])
+		fail += 1
+	player.queue_free()
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_painted_tree_survives_respawn")
 	return fail

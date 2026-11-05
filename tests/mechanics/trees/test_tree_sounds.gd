@@ -5,20 +5,28 @@ extends "res://tests/helpers/test_helpers.gd"
 func _chop_scene() -> Dictionary:
 	## The main scene with a grass patch, one tree at (10, 8) and the local
 	## player two cells below it; the test steps the chop clock itself.
+	## Isolation (#359): freeze TileMap processing, reset MapGen, and pin
+	## spawn on the painted stand cell so a revive does not
+	## resolve_player_spawn → generate_chunk over the paint.
 	var scene = load("res://flagoria_main.tscn").instantiate()
 	root.add_child(scene)
 	var menu: Node = scene.get_node("CanvasLayer2/MainMenu")
 	menu.hide()
 	menu.set_process_unhandled_input(false)
 	var world = scene.get_node("World/worldMap")
+	MapGen.reset_to_defaults()
+	world.set_process(false)
 	world.clear()
 	for x in range(4, 16):
 		for y in range(4, 14):
 			world.set_cell(0, Vector2i(x, y), TileCatalog.SOURCE_ID, TileCatalog.GRASS_A)
 	world.set_cell(1, Vector2i(10, 8), TileCatalog.SOURCE_ID, TileCatalog.TREE)
+	var stand := Vector2i(10, 10)
+	world.spawn_point = stand
+	world._castle_front = stand
 	var player = load("res://Player/character_body_2d.tscn").instantiate()
 	player.name = str(scene.multiplayer.get_unique_id())
-	player.position = world.to_global(world.map_to_local(Vector2i(10, 10)))
+	player.position = world.to_global(world.map_to_local(stand))
 	scene.get_node("World").add_child(player)
 	await process_frame
 	var interaction: Interaction = scene.get_node("World/Interaction")
@@ -120,6 +128,7 @@ func _test_chop_cancel_on_death() -> int:
 	## The hero dying mid-chop, even after the last impact and before the
 	## fall, cancels it: the tree stays, no wood is added and no fall or
 	## pickup sound plays. After the respawn a new chop works.
+	## Time cost: about 0.5 s alone with --only=chop_cancel_on_death.
 	print("-- test_chop_cancel_on_death")
 	var fail := 0
 	var s: Dictionary = await _chop_scene()
@@ -142,7 +151,8 @@ func _test_chop_cancel_on_death() -> int:
 		printerr("FAIL chop_cancel_on_death: chopping %s, tree %s, wood %s, sounds %s"
 				% [interaction.chopping(), world.has_tree(tree), inventory.count_of(Inventory.WOOD), got])
 		fail += 1
-	health.respawn()
+	# Revive without resolve_player_spawn / generate_chunk (#359).
+	health.set_health_now(health.max_health)
 	s["player"].position = world.to_global(world.map_to_local(Vector2i(10, 10)))
 	if health.is_dead() or not interaction.start_chop(tree):
 		printerr("FAIL chop_cancel_on_death: no new chop after the respawn (dead %s)" % health.is_dead())
