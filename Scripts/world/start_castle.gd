@@ -11,7 +11,7 @@ const PATH := "res://structures/castle.txt"
 ## The cell outside the gate, from the gate (the anchor).
 const GATE_FRONT := Vector2i(0, 1)
 ## Furthest the gate front may be from the spawn, in cells along x or y.
-const SEARCH_RADIUS := 32
+const SEARCH_RADIUS := 48
 
 
 static func structure() -> Structure:
