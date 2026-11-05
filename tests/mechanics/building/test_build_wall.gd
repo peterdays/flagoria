@@ -42,10 +42,18 @@ func _boot_wall_scene() -> Dictionary:
 	var player = load("res://Player/character_body_2d.tscn").instantiate()
 	player.name = str(scene.multiplayer.get_unique_id())
 	var place_cell: Vector2i = run[0] if not run.is_empty() else Vector2i(10, 10)
-	player.position = world.to_global(world.map_to_local(place_cell + Vector2i(0, 2)))
+	var stand: Vector2 = world.to_global(world.map_to_local(place_cell + Vector2i(0, 2)))
+	player.position = stand
+	# Body collision off: a support wall's physics box can shove the hero onto
+	# the first build cell during the boot frame (flake alone and on CI).
+	var body: CollisionShape2D = player.get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if body:
+		body.disabled = true
+	player.set_physics_process(false)
 	scene.get_node("World").add_child(player)
 	interaction.bind(player)
 	await process_frame
+	player.position = stand
 	return {
 		"scene": scene, "world": world, "interaction": interaction,
 		"inventory": inventory, "player": player, "run": run,
