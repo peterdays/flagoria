@@ -17,9 +17,14 @@ const OUT_OF_MAP := "out of map"
 const OVERLAPS_STRUCTURE := "overlaps another structure"
 const OVERLAPS_PLAYER := "overlaps a player"
 const MULTIPLAYER_ON := "multiplayer on"
-## Owner peer id -> flag tile for `team` legend entries. The host is blue and
-## every other owner red until more owner colours exist (#274).
-const OWNER_FLAGS := {1: "PROP_FLAG_BLUE"}
+## Owners that are not a peer id (#274): a tower nobody holds, and one the
+## mobs took.
+const OWNER_NEUTRAL := 0
+const OWNER_MOBS := -1
+## Owner -> flag tile for `team` legend entries. The host is blue, a neutral
+## tower grey, a mob tower purple, and every other peer red until more owner
+## colours exist.
+const OWNER_FLAGS := {1: "PROP_FLAG_BLUE", OWNER_NEUTRAL: "PROP_FLAG_NEUTRAL", OWNER_MOBS: "PROP_FLAG_MOBS"}
 const OTHER_OWNER_FLAG := "PROP_FLAG_RED"
 const DIR := "res://structures"
 
@@ -29,6 +34,8 @@ const DIR := "res://structures"
 var _cells: Dictionary = {}
 ## Placement id -> {"name", "owner", "anchor"} (for saves, #42).
 var _placed: Dictionary = {}
+## Placement id -> its `team` flag cells, the towers TowerCapture watches.
+var _flags: Dictionary = {}
 var _next_id := 1
 var _map: _WorldMap
 
@@ -59,6 +66,7 @@ func placements() -> Dictionary:
 func clear() -> void:
 	_cells.clear()
 	_placed.clear()
+	_flags.clear()
 	_next_id = 1
 
 
@@ -147,6 +155,7 @@ func _write(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
 		if not o.is_empty() and o["tile"].begins_with("WALL_"):
 			walls[cell] = {"gate": o["tile"].contains("GATE"), "open": "open" in o["attributes"]}
 	var solved := WallSolver.solve(walls)
+	var flags: Array[Vector2i] = []
 	for cell: Vector2i in foot:
 		var g: Dictionary = foot[cell][0]
 		var o: Dictionary = foot[cell][1]
@@ -158,6 +167,7 @@ func _write(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
 				tile = solved[cell]
 			if "team" in o["attributes"] and tile.begins_with("PROP_FLAG_"):
 				tile = OWNER_FLAGS.get(owner, OTHER_OWNER_FLAG)
+				flags.append(cell)
 			object = _atlas(tile)
 		_cells[cell] = [ground, object]
 		_map._tree_cuts.forget(cell)
@@ -173,8 +183,29 @@ func _write(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
 	var id := _next_id
 	_next_id += 1
 	_placed[id] = {"name": structure.name, "owner": owner, "anchor": anchor_cell}
+	if not flags.is_empty():
+		_flags[id] = flags
 	_map.ground_changed.emit(Rect2i(anchor_cell - structure.anchor, structure.size))
 	return id
+
+
+func towers() -> Dictionary:
+	## Placement id -> its `team` flag cells, for placements that have one.
+	return _flags.duplicate(true)
+
+
+func set_owner(id: int, owner: int) -> void:
+	## Hand placement `id` to `owner` (a captured tower, #274): its owner
+	## entry and its flag cells' colour change, nothing else.
+	if not _placed.has(id):
+		return
+	_placed[id]["owner"] = owner
+	var flag := _atlas(OWNER_FLAGS.get(owner, OTHER_OWNER_FLAG))
+	for cell: Vector2i in _flags.get(id, []):
+		_cells[cell][1] = flag
+		_map._predict_cache.erase(cell)
+		if _map.get_cell_source_id(1, cell) != -1:
+			_map.set_cell(1, cell, TileCatalog.SOURCE_ID, flag)
 
 
 static func footprint(structure: Structure, anchor_cell: Vector2i) -> Dictionary:
