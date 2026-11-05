@@ -77,3 +77,5 @@ about 20 s under xvfb.
 - Do not show the Wall icon while multiplayer is on; peer sync of walls is
   #278.
 - No gates in this slice; plain `PALISADE_*` only via `WallSolver`.
+- Drive evidence closes the default-open MinimapPanel (M in play) so the
+  wall chain and gap tint are not covered by the mist panel.
