@@ -18,7 +18,7 @@ func _test_dead_cut_alone() -> int:
 	var world = scene.get_node("World/worldMap")
 	# Painted scenes: freeze chunk redraw and pin spawn so respawn's
 	# resolve_player_spawn does not generate_chunk over the paint (#359).
-	MapGen.reset_to_defaults()
+	root.get_node("MapGen").reset_to_defaults()
 	world.set_process(false)
 	world.clear()
 	for x in range(4, 16):
@@ -91,12 +91,12 @@ func _test_painted_tree_survives_respawn() -> int:
 	var p := MapGenParams.make_defaults()
 	for key in ["altitude_seed", "moisture_seed", "temperature_seed", "items_seed", "biome_seed"]:
 		p.set(key, 6)
-	MapGen.params = p
-	MapGen.save_to_disk()
+	root.get_node("MapGen").params = p
+	root.get_node("MapGen").save_to_disk()
 	var scene = load("res://flagoria_main.tscn").instantiate()
 	root.add_child(scene)
 	var world = scene.get_node("World/worldMap")
-	MapGen.reset_to_defaults()
+	root.get_node("MapGen").reset_to_defaults()
 	world.set_process(false)
 	world.clear()
 	for x in range(-48, 49):

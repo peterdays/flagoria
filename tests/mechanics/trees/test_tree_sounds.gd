@@ -14,7 +14,7 @@ func _chop_scene() -> Dictionary:
 	menu.hide()
 	menu.set_process_unhandled_input(false)
 	var world = scene.get_node("World/worldMap")
-	MapGen.reset_to_defaults()
+	root.get_node("MapGen").reset_to_defaults()
 	world.set_process(false)
 	world.clear()
 	for x in range(4, 16):
