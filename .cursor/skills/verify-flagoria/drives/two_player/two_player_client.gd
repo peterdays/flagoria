@@ -20,4 +20,5 @@ func run() -> void:
 	var joined := await wait_until(func() -> bool:
 			return players().size() >= 2 and current_scene.world_params != null, JOIN_TIMEOUT_S)
 	print_world("client")
+	await snapshot("client-joined")
 	done(joined)

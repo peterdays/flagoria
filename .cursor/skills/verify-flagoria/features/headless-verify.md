@@ -1,5 +1,7 @@
 # Headless verify
 
+Drive: not player-facing
+
 Headless verify checks file sizes, opens the Godot 4.7 project, parses every GDScript file, runs the headless test entry point, and then runs the biome, audio and generator checks, so CI and local agents share one gate.
 
 ## Sub-features

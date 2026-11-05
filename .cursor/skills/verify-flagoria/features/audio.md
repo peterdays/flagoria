@@ -1,5 +1,7 @@
 # Audio
 
+Drive: not player-facing
+
 Music loops in the menu and in game, and combat and footstep sounds play on the SFX bus. Music and SFX volumes are set from the main menu and persist.
 
 ## Sub-features

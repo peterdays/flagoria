@@ -1,5 +1,7 @@
 # Map save files
 
+Drive: drives/chop_trees.gd
+
 A world save holds a world's generation inputs (params and seeds) plus what was done to it since, and is saved to and loaded from versioned JSON files in `user://saves/`. Terrain is never stored; the generator rebuilds it. The format is in `docs/world-saves.md`.
 
 ## Sub-features

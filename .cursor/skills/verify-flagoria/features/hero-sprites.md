@@ -1,5 +1,7 @@
 # Hero sprites
 
+Drive: not player-facing
+
 Player sprite sheets come from a layered generator; the Flagbearer sheet is the player sprite.
 
 ## Sub-features

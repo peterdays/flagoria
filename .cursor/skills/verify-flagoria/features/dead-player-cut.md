@@ -1,5 +1,7 @@
 # Dead player cuts nothing
 
+Drive: not player-facing
+
 A dead hero cannot cut trees or bushes (#349). In interact mode a tap or a drag does nothing while the local player is dead (`Interaction._unhandled_input` in `Scripts/mechanics/interact/interaction.gd`), and on the host `request_cut` refuses a cut from a peer whose player is dead, so a client that skips its own check still gets nothing. A chop already under way when the hero dies is cancelled by `ChopAction.step_chop` (`chop-death` in [Chopping trees and bushes](./chop-trees-and-bushes.md)); both use `Interaction.player_dead`. Cuts in two-player play are in [Cut sync](./cut-sync.md).
 
 ## Sub-features

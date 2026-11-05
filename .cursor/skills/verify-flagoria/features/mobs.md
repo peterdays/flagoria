@@ -1,5 +1,7 @@
 # Mobs
 
+Drive: not player-facing
+
 Slimes, crabs and piglets are placed from the world seed, wander near home, chase the nearest player, hurt on contact and die to sword hits. The host runs them and peers see the same mobs.
 
 ## Sub-features

@@ -1,5 +1,7 @@
 # Map characterization
 
+Drive: not player-facing
+
 Map characterization pins procedural tile output for fixed seeds so parameter changes show up as failing atlas expectations.
 
 ## Sub-features

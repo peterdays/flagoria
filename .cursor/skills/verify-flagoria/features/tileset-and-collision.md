@@ -1,5 +1,7 @@
 # Tileset and collision
 
+Drive: not player-facing
+
 The world map uses tileset v3.1 through named tiles. Water, and rows of trees or bushes, block movement.
 
 ## Sub-features

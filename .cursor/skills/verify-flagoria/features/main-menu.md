@@ -1,5 +1,7 @@
 # Main menu
 
+Drive: not player-facing
+
 The main menu offers Map Settings, Host, Join (with an address field), Music / Sound effects sliders and a Mob spawns slider, styled by a pixel-art Theme.
 
 ## Sub-features

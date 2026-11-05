@@ -1,5 +1,7 @@
 # Tower capture
 
+Drive: not player-facing
+
 Flag towers change hands (#274). Every placement with a `team` flag (the castle's main tower, a guard post) is a tower. `TowerCapture` (`Scripts/mechanics/conquest/tower_capture.gd`, the `World/TowerCapture` node in `flagoria_main.tscn`) checks each tower every physics tick. Living players count for their peer id. Mobs that are not dying count for the mobs (`StructurePlacer.OWNER_MOBS`, -1). Only those within `CAPTURE_RADIUS` (32 px, two cells) of the flag cell's centre take part. When progress reaches `CAPTURE_TIME` (5 s), `StructurePlacer.set_owner` hands the tower over: the placement's `owner` entry and its flag tile change, nothing else. Flags: host blue, other peers red, neutral grey (`OWNER_NEUTRAL`, 0), mobs purple; the neutral and mob flags are placeholders drawn by `tools/art/gen_flag_tiles.py`. A bar above the flag shows progress in the capturing side's colour. Capture runs only offline or on a host that is still alone; live capture sync is #278.
 
 ## Sub-features

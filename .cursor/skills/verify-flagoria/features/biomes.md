@@ -1,5 +1,7 @@
 # Biomes
 
+Drive: not player-facing
+
 The world is split into biomes (oceanic, temperate, continental, dense archipelago; ids in `Scripts/BiomeCatalog.gd`) that change island density, terrain, plants and structures.
 
 ## Sub-features

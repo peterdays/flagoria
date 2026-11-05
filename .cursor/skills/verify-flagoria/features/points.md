@@ -1,5 +1,7 @@
 # Points
 
+Drive: drives/combat_hud.gd
+
 Players earn points for discovering ground and for killing mobs. The host owns every total and tells each peer. The score shows top left as `N pts`.
 
 ## Sub-features

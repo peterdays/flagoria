@@ -1,5 +1,7 @@
 # Combat and aiming
 
+Drive: drives/combat_hud.gd
+
 A player swings the sword with space, a tap on the on-screen attack button, or an aimed attack (#231): hold the left mouse button on the map, or drag a finger out from the attack button, see the aim cone, and release to swing that way. The sword only hurts during the middle of the swing. Dead players neither block nor hit.
 
 ## Sub-features

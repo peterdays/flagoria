@@ -1,5 +1,7 @@
 # Touch controls
 
+Drive: drives/combat_hud.gd
+
 On touch screens the hero moves with an on-screen joystick and attacks with a round attack button that also aims (see [Combat and aiming](./combat-and-aiming.md)). Both use the Castle Stone art (#240). Number fields and the join address open an on-screen number pad or letter keyboard.
 
 ## Sub-features

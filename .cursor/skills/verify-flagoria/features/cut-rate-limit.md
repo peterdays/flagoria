@@ -1,5 +1,7 @@
 # Cut request limit
 
+Drive: not player-facing
+
 In multiplayer the host limits how fast each client may ask for cuts (#355). `Interaction.request_cut` (`Scripts/mechanics/interact/interaction.gd`) first takes a token from the sending peer's bucket in `CutRateLimit` (`Scripts/mechanics/interact/cut_rate_limit.gd`) and drops the request, with no reply, when the bucket is empty. That check runs before the cutter lookup, the dead-player check ([Dead player cuts nothing](./dead-player-cut.md)) and the reach check, so a client that floods the host (alive or dead) costs one lookup per request once its bucket is spent. The host's own cuts do not use a bucket. The rest of cut sync is in [Cut sync](./cut-sync.md).
 
 ## Sub-features

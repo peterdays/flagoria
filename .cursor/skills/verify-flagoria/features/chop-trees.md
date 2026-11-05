@@ -1,5 +1,7 @@
 # Chop trees (live drive)
 
+Drive: drives/chop_trees.gd
+
 In interact mode a tap on a tree in reach makes the hero face it and swing twice (`hits = 2` in `data/interactables/tree.tres`); the tree becomes a walkable stump and gives its wood once, with the tree sounds of #265. This file is the live-drive recipe for one tree. The mechanics, bushes, regrowth and their headless tests are in [Chopping trees and bushes](./chop-trees-and-bushes.md).
 
 ## Sub-features

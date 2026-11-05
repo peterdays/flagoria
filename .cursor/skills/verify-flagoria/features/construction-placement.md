@@ -1,5 +1,7 @@
 # Construction placement
 
+Drive: not player-facing
+
 Shared placement for every buildable (#296). `ConstructionPlacer`
 (`Scripts/mechanics/building/construction_placer.gd`) checks a kind on a list
 of cells, reports the wood cost, and places through `BuildCosts.buy` into the
