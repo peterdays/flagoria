@@ -1,5 +1,7 @@
 # Dedicated server
 
+Drive: not player-facing
+
 `-- --server [--port N] [--params <file>]` boots a headless host with no local player that clients join through the normal Join path.
 
 ## Sub-features

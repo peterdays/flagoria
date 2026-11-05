@@ -78,6 +78,15 @@ if ! python3 "$ROOT/tools/file_budget.py"; then
   exit 1
 fi
 
+echo "== Feature map (check-map.sh) =="
+# Fast and needs no Godot. Every feature file must carry a Drive: line; see
+# .cursor/skills/verify-flagoria/bin/check-map.sh.
+"$ROOT/.cursor/skills/verify-flagoria/bin/check-map.sh" --self-test
+if ! "$ROOT/.cursor/skills/verify-flagoria/bin/check-map.sh"; then
+  echo "error: feature map check failed (see above)" >&2
+  exit 1
+fi
+
 if [[ ! -x "$GODOT" ]] && ! command -v "$GODOT" >/dev/null 2>&1; then
   echo "error: Godot 4.7 editor binary not found (set GODOT to the binary path)" >&2
   exit 127

@@ -1,5 +1,7 @@
 # App icon
 
+Drive: not player-facing
+
 A pixel-art tower is the project, window and Android launcher icon.
 
 ## Sub-features

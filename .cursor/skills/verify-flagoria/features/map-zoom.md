@@ -1,5 +1,7 @@
 # Map zoom
 
+Drive: not player-facing
+
 Pinch with two fingers on open map to zoom the local camera in or out; the default view stays the default. Zoom is local and never synced.
 
 ## Sub-features

@@ -1,5 +1,7 @@
 # Structures (data format)
 
+Drive: not player-facing
+
 Small hand-drawn structures (guard post, wall piece, camp) are stored as plain text in the `flagoria-structure 1` format: a header, one legend, then a `ground` and an `object` layer, up to 16 x 16, with tiles named by `TileCatalog`. `structures/guard_post.txt` is the first one and `structures/castle.txt` the starting castle. Legend attributes: `auto` (wall pieces from `WallSolver`), `team` (the owner's flag colour) and `open` (the gate is drawn open). Placing a parsed structure on the map is covered in [Structure placement](./structure-placement.md).
 
 ## Sub-features

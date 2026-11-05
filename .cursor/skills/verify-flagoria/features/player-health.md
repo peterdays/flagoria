@@ -1,5 +1,7 @@
 # Player health
 
+Drive: not player-facing
+
 Each player has 3 hearts in half-heart steps. A hit costs half a heart and starts a short blink of invulnerability. A dead player disappears and respawns at the spawn point with full hearts. The host decides all damage.
 
 ## Sub-features

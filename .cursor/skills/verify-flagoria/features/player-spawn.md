@@ -1,5 +1,7 @@
 # Player spawn
 
+Drive: not player-facing
+
 Players spawn on walkable land from which they can reach at least 200 clear cells, so they never start in water or boxed in by trees.
 
 ## Sub-features

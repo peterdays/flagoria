@@ -16,6 +16,7 @@ func run() -> void:
 	step("wait-for-client")
 	var joined := await wait_until(func() -> bool: return players().size() >= 2, JOIN_TIMEOUT_S)
 	print_world("host")
+	await snapshot("host-joined")
 	await create_timer(LINGER_S).timeout
 	done(joined)
 

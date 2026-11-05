@@ -12,6 +12,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 
 ## Driving conventions
 
+- Every feature file starts with a `Drive:` line right under its title: `Drive: drives/<name>.gd` when an automated drive covers it, or `Drive: not player-facing` otherwise. Drives call `snapshot("<screen>")` for each promised screen.
 - Automated proof goes through `tools/verify.sh` via `bin/drive-verify.sh`.
 - Visual proof uses `xvfb-run` and `--rendering-driver opengl3` when a display is required.
 - Record skips with the unmet precondition; do not report a skipped path as verified through a different path.
@@ -22,7 +23,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - Keep verify logs and screenshots in `artifacts/`; cleanup must not delete them.
 - UI proof for Map Settings includes a PNG with the panel title visible.
 - Two-peer flows (dedicated server, mobs, health sync, cuts, points) are scripted headless; menu Host/Join has a two-launch drive; the two-GUI play checklist is still manual. See placeholders below.
-- After adding or renaming a test or feature file, run `./.cursor/skills/verify-flagoria/bin/check-map.sh` (no Godot, under 1 s). It fails when a feature file is not indexed here, a cited `test_<name>` does not exist, or a test is cited by no feature file.
+- After adding or renaming a test or feature file, run `./.cursor/skills/verify-flagoria/bin/check-map.sh` (no Godot, under 1 s). It fails when a feature file is not indexed here, a cited `test_<name>` does not exist, a test is cited by no feature file, or a feature file lacks a `Drive:` line (`Drive: drives/<name>.gd` pointing at an existing drive that calls `snapshot("…")`, or `Drive: not player-facing`). On a gameplay pull request, `check-map.sh --gameplay --changed-files <paths>` also fails when a changed or added feature file lacks that line. Time cost: under 1 s.
 
 ## Features
 

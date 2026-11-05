@@ -1,5 +1,7 @@
 # Starting castle
 
+Drive: not player-facing
+
 Each player starts with one castle (#271): `structures/castle.txt`, a walled courtyard with an open gate in its bottom wall and the team flag as its main tower (placeholder tiles until castle art exists). `StartCastle` (`Scripts/world/start_castle.gd`, called through `Scripts/TileMap.gd` `place_start_castle`) places it with `StructurePlacer` next to the spawn, and the land outside its gate becomes the player spawn. Placed by the host while alone, like every placement: a host that plays places its castle in `flagoria_main.gd` `setup_server` before the mobs and before any peer joins; a dedicated server places none. A peer that joins gets the castle with the map (`receive_map_params`, #365) before its player is placed, so its walls block on both peers.
 
 ## Sub-features

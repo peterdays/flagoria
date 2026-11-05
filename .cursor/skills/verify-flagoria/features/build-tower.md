@@ -1,5 +1,7 @@
 # Build tower
 
+Drive: not player-facing
+
 Wooden palisade tower for 10 wood (#273). Interact mode shows a Tower icon
 next to Cut and Plank. The tool previews the 3×3 `tower_wood` footprint under
 the finger: all green and "10 wood" when `commit` will place, all red with a

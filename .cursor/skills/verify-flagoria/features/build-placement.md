@@ -1,5 +1,7 @@
 # Build placement
 
+Drive: not player-facing
+
 Interact-mode build picker (#225 / #273). Entering interact mode shows a
 small Cut / Plank / Tower icon row next to the mode button. Cut keeps the
 existing tap, drag and chop behaviour. Plank snaps a drag to a horizontal or

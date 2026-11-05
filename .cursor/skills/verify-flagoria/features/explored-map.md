@@ -1,5 +1,7 @@
 # Explored map
 
+Drive: not player-facing
+
 The wood minimap panel `CanvasLayer1/MinimapPanel` (`Scripts/minimap_panel.gd`) shows the ground the hero has explored. `ExploredMap` (`Scripts/explored_map.gd`) marks every cell within `REVEAL_RADIUS` (10 cells, Euclidean) of the hero as explored as it moves, in 32 x 32 cell chunks.
 
 ## Sub-features

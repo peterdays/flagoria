@@ -212,10 +212,12 @@ All under `.cursor/skills/verify-flagoria/bin/` (executable):
 | `collect-evidence.sh` | Copy a run's `game.log` and `user://` to `artifacts/out/runs/<run-id>/`; write `summary.txt` |
 | `cleanup.sh` | Stop recorded PIDs by exact PID; collect each run's evidence; remove `.run/` |
 | `run_lib.sh` | Sourced by the others: Godot lookup, run dirs, `.run/pids` |
-| `check-map.sh` | Lint the feature map, no Godot: every feature file indexed, every cited `test_<name>` exists, every test cited |
+| `check-map.sh` | Lint the feature map, no Godot: every feature file indexed and carries a `Drive:` line, every cited `test_<name>` exists, every test cited; `--gameplay --changed-files` for gameplay PRs |
 
 Drives started with `launch.sh` live in `drives/` (`drives/wait.gd`: start a game, then `idle()`; `drives/smoke.gd`: start a game, walk right, check the hero moved; `drives/chop_trees.gd`: chop one tree with a tap, then save, see `features/chop-trees.md`; `drives/combat_hud.gd`: HUD, a plain and an aimed touch swing, the in-game menu blocking an aim, see `features/combat-and-aiming.md`). The two-launch pair is in `drives/two_player/`, outside the glob `verify-drive.yml` runs alone.
 
 ## Feature map
+
+Every feature file under `features/` (except `README.md`) carries a `Drive:` line under its title: `Drive: drives/<name>.gd` when a drive covers it (that drive must call `snapshot("<screen>")`), or `Drive: not player-facing`. `bin/check-map.sh` enforces this; on gameplay pull requests it also fails when a changed or added feature file lacks the line.
 
 Index: [`features/README.md`](features/README.md).

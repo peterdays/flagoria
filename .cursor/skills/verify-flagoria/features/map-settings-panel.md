@@ -1,5 +1,7 @@
 # Map Settings panel
 
+Drive: not player-facing
+
 Map Settings lets a player edit map generation parameters from the main menu before hosting, without rebuilding.
 
 ## Sub-features

@@ -1,5 +1,7 @@
 # Regrowth sync messages
 
+Drive: not player-facing
+
 In multiplayer the host alone decides when a stump regrows (#298), and tells every peer in one message per regrowth tick (#353). `TileMap.regrow_due` emits `plants_regrown(cells)` once, with every cell that regrew in that tick, and nothing when none did. `Interaction._on_plants_regrown` (`Scripts/mechanics/interact/interaction.gd`) sends `apply_regrow_cells(cells)` to every peer, so a tick where many stumps come due (for example after loading a world) is still one RPC per peer. The receiving handler regrows each listed cell with `TileMap.grow_back` only when `multiplayer.get_remote_sender_id()` is 1 (the host); any other sender is ignored, so the rule holds even if the RPC mode (`authority`) changes. The rest of cut and regrowth sync (who regrows, join lists, ages) is in [Cut sync](./cut-sync.md).
 
 ## Sub-features
