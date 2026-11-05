@@ -5,14 +5,12 @@ extends RefCounted
 ## tileset swap changes only this file and the TileSet. See docs/tiles.md.
 
 const SOURCE_ID := 0
-## Terrain set and terrain of the "Island" terrain in the world TileSet
-## (Match Corners and Sides). Paint with set_cells_terrain_connect(cells,
-## ISLAND_TERRAIN_SET, ISLAND_TERRAIN).
+## Terrain set and terrain of the world TileSet's "Island" terrain (Match Corners and
+## Sides). Paint with set_cells_terrain_connect(cells, ISLAND_TERRAIN_SET, ISLAND_TERRAIN).
 const ISLAND_TERRAIN_SET := 0
 const ISLAND_TERRAIN := 0
 
-## Map fill tiles placed by the generator. These keep their cells across
-## tileset versions.
+## Map fill tiles placed by the generator; they keep their cells across tileset versions.
 const WATER := Vector2i(5, 6)
 const SAND := Vector2i(5, 4)
 const SWAMP := Vector2i(14, 7)
@@ -24,11 +22,9 @@ const GRASS_D := Vector2i(6, 1)
 const BUSH := Vector2i(7, 3)
 const TREE := Vector2i(7, 0)
 const FLOWER := Vector2i(9, 3)
-## Walkable small stones (ground decor, no collision). Same art cell as
-## ROCK_FLOAT_S.
+## Walkable small stones (ground decor, no collision). Same art cell as ROCK_FLOAT_S.
 const STONES := Vector2i(0, 7)
-## Small pine on dry high ground (biomes on only). Same art cell as
-## TREE_PINE_SMALL; collision like TREE.
+## Small pine on dry high ground (biomes on only): TREE_PINE_SMALL's cell, TREE's collision.
 const PINE := Vector2i(7, 2)
 
 ## Island edges (flat top-down coast around grass)
@@ -211,6 +207,8 @@ const ROCK_FLOAT_S := Vector2i(0, 7)
 const ROCK_FLOAT_M := Vector2i(1, 7)
 const PROP_FLAG_BLUE := Vector2i(2, 7)
 const PROP_FLAG_RED := Vector2i(3, 7)
+const PROP_FLAG_NEUTRAL := Vector2i(4, 7)  ## placeholder (#274): a tower nobody owns
+const PROP_FLAG_MOBS := Vector2i(5, 7)  ## placeholder (#274): a tower the mobs took
 
 ## Clouds. CLOUD_M_* and CLOUD_L_* are parts of multi-cell clouds, row-major.
 const CLOUD_S := Vector2i(0, 8)
@@ -465,6 +463,8 @@ const TILES := {
 	"ROCK_FLOAT_M": {"source_id": SOURCE_ID, "atlas": ROCK_FLOAT_M},
 	"PROP_FLAG_BLUE": {"source_id": SOURCE_ID, "atlas": PROP_FLAG_BLUE},
 	"PROP_FLAG_RED": {"source_id": SOURCE_ID, "atlas": PROP_FLAG_RED},
+	"PROP_FLAG_NEUTRAL": {"source_id": SOURCE_ID, "atlas": PROP_FLAG_NEUTRAL},
+	"PROP_FLAG_MOBS": {"source_id": SOURCE_ID, "atlas": PROP_FLAG_MOBS},
 	"CLOUD_S": {"source_id": SOURCE_ID, "atlas": CLOUD_S},
 	"CLOUD_M_0": {"source_id": SOURCE_ID, "atlas": CLOUD_M_0},
 	"CLOUD_M_1": {"source_id": SOURCE_ID, "atlas": CLOUD_M_1},

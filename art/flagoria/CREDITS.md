@@ -12,3 +12,5 @@ Cell (8, 3), the bush stump (`BUSH_STUMP`), and the bush chop frames in `fx/` (`
 The tree and pine chop frames in `fx/` (`tree_hit.png`, `pine_hit.png`, `fx_tree.png`, `fx_pine.png`) are drawn in code from the tree tiles and the same palette by `tools/art/gen_tree_chop_frames.py`, also in-house.
 
 Rows 15-18 (wooden palisade walls and plank bridges) were drawn later in code in the same palette, also in-house.
+
+Cells (4, 7) and (5, 7), the neutral and mob flags (`PROP_FLAG_NEUTRAL`, `PROP_FLAG_MOBS`), are placeholders recoloured in code from the blue flag by `tools/art/gen_flag_tiles.py`, also in-house.

@@ -57,6 +57,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Structures (data format)](./structures.md) — `flagoria-structure 1` text files.
 - [Structure placement](./structure-placement.md) — place a structure file at an anchor cell, refusal reasons, kept on redraw, a placed stump does not regrow; placed by a host still alone, sent to joining peers.
 - [Starting castle](./start-castle.md) — each player's castle next to the spawn, player starts outside the gate; placed by the host while alone, sent to joining peers.
+- [Tower capture](./tower-capture.md) — flag towers taken by a lone other side or mobs standing by the flag for 5 s, defenders pause, empty drains, contested freezes; host alone only.
 - [Hero sprites](./hero-sprites.md) — layered hero sheet generator, checked by the generator smoke.
 - [App icon](./app-icon.md) — icon generator and wiring, checked by the generator smoke.
 
