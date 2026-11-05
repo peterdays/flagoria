@@ -36,6 +36,31 @@ func clear() -> void:
 	_pieces.clear()
 
 
+func erase_cells(cells: Array[Vector2i]) -> bool:
+	## Remove free-form walls on `cells`, re-solve neighbours, clear overlay.
+	## True when at least one cell was a free-form wall.
+	var removed: Array[Vector2i] = []
+	for cell in cells:
+		if not _wall_cells.has(cell):
+			continue
+		_wall_cells.erase(cell)
+		_pieces.erase(cell)
+		_map._predict_cache.erase(cell)
+		if _map.get_cell_source_id(1, cell) != -1:
+			_map.erase_cell(1, cell)
+		removed.append(cell)
+	if removed.is_empty():
+		return false
+	var touch: Array[Vector2i] = []
+	for cell in removed:
+		for n in ConstructionPlacer._neighbours(cell):
+			if _wall_cells.has(n) and n not in touch:
+				touch.append(n)
+	if not touch.is_empty():
+		_resolve(touch)
+	return true
+
+
 func place_cells(cells: Array[Vector2i]) -> bool:
 	## Write plain palisade walls on `cells`, re-solve neighbours, paint layer 1.
 	## False and nothing written when `cells` is empty or any cell is already a

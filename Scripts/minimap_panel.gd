@@ -40,6 +40,10 @@ const GOLD := Color("f2b632")
 const CLOUD := Color("ffffff")
 const CLOUD_SHADE := Color("d9e6f2")
 const INK := Color("2a2238")
+const CITY_HOST := Color("3b70e0")
+const CITY_MOBS := Color("9b54c4")
+const CITY_NEUTRAL := Color("8c8c99")
+const CITY_OTHER := Color("e04a4a")
 
 ## Terrain kinds kept per cell (stored + 1, 0 = not looked up yet).
 enum Kind { WATER, SAND, SWAMP, PINE, TREE, BUSH, STONES, FLOWER, GRASS }
@@ -309,6 +313,32 @@ func _draw_map() -> void:
 				_view.draw_texture(tex, Vector2((Vector2i(cx, cy) * ExploredMap.CHUNK - top_left) * CELL_PX))
 	var marker: Texture2D = HERO.get(facing, HERO["Down"])
 	_view.draw_texture(marker, Vector2(half * CELL_PX + Vector2i.ONE - HERO_ANCHOR))
+	_draw_city_walls(top_left, half)
+
+
+
+func _draw_city_walls(top_left: Vector2i, half: Vector2i) -> void:
+	## Owner-coloured city wall cells over the explored window (#277).
+	var cities: Cities = get_node_or_null(WORLD_PATH + "/Cities")
+	if cities == null or cities.cities.is_empty():
+		return
+	var map := _map()
+	if map == null:
+		return
+	var placed: Dictionary = map.placed_structures()
+	for id: int in cities.cities:
+		var owner: int = placed.get(id, {}).get("owner", 0)
+		var colour: Color = CITY_HOST if owner == 1 else (
+			CITY_MOBS if owner == StructurePlacer.OWNER_MOBS else (
+			CITY_NEUTRAL if owner == StructurePlacer.OWNER_NEUTRAL else CITY_OTHER))
+		for cell: Vector2i in cities.cities[id]["walls"]:
+			if not explored.is_explored(cell):
+				continue
+			var local := (cell - top_left) * CELL_PX
+			if local.x < -CELL_PX or local.y < -CELL_PX \
+					or local.x >= WINDOW.size.x or local.y >= WINDOW.size.y:
+				continue
+			_view.draw_rect(Rect2(Vector2(local), Vector2(CELL_PX, CELL_PX)), colour)
 
 
 func _on_ground_changed(cells: Rect2i) -> void:
