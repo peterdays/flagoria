@@ -4,7 +4,7 @@ extends "res://tests/helpers/test_helpers.gd"
 
 func _clear_wall_run(world, count: int = 4) -> Array[Vector2i]:
 	## Clear land run of `count` cells that 4-touches a seeded support wall
-	## (first block must touch tower/castle/wall — Pedro card t288s1054).
+	## (first block must touch tower/castle/wall — design decision for #276).
 	for seed_value in [11, 42, 99, 7, 1, 3, 5, 13, 17]:
 		world.apply_map_params(_spawn_params(seed_value, 0.0))
 		world.generate_chunk(Vector2(0, 0))
@@ -248,8 +248,7 @@ func _test_build_wall_preview_matches_commit() -> int:
 
 func _test_build_wall_first_must_touch_structure() -> int:
 	## First wall block must 4-touch an existing tower, castle or wall;
-	## otherwise preview shows not adjacent, commit spends nothing (Pedro
-	## card t288s1054). Time cost: about 0.5 s in tools/verify.sh (~2.2 s
+	## otherwise preview shows not adjacent, commit spends nothing (design decision for #276). Time cost: about 0.5 s in tools/verify.sh (~2.2 s
 	## alone with --only=build_wall_first_must_touch_structure).
 	print("-- test_build_wall_first_must_touch_structure")
 	var fail := 0
