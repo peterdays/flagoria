@@ -24,6 +24,10 @@ func randomize_seeds() -> void:
 	params.randomize_seeds()
 
 
+func randomize_specs() -> void:
+	params.randomize_specs()
+
+
 func save_to_disk() -> void:
 	var cfg = ConfigFile.new()
 	var data = params.to_dict()

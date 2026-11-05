@@ -147,6 +147,13 @@ func _on_random_seed_pressed() -> void:
 	load_from_params(get_node("/root/MapGen").params)
 
 
+func _on_random_specs_pressed() -> void:
+	## Randomise every map-gen property inside PLAYABLE_RANGES (#335).
+	apply_to_params(get_node("/root/MapGen").params)
+	get_node("/root/MapGen").randomize_specs()
+	load_from_params(get_node("/root/MapGen").params)
+
+
 func _on_reset_pressed() -> void:
 	get_node("/root/MapGen").reset_to_defaults()
 	load_from_params(get_node("/root/MapGen").params)
