@@ -372,6 +372,10 @@ func build_bridge(from: Vector2i, to: Vector2i) -> bool:
 	return _bridges.build_bridge(from, to)
 
 
+func has_bridge(cell: Vector2i) -> bool:
+	return _bridges.has_bridge(cell)
+
+
 func can_place_structure(structure: Structure, anchor_cell: Vector2i) -> Array[String]:
 	return _structures.can_place(structure, anchor_cell)
 

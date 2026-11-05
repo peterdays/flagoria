@@ -1,6 +1,6 @@
 # Walls and bridges
 
-Wall pieces are picked from their neighbours by `WallSolver` (`Scripts/mechanics/walls/wall_solver.gd`, stone `WALL_*` and wooden palisade `PALISADE_*`, which connect to each other). Plank bridges over water are laid by `build_bridge(from, to)` in `Scripts/TileMap.gd`, which forwards to `Scripts/mechanics/bridges/bridge_builder.gd`.
+Wall pieces are picked from their neighbours by `WallSolver` (`Scripts/mechanics/walls/wall_solver.gd`, stone `WALL_*` and wooden palisade `PALISADE_*`, which connect to each other). Plank bridges over water are laid by `build_bridge(from, to)` in `Scripts/TileMap.gd`, which forwards to `Scripts/mechanics/bridges/bridge_builder.gd`. Play and the shared module place them through `ConstructionPlacer` (`construction-placement.md`).
 
 ## Sub-features
 
@@ -10,7 +10,7 @@ Wall pieces are picked from their neighbours by `WallSolver` (`Scripts/mechanics
 
 ## How to get to it (user POV)
 
-- None on `main`: there is no in-game build action. The live drive is **verified-unreachable** until a build action lands (bridges #224; walls #270 and #276).
+- None on `main`: there is no in-game build action. The live drive is **verified-unreachable** until the build picker lands (#225; walls #276).
 
 ## Driving it with verify-flagoria helpers
 
@@ -22,4 +22,4 @@ Preconditions: `doctor.sh` exits `0`. Time cost: each test below is under 0.5 s 
 ## Gotchas
 
 - Never paint walls or planks from a drive to make it pass. A drive that can't reach a feature reports that, with the missing prerequisite.
-- The only callers of `WallSolver` and `build_bridge` on `main` are tests (and the `TileMap.gd` wrapper).
+- The only play path for planks is `ConstructionPlacer`; tests may still call `build_bridge` directly to check the tiles.

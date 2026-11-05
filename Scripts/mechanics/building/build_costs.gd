@@ -2,8 +2,8 @@ class_name BuildCosts
 extends RefCounted
 ## What each buildable costs in wood (#272), and buying one: check the wood,
 ## place, then spend. The shared construction placement module (#296) is
-## meant to call buy; until then only tests do, because no in-game build
-## action exists yet.
+## calls buy; the placement UI (#225) talks only to that module. Tests also
+## call buy directly for the cost table.
 ## Wood is local to each game (Inventory) and not synced yet, so buy refuses
 ## while multiplayer is on, as StructurePlacer does. Per-player wood for
 ## connected peers is #278.
@@ -29,6 +29,9 @@ const NOT_ENOUGH_WOOD := "not enough wood"
 const MULTIPLAYER_ON := "multiplayer on"
 const UNKNOWN_KIND := "unknown kind"
 const NOT_PLACED := "not placed"
+## Place wrote the build but spend then failed (for example the place callable
+## emptied the inventory). The build stays; callers treat this as failure.
+const SPEND_FAILED := "spend failed"
 
 
 static func cost(kind: StringName, units := 1) -> int:
@@ -66,5 +69,6 @@ static func buy(inventory: Inventory, kind: StringName, units: int, place: Calla
 	var placed: Variant = place.call()
 	if not ((placed is bool and placed) or (placed is int and placed > 0)):
 		return NOT_PLACED
-	inventory.spend(Inventory.WOOD, cost(kind, units))
+	if not inventory.spend(Inventory.WOOD, cost(kind, units)):
+		return SPEND_FAILED
 	return ""
