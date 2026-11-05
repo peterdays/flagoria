@@ -4,8 +4,9 @@ Drive: drives/free_form_walls.gd
 
 Free-form wooden palisade walls as one connected chain (#276). Interact mode
 shows a Wall icon next to Cut / Plank / Tower. The tool keeps a persistent tip
-while selected: the first placement is free on any valid land cell; after that
-a tap must 4-touch the tip, and a drag lays an H/V-snapped straight segment
+while selected: the first placement must 4-touch an existing tower, castle or
+wall (otherwise refuse with feedback and spend nothing); after that a tap must
+4-touch the tip, and a drag lays an H/V-snapped straight segment
 starting on the neighbour of the tip toward the finger. Leaving the Wall tool
 clears the tip. Gaps and diagonals are refused with feedback and spend no wood.
 Each wall block costs 2 wood through `ConstructionPlacer` /
@@ -22,9 +23,10 @@ peer sync of walls is #278. Preview green cells and cost match exactly what
 - `build-wall-picker` Wall icon appears in interact mode with Cut / Plank /
   Tower, hides while multiplayer is on, and switches `BuildPlacement.tool` to
   Wall.
-- `build-wall-tip` first block free; tip persists while Wall is selected; tap
-  must 4-touch tip; drag is H/V from the tip neighbour; leave tool clears tip;
-  gap / diagonal return empty with "not adjacent" and spend nothing.
+- `build-wall-tip` first block must 4-touch tower/castle/wall; tip persists
+  while Wall is selected; tap must 4-touch tip; drag is H/V from the tip
+  neighbour; leave tool clears tip; gap / diagonal / floating first block
+  return "not adjacent" and spend nothing.
 - `build-wall-preview` green cells and cost match what commit places and
   charges; red when refused.
 - `construction-wall` a clear land cell or straight H/V run places palisade
@@ -39,9 +41,10 @@ peer sync of walls is #278. Preview green cells and cost match exactly what
 1. Start a local game (Host alone or offline) with wood.
 2. Tap the mode button to enter interact mode; the Cut / Plank / Tower / Wall
    picker appears.
-3. Tap Wall, tap clear land (first block free). The tip stays. Tap a
-   4-neighbour or drag a straight run next to the tip; green cells show the
-   wood cost. Lift to place. Switch away from Wall to clear the tip.
+3. Tap Wall, tap clear land that 4-touches the castle, a tower or a wall.
+   The tip stays. Tap a 4-neighbour or drag a straight run next to the tip;
+   green cells show the wood cost. Lift to place. Switch away from Wall to
+   clear the tip.
 
 ## Driving it with verify-flagoria helpers
 
@@ -50,16 +53,18 @@ about 0.7 s in `tools/verify.sh` (~2.5 s alone with `--only=`);
 `test_construction_placer_wall_atomic_spend` about 0.3 s (~2.0 s alone);
 `test_build_picker_includes_wall` about 0.35 s (~2.0 s alone);
 `test_build_wall_segment_tip_and_gap` under 0.05 s (~1.8 s alone);
-`test_build_wall_preview_matches_commit` about 0.6 s (~2.3 s alone). Drive
+`test_build_wall_preview_matches_commit` about 0.6 s (~2.3 s alone);
+`test_build_wall_first_must_touch_structure` about 0.5 s (~2.2 s alone). Drive
 about 20 s under xvfb.
 
-- **Run (headless).** `godot --headless --path . --script res://tests/run_tests.gd -- --only=construction_placer_wall,construction_placer_wall_atomic_spend,build_picker_includes_wall,build_wall_segment_tip_and_gap,build_wall_preview_matches_commit`, or the full `tools/verify.sh`.
+- **Run (headless).** `godot --headless --path . --script res://tests/run_tests.gd -- --only=construction_placer_wall,construction_placer_wall_atomic_spend,build_picker_includes_wall,build_wall_segment_tip_and_gap,build_wall_preview_matches_commit,build_wall_first_must_touch_structure`, or the full `tools/verify.sh`.
 - **Drive (live).** `bin/launch.sh drives/free_form_walls.gd --display` (under xvfb). Steps `start`, `interact`, `first-block`, `chain`, `gap`: `start_game()`, settle, `snapshot("start")`, enter interact + Wall, give wood, place a first land block, `snapshot("first-block")`, place a short H chain off the tip, `snapshot("chain")`, try a gap (no spend), `snapshot("gap")`, `done(true)`.
 - **Proof.** Headers `-- test_construction_placer_wall`,
   `-- test_construction_placer_wall_atomic_spend`,
   `-- test_build_picker_includes_wall`,
   `-- test_build_wall_segment_tip_and_gap` and
-  `-- test_build_wall_preview_matches_commit` in `artifacts/verify.log` with no
+  `-- test_build_wall_preview_matches_commit` and
+  `-- test_build_wall_first_must_touch_structure` in `artifacts/verify.log` with no
   `FAIL` after them. Drive snapshots `01-start`, `02-first-block`, `03-chain`,
   `04-gap` under `--display`.
 

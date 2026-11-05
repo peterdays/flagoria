@@ -312,8 +312,9 @@ func _refresh_picker_visible() -> void:
 
 func wall_segment(tip: Vector2i, has_tip: bool, from_cell: Vector2i, to_cell: Vector2i) -> Array[Vector2i]:
 	## Cells the Wall tool would try to place for this gesture. First placement
-	## (no tip): the tapped cell, or an H/V snap of the drag. With a tip: a
-	## single 4-neighbour on tap, or an H/V run that starts on the neighbour
+	## (no tip): the tapped cell, or an H/V snap of the drag — ConstructionPlacer
+	## still requires that cell to 4-touch a tower, castle or wall. With a tip:
+	## a single 4-neighbour on tap, or an H/V run that starts on the neighbour
 	## of the tip toward the finger. Empty when the gesture is a diagonal step
 	## off the tip or does not touch it (gap).
 	var empty: Array[Vector2i] = []

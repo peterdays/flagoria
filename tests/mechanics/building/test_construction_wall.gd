@@ -3,20 +3,28 @@ extends "res://tests/helpers/test_helpers.gd"
 
 
 func _clear_wall_cells(world, count: int = 3) -> Array[Vector2i]:
-	## Contiguous clear land run of `count` cells (H), or empty.
+	## Contiguous clear land run of `count` cells (H) that 4-touches a seeded
+	## support wall (first block must touch tower/castle/wall — t288s1054), or
+	## empty. The support cell itself is not returned.
 	for seed_value in [11, 42, 99, 7, 1, 3, 5, 13, 17]:
 		world.apply_map_params(_spawn_params(seed_value, 0.0))
 		world.generate_chunk(Vector2(0, 0))
 		for cell: Vector2i in world.get_used_cells(0):
 			var run: Array[Vector2i] = []
-			for i in count:
+			for i in range(count + 1):
 				var c: Vector2i = cell + Vector2i(i, 0)
 				if world.get_cell_source_id(0, c) == -1 or not world.predicted_clear(c) \
 						or world.has_wall(c) or world._structures.has_cell(c):
 					break
 				run.append(c)
-			if run.size() == count:
-				return run
+			if run.size() == count + 1:
+				var support: Array[Vector2i] = [run[0]]
+				if not world.place_wall_cells(support):
+					continue
+				var out: Array[Vector2i] = []
+				for i in range(1, run.size()):
+					out.append(run[i])
+				return out
 	return []
 
 
@@ -39,11 +47,23 @@ func _test_construction_placer_wall() -> int:
 		printerr("FAIL construction_placer_wall: no clear 3-cell land run")
 		scene.queue_free()
 		return 1
+	# Floating cell (no 4-touch to wall/tower/castle) refused, no spend.
+	var floating: Array[Vector2i] = [Vector2i(1 << 19, 1 << 19)]
+	inventory.add(Inventory.WOOD, 2)
+	var float_reasons := placer.can_place(BuildCosts.WALL_BLOCK, floating, inventory)
+	if ConstructionPlacer.NOT_ADJACENT not in float_reasons \
+			or placer.place(BuildCosts.WALL_BLOCK, floating, inventory) \
+			or inventory.count_of(Inventory.WOOD) != 2:
+		printerr("FAIL construction_placer_wall: floating gave %s wood %d"
+				% [float_reasons, inventory.count_of(Inventory.WOOD)])
+		fail += 1
 	# Fabricated L: _check_wall flags NOT_STRAIGHT regardless of ground.
 	var bent: Array[Vector2i] = [
 		Vector2i(1000, 1000), Vector2i(1001, 1000), Vector2i(1001, 1001),
 	]
-	# Short wood.
+	# Short wood (drain leftovers from the floating check first).
+	while inventory.count_of(Inventory.WOOD) > 0:
+		inventory.spend(Inventory.WOOD, inventory.count_of(Inventory.WOOD))
 	inventory.add(Inventory.WOOD, 1)
 	var one: Array[Vector2i] = [run[0]]
 	var reasons := placer.can_place(BuildCosts.WALL_BLOCK, one, inventory)
@@ -68,8 +88,9 @@ func _test_construction_placer_wall() -> int:
 		fail += 1
 	else:
 		var atlas: Vector2i = world.get_cell_atlas_coords(1, run[0])
-		if atlas != TileCatalog.PALISADE_POST:
-			printerr("FAIL construction_placer_wall: overlay atlas %s want PALISADE_POST" % [atlas])
+		# Next to the seeded support the solver picks a connected PALISADE_* piece.
+		if atlas.y != 15 and atlas.y != 17 and atlas.y != 18:
+			printerr("FAIL construction_placer_wall: overlay atlas %s not a palisade row" % [atlas])
 			fail += 1
 	# Existing wall occupied.
 	inventory.add(Inventory.WOOD, 2)

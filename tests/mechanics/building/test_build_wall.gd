@@ -3,19 +3,27 @@ extends "res://tests/helpers/test_helpers.gd"
 
 
 func _clear_wall_run(world, count: int = 4) -> Array[Vector2i]:
+	## Clear land run of `count` cells that 4-touches a seeded support wall
+	## (first block must touch tower/castle/wall — Pedro card t288s1054).
 	for seed_value in [11, 42, 99, 7, 1, 3, 5, 13, 17]:
 		world.apply_map_params(_spawn_params(seed_value, 0.0))
 		world.generate_chunk(Vector2(0, 0))
 		for cell: Vector2i in world.get_used_cells(0):
 			var run: Array[Vector2i] = []
-			for i in count:
+			for i in range(count + 1):
 				var c: Vector2i = cell + Vector2i(i, 0)
 				if world.get_cell_source_id(0, c) == -1 or not world.predicted_clear(c) \
 						or world.has_wall(c) or world._structures.has_cell(c):
 					break
 				run.append(c)
-			if run.size() == count:
-				return run
+			if run.size() == count + 1:
+				var support: Array[Vector2i] = [run[0]]
+				if not world.place_wall_cells(support):
+					continue
+				var out: Array[Vector2i] = []
+				for i in range(1, run.size()):
+					out.append(run[i])
+				return out
 	return []
 
 
@@ -236,4 +244,82 @@ func _test_build_wall_preview_matches_commit() -> int:
 	await process_frame
 	if fail == 0:
 		print("PASS test_build_wall_preview_matches_commit")
+	return fail
+
+func _test_build_wall_first_must_touch_structure() -> int:
+	## First wall block must 4-touch an existing tower, castle or wall;
+	## otherwise preview shows not adjacent, commit spends nothing (Pedro
+	## card t288s1054). Time cost: about 0.5 s in tools/verify.sh (~2.2 s
+	## alone with --only=build_wall_first_must_touch_structure).
+	print("-- test_build_wall_first_must_touch_structure")
+	var fail := 0
+	var ctx := await _boot_wall_scene()
+	var world = ctx["world"]
+	var interaction: Interaction = ctx["interaction"]
+	var inventory: Inventory = ctx["inventory"]
+	var run: Array[Vector2i] = ctx["run"]
+	inventory.add(Inventory.WOOD, 20)
+	interaction.set_mode(Interaction.Mode.INTERACT)
+	interaction.build.set_tool(BuildPlacement.Tool.WALL)
+	# Floating cell: leave Wall tip clear, tap a clear cell that does not
+	# 4-touch any wall/structure (far from the seeded support + run).
+	var floating := Vector2i(1 << 18, 1 << 18)
+	for cell: Vector2i in world.get_used_cells(0):
+		if not world.predicted_clear(cell) or world.has_wall(cell) \
+				or world._structures.has_cell(cell):
+			continue
+		var touches := false
+		for n in [cell + Vector2i.LEFT, cell + Vector2i.RIGHT,
+				cell + Vector2i.UP, cell + Vector2i.DOWN]:
+			if world.has_wall(n) or world._structures.has_cell(n):
+				touches = true
+				break
+		if touches:
+			continue
+		# Keep the player in reach of this cell.
+		ctx["player"].position = world.to_global(world.map_to_local(cell + Vector2i(0, 1)))
+		await process_frame
+		if not interaction.in_reach(cell):
+			continue
+		floating = cell
+		break
+	if floating.x == 1 << 18:
+		printerr("FAIL build_wall_first_must_touch_structure: no floating land cell")
+		fail += 1
+	else:
+		var vpf := _cell_vp(interaction, world, floating)
+		var wood_before := inventory.count_of(Inventory.WOOD)
+		interaction.build.update_preview(vpf, vpf)
+		if "not adjacent" not in interaction.build.reasons \
+				or interaction.build.cost != 0 \
+				or interaction.build.commit() \
+				or inventory.count_of(Inventory.WOOD) != wood_before \
+				or world.has_wall(floating):
+			printerr("FAIL build_wall_first_must_touch_structure: floating cells %s ok %s reasons %s cost %d wood %d"
+					% [interaction.build.cells, interaction.build.cell_ok,
+						interaction.build.reasons, interaction.build.cost,
+						inventory.count_of(Inventory.WOOD)])
+			fail += 1
+	# Supported first block (run[0] 4-touches seeded wall) still places.
+	if run.is_empty():
+		printerr("FAIL build_wall_first_must_touch_structure: no supported run")
+		fail += 1
+	else:
+		ctx["player"].position = world.to_global(world.map_to_local(run[0] + Vector2i(0, 2)))
+		await process_frame
+		var vp0 := _cell_vp(interaction, world, run[0])
+		var wood_before := inventory.count_of(Inventory.WOOD)
+		interaction.build.update_preview(vp0, vp0)
+		if interaction.build.cells != [run[0]] or interaction.build.cost != 2 \
+				or not interaction.build.reasons.is_empty() \
+				or not interaction.build.commit() \
+				or not world.has_wall(run[0]) \
+				or inventory.count_of(Inventory.WOOD) != wood_before - 2:
+			printerr("FAIL build_wall_first_must_touch_structure: supported first cells %s cost %d reasons %s"
+					% [interaction.build.cells, interaction.build.cost, interaction.build.reasons])
+			fail += 1
+	ctx["scene"].queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_build_wall_first_must_touch_structure")
 	return fail

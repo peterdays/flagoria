@@ -30,9 +30,10 @@ Host-alone: while multiplayer is on, `can_place` includes `multiplayer on` and
 - `construction-tower` a clear land anchor places `tower_wood` for 10 wood,
   owned by the local peer; water, an overlapping structure/player/mob, short
   wood and multiplayer on are refused and spend nothing (#273).
-- `construction-wall` a clear land cell or straight H/V run places palisade
-  pieces for 2 wood each; water, occupied (structure/wall/player/mob/tree/bush),
-  bent, short wood and multiplayer on are refused and spend nothing (#276).
+- `construction-wall` a clear land cell or straight H/V run that 4-touches an
+  existing wall, tower or castle places palisade pieces for 2 wood each; water,
+  occupied (structure/wall/player/mob/tree/bush), bent, floating (not adjacent),
+  short wood and multiplayer on are refused and spend nothing (#276).
 - `build-spend-failed` when spend refuses after the check, `BuildCosts.buy`
   returns `spend failed` and never calls the writer (#380 item 3).
 - `construction-atomic-spend` `ConstructionPlacer.place` leaves no written

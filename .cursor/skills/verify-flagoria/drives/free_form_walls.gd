@@ -164,14 +164,24 @@ func _land_clear(map: TileMap, cell: Vector2i) -> bool:
 			and not map.player_on_cell(cell) and not map.mob_on_cell(cell)
 
 
+func _touches_support(map: TileMap, cell: Vector2i) -> bool:
+	## First wall block must 4-touch a tower, castle or wall (t288s1054).
+	for n in [cell + Vector2i.LEFT, cell + Vector2i.RIGHT, cell + Vector2i.UP, cell + Vector2i.DOWN]:
+		if map.has_wall(n) or map._structures.has_cell(n):
+			return true
+	return false
+
+
 func _clear_land_in_reach(it: Interaction, map: TileMap) -> Variant:
 	var at := map.local_to_map(map.to_local(hero().global_position))
 	var best: Variant = null
 	var best_d := INF
-	for dy in range(-6, 7):
-		for dx in range(-6, 7):
+	for dy in range(-10, 11):
+		for dx in range(-10, 11):
 			var c := at + Vector2i(dx, dy)
 			if not _land_clear(map, c) or not it.in_reach(c):
+				continue
+			if not _touches_support(map, c):
 				continue
 			# Prefer a cell that has at least one clear 4-neighbour for the chain.
 			var has_n := false

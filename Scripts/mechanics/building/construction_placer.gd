@@ -117,11 +117,15 @@ func _place_wall(cells: Array[Vector2i], inventory: Inventory) -> bool:
 func _check_wall(cells: Array[Vector2i], found: Dictionary) -> void:
 	## Land only; refuse structures, existing walls, players, mobs, trees and
 	## bushes. A multi-cell run must be one contiguous H/V segment (no gaps,
-	## no bends). Tip adjacency is enforced by BuildPlacement before place.
+	## no bends). Every placement must 4-touch an existing wall, tower or
+	## castle so the first block cannot float free (Pedro card t288s1054);
+	## tip adjacency is still enforced by BuildPlacement before place.
 	if cells.is_empty():
 		return
 	if cells.size() > 1 and _straight_ends(cells).is_empty():
 		found[NOT_STRAIGHT] = true
+	if not _run_touches_wall_or_structure(cells):
+		found[NOT_ADJACENT] = true
 	for cell in cells:
 		if _map.has_wall(cell) or _map._structures.has_cell(cell):
 			found[OCCUPIED] = true
@@ -197,6 +201,17 @@ func _check_tower(cells: Array[Vector2i], found: Dictionary) -> void:
 				found[OCCUPIED] = true
 			StructurePlacer.MULTIPLAYER_ON:
 				found[MULTIPLAYER_ON] = true
+
+
+
+func _run_touches_wall_or_structure(cells: Array[Vector2i]) -> bool:
+	## True when at least one cell in the run 4-touches an existing wall or
+	## structure (tower / castle). Used so the first wall block cannot float.
+	for cell in cells:
+		for n in _neighbours(cell):
+			if _map.has_wall(n) or _map._structures.has_cell(n):
+				return true
+	return false
 
 
 func _run_touches_support(cells: Array[Vector2i]) -> bool:
