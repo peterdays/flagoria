@@ -23,14 +23,14 @@ With peers connected: wood is local to each game and not synced, so `buy` refuse
 
 ## How to get to it (user POV)
 
-- None on `main`: there is no in-game build action, and the starting castle is placed without going through `buy`. `ConstructionPlacer` (#296) calls `buy` from tests; the live drive is **verified-unreachable** until the bridge UI (#225) lands.
+- Interact mode → Plank places through `ConstructionPlacer` → `BuildCosts.buy` (#225 / `build-placement.md`). The starting castle is still placed without going through `buy`.
 
 ## Driving it with verify-flagoria helpers
 
 Preconditions: `doctor.sh` exits `0`. Time cost: `test_build_cost_table` and `test_inventory_spend` under 0.05 s each in `tools/verify.sh`; `test_build_costs_buy` about 0.2 s (~1.9 s alone with `--only=`, against ~1.7 s for runner start-up). The spend check added to `test_resource_hud_in_scene` adds no measurable time.
 
 - **Run (headless).** `godot --headless --path . --script res://tests/run_tests.gd -- --only=build_cost_table,inventory_spend,build_costs_buy,resource_hud_in_scene`, or the full `tools/verify.sh`.
-- **Proof.** Headers `-- test_build_cost_table`, `-- test_inventory_spend`, `-- test_build_costs_buy` and `-- test_resource_hud_in_scene` in `artifacts/verify.log` with no `FAIL` after them. A live drive reports **verified-unreachable: no in-game build action** (prerequisite: #225).
+- **Proof.** Headers `-- test_build_cost_table`, `-- test_inventory_spend`, `-- test_build_costs_buy` and `-- test_resource_hud_in_scene` in `artifacts/verify.log` with no `FAIL` after them. Live spend is driven through the build picker; see [Build placement](./build-placement.md).
 
 ## Gotchas
 

@@ -2,15 +2,13 @@ class_name Interaction
 extends Node2D
 ## Combat or interact mode for the local player, switched with the HUD mode
 ## button. Combat is the default and leaves the map to the attack controls.
-## In interact mode a tap on the map chops the nearest tree or bush (a
-## choppable, see InteractableCatalog) on or next to the tapped cell: the
-## hero faces it and swings its type's `hits` chops, and it falls FLASH_TIME
-## after the last impact (the chop is ChopAction,
-## Scripts/mechanics/trees/chop_action.gd). A drag selects a range: when the
-## finger lifts, every choppable in the range that is within REACH of the
-## player is cut at once. A cut plant leaves its type's stump and gives its
-## type's `yields` (data/interactables/*.tres). Mouse clicks and drags count as
-## touches (pointing/emulate_touch_from_mouse). Touches that start on a HUD
+## In interact mode the Cut/Plank picker shows (#225). Cut: a tap chops the
+## nearest tree or bush (a choppable, see InteractableCatalog) on or next to
+## the tapped cell through ChopAction; a drag selects a range and cuts every
+## choppable in reach when the finger lifts. Plank: a drag snaps to a
+## horizontal or vertical run; green/red preview and wood cost follow the
+## finger; lift places the longest valid prefix through ConstructionPlacer.
+## Mouse clicks and drags count as touches. Touches that start on a HUD
 ## control, and two-finger pinches, select nothing. While the local player is
 ## dead, taps and drags do nothing (#349).
 ## While multiplayer is active (a client, or a host with a peer connected)
@@ -61,6 +59,8 @@ var _end := Vector2.ZERO
 var _dragging := false
 ## The chop, its effects and its sounds (Scripts/mechanics/trees/chop_action.gd).
 var _chop := ChopAction.new(self)
+## Interact-mode build tool: Cut vs Plank picker and plank preview (#225).
+var build := BuildPlacement.new()
 ## The chop's state, read through these (kept in ChopAction).
 var chop_cell: Vector2i:
 	get:
@@ -92,6 +92,7 @@ var _fx: Sprite2D:
 func _ready() -> void:
 	z_index = 3  # over the trees
 	_chop.setup()
+	build.setup(self)
 	_chop.chop_hit.connect(chop_hit.emit)
 	world_map.plants_regrown.connect(_on_plants_regrown)
 	world_map.trees_sprouted.connect(_on_trees_sprouted)
@@ -113,6 +114,7 @@ func toggle_mode() -> void:
 func set_mode(value: Mode) -> void:
 	mode = value
 	_cancel()
+	build.on_mode_changed(mode)
 	_refresh_button()
 	mode_changed.emit(mode)
 
@@ -159,7 +161,10 @@ func _unhandled_input(event: InputEvent) -> void:
 				_cancel()  # a second finger: a pinch, not a selection
 		elif event.index == _touch:
 			_end = event.position
-			if _dragging:
+			if build.tool == BuildPlacement.Tool.PLANK:
+				build.update_preview(_start, _end)
+				build.commit()
+			elif _dragging:
 				cut_range(selection_rect())
 			else:
 				interact_at(to_world(_end))
@@ -169,6 +174,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_end = event.position
 		if _start.distance_to(_end) > DRAG_START:
 			_dragging = true
+		if build.tool == BuildPlacement.Tool.PLANK:
+			build.update_preview(_start, _end)
 
 
 static func player_dead(node: Node) -> bool:
@@ -184,6 +191,7 @@ func _on_hud(pos: Vector2) -> bool:
 func _cancel() -> void:
 	_touch = -1
 	_dragging = false
+	build.clear_preview()
 	queue_redraw()
 
 
@@ -361,7 +369,9 @@ func _draw() -> void:
 	if mode != Mode.INTERACT or player == null:
 		return
 	draw_arc(to_local(player.global_position), REACH, 0.0, TAU, 48, FILL_COLOR, 1.0)
-	if _dragging:
+	if build.tool == BuildPlacement.Tool.PLANK:
+		build.draw_preview(self)
+	elif _dragging:
 		var rect := selection_rect()
 		rect.position = to_local(rect.position)
 		draw_rect(rect, FILL_COLOR)
