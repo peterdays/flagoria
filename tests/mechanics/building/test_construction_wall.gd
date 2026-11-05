@@ -4,7 +4,7 @@ extends "res://tests/helpers/test_helpers.gd"
 
 func _clear_wall_cells(world, count: int = 3) -> Array[Vector2i]:
 	## Contiguous clear land run of `count` cells (H) that 4-touches a seeded
-	## support wall (first block must touch tower/castle/wall — t288s1054), or
+	## support wall (first block must touch tower/castle/wall — design decision for #276), or
 	## empty. The support cell itself is not returned.
 	for seed_value in [11, 42, 99, 7, 1, 3, 5, 13, 17]:
 		world.apply_map_params(_spawn_params(seed_value, 0.0))

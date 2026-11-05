@@ -6,7 +6,7 @@ A closed wall loop around a flag tower makes a city (#277). `Cities`
 (`Scripts/mechanics/conquest/cities.gd`, the `World/Cities` node) flood-fills
 from each placement's team flag through non-barrier cells. Barriers are
 free-form walls and structure `WALL_*` / `PALISADE_*` cells (gates included).
-Water and map edges do **not** close a city (Pedro card t293s1076): reaching
+Water and map edges do **not** close a city (design decision for #277): reaching
 either means the region is open. A closed region with a flag tower becomes a
 city owned by the tower's owner. Capturing the tower (#274) transfers the
 city. Breaking the loop dissolves it. Boundary tint is drawn on the city
@@ -27,8 +27,7 @@ their own courtyards are cities.
   `owner_of` follow the new owner.
 - `cities-dissolve` erasing one free-form wall from a closed ring dissolves
   that city.
-- `cities-water-escape` water and map edges are escapes, not barriers (Pedro
-  card t293s1076); a U open to water does not make a city.
+- `cities-water-escape` water and map edges are escapes, not barriers (design decision for #277); a U open to water does not make a city.
 - `cities-off-in-multiplayer` while multiplayer is on the city list is cleared
   and stays empty.
 
@@ -53,7 +52,7 @@ against ~1.5 s for runner start-up). Drive about 20 s under xvfb.
 
 ## Gotchas
 
-- Water and map edges do not close a city (Pedro card t293s1076).
+- Water and map edges do not close a city (design decision for #277).
 - `TOWER_WOOD_*` cells are not barriers; only free-form walls and `WALL_*` /
   `PALISADE_*` structure cells are.
 - Drive evidence closes the default-open MinimapPanel for play shots, then

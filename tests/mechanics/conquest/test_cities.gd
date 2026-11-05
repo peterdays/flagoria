@@ -263,7 +263,7 @@ func _test_cities_dissolve_when_loop_breaks() -> int:
 
 func _test_cities_water_does_not_close() -> int:
 	## Walls that leave only water as the open side do not make a city
-	## (Pedro card t293s1076). Time cost: ~0.5 s alone.
+	## (design decision for #277). Time cost: ~0.5 s alone.
 	print("-- test_cities_water_does_not_close")
 	var t := _scene("cities_water_does_not_close")
 	if t.is_empty():

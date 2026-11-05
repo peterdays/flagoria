@@ -4,7 +4,7 @@ extends Node2D
 ## with a team flag, a flood fill from the flag through non-barrier cells finds
 ## the enclosed region. Barriers are free-form walls and structure WALL_* /
 ## PALISADE_* cells (including gates). Water and map edges do not close a city:
-## reaching either means the region is open (Pedro card t293s1076).
+## reaching either means the region is open (design decision for #277).
 ## City record: tower id, wall cells, interior cells. Owner follows the tower's
 ## owner (capture via #274 transfers the city). Breaking the loop dissolves it.
 ## Boundary tint is drawn here; the minimap paints the same walls.

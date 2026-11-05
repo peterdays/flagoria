@@ -172,7 +172,7 @@ func _land_clear(map: TileMap, cell: Vector2i) -> bool:
 
 
 func _touches_support(map: TileMap, cell: Vector2i) -> bool:
-	## First wall block must 4-touch a tower, castle or wall (t288s1054).
+	## First wall block must 4-touch a tower, castle or wall (design decision for #276).
 	for n in [cell + Vector2i.LEFT, cell + Vector2i.RIGHT, cell + Vector2i.UP, cell + Vector2i.DOWN]:
 		if map.has_wall(n) or map._structures.has_cell(n):
 			return true
