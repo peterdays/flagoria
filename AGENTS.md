@@ -32,6 +32,8 @@ The only personal identity allowed anywhere is the git commit author metadata, u
 - Where code goes: [docs/architecture.md](docs/architecture.md) maps every script to its module and its target folder, and says where new scripts, data, tests and tools go.
 - For scripted verification recipes (launch, doctor, drive, evidence), use `.cursor/skills/verify-flagoria/` when that skill is present.
 - Every new player-facing mechanic (a new choppable, a tower, a wall type, a city rule) adds its feature file `.cursor/skills/verify-flagoria/features/<feature>.md` and its index line in `features/README.md` in the same pull request. It also adds a drive under `.cursor/skills/verify-flagoria/drives/` when a player can reach the feature in a running game. Before each checkpoint in #253's gate, a verification maintenance pass checks the skill against the game. The rule and the pass are described in [docs/architecture.md](docs/architecture.md#rules).
+- Before a pull request is Ready: run that feature's drive locally under xvfb (`./.cursor/skills/verify-flagoria/bin/launch.sh drives/<name>.gd --display`, using the feature file's `Drive:` line), compare the screenshots to the screens the feature file promises, fix mismatches, and attach the screenshots on the pull request (or point at the CI `drive-screenshots` artifact). Pull requests that are not player-facing skip the drive and say so under Feature file.
+- Merges need the repository's required checks green and review threads resolved.
 
 ## Known mistakes and the rules that prevent them
 
