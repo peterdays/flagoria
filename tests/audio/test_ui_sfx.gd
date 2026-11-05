@@ -81,7 +81,7 @@ func _test_ui_sfx_presses() -> int:
 		if ui.sound_for(b) != want:
 			printerr("FAIL ui_sfx_presses: %s plays %s, want %s" % [b.name, ui.sound_for(b), want])
 			fail += 1
-	for n in ["MapSettingsButton", "HostButton", "JoinButton", "RandomSeed", "Reset", "Back", "Start", "NoiseType"]:
+	for n in ["MapSettingsButton", "HostButton", "JoinButton", "RandomSeed", "RandomSpecs", "Reset", "Back", "Start", "NoiseType"]:
 		if n not in names:
 			printerr("FAIL ui_sfx_presses: no %s button found" % n)
 			fail += 1
@@ -91,7 +91,8 @@ func _test_ui_sfx_presses() -> int:
 	var presses := [
 		[menu.get_node("MarginContainer/VBoxContainer/MapSettingsButton"), "click"],
 		[panel.get_node("Margin/VBox/Buttons/RandomSeed"), "click"],
-		[panel.get_node("Margin/VBox/Buttons/Reset"), "click"],
+		[panel.get_node("Margin/VBox/Buttons/RandomSpecs"), "click"],
+		[panel.get_node("Margin/VBox/ButtonsDefaults/Reset"), "click"],
 		[panel.get_node("Margin/VBox/Buttons2/Back"), "back"],
 	]
 	for press in presses:

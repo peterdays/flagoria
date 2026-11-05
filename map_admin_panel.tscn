@@ -144,7 +144,17 @@ custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
 text = "Random seeds"
 
-[node name="Reset" type="Button" parent="Margin/VBox/Buttons"]
+[node name="RandomSpecs" type="Button" parent="Margin/VBox/Buttons"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+text = "Random specs"
+
+[node name="ButtonsDefaults" type="HBoxContainer" parent="Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="Reset" type="Button" parent="Margin/VBox/ButtonsDefaults"]
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
 text = "Defaults"
@@ -165,6 +175,7 @@ layout_mode = 2
 text = "Host with these"
 
 [connection signal="pressed" from="Margin/VBox/Buttons/RandomSeed" to="." method="_on_random_seed_pressed"]
-[connection signal="pressed" from="Margin/VBox/Buttons/Reset" to="." method="_on_reset_pressed"]
+[connection signal="pressed" from="Margin/VBox/Buttons/RandomSpecs" to="." method="_on_random_specs_pressed"]
+[connection signal="pressed" from="Margin/VBox/ButtonsDefaults/Reset" to="." method="_on_reset_pressed"]
 [connection signal="pressed" from="Margin/VBox/Buttons2/Back" to="." method="_on_back_pressed"]
 [connection signal="pressed" from="Margin/VBox/Buttons2/Start" to="." method="_on_start_pressed"]
