@@ -287,41 +287,13 @@ func set_tile_type_z1(pos_vec, alt, moist, _temp, chance, biome_id: int = BiomeC
 
 
 func plant_tile(alt: float, moist: float, chance: float, biome_id: int = BiomeCatalog.TEMPERATE) -> Vector2i:
-	## Bush, tree, bushy tree, pine or flower for one walkable cell, or NO_PLANT. With biomes
-	## on, BiomeCatalog.PLANTS shifts the tree, bush, pine and bushy tree thresholds and
-	## BiomeCatalog.TERRAIN the flower one; off, no pines or bushy trees, Map Settings apply.
-	var bush_chance := bush_min_chance
-	var tree_chance := tree_min_chance
-	var flower_chance := flower_min_chance
-	if biome_frequency > 0.0:
-		bush_chance += BiomeCatalog.plants(biome_id, "bush_chance")
-		tree_chance += BiomeCatalog.plants(biome_id, "tree_chance")
-		flower_chance += BiomeCatalog.terrain(biome_id, "flower_chance")
-	if moist > 0 and alt > bush_min_alt and alt <= bush_max_alt and chance > bush_chance:
-		return TileCatalog.BUSH
-	if moist > 0 and alt > tree_min_alt and chance > tree_chance:
-		if biome_frequency > 0.0 and moist > bushy_tree_min_moist + BiomeCatalog.plants(biome_id, "bushy_moist"):
-			return TileCatalog.TREE_BUSHY
-		return TileCatalog.TREE
-	if biome_frequency > 0.0 and moist <= 0 and alt > pine_min_alt:
-		# Dry high ground; the moisture floor never goes below the biome's
-		# swamp threshold, so pines stay off swamp.
-		var pine_moist := maxf(pine_min_moist, BiomeCatalog.terrain(biome_id, "swamp_moisture"))
-		if moist > pine_moist and chance > pine_min_chance + BiomeCatalog.plants(biome_id, "pine_chance"):
-			return TileCatalog.PINE
-	if moist > 0 and alt > flower_min_alt and alt <= flower_max_alt and chance > flower_chance:
-		return TileCatalog.FLOWER
-	return NO_PLANT
+	## Bush, tree, bushy tree, pine, flower or NO_PLANT for one walkable cell (PlantPicker).
+	return PlantPicker.plant_tile(self, alt, moist, chance, biome_id)
 
 
 func structure_tile(chance: float, biome_id: int = BiomeCatalog.TEMPERATE) -> Vector2i:
-	## Stones for one walkable cell with no plant, or NO_PLANT. Only with biomes on
-	## (BiomeCatalog.STRUCTURES sets the chance per biome); off, the map is unchanged.
-	if biome_frequency <= 0.0:
-		return NO_PLANT
-	if chance > BiomeCatalog.structures(biome_id, "stone_chance"):
-		return TileCatalog.STONES
-	return NO_PLANT
+	## Stones or NO_PLANT for one walkable cell with no plant (PlantPicker).
+	return PlantPicker.structure_tile(self, chance, biome_id)
 
 
 func predict_cell(cell: Vector2i) -> Array:
