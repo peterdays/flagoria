@@ -65,7 +65,7 @@ func build_bridge(from: Vector2i, to: Vector2i) -> bool:
 	for i in length:
 		var c := first + step * i
 		_bridge_cells[c] = pieces[i]
-		_map.touch_sprout(c)
+		_map.tree_sprouts().touch(c)
 		_map._predict_cache.erase(c)
 		if _map.get_cell_source_id(0, c) != -1:
 			_map.set_cell(0, c, TileCatalog.SOURCE_ID, pieces[i])
