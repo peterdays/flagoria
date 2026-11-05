@@ -89,6 +89,15 @@ func _test_sword_reach_mob() -> int:
 	player.set_physics_process(false)
 	player.health.max_health = 1000  # contact damage is not under test here
 	player.health.set_health_now(1000)
+	# Reach, not LOS: clear decor in a pad around the hero so a tree cannot
+	# sit on the 24 px aim ray (#339).
+	var stand: Vector2i = world.local_to_map(world.to_local(player.global_position))
+	for x in range(stand.x - 3, stand.x + 4):
+		for y in range(stand.y - 3, stand.y + 4):
+			var c := Vector2i(x, y)
+			world.set_cell(0, c, TileCatalog.SOURCE_ID, TileCatalog.GRASS_A)
+			world.erase_cell(1, c)
+	await physics_frame
 	var mobs: Array = scene.get_node("World/Mobs").mobs()
 	if mobs.is_empty():
 		printerr("FAIL sword_reach_mob no mob on seed 42")

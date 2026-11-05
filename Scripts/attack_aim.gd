@@ -35,6 +35,26 @@ extends Node2D
 const DIRECTIONS := ["Up", "Down", "Left", "Right"]
 const ARC := PI * 0.75  ## the swing's sweep, centred on the aim direction
 const ORIGIN := Vector2(0, -3)  ## where the cone starts, in the player's space
+## Physics layer of TileSet terrain (walls, water, forest plants that block walking).
+const TERRAIN_MASK := 1
+
+
+static func clear_shot(
+	space: PhysicsDirectSpaceState2D, from: Vector2, to: Vector2, exclude: Array = []
+) -> bool:
+	## True when nothing solid on the terrain layer lies on the segment from
+	## `from` to `to`. Used so a sword swing only hurts a mob it can see.
+	## `exclude` is a list of RIDs (the attacker) so the ray ignores them.
+	if space == null:
+		return true
+	var query := PhysicsRayQueryParameters2D.create(from, to)
+	query.collision_mask = TERRAIN_MASK
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	query.exclude = exclude
+	return space.intersect_ray(query).is_empty()
+
+
 const ARC_POINTS := 16
 const MAX_TURN := PI / 4.0  ## the farthest an aim angle is from its four-way direction
 const TOUCH_DEAD_ZONE := 8.0  ## screen px from the button's centre: inside is a tap, or a cancel

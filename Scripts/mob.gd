@@ -233,6 +233,18 @@ static func swinging(attacker: Object) -> bool:
 	return attacker.has_method("sword_active") and attacker.sword_active()
 
 
+func _sword_line_clear(attacker: Node2D) -> bool:
+	## True when the terrain between the swing origin and this hurt box is
+	## clear (AttackAim.clear_shot). Walls, water and plants that block
+	## walking count as solid; an open gate's gap does not.
+	var from: Vector2 = attacker.to_global(AttackAim.ORIGIN)
+	var to: Vector2 = hurt_box.global_position
+	var exclude: Array = []
+	if attacker is CollisionObject2D:
+		exclude.append(attacker.get_rid())
+	return AttackAim.clear_shot(get_world_2d().direct_space_state, from, to, exclude)
+
+
 func _check_swords() -> void:
 	## A sword (player/weapon/sword) in the HurtBox counts while its player is
 	## swinging, once per swing that lands.
@@ -245,6 +257,8 @@ func _check_swords() -> void:
 		if attacker == null or not swinging(attacker) or not is_alive(attacker):
 			continue
 		if _struck.has(attacker.get_instance_id()):
+			continue
+		if not _sword_line_clear(attacker):
 			continue
 		# A swing that lands during HURT is ignored, not used up: it can still
 		# hit once the hurt window ends, if the swing lasts that long.

@@ -65,7 +65,69 @@ func run() -> void:
 	await process_frame
 	print("combat_hud: menu closed %s" % (not panel.is_visible_in_tree()))
 	ok = ok and not panel.is_visible_in_tree()
+	step("sword-los")
+	ok = ok and await _sword_los_shots()
+
 	done(ok)
+
+
+## Paint a closed pad east of the hero with a palisade, then an open gate;
+## place a slime past each; snapshot the blocked swing and the clear gap.
+## Headless tests cover the hit/miss; these shots are the player-facing proof (#339).
+func _sword_los_shots() -> bool:
+	var map: TileMap = current_scene.get_node(WORLD_MAP)
+	var mobs_root: Node = current_scene.get_node("World/Mobs")
+	var h := hero()
+	var stand: Vector2i = map.local_to_map(map.to_local(h.global_position))
+	var mid: Vector2i = stand + Vector2i(4, 0)
+	# Clean grass pad so no leftover trees/walls sit on the ray.
+	for x in range(mid.x - 2, mid.x + 3):
+		for y in range(mid.y - 2, mid.y + 3):
+			var c := Vector2i(x, y)
+			map.set_cell(0, c, TileCatalog.SOURCE_ID, TileCatalog.GRASS_A)
+			map.erase_cell(1, c)
+	map.set_cell(1, mid, TileCatalog.SOURCE_ID, TileCatalog.PALISADE_H)
+	var mob: Mob = load("res://Mobs/mob.tscn").instantiate()
+	mob.mob_type = "slime" if "slime" in MobCatalog.names() else MobCatalog.names()[0]
+	mobs_root.add_child(mob)
+	mob.hp = 99
+	var mid_c: Vector2 = map.to_global(map.map_to_local(mid))
+	h.global_position = mid_c + Vector2(-10, 3)
+	mob.position = mid_c + Vector2(10, -MobCatalog.HURTBOX_Y)
+	for i in 6:
+		await physics_frame
+	var hp0: int = mob.hp
+	h.attack_animation("Right", 0.0)
+	await wait_until(func() -> bool: return not h.isAttacking, SWING_TIMEOUT_S)
+	for i in 3:
+		await physics_frame
+	var blocked := mob.hp == hp0
+	print("combat_hud: wall LOS blocked=%s (hp %s -> %s)" % [blocked, hp0, mob.hp])
+	await snapshot("wall-blocks")
+
+	map.erase_cell(1, mid)
+	for i in 2:
+		await physics_frame
+	# V-open: posts on the north/south edges, gap east-west — same Right swing
+	# geometry as the closed wall shot above.
+	map.set_cell(1, mid, TileCatalog.SOURCE_ID, TileCatalog.PALISADE_GATE_V_OPEN)
+	h.global_position = mid_c + Vector2(-10, 3)
+	mob.position = mid_c + Vector2(10, -MobCatalog.HURTBOX_Y)
+	mob.hp = 99
+	while mob.state == Mob.State.HURT:
+		await physics_frame
+	for i in 6:
+		await physics_frame
+	hp0 = mob.hp
+	h.attack_animation("Right", 0.0)
+	await wait_until(func() -> bool: return not h.isAttacking, SWING_TIMEOUT_S)
+	for i in 3:
+		await physics_frame
+	var through := mob.hp < hp0
+	print("combat_hud: open-gate LOS hit=%s (hp %s -> %s)" % [through, hp0, mob.hp])
+	await snapshot("open-gate-hits")
+	mob.queue_free()
+	return blocked and through
 
 
 ## A finger lands on the attack button's centre, drags `offset` (viewport px)
