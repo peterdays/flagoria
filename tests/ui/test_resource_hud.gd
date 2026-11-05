@@ -5,7 +5,7 @@ extends "res://tests/helpers/test_helpers.gd"
 func _test_resource_hud_in_scene() -> int:
 	## In the real main scene, the local player's spawn shows the wood counter
 	## centred at the top at the hearts' scale, starting at 0, and wood added
-	## to the inventory updates it.
+	## to the inventory, or spent from it, updates it.
 	print("-- test_resource_hud_in_scene")
 	var fail := 0
 	var scene = load("res://flagoria_main.tscn").instantiate()
@@ -27,6 +27,9 @@ func _test_resource_hud_in_scene() -> int:
 	var inventory: Inventory = scene.get_node("Inventory")
 	if inventory.add(Inventory.WOOD, 3) != 3 or inventory.count_of(Inventory.WOOD) != 3 or hud.label.text != "3":
 		printerr("FAIL resource_hud_in_scene: counter '%s' after 3 wood" % hud.label.text)
+		fail += 1
+	if not inventory.spend(Inventory.WOOD, 2) or hud.label.text != "1":
+		printerr("FAIL resource_hud_in_scene: counter '%s' after spending 2 wood" % hud.label.text)
 		fail += 1
 	scene.queue_free()
 	await process_frame
