@@ -10,14 +10,14 @@ Wall pieces are picked from their neighbours by `WallSolver` (`Scripts/mechanics
 
 ## How to get to it (user POV)
 
-- None on `main`: there is no in-game build action. The live drive is **verified-unreachable** until the build picker lands (#225; walls #276).
+- Plank bridges: interact mode → Plank (#225 / `build-placement.md`). Walls stay **verified-unreachable** until #276.
 
 ## Driving it with verify-flagoria helpers
 
 Preconditions: `doctor.sh` exits `0`. Time cost: each test below is under 0.5 s in `tools/verify.sh` (~1.1-1.3 s alone with `--only`).
 
 - **Run (headless).** `godot --headless --path . --script res://tests/run_tests.gd -- --only=wall_solver,wall_collision,bridge_planks`, or the full `tools/verify.sh`.
-- **Proof.** Until a build action lands the proof is headless: each header `-- test_wall_solver`, `-- test_wall_collision`, `-- test_bridge_planks` appears in `artifacts/verify.log`, no `FAIL` line follows it, and the run ends with `All tests passed.`. A live drive reports **verified-unreachable: no in-game build action** (prerequisite: #224 for bridges, #270 and #276 for walls).
+- **Proof.** Until a build action lands the proof is headless: each header `-- test_wall_solver`, `-- test_wall_collision`, `-- test_bridge_planks` appears in `artifacts/verify.log`, no `FAIL` line follows it, and the run ends with `All tests passed.`. Live plank bridges go through the build picker (`build-placement.md`). Walls stay verified-unreachable until #276.
 
 ## Gotchas
 

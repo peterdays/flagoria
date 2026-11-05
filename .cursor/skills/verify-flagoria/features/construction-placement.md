@@ -29,8 +29,8 @@ Host-alone: while multiplayer is on, `can_place` includes `multiplayer on` and
 
 ## How to get to it (user POV)
 
-- None on `main`: there is no in-game build action yet. The live drive is
-  **verified-unreachable** until the interact-mode build picker lands (#225).
+- Interact mode → Plank in the build picker (#225 / `build-placement.md`). The
+  shared module itself stays headless-proven here; the live path is the picker.
 
 ## Driving it with verify-flagoria helpers
 
@@ -43,8 +43,8 @@ about 0.4 s in `tools/verify.sh` (~2.0 s alone with `--only=`);
 - **Proof.** Headers `-- test_construction_placer_plank`,
   `-- test_construction_placer_atomic_spend` and
   `-- test_build_costs_spend_failed` in `artifacts/verify.log` with no `FAIL`
-  after them. A live drive reports **verified-unreachable: no in-game build
-  action** (prerequisite: #225).
+  after them. Live placement is driven through the build picker; see
+  [Build placement](./build-placement.md).
 
 ## Gotchas
 
