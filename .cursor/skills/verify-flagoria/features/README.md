@@ -33,7 +33,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Two-player Host/Join](./two-player-host-join.md) — multiplayer boot (headless peers scripted; two-launch menu drive; GUI checklist manual).
 - [Dedicated server](./dedicated-server.md) — `-- --server` headless host, `--params` save file, a client joining it.
 - [Player health](./player-health.md) — hearts, HUD, regen, death, respawn hold, rejoin, health sync.
-- [Combat and aiming](./combat-and-aiming.md) — swing, 30 px reach, mid-swing hitbox, mouse and touch aim, exact-angle swing, cone, cancel; live `combat_hud` drive.
+- [Combat and aiming](./combat-and-aiming.md) — swing, 30 px reach, mid-swing hitbox, mouse and touch aim, exact-angle swing, cone, cancel, wall line-of-sight; live `combat_hud` drive.
 - [Mobs](./mobs.md) — seeded placement, spawn rate, wander, chase, contact damage, sword hits, hidden on ungenerated ground, sounds, sync.
 - [Player spawn](./player-spawn.md) — spawn on reachable land, a free spot per player within 64 px, late joiners.
 - [Tileset and collision](./tileset-and-collision.md) — tile catalog, water and forest walls.
