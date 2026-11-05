@@ -49,10 +49,11 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Cut request limit](./cut-rate-limit.md) — host-side per-peer bucket on `request_cut` (162 at once, 162.5 a second), drops a flood with no reply, never limits a real drag or walk.
 - [Explored map](./explored-map.md) — minimap panel, cells revealed within 10 cells of the hero.
 - [Build costs](./build-costs.md) — wood per plank (1), wall block (2), tower (10), starting castle (0), half back on removal, `Inventory.spend`, `BuildCosts.buy` refuses with too little wood or while multiplayer is on; live path is the build picker.
-- [Construction placement](./construction-placement.md) — shared `can_place` / `cost` / `place` for buildables; plank and wooden tower (through `BuildCosts.buy`); live path is the build picker.
-- [Build placement](./build-placement.md) — interact-mode Cut/Plank/Tower picker, H/V-snapped plank drag, tower footprint preview, green/red preview and wood cost; places through ConstructionPlacer (#225 / #273).
+- [Construction placement](./construction-placement.md) — shared `can_place` / `cost` / `place` for buildables; plank, wooden tower and wall block (through `BuildCosts.buy`); live path is the build picker.
+- [Build placement](./build-placement.md) — interact-mode Cut/Plank/Tower/Wall picker, H/V-snapped plank and wall drag, tower footprint preview, green/red preview and wood cost; places through ConstructionPlacer (#225 / #273 / #276).
 - [Build tower](./build-tower.md) — wooden palisade tower for 10 wood, land only, builder-owned flag, host-alone (#273).
-- [Walls and bridges](./walls-and-bridges.md) — wall solver, plank bridges (live via build picker); walls stay verified-unreachable until #276.
+- [Free-form walls](./free-form-walls.md) — connected palisade chain via Wall tip, 2 wood per block, host-alone (#276).
+- [Walls and bridges](./walls-and-bridges.md) — wall solver, plank bridges (live via build picker); free-form walls via [Free-form walls](./free-form-walls.md).
 - [Audio](./audio.md) — buses, music, combat, UI and mob SFX, footsteps, `audio_check` gate.
 - [Main menu](./main-menu.md) — menu theme, Host/Join, volume and mob spawn sliders, letter keyboard.
 - [In-game menu and quit prompt](./ingame-menu.md) — menu button, Pause panel (Resume, Save, Main menu), quit confirm.

@@ -2,8 +2,8 @@ class_name ConstructionPlacer
 extends RefCounted
 ## Shared construction placement (#296): one API for every buildable kind.
 ## Checks, wood cost and the writer live here so bridges, walls and towers
-## share the same path. Plank bridges and wooden towers (#273) are registered;
-## walls (#276) add another kind later. The placement UI (#225) only talks to
+## share the same path. Plank bridges, wooden towers (#273) and free-form
+## wall blocks (#276) are registered. The placement UI (#225) only talks to
 ## this module.
 ## Host-alone first: while multiplayer is on nothing is placed (same gate as
 ## BuildCosts and StructurePlacer). Peer sync of placed blocks is #297 / #278.
@@ -24,6 +24,7 @@ const UNKNOWN_KIND := BuildCosts.UNKNOWN_KIND
 const KINDS := {
 	BuildCosts.PLANK: true,
 	BuildCosts.TOWER: true,
+	BuildCosts.WALL_BLOCK: true,
 }
 
 const TOWER_STRUCTURE := "tower_wood"
@@ -43,7 +44,8 @@ func _init(map: _WorldMap) -> void:
 func can_place(kind: StringName, cells: Array[Vector2i], inventory: Inventory) -> Array[String]:
 	## Why `kind` cannot go on `cells`; empty when it can. Each reason appears
 	## once, in `_REASON_ORDER`. Wood and multiplayer come from BuildCosts.
-	## A tower takes exactly one cell (its anchor); a plank takes the run.
+	## A tower takes exactly one cell (its anchor); a plank or wall run takes
+	## every cell in `cells`.
 	var found := {}
 	if cells.is_empty():
 		found[EMPTY_CELLS] = true
@@ -55,6 +57,8 @@ func can_place(kind: StringName, cells: Array[Vector2i], inventory: Inventory) -
 				_check_plank(cells, found)
 			BuildCosts.TOWER:
 				_check_tower(cells, found)
+			BuildCosts.WALL_BLOCK:
+				_check_wall(cells, found)
 	if not cells.is_empty() and KINDS.has(kind):
 		var units := _units(kind, cells)
 		var why := BuildCosts.refusal(inventory, kind, units)
@@ -65,7 +69,8 @@ func can_place(kind: StringName, cells: Array[Vector2i], inventory: Inventory) -
 
 func cost(kind: StringName, cells: Array) -> int:
 	## Wood for placing `kind` on `cells`; -1 for an unknown kind. A tower is
-	## always one unit (10 wood) regardless of footprint size.
+	## always one unit (10 wood) regardless of footprint size; a wall block is
+	## one unit per cell (2 wood each).
 	if not KINDS.has(kind) and not BuildCosts.WOOD.has(kind):
 		return -1
 	return BuildCosts.cost(kind, _units(kind, cells))
@@ -82,6 +87,8 @@ func place(kind: StringName, cells: Array[Vector2i], inventory: Inventory) -> bo
 			return _place_plank(cells, inventory)
 		BuildCosts.TOWER:
 			return _place_tower(cells, inventory)
+		BuildCosts.WALL_BLOCK:
+			return _place_wall(cells, inventory)
 	return false
 
 
@@ -98,6 +105,36 @@ func tower_footprint(anchor_cell: Vector2i) -> Array[Vector2i]:
 
 func _units(kind: StringName, cells: Array) -> int:
 	return 1 if kind == BuildCosts.TOWER else cells.size()
+
+
+func _place_wall(cells: Array[Vector2i], inventory: Inventory) -> bool:
+	## Spend 2 wood per cell, then WallBuilder writes plain palisade pieces.
+	var why := BuildCosts.buy(inventory, BuildCosts.WALL_BLOCK, cells.size(), func() -> bool:
+		return _map.place_wall_cells(cells))
+	return why == ""
+
+
+func _check_wall(cells: Array[Vector2i], found: Dictionary) -> void:
+	## Land only; refuse structures, existing walls, players, mobs, trees and
+	## bushes. A multi-cell run must be one contiguous H/V segment (no gaps,
+	## no bends). Tip adjacency is enforced by BuildPlacement before place.
+	if cells.is_empty():
+		return
+	if cells.size() > 1 and _straight_ends(cells).is_empty():
+		found[NOT_STRAIGHT] = true
+	for cell in cells:
+		if _map.has_wall(cell) or _map._structures.has_cell(cell):
+			found[OCCUPIED] = true
+			continue
+		var p: Array = _map.predict_cell(cell)
+		if not _map.ground_is_walkable(p[0]) or _map.has_bridge(cell):
+			found[WRONG_GROUND] = true
+			continue
+		if p[1] == TileCatalog.TREE or p[1] == TileCatalog.TREE_BUSHY \
+			or p[1] == TileCatalog.PINE or p[1] == TileCatalog.BUSH:
+			found[OCCUPIED] = true
+		elif _map.player_on_cell(cell) or _map.mob_on_cell(cell):
+			found[OCCUPIED] = true
 
 
 func _place_plank(cells: Array[Vector2i], inventory: Inventory) -> bool:

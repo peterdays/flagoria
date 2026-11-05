@@ -59,7 +59,7 @@ var _end := Vector2.ZERO
 var _dragging := false
 ## The chop, its effects and its sounds (Scripts/mechanics/trees/chop_action.gd).
 var _chop := ChopAction.new(self)
-## Interact-mode build tool: Cut vs Plank picker and plank preview (#225).
+## Interact-mode build tool: Cut / Plank / Tower / Wall picker (#225 / #276).
 var build := BuildPlacement.new()
 ## The chop's state, read through these (kept in ChopAction).
 var chop_cell: Vector2i:
@@ -161,7 +161,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				_cancel()  # a second finger: a pinch, not a selection
 		elif event.index == _touch:
 			_end = event.position
-			if build.tool in [BuildPlacement.Tool.PLANK, BuildPlacement.Tool.TOWER]:
+			if build.tool in [BuildPlacement.Tool.PLANK, BuildPlacement.Tool.TOWER, BuildPlacement.Tool.WALL]:
 				build.update_preview(_start, _end)
 				build.commit()
 			elif _dragging:
@@ -174,7 +174,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_end = event.position
 		if _start.distance_to(_end) > DRAG_START:
 			_dragging = true
-		if build.tool in [BuildPlacement.Tool.PLANK, BuildPlacement.Tool.TOWER]:
+		if build.tool in [BuildPlacement.Tool.PLANK, BuildPlacement.Tool.TOWER, BuildPlacement.Tool.WALL]:
 			build.update_preview(_start, _end)
 
 
@@ -369,7 +369,7 @@ func _draw() -> void:
 	if mode != Mode.INTERACT or player == null:
 		return
 	draw_arc(to_local(player.global_position), REACH, 0.0, TAU, 48, FILL_COLOR, 1.0)
-	if build.tool in [BuildPlacement.Tool.PLANK, BuildPlacement.Tool.TOWER]:
+	if build.tool in [BuildPlacement.Tool.PLANK, BuildPlacement.Tool.TOWER, BuildPlacement.Tool.WALL]:
 		build.draw_preview(self)
 	elif _dragging:
 		var rect := selection_rect()
