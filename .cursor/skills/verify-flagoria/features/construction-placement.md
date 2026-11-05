@@ -22,8 +22,10 @@ Host-alone: while multiplayer is on, `can_place` includes `multiplayer on` and
   spends one wood per cell; land, an existing plank, a bent run, a floating
   cell, too little wood and multiplayer on are refused with a reason and spend
   nothing.
-- `build-spend-failed` when a place callable empties the inventory, `BuildCosts.buy`
-  returns `spend failed` instead of success (#377).
+- `build-spend-failed` when spend refuses after the check, `BuildCosts.buy`
+  returns `spend failed` and never calls the writer (#380 item 3).
+- `construction-atomic-spend` `ConstructionPlacer.place` leaves no written
+  run when the charge fails: spend before write, refund on writer refusal.
 
 ## How to get to it (user POV)
 
@@ -34,10 +36,12 @@ Host-alone: while multiplayer is on, `can_place` includes `multiplayer on` and
 
 Preconditions: `doctor.sh` exits `0`. Time cost: `test_construction_placer_plank`
 about 0.4 s in `tools/verify.sh` (~2.0 s alone with `--only=`);
+`test_construction_placer_atomic_spend` about 0.1 s (~1.8 s alone with `--only=`);
 `test_build_costs_spend_failed` about 0.15 s (~1.8 s alone with `--only=`).
 
-- **Run (headless).** `godot --headless --path . --script res://tests/run_tests.gd -- --only=construction_placer_plank,build_costs_spend_failed`, or the full `tools/verify.sh`.
-- **Proof.** Headers `-- test_construction_placer_plank` and
+- **Run (headless).** `godot --headless --path . --script res://tests/run_tests.gd -- --only=construction_placer_plank,construction_placer_atomic_spend,build_costs_spend_failed`, or the full `tools/verify.sh`.
+- **Proof.** Headers `-- test_construction_placer_plank`,
+  `-- test_construction_placer_atomic_spend` and
   `-- test_build_costs_spend_failed` in `artifacts/verify.log` with no `FAIL`
   after them. A live drive reports **verified-unreachable: no in-game build
   action** (prerequisite: #225).
@@ -47,5 +51,7 @@ about 0.4 s in `tools/verify.sh` (~2.0 s alone with `--only=`);
 - Never paint planks from a drive to make placement pass; report the missing UI.
 - Callers must go through `ConstructionPlacer.place` (or `can_place` then
   `BuildCosts.buy`) so the adjacency rule, the cost and the writer stay together.
+  `buy` takes the wood before the writer runs; a failed place is unambiguous
+  (nothing written, wood unchanged or refunded).
 - `TileMap.build_bridge` stays as the low-level writer for tests that only
   check the tiles; play and the shared module go through `ConstructionPlacer`.

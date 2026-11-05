@@ -62,8 +62,9 @@ func cost(kind: StringName, cells: Array) -> int:
 
 
 func place(kind: StringName, cells: Array[Vector2i], inventory: Inventory) -> bool:
-	## Check, then buy through BuildCosts (writer + spend). True only when the
-	## cells are written and the wood is taken; a refusal spends nothing.
+	## Check, then buy through BuildCosts (spend then writer). True only when
+	## the cells are written and the wood is taken. A refusal or a failed
+	## charge writes nothing; a writer refusal puts the wood back (#380).
 	if not can_place(kind, cells, inventory).is_empty():
 		return false
 	match kind:

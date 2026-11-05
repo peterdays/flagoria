@@ -73,7 +73,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 | `Scripts/mechanics/walls/wall_solver.gd` | Wall piece per cell from neighbours | moved from `Scripts/wall_solver.gd` (#261) |
 | `Scripts/mechanics/structures/structure.gd` | Parse hand-drawn structures | moved from `Scripts/structure.gd` (#261) |
 | `Scripts/mechanics/structures/structure_placer.gd` | Check and place a parsed structure on the map, keep placements across redraws | new (#270) |
-| `Scripts/mechanics/building/build_costs.gd` | Wood cost and refund per buildable; buy: check wood, place, spend | new (#272) |
+| `Scripts/mechanics/building/build_costs.gd` | Wood cost and refund per buildable; buy: check wood, spend, place | new (#272) |
 | `Scripts/world/plant_picker.gd` | Plant or stones for one walkable cell from altitude, moisture, chance and biome | moved from `Scripts/TileMap.gd` (#370 put that file over its 500-line budget); `Scripts/TileMap.gd` keeps `plant_tile` and `structure_tile` wrappers |
 | `Scripts/world/start_castle.gd` | Find the spot for a player's starting castle next to the spawn and place it | new (#271) |
 | `Scripts/mechanics/conquest/tower_capture.gd` | Flag towers change hands: who stands by each flag, capture progress, the progress bars | new (#274) |
