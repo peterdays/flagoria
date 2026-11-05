@@ -252,13 +252,16 @@ func ground_tile(alt: float, moist: float, chance: float, biome_id: int = BiomeC
 
 
 func get_random_ground_vec(chance):
+	var vec = TileCatalog.GRASS_A
 	if chance < ground_chance_a:
-		return TileCatalog.GRASS_A
-	if chance < ground_chance_b:
-		return TileCatalog.GRASS_B
-	if chance < ground_chance_c:
-		return TileCatalog.GRASS_C
-	return TileCatalog.GRASS_D
+		vec = TileCatalog.GRASS_A
+	elif chance < ground_chance_b:
+		vec = TileCatalog.GRASS_B
+	elif chance < ground_chance_c:
+		vec = TileCatalog.GRASS_C
+	else:
+		vec = TileCatalog.GRASS_D
+	return vec
 
 
 func set_tile_type_z1(pos_vec, alt, moist, _temp, chance, biome_id: int = BiomeCatalog.TEMPERATE):
