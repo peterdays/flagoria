@@ -23,7 +23,20 @@ MAC_PATH = "/" + "Users" + "/someone/project"
 WIN_PATH = "C:" + "\\" + "Users" + "\\someone\\project"
 SCRATCH_PATH = "/" + "workspace" + "/flagoria/tools"
 ATTRIBUTION = "the owner " + "wants a bigger map"
-CLEAN_BODY = "## Why\nFix a thing.\n\nSize: ~40 code lines\n"
+CLEAN_BODY = (
+    "## Why\nFix a thing.\n\n"
+    "## How it was checked\nRan tools/verify.sh.\n\n"
+    "Feature file: not player-facing\n\n"
+    "Size: ~40 code lines\n"
+)
+GAMEPLAY_BODY = (
+    CLEAN_BODY
+    + "\n## Evidence\nCI drive artifact\n"
+)
+GAMEPLAY_BODY_URL = (
+    CLEAN_BODY
+    + "\n## Evidence\nhttps://github.com/user-attachments/assets/deadbeef-cafe\n"
+)
 BIG = [(900, 300, "Scripts/big.gd")]
 
 FIXTURES = [
@@ -40,7 +53,7 @@ FIXTURES = [
     ("scratch path in body", dict(body=CLEAN_BODY + "see " + SCRATCH_PATH), 1, []),
     ("url is not a path", dict(body=CLEAN_BODY + "https://example.test/home/page"), 0, None),
     ("attribution is a warning", dict(body=CLEAN_BODY + ATTRIBUTION), 0, ["attribution"]),
-    ("missing Size line is a warning", dict(body="## Why\nFix."), 0, ["Size:"]),
+    ("missing Size line is a warning", dict(body=CLEAN_BODY.replace("Size: ~40 code lines\n", "")), 0, ["Size:"]),
     ("author login is a warning, repo slug is not", dict(author="octo-dev", repo="octo-dev/game",
         body=CLEAN_BODY + "See octo-dev/game#3 and https://github.com/octo-dev/game/pull/3. Thanks octo-dev."), 0, ["login"]),
     ("repo slug alone is fine", dict(author="octo-dev", repo="octo-dev/game", body=CLEAN_BODY + "Part of octo-dev/game#3"), 0, None),
@@ -50,6 +63,15 @@ FIXTURES = [
     ("excluded files do not count", dict(body=CLEAN_BODY, numstat=[
         (5000, 0, "art/x.png.import"), (3000, 0, "docs/big.md"), (2000, 0, "Scripts/a.gd.uid"),
         (None, None, "art/hero.png"), (1500, 0, ".github/pull_request_template.md"), (900, 0, "Scripts/a.gd")]), 0, None),
+    ("empty Feature file", dict(body="## Why\nX\n\n## How it was checked\nRan verify.\n\nFeature file: \n\nSize: ~1 code lines\n"), 1, []),
+    ("missing How it was checked", dict(body="## Why\nX\n\nFeature file: not player-facing\n\nSize: ~1 code lines\n"), 1, []),
+    ("empty How it was checked", dict(body="## Why\nX\n\n## How it was checked\n\n<!-- only a comment -->\n\nFeature file: not player-facing\n\nSize: ~1 code lines\n"), 1, []),
+    ("gameplay without Evidence", dict(body=CLEAN_BODY, numstat=[(10, 0, "Scripts/player.gd")]), 1, []),
+    ("gameplay Evidence CI phrase", dict(body=GAMEPLAY_BODY, numstat=[(10, 0, "Scripts/player.gd")]), 0, None),
+    ("gameplay Evidence user-attachments", dict(body=GAMEPLAY_BODY_URL, numstat=[(10, 0, "Scripts/player.gd")]), 0, None),
+    ("gameplay Evidence empty section", dict(
+        body=CLEAN_BODY + "\n## Evidence\n\n<!-- todo -->\n",
+        numstat=[(10, 0, "Scripts/player.gd")]), 1, []),
 ]
 
 

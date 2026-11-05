@@ -8,7 +8,12 @@ Hard failures (exit 1), kept to cases that are almost never false positives:
   * an absolute local path: a home directory under /home or /Users, a Windows
     user-profile path, or a path under the /workspace scratch root;
   * more than CAP counted code lines without a justification in the PR body
-    (a "## Why this is large" section or a "Size justification:" line).
+    (a "## Why this is large" section or a "Size justification:" line);
+  * an empty "Feature file:" line or an empty "## How it was checked" section
+    in the PR body;
+  * on a gameplay PR (paths match tools/play_review_paths.py), a missing or
+    empty "## Evidence" section that lacks a github user-attachments image or
+    video URL and also lacks the text "CI drive artifact".
 
 Warnings only (shown as annotations and in the job summary, never blocking):
   * attribution phrases such as "<someone> says" or "the owner <verb>";
@@ -84,6 +89,36 @@ ATTRIBUTION_RES = [
 ]
 SIZE_LINE_RE = re.compile(r"^\s*(?:[-*]\s*)?\**Size\**\s*:", re.I | re.M)
 JUSTIFY_RE = re.compile(r"^\s*#{1,6}\s*Why this is large\b|^\s*(?:[-*]\s*)?\**Size justification\**\s*:\s*\S", re.I | re.M)
+FEATURE_FILE_RE = re.compile(r"^[ \t]*Feature file[ \t]*:[ \t]*(.*)$", re.I | re.M)
+HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
+USER_ATTACH_RE = re.compile(r"https://github\.com/user-attachments/(?:assets|files)/\S+", re.I)
+CI_DRIVE_ARTIFACT = "CI drive artifact"
+
+
+def _section_body(text: str, heading: str) -> str | None:
+    """Return the body under `## heading` (any ## depth), or None if missing.
+
+    Stops at the next markdown heading. For "How it was checked", also stops at a
+    `Feature file:` line so the template's inline field is not counted as prose.
+    """
+    rx = re.compile(rf"^[ \t]*#{{1,6}}[ \t]+{re.escape(heading)}[ \t]*$", re.I | re.M)
+    m = rx.search(text or "")
+    if not m:
+        return None
+    rest = text[m.end():]
+    nxt = re.search(r"^[ \t]*#{1,6}[ \t]+\S", rest, re.M)
+    end = nxt.start() if nxt else len(rest)
+    chunk = rest[:end]
+    if heading.lower() == "how it was checked":
+        ff = re.search(r"^[ \t]*Feature file[ \t]*:", chunk, re.I | re.M)
+        if ff:
+            chunk = chunk[:ff.start()]
+    return chunk
+
+
+def _visible(text: str) -> str:
+    """Strip HTML comments and whitespace for emptiness checks."""
+    return HTML_COMMENT_RE.sub("", text or "").strip()
 
 
 @dataclass
@@ -198,6 +233,37 @@ def check(pr: PR, allow: Allow, cap: int = CAP) -> list:
             out.append(Finding("error", "size", f"{size} counted code lines, over the ~{cap} cap, and the PR body has no '## Why this is large' section or 'Size justification:' line. Split the PR or justify it. Largest: {top}"))
     if not SIZE_LINE_RE.search(pr.body or ""):
         out.append(Finding("warning", "PR body", f"no 'Size:' line (counted size here: {size} code lines)"))
+
+    body = pr.body or ""
+    ff = FEATURE_FILE_RE.search(body)
+    if not ff or not _visible(ff.group(1)):
+        out.append(Finding("error", "PR body", "empty or missing 'Feature file:' line"))
+    how = _section_body(body, "How it was checked")
+    if how is None or not _visible(how):
+        out.append(Finding("error", "PR body", "empty or missing '## How it was checked' section"))
+
+    # Gameplay PRs need ## Evidence with a user-attachments URL or the literal phrase.
+    paths = [path for _a, _d, path in pr.numstat]
+    try:
+        import play_review_paths as prp  # noqa: WPS433 — same tools/ folder
+        is_gameplay = bool(prp.gameplay_paths(paths, None, None))
+    except Exception as exc:  # pragma: no cover - import always present in repo
+        out.append(Finding("error", "PR body", f"could not classify gameplay paths: {exc}"))
+        is_gameplay = False
+    if is_gameplay:
+        evidence = _section_body(body, "Evidence")
+        visible = _visible(evidence or "")
+        if evidence is None or not visible:
+            out.append(Finding(
+                "error", "PR body",
+                "gameplay PR needs a non-empty '## Evidence' section",
+            ))
+        elif not USER_ATTACH_RE.search(visible) and CI_DRIVE_ARTIFACT not in visible:
+            out.append(Finding(
+                "error", "PR body",
+                "gameplay PR '## Evidence' must include a github user-attachments "
+                "image/video URL or the text 'CI drive artifact'",
+            ))
     return out
 
 
