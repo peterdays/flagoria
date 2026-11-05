@@ -13,6 +13,8 @@ var world_params: MapGenParams
 var _own_spot := Vector2.INF
 ## Called instead of SceneTree.quit() when set (tests).
 var quit_hook := Callable()
+## Address last passed to create_client; used by the join-failed message (#348).
+var _join_address := ""
 
 
 func _ready():
@@ -239,14 +241,49 @@ func add_player(peer_id):
 
 func add_player_joined(port: int = PORT):
 	print("player_joined")
-	var server_ip = "localhost"
+	var server_ip := "localhost"
 	if address_entry.text:
 		server_ip = address_entry.text
-
-	enet_peer.create_client(server_ip, port)
+	_join_address = server_ip
+	var err := enet_peer.create_client(server_ip, port)
+	if err != OK:
+		_on_join_failed()
+		return
 	multiplayer.multiplayer_peer = enet_peer
+	_ensure_join_signals()
+	# Fail faster than ENet's default when nothing answers (#348 tests).
+	var peer := enet_peer.get_peer(1)
+	if peer != null:
+		peer.set_timeout(8, 800, 3000)
 	var world = get_node("World/worldMap")
 	world.player_spawned = true
+
+
+func _ensure_join_signals() -> void:
+	if not multiplayer.connection_failed.is_connected(_on_connection_failed):
+		multiplayer.connection_failed.connect(_on_connection_failed)
+	if not multiplayer.server_disconnected.is_connected(_on_server_disconnected):
+		multiplayer.server_disconnected.connect(_on_server_disconnected)
+
+
+func _on_connection_failed() -> void:
+	_on_join_failed()
+
+
+func _on_join_failed() -> void:
+	## Close the peer and put the main menu back with "Could not join …" (#348).
+	enet_peer.close()
+	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	var world = get_node_or_null("World/worldMap")
+	if world:
+		world.player_spawned = false
+	var menu := get_node("CanvasLayer2/MainMenu")
+	menu.show_join_failed(_join_address if _join_address != "" else "localhost")
+
+
+func _on_server_disconnected() -> void:
+	## Host left mid-game: same return as the in-game Main menu button (#348).
+	leave_to_main_menu()
 
 
 func leave_to_main_menu() -> void:

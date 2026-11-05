@@ -31,6 +31,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Map characterization](./map-characterization.md) — pinned map-output / golden atlas check, `tools/cli.gd` map render and stats.
 - [Map Settings panel](./map-settings-panel.md) — map parameters before Host, rows from `@export_range` hints, number pad.
 - [Two-player Host/Join](./two-player-host-join.md) — multiplayer boot (headless peers scripted; two-launch menu drive; GUI checklist manual).
+- [Join failure returns to the main menu](./join-fail.md) — failed Join shows `Could not join …` on the main menu; host quit reloads to the menu (#348).
 - [Dedicated server](./dedicated-server.md) — `-- --server` headless host, `--params` save file, a client joining it.
 - [Player health](./player-health.md) — hearts, HUD, regen, death, respawn hold, rejoin, health sync.
 - [Combat and aiming](./combat-and-aiming.md) — swing, 30 px reach, mid-swing hitbox, mouse and touch aim, exact-angle swing, cone, cancel, wall line-of-sight; live `combat_hud` drive.

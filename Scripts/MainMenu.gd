@@ -2,6 +2,7 @@ extends PanelContainer
 
 @onready var main_menu = $"."
 @onready var address_entry = $MarginContainer/VBoxContainer/AddressEntry
+@onready var join_status: Label = $MarginContainer/VBoxContainer/JoinStatus
 @onready var ux_layer = $/root/Flagoria/CanvasLayer1
 @onready var music_volume: HSlider = $MarginContainer/VBoxContainer/MusicVolumeRow/MusicVolume
 @onready var sfx_volume: HSlider = $MarginContainer/VBoxContainer/SFXVolumeRow/SFXVolume
@@ -79,6 +80,8 @@ func _on_host_button_pressed():
 
 
 func _on_join_button_pressed():
+	join_status.visible = false
+	join_status.text = ""
 	main_menu.hide()
 	if admin_panel:
 		admin_panel.hide()
@@ -100,3 +103,16 @@ func _on_map_settings_pressed() -> void:
 
 func _on_admin_closed() -> void:
 	main_menu.show()
+
+
+func show_join_failed(address: String) -> void:
+	## Bring the main menu back after a join that never connected (#348).
+	## Message copy is fixed in the issue: "Could not join <address>".
+	if admin_panel:
+		admin_panel.hide()
+	ux_layer.hide()
+	main_menu.show()
+	join_status.text = "Could not join %s" % address
+	join_status.visible = true
+	get_node("/root/MusicPlayer").play(get_node("/root/MusicPlayer").MENU_TRACK)
+
