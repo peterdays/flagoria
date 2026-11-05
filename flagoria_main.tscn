@@ -1,4 +1,4 @@
-[gd_scene load_steps=27 format=3 uid="uid://cxtnu53ko1bon"]
+[gd_scene load_steps=28 format=3 uid="uid://cxtnu53ko1bon"]
 
 [ext_resource type="Script" path="res://flagoria_main.gd" id="1_p55uv"]
 [ext_resource type="Script" path="res://addons/virtual_joystick/scripts/virtual_joystick.gd" id="2_54anv"]
@@ -24,6 +24,7 @@
 [ext_resource type="Script" path="res://Scripts/resource_hud.gd" id="14_resource_hud"]
 [ext_resource type="Script" path="res://Scripts/mechanics/interact/interaction.gd" id="15_interaction"]
 [ext_resource type="Script" path="res://Scripts/mechanics/conquest/tower_capture.gd" id="16_tower_capture"]
+[ext_resource type="Script" path="res://Scripts/mechanics/conquest/cities.gd" id="17_cities"]
 [ext_resource type="Script" path="res://Scripts/minimap_panel.gd" id="16_minimap"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_bm55c"]
@@ -151,6 +152,9 @@ script = ExtResource("15_interaction")
 
 [node name="TowerCapture" type="Node2D" parent="World"]
 script = ExtResource("16_tower_capture")
+
+[node name="Cities" type="Node2D" parent="World"]
+script = ExtResource("17_cities")
 
 [node name="Mobs" type="Node2D" parent="World"]
 y_sort_enabled = true
