@@ -480,7 +480,7 @@ func reachable_clear_cells(start: Vector2i, limit: int = SpawnFinder.SPAWN_MIN_R
 	return SpawnFinder.reachable_clear_cells(self, start, limit)
 
 
-func resolve_player_spawn(origin_cell: Vector2i = Vector2i(0, 0), max_radius: int = 96) -> Vector2i:
+func resolve_player_spawn(origin_cell: Vector2i = Vector2i(0, 0), max_radius: int = 192) -> Vector2i:
 	## The starting castle's gate front once it is placed, else SpawnFinder's.
 	return _castle_front if _castle_front != null else SpawnFinder.resolve_player_spawn(self, origin_cell, max_radius)
 

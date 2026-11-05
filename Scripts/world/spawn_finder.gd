@@ -25,6 +25,10 @@ const SPAWN_CLEARANCE := 16.0
 # least (more when many players stand around it, see free_spawn_position).
 const SPAWN_SEARCH_LIMIT := 400
 
+# Set by resolve_player_spawn: reachable clear-cell count of the chosen spawn
+# when it fell back under SPAWN_MIN_REACHABLE; -1 when the spawn met the bar.
+static var last_fallback_size := -1
+
 
 static func count_walkable_neighbors(map: _WorldMap, cell: Vector2i) -> int:
 	var n := 0
@@ -60,11 +64,13 @@ static func reachable_clear_cells(map: _WorldMap, start: Vector2i, limit: int = 
 	return found
 
 
-static func resolve_player_spawn(map: _WorldMap, origin_cell: Vector2i = Vector2i(0, 0), max_radius: int = 96) -> Vector2i:
+static func resolve_player_spawn(map: _WorldMap, origin_cell: Vector2i = Vector2i(0, 0), max_radius: int = 192) -> Vector2i:
 	## Nearest clear-ground cell to origin_cell (ring order) from which the
 	## player can walk to at least SPAWN_MIN_REACHABLE clear cells. If none is
-	## within max_radius, the candidate with the largest reachable area; if no
-	## clear cell at all, origin_cell.
+	## within max_radius, the candidate with the largest reachable area (and a
+	## warning when that area is still under the threshold); if no clear cell
+	## at all, origin_cell.
+	last_fallback_size = -1
 	var best := origin_cell
 	var best_size := 0
 	# Cells of areas already measured as too small, so each is flooded once.
@@ -94,6 +100,12 @@ static func resolve_player_spawn(map: _WorldMap, origin_cell: Vector2i = Vector2
 			visited[next] = true
 			queue.append(next)
 
+	last_fallback_size = best_size
+	if best_size < SPAWN_MIN_REACHABLE:
+		push_warning(
+				"SpawnFinder.resolve_player_spawn: fallback to pocket of %s clear cells at %s (need %s within radius %s)"
+				% [best_size, best, SPAWN_MIN_REACHABLE, max_radius]
+		)
 	map.spawn_point = best
 	return best
 

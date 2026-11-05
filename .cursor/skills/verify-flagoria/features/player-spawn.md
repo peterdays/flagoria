@@ -18,11 +18,12 @@ Players spawn on walkable land from which they can reach at least 200 clear cell
 
 ## Driving it with verify-flagoria helpers
 
-Preconditions: `doctor.sh` exits `0`. Time cost: `-- test_spawn_late_join` starts one Godot process per joiner on a dedicated server and on a listen host, ~12 s alone with `--only=` (each check waits up to 10 s for every peer's copies to match their owners); the other spawn tests together ~1.8 s.
+Preconditions: `doctor.sh` exits `0`. Time cost: `-- test_spawn_late_join` starts one Godot process per joiner on a dedicated server and on a listen host, ~12 s alone with `--only=` (each check waits up to 10 s for every peer's copies to match their owners); the other spawn tests together ~2 s (`test_spawn_reachable` ~1.5 s over ~104 maps including high-water; `test_spawn_fallback_warns` ~0.1 s).
 
 - **Run.** Run `./.cursor/skills/verify-flagoria/bin/drive-verify.sh` (or `./tools/verify.sh`) and read `artifacts/verify.log`.
-- **Proof.** Each header `-- test_spawn_on_land`, `-- test_spawn_reachable`, `-- test_player_spawn_no_missing_nodes`, `-- test_spawn_radius_no_overlap`, `-- test_spawn_full_area_searches_outward`, `-- test_spawn_late_join` appears in the log, no `FAIL` line follows it, and the run ends with `All tests passed.` and `Verification passed.`
+- **Proof.** Each header `-- test_spawn_on_land`, `-- test_spawn_reachable`, `-- test_spawn_fallback_warns`, `-- test_player_spawn_no_missing_nodes`, `-- test_spawn_radius_no_overlap`, `-- test_spawn_full_area_searches_outward`, `-- test_spawn_late_join` appears in the log, no `FAIL` line follows it, and the run ends with `All tests passed.` and `Verification passed.`
 
 ## Gotchas
 
-- `resolve_player_spawn` searches up to 96 cells from the origin and falls back to the candidate with the largest reachable area; a test that needs a specific spawn should pin the seeds, not the cell.
+- `resolve_player_spawn` searches up to 192 cells from the origin and falls back to the candidate with the largest reachable area (with a warning when that area is still under `SPAWN_MIN_REACHABLE`); a test that needs a specific spawn should pin the seeds, not the cell.
+- Proof also covers `-- test_spawn_fallback_warns` (forces the under-threshold fallback with radius 0).
