@@ -98,3 +98,98 @@ func _test_chop_tree_frames() -> int:
 	if fail == 0:
 		print("PASS test_chop_tree_frames")
 	return fail
+
+
+func _test_hit_row_miss_warns() -> int:
+	## hit_row push_warnings and sets last_hit_row_missed when the atlas is
+	## not in tiles, then still returns row 0 (#357). Time cost: ~0.05 s in
+	## verify (~1.4 s alone with --only=, Godot boot dominates).
+	print("-- test_hit_row_miss_warns")
+	var type := InteractableType.new()
+	type.id = "tree_fixture"
+	var tile_names: Array[String] = ["TREE"]
+	type.tiles = tile_names
+	var known: Vector2i = TileCatalog.TILES["TREE"]["atlas"]
+	var unknown: Vector2i = TileCatalog.TILES["TREE_BUSHY"]["atlas"]
+	var known_row: int = type.hit_row(known)
+	if known_row != 0 or type.last_hit_row_missed:
+		printerr("FAIL hit_row_miss_warns: known atlas %s row/miss %s/%s"
+				% [known, known_row, type.last_hit_row_missed])
+		return 1
+	var row: int = type.hit_row(unknown)
+	if row != 0 or not type.last_hit_row_missed:
+		printerr("FAIL hit_row_miss_warns: miss atlas %s row=%s missed=%s, want 0 and true"
+				% [unknown, row, type.last_hit_row_missed])
+		return 1
+	print("PASS test_hit_row_miss_warns")
+	return 0
+
+
+func _test_hit_sheets_match_golden() -> int:
+	## tree_hit.png and pine_hit.png match tests/golden/hit_sheets.txt (sha256
+	## and size). TREE and TREE_BUSHY share tree_hit; pine uses pine_hit.
+	## Changing or resizing a sheet fails this test (#357). Time cost: ~0.1 s
+	## in verify (~1.5 s alone with --only=).
+	print("-- test_hit_sheets_match_golden")
+	var fail := 0
+	var golden_path := "res://tests/golden/hit_sheets.txt"
+	var text := FileAccess.get_file_as_string(golden_path)
+	if text.is_empty():
+		printerr("FAIL hit_sheets_match_golden: missing %s" % golden_path)
+		return 1
+	var want := {}  # path -> {sha, w, h}
+	for line in text.split("\n"):
+		var s := line.strip_edges()
+		if s.is_empty() or s.begins_with("#"):
+			continue
+		var parts := s.split(" ")
+		if parts.size() != 4:
+			printerr("FAIL hit_sheets_match_golden: bad golden line %s" % s)
+			fail += 1
+			continue
+		want[parts[0]] = {"sha": parts[1], "w": int(parts[2]), "h": int(parts[3])}
+	# Tree (covers TREE + TREE_BUSHY rows) and pine hit sheets from the catalog.
+	var by_id := {
+		"tree": "art/flagoria/fx/tree_hit.png",
+		"pine": "art/flagoria/fx/pine_hit.png",
+	}
+	for id in by_id:
+		var type: InteractableType = InteractableCatalog.by_id(id)
+		if type == null or type.hit_sheet == null:
+			printerr("FAIL hit_sheets_match_golden: type %s has no hit_sheet" % id)
+			fail += 1
+			continue
+		var path: String = type.hit_sheet.resource_path.trim_prefix("res://")
+		if path != by_id[id]:
+			printerr("FAIL hit_sheets_match_golden: %s hit_sheet is %s, want %s" % [id, path, by_id[id]])
+			fail += 1
+		if not want.has(path):
+			printerr("FAIL hit_sheets_match_golden: no golden row for %s" % path)
+			fail += 1
+			continue
+		var abs_path := "res://%s" % path
+		var got_sha := FileAccess.get_sha256(abs_path)
+		var tex: Texture2D = type.hit_sheet
+		var g: Dictionary = want[path]
+		if got_sha != g["sha"] or tex.get_width() != g["w"] or tex.get_height() != g["h"]:
+			printerr("FAIL hit_sheets_match_golden: %s sha/size %s %dx%d, want %s %dx%d"
+					% [path, got_sha, tex.get_width(), tex.get_height(), g["sha"], g["w"], g["h"]])
+			fail += 1
+		# Frame layout: 16 px rows, one per tiles entry; width a multiple of 16.
+		var rows: int = type.tiles.size()
+		if tex.get_height() != 16 * rows or tex.get_width() % 16 != 0:
+			printerr("FAIL hit_sheets_match_golden: %s is %dx%d, want width%%16==0 and height %d"
+					% [path, tex.get_width(), tex.get_height(), 16 * rows])
+			fail += 1
+	# TREE_BUSHY is row 1 of the tree sheet (same file as TREE).
+	var tree: InteractableType = InteractableCatalog.by_id("tree")
+	if tree != null and tree.tiles.size() >= 2:
+		var bushy_atlas: Vector2i = TileCatalog.TILES[tree.tiles[1]]["atlas"]
+		if tree.hit_row(bushy_atlas) != 1 or tree.last_hit_row_missed:
+			printerr("FAIL hit_sheets_match_golden: TREE_BUSHY row is %s missed=%s, want 1"
+					% [tree.hit_row(bushy_atlas), tree.last_hit_row_missed])
+			fail += 1
+	if fail == 0:
+		print("PASS test_hit_sheets_match_golden (%s sheets)" % want.size())
+	return fail
+

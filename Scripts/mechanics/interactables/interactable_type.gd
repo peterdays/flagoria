@@ -47,11 +47,22 @@ extends Resource
 @export var fell_puff := false
 
 
+## Set by hit_row when `atlas` is not in `tiles` (fallback used row 0).
+var last_hit_row_missed := false
+
+
 func hit_row(atlas: Vector2i) -> int:
-	## The hit_sheet row of the tile at `atlas`: its index in `tiles`, or 0.
+	## The hit_sheet row of the tile at `atlas`: its index in `tiles`, or 0
+	## with a warning when the atlas is missing from `tiles`.
+	last_hit_row_missed = false
 	for row in tiles.size():
 		if TileCatalog.TILES.get(tiles[row], {}).get("atlas") == atlas:
 			return row
+	last_hit_row_missed = true
+	push_warning(
+			"InteractableType.hit_row: type '%s' has no tile for atlas %s; using row 0"
+			% [id, atlas]
+	)
 	return 0
 
 

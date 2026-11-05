@@ -1,0 +1,4 @@
+# Hit-sheet reference (#357). sha256 of file bytes, then width height.
+# Update with: python3 -c "..." or regenerate when intentional art change.
+art/flagoria/fx/tree_hit.png f9ca53cea07a8bc04b7c033d86232cce9fc8d35fd9c5cc679795ec2f5b3e06af 32 32
+art/flagoria/fx/pine_hit.png e22a5eb975f6eb043c39948bc42ca309c3bd75b8863a6edd4b52c0f68aa2796a 32 16
