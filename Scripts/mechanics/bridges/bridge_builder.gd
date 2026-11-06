@@ -3,6 +3,8 @@ extends RefCounted
 ## Plank bridges on the world map: laying a straight run over water and the
 ## placed pieces. Moved from Scripts/TileMap.gd (#261). The map keeps wrappers
 ## with the same names and asks has_bridge / piece / piece_or when it draws a chunk.
+## Host sync (#297): to_sync / replace_from_host carry the placed cells to a
+## joining peer with the map params; live placements go through Interaction.
 
 const _WorldMap := preload("res://Scripts/TileMap.gd")
 
@@ -37,6 +39,41 @@ func piece_or(cell: Vector2i, default: Vector2i) -> Vector2i:
 
 func clear() -> void:
 	_bridge_cells.clear()
+
+
+func to_sync() -> Array:
+	## Placed bridge cells as [x, y, atlas_x, atlas_y], sorted by cell, for the
+	## host to send a joining peer with the map (#297).
+	var cells: Array = _bridge_cells.keys()
+	cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		return a.y < b.y if a.y != b.y else a.x < b.x)
+	var out := []
+	for cell: Vector2i in cells:
+		var atlas: Vector2i = _bridge_cells[cell]
+		out.append([cell.x, cell.y, atlas.x, atlas.y])
+	return out
+
+
+func replace_from_host(list: Array) -> int:
+	## Client: make the bridges exactly the host's `list` (to_sync). Call it
+	## right after the params are applied, before the chunks are drawn again.
+	## The host already checked each cell. Returns how many bridge cells it holds.
+	clear()
+	for entry in list:
+		if not entry is Array or entry.size() != 4:
+			continue
+		if not (entry[0] is int and entry[1] is int and entry[2] is int and entry[3] is int):
+			continue
+		var cell := Vector2i(entry[0], entry[1])
+		var atlas := Vector2i(entry[2], entry[3])
+		_bridge_cells[cell] = atlas
+		_map.tree_sprouts().touch(cell)
+		_map._predict_cache.erase(cell)
+		if _map.get_cell_source_id(0, cell) != -1:
+			_map.set_cell(0, cell, TileCatalog.SOURCE_ID, atlas)
+	return _bridge_cells.size()
+
+
 
 
 func build_bridge(from: Vector2i, to: Vector2i) -> bool:

@@ -51,7 +51,8 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Explored map](./explored-map.md) — minimap panel, cells revealed within 10 cells of the hero.
 - [Build costs](./build-costs.md) — wood per plank (1), wall block (2), tower (10), starting castle (0), half back on removal, `Inventory.spend`, `BuildCosts.buy` refuses with too little wood or while multiplayer is on; live path is the build picker.
 - [Construction placement](./construction-placement.md) — shared `can_place` / `cost` / `place` for buildables; plank, wooden tower and wall block (through `BuildCosts.buy`); live path is the build picker.
-- [Build placement](./build-placement.md) — interact-mode Cut/Plank/Tower/Wall picker, H/V-snapped plank and wall drag, tower footprint preview, green/red preview and wood cost; places through ConstructionPlacer (#225 / #273 / #276).
+- [Build placement](./build-placement.md)
+- [Build sync](./build-sync.md) — plank bridges decided by the host and synced to every peer; late joiner gets the list (#297). — interact-mode Cut/Plank/Tower/Wall picker, H/V-snapped plank and wall drag, tower footprint preview, green/red preview and wood cost; places through ConstructionPlacer (#225 / #273 / #276).
 - [Build tower](./build-tower.md) — wooden palisade tower for 10 wood, land only, builder-owned flag, host-alone (#273).
 - [Free-form walls](./free-form-walls.md) — connected palisade chain via Wall tip, 2 wood per block, host-alone (#276).
 - [Walls and bridges](./walls-and-bridges.md) — wall solver, plank bridges (live via build picker); free-form walls via [Free-form walls](./free-form-walls.md).

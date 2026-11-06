@@ -18,15 +18,16 @@ Refusal reasons (each at most once): `empty cells`, `unknown kind`,
 `multiplayer on`. A floating water cell with no land or plank neighbour is
 `not adjacent` (2026-11-02: no floating planks).
 
-Host-alone: while multiplayer is on, `can_place` includes `multiplayer on` and
-`place` writes nothing. Sync of placed blocks between peers is #297.
+Plank bridges sync between peers (#297): `can_place` / `place` allow planks
+while multiplayer is on. Towers and walls still refuse with `multiplayer on`
+until #278.
 
 ## Sub-features
 
 - `construction-plank` a straight water run next to land or a plank places and
   spends one wood per cell; land, an existing plank, a bent run, a floating
-  cell, too little wood and multiplayer on are refused with a reason and spend
-  nothing.
+  cell and too little wood are refused with a reason and spend nothing.
+  Planks place while multiplayer is on (#297).
 - `construction-tower` a clear land anchor places `tower_wood` for 10 wood,
   owned by the local peer; water, an overlapping structure/player/mob, short
   wood and multiplayer on are refused and spend nothing (#273).

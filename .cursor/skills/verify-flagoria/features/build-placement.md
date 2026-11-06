@@ -12,11 +12,11 @@ preview greens exactly the cells `commit` will place and shows that wood cost;
 the rest is red. A refusal reason appears when nothing is placeable (including
 an empty wall gap). On release, placement goes through `ConstructionPlacer`
 (`can_place` / `cost` / `place`). Ghost tiles wait on art. Dead-player gating
-stays on `Interaction.player_dead`. While multiplayer is on, the Plank, Tower
-and Wall icons are hidden so they never show a cost for something that cannot
-be placed. If multiplayer starts while interact mode is already open with
-Plank (or Tower / Wall) selected, the picker refreshes on the next process
-tick and resets to Cut. `update_preview` skips the snap / `can_place` work
+stays on `Interaction.player_dead`. While multiplayer is on, Tower and Wall icons are hidden (their peer sync is
+#278). Plank stays visible once bridges sync (#297). If multiplayer starts
+while interact mode is already open with Tower or Wall selected, the picker
+refreshes on the next process tick and resets to Cut; Plank stays selected.
+`update_preview` skips the snap / `can_place` work
 only when the snapped cells, wood count, player position and map revision are
 unchanged, so a wood spend, a walk out of reach, or a map change cannot leave
 a stale green preview. The Cut icon uses the AxeTool sprite padded into
@@ -29,8 +29,8 @@ run-length cap was added (#380 item 1 left open).
 ## Sub-features
 
 - `build-picker` Cut, Plank, Tower and Wall icons appear in interact mode, hide in
-  combat, and switch `BuildPlacement.tool`. Plank, Tower and Wall are hidden while
-  multiplayer is on, including when multiplayer starts mid-interact.
+  combat, and switch `BuildPlacement.tool`. Tower and Wall are hidden while
+  multiplayer is on; Plank stays (#297).
 - `build-plank-snap` a diagonal drag becomes a straight H or V cell run.
 - `build-plank-preview` green cells and cost match what commit places and
   charges; red for the rest of the drag; refusal only when nothing places.
@@ -39,7 +39,7 @@ run-length cap was added (#380 item 1 left open).
 
 ## How to get to it (user POV)
 
-1. Start a local game (Host alone or offline).
+1. Start a local game (Host alone, offline, or two-player — Plank works in all).
 2. Tap the mode button to enter interact mode; the Cut / Plank / Tower / Wall
    picker appears.
 3. Tap Plank, drag across water next to land; green cells and the wood cost

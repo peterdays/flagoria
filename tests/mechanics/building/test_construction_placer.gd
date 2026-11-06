@@ -6,8 +6,9 @@ func _test_construction_placer_plank() -> int:
 	## A straight plank run on water that touches land places and spends one
 	## wood per cell. Too little wood places and spends nothing. Land, an
 	## existing plank, a bent run and a floating water cell (no land or plank
-	## next to it) are refused with a reason. While multiplayer is on, place
-	## refuses. Time cost: about 0.4 s in tools/verify.sh (~2.0 s alone with
+	## next to it) are refused with a reason. While multiplayer is on, planks
+	## still place (bridge sync #297); towers/walls stay refused. Time cost:
+	## about 0.4 s in tools/verify.sh (~2.0 s alone with
 	## --only=construction_placer_plank, against ~1.7 s runner start-up).
 	print("-- test_construction_placer_plank")
 	var fail := 0
@@ -126,7 +127,7 @@ func _test_construction_placer_plank() -> int:
 	else:
 		printerr("FAIL construction_placer_plank: no floating water cell on the chunk")
 		fail += 1
-	# Multiplayer on refuses.
+	# Multiplayer on: planks still place (#297); wood is spent.
 	var peer := ENetMultiplayerPeer.new()
 	var api := SceneMultiplayer.new()
 	if peer.create_client("127.0.0.1", 1) != OK:
@@ -141,10 +142,14 @@ func _test_construction_placer_plank() -> int:
 			inventory.add(Inventory.WOOD, 1)
 			var tip_cells: Array[Vector2i] = [tip]
 			reasons = placer.can_place(BuildCosts.PLANK, tip_cells, inventory)
-			if ConstructionPlacer.MULTIPLAYER_ON not in reasons \
-					or placer.place(BuildCosts.PLANK, tip_cells, inventory) \
-					or world.has_bridge(tip):
-				printerr("FAIL construction_placer_plank: multiplayer gave %s" % [reasons])
+			var wood_before := inventory.count_of(Inventory.WOOD)
+			if ConstructionPlacer.MULTIPLAYER_ON in reasons \
+					or not reasons.is_empty() \
+					or not placer.place(BuildCosts.PLANK, tip_cells, inventory) \
+					or not world.has_bridge(tip) \
+					or inventory.count_of(Inventory.WOOD) != wood_before - 1:
+				printerr("FAIL construction_placer_plank: multiplayer plank gave %s, bridge %s, wood %d"
+						% [reasons, world.has_bridge(tip), inventory.count_of(Inventory.WOOD)])
 				fail += 1
 		api.multiplayer_peer = null
 		peer.close()
