@@ -64,8 +64,9 @@ func _unhandled_input(event: InputEvent) -> void:
 func save_world() -> Dictionary:
 	## Saves the world being played: its generation inputs as this peer
 	## received or chose them (Flagoria.world_params) and this peer's tree
-	## and bush cuts (world.object_changes). The other change sections stay
-	## empty until the features that fill them land. {"path", "error"}.
+	## and bush cuts (world.object_changes) and plank bridges
+	## (world.tile_edits, #226). The structures section stays empty until
+	## the feature that fills it lands. {"path", "error"}.
 	var params: MapGenParams = owner.world_params if owner else null
 	var result := {"path": "", "error": "the world has not loaded yet"}
 	if params != null:
@@ -74,6 +75,7 @@ func save_world() -> Dictionary:
 		var world_map := owner.get_node_or_null("World/worldMap")
 		if world_map:
 			world.object_changes = world_map.cut_changes()
+			world.tile_edits = BridgeBuilder.to_changes(world_map.bridges_for_sync())
 		result = get_node("/root/MapGen").save_world(world, save_name)
 	if result["error"] == "":
 		status_label.text = saved_text(result["path"].get_file().get_basename())
