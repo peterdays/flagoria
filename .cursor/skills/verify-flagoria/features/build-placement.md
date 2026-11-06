@@ -14,10 +14,14 @@ an empty wall gap). On release, placement goes through `ConstructionPlacer`
 (`can_place` / `cost` / `place`). Ghost tiles wait on art. Dead-player gating
 stays on `Interaction.player_dead`. While multiplayer is on, the Plank, Tower
 and Wall icons are hidden so they never show a cost for something that cannot
-be placed. `update_preview` skips the snap / `can_place` work when the cell
-under the finger has not moved. The Cut icon uses the AxeTool sprite padded
-into `art/ui/ui_tool_cut.png`; the Tower icon is `art/ui/ui_tool_tower.png`;
-the Wall icon is `art/ui/ui_tool_wall.png`.
+be placed. If multiplayer starts while interact mode is already open with
+Plank (or Tower / Wall) selected, the picker refreshes on the next process
+tick and resets to Cut. `update_preview` skips the snap / `can_place` work
+only when the snapped cells, wood count, player position and map revision are
+unchanged, so a wood spend, a walk out of reach, or a map change cannot leave
+a stale green preview. The Cut icon uses the AxeTool sprite padded into
+`art/ui/ui_tool_cut.png`; the Tower icon is `art/ui/ui_tool_tower.png`; the
+Wall icon is `art/ui/ui_tool_wall.png`.
 
 Reach (`Interaction.REACH`) is the length bound for a drag preview; no separate
 run-length cap was added (#380 item 1 left open).
@@ -26,7 +30,7 @@ run-length cap was added (#380 item 1 left open).
 
 - `build-picker` Cut, Plank, Tower and Wall icons appear in interact mode, hide in
   combat, and switch `BuildPlacement.tool`. Plank, Tower and Wall are hidden while
-  multiplayer is on.
+  multiplayer is on, including when multiplayer starts mid-interact.
 - `build-plank-snap` a diagonal drag becomes a straight H or V cell run.
 - `build-plank-preview` green cells and cost match what commit places and
   charges; red for the rest of the drag; refusal only when nothing places.
@@ -50,19 +54,23 @@ under 0.05 s in `tools/verify.sh`; `test_build_picker_switches_tool` about 0.3 s
 `test_build_plank_places_and_spends` about 0.5 s; `test_build_cut_mode_unchanged`
 about 0.4 s; `test_build_plank_drag_places` about 0.6 s;
 `test_build_preview_matches_commit_short_wood` about 0.2 s;
-`test_build_preview_matches_commit_mid_invalid` about 0.2 s (each ~1.9 s alone
+`test_build_preview_matches_commit_mid_invalid` about 0.2 s;
+`test_build_preview_cache_invalidates_on_wood` about 0.5 s;
+`test_build_picker_hides_on_multiplayer_start` about 0.4 s (each ~1.9–2.2 s alone
 with `--only=`, against ~1.7 s runner start-up). Screenshot drive about 15 s
 under xvfb.
 
-- **Run (headless).** `godot --headless --path . --script res://tests/run_tests.gd -- --only=build_placement_snap_run,build_picker_switches_tool,build_plank_preview_tint_and_cost,build_plank_places_and_spends,build_cut_mode_unchanged,build_plank_drag_places,build_preview_matches_commit_short_wood,build_preview_matches_commit_mid_invalid`, or the full `tools/verify.sh`.
+- **Run (headless).** `godot --headless --path . --script res://tests/run_tests.gd -- --only=build_placement_snap_run,build_picker_switches_tool,build_plank_preview_tint_and_cost,build_plank_places_and_spends,build_cut_mode_unchanged,build_plank_drag_places,build_preview_matches_commit_short_wood,build_preview_matches_commit_mid_invalid,build_preview_cache_invalidates_on_wood,build_picker_hides_on_multiplayer_start`, or the full `tools/verify.sh`.
 - **Proof.** Headers `-- test_build_placement_snap_run`,
   `-- test_build_picker_switches_tool`,
   `-- test_build_plank_preview_tint_and_cost`,
   `-- test_build_plank_places_and_spends`,
   `-- test_build_cut_mode_unchanged`,
   `-- test_build_plank_drag_places`,
-  `-- test_build_preview_matches_commit_short_wood` and
-  `-- test_build_preview_matches_commit_mid_invalid` in `artifacts/verify.log`
+  `-- test_build_preview_matches_commit_short_wood`,
+  `-- test_build_preview_matches_commit_mid_invalid`,
+  `-- test_build_preview_cache_invalidates_on_wood` and
+  `-- test_build_picker_hides_on_multiplayer_start` in `artifacts/verify.log`
   with no `FAIL` after them. Visual: `docs/screenshots/build_placement_preview.png`
   shows the picker and a green/red plank preview (captured under xvfb).
 
@@ -74,3 +82,5 @@ under xvfb.
   prefix that `commit` places; do not tint from a full-run `can_place`.
 - Do not invent a run-length cap for the preview; raise it as a question if
   REACH is not enough (#380).
+- Preview skip cache must include wood, player position and map revision, not
+  only the snapped cells (#383).

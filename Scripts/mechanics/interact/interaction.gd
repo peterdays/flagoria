@@ -139,7 +139,13 @@ static func multiplayer_on(api: MultiplayerAPI) -> bool:
 
 func _process(delta: float) -> void:
 	step_chop(delta)
+	var mp := multiplayer_on(multiplayer)
+	build.on_multiplayer_changed(mp)
 	if mode == Mode.INTERACT:
+		# Keep the build preview honest while the finger is held still: wood,
+		# reach (player walked) or the map can change without a new drag event.
+		if _touch != -1 and build.tool in [BuildPlacement.Tool.PLANK, BuildPlacement.Tool.TOWER, BuildPlacement.Tool.WALL]:
+			build.update_preview(_start, _end)
 		queue_redraw()
 
 
