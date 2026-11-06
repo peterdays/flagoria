@@ -10,8 +10,9 @@ applied on top. An unchanged world is about 1 KB.
 the container format, which is slice 1 of #196. Tree and bush cuts fill
 `world.object_changes` (see [Cut trees and bushes](#cut-trees-and-bushes)).
 Placed plank bridges fill `world.tile_edits` (see
-[Placed plank bridges](#placed-plank-bridges)). `world.structures` stays empty
-until the feature that fills it lands.
+[Placed plank bridges](#placed-plank-bridges)). Placed structures and
+free-form walls fill `world.structures` (see
+[Structures and walls](#structures-and-walls)).
 
 ## File layout (version 2)
 
@@ -111,8 +112,35 @@ piece, its cell key is malformed, or the map no longer generates water on its
 cell (after a generator change, for example). Entries without `tile` belong
 to other tile edits (#41) and are left alone.
 
-Towers, walls and castles are not saved yet: they belong in `world.structures`
-(#42), which this format already reserves.
+## Structures and walls
+
+A placed structure (#42) is a `world.structures` entry on its anchor cell; a
+free-form palisade wall cell (#276) is an entry on its cell:
+
+```json
+"world": {"structures": {"0,0": {"3,4": {"structure": "castle", "owner": 1, "order": 0}, "12,2": {"structure": "tower_wood", "owner": -1, "order": 1}, "9,8": {"wall": "palisade"}}}}
+```
+
+| Key | Meaning |
+| --- | --- |
+| `structure` | The shipped structure file, by name (`res://structures/<name>.txt`). |
+| `owner` | The owning peer id, `0` for a neutral tower or `-1` for one the mobs took (#274). The flag colour follows it. |
+| `order` | Placement order, so placement ids come back the same. |
+| `wall` | `palisade`: a free-form wall cell. Its piece is solved again on load. |
+
+`StructureSaves.to_changes` writes the entries and `StructureSaves.restore`
+reads them back, placements first so the walls join the structure walls.
+Cities (#277) are not stored: they are rebuilt from the towers and walls.
+Tower capture progress is not stored either; a capture in progress starts
+over. On a load, a placement naming no shipped structure, a wall on a cell
+that no longer generates land, and malformed keys are dropped. Entries with
+neither key are left alone.
+
+A save that holds the host's castle starts with that castle: its gate front
+is the spawn and no new starting castle is placed. A save without one (every
+save written before this section was filled) gets a starting castle as a new
+world does. The file meaning is unchanged (the section was reserved in
+version 2), so the version stays 2.
 
 ## Saving during play
 
@@ -120,15 +148,16 @@ Towers, walls and castles are not saved yet: they belong in `world.structures`
 date and time (`2026-10-27 22-15-03`; a second save in the same second gets
 ` 2`). The panel stays open and confirms it on one line ("Saved: 10-27 22:15"),
 so the player can resume or leave. The file holds the generation inputs and
-this peer's tree and bush cuts and plank bridges. Player state (#197), placed
-structures (#42) and the rest of the object changes (#198) are not saved yet.
+this peer's tree and bush cuts, plank bridges, placed structures and walls.
+Player state (#197) and the rest of the object changes (#198) are not saved
+yet.
 
 ## Loading
 
 `MapGen.load_map_inputs(path)` makes a save the world the next host starts. It
 sets the params and keeps the change sections. When the host then starts with
-those same params, `Flagoria.setup_server` restores the cuts and plank bridges
-after it applies the params and before any chunk is drawn or any player
+those same params, `Flagoria.setup_server` restores the cuts, plank bridges, structures and
+walls after it applies the params and before any chunk is drawn or any player
 spawns, so cut cells are drawn as stumps and a saved bridge is walkable
 straight away. If the params were changed in between, no changes are applied.
 A player who joins gets the restored bridges with the map, like any other

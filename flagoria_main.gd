@@ -101,7 +101,7 @@ func setup_server(params: MapGenParams, port: int = PORT, with_castle := true) -
 	get_node("/root/MapGen").params = world_params.duplicate_params()
 	_apply_params_to_world(world_params)
 	_restore_loaded_world()
-	if with_castle:
+	if with_castle and not StructureSaves.adopt_start_castle(get_node("World/worldMap"), 1):
 		get_node("World/worldMap").place_start_castle(1)  # the host is peer 1
 
 	var err := enet_peer.create_server(port)
@@ -125,15 +125,17 @@ func spawn_mobs() -> int:
 
 func _restore_loaded_world() -> int:
 	## After the params are applied and before any chunk is drawn or any
-	## player spawns: put back the cuts and the plank bridges (#226) of the
+	## player spawns: put back the cuts, the plank bridges (#226) and the
+	## structures and walls (#42) of the
 	## save MapGen.load_map_inputs read, when this host is starting that
-	## world. Returns how many cuts and bridge cells came back.
+	## world. Returns how many cuts, bridge cells, placements and walls came back.
 	var loaded: WorldSave = get_node("/root/MapGen").take_loaded_world(world_params)
 	var world = get_node("World/worldMap")
 	if loaded == null or world == null:
 		return 0
 	var bridges: int = world.replace_bridges(BridgeBuilder.from_changes(loaded.tile_edits, world))
-	return world.restore_cuts(loaded.object_changes) + bridges
+	var cuts: int = world.restore_cuts(loaded.object_changes)
+	return cuts + bridges + StructureSaves.restore(loaded.structures, world)  # after cuts: a structure clears its cells
 
 
 func _apply_params_to_world(params: MapGenParams) -> void:
