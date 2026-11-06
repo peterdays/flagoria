@@ -28,6 +28,9 @@ until #278.
   spends one wood per cell; land, an existing plank, a bent run, a floating
   cell and too little wood are refused with a reason and spend nothing.
   Planks place while multiplayer is on (#297).
+- `construction-plank-occupied` a plank cell under a player, a mob, a wall or
+  a structure is `occupied`: nothing is written, no wood is spent, and the
+  host's `write_plank` for a peer's request refuses it too (#380 item 2).
 - `construction-tower` a clear land anchor places `tower_wood` for 10 wood,
   owned by the local peer; water, an overlapping structure/player/mob, short
   wood and multiplayer on are refused and spend nothing (#273).
@@ -40,6 +43,9 @@ until #278.
 - `construction-atomic-spend` `ConstructionPlacer.place` leaves no written
   run, tower or wall when the charge fails: spend before write, refund on writer
   refusal (covers plank, tower and wall).
+- `construction-writer-contract` every registered writer (`build_bridge`,
+  `place_wall_cells`, `place_structure`) is all-or-nothing: a refusal writes no
+  cell, so the refund in `buy` leaves the map as it was (#380 item 3, #381).
 
 ## How to get to it (user POV)
 
@@ -55,16 +61,20 @@ about 0.4 s in `tools/verify.sh` (~2.0 s alone with `--only=`);
 `test_construction_placer_wall` about 0.7 s (~2.5 s alone);
 `test_construction_placer_wall_atomic_spend` about 0.3 s (~2.0 s alone);
 `test_construction_placer_atomic_spend` about 0.1 s (~1.8 s alone with `--only=`);
-`test_build_costs_spend_failed` about 0.15 s (~1.8 s alone with `--only=`).
+`test_build_costs_spend_failed` about 0.15 s (~1.8 s alone with `--only=`);
+`test_construction_placer_plank_occupied` about 0.2 s (~2.5 s alone with `--only=`);
+`test_construction_writers_all_or_nothing` about 0.1 s (~2.4 s alone with `--only=`).
 
-- **Run (headless).** `godot --headless --path . --script res://tests/run_tests.gd -- --only=construction_placer_plank,construction_placer_tower,construction_placer_tower_atomic_spend,construction_placer_wall,construction_placer_wall_atomic_spend,construction_placer_atomic_spend,build_costs_spend_failed`, or the full `tools/verify.sh`.
+- **Run (headless).** `godot --headless --path . --script res://tests/run_tests.gd -- --only=construction_placer_plank,construction_placer_tower,construction_placer_tower_atomic_spend,construction_placer_wall,construction_placer_wall_atomic_spend,construction_placer_atomic_spend,build_costs_spend_failed,construction_placer_plank_occupied,construction_writers_all_or_nothing`, or the full `tools/verify.sh`.
 - **Proof.** Headers `-- test_construction_placer_plank`,
   `-- test_construction_placer_tower`,
   `-- test_construction_placer_tower_atomic_spend`,
   `-- test_construction_placer_wall`,
   `-- test_construction_placer_wall_atomic_spend`,
-  `-- test_construction_placer_atomic_spend` and
-  `-- test_build_costs_spend_failed` in `artifacts/verify.log` with no `FAIL`
+  `-- test_construction_placer_atomic_spend`,
+  `-- test_build_costs_spend_failed`,
+  `-- test_construction_placer_plank_occupied` and
+  `-- test_construction_writers_all_or_nothing` in `artifacts/verify.log` with no `FAIL`
   after them. Live placement is driven through the build picker; see
   [Build placement](./build-placement.md), [Build tower](./build-tower.md) and
   [Free-form walls](./free-form-walls.md).

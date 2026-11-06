@@ -205,13 +205,17 @@ func _place_tower(cells: Array[Vector2i], inventory: Inventory) -> bool:
 
 
 func _check_plank(cells: Array[Vector2i], found: Dictionary) -> void:
+	## Water only; an existing plank, wall or structure cell, or a player or
+	## mob overlapping a cell, is occupied (#380 item 2).
 	if cells.is_empty():
 		return
 	for cell in cells:
-		if _map.has_bridge(cell):
+		if _map.has_bridge(cell) or _map.has_wall(cell) or _map._structures.has_cell(cell):
 			found[OCCUPIED] = true
 		elif _map.predict_cell(cell)[0] != TileCatalog.WATER:
 			found[WRONG_GROUND] = true
+		elif _map.player_on_cell(cell) or _map.mob_on_cell(cell):
+			found[OCCUPIED] = true
 	if _straight_ends(cells).is_empty():
 		found[NOT_STRAIGHT] = true
 	elif not _run_touches_support(cells):
