@@ -11,6 +11,10 @@ const Player = preload("res://Player/character_body_2d.tscn")
 var world_params: MapGenParams
 ## Client: the spot the server picked for its own player, until it is placed.
 var _own_spot := Vector2.INF
+## Server spots for players not yet spawned here (#352). Applied in
+## _apply_player_spots / _on_world_child_entered so a late joiner never draws
+## another player at (0, 0) while waiting for that owner's sync.
+var _pending_spots: Dictionary = {}
 ## Called instead of SceneTree.quit() when set (tests).
 var quit_hook := Callable()
 ## Address last passed to create_client; used by the join-failed message (#348).
@@ -163,19 +167,48 @@ func _taken_spawn_spots(except: Node) -> Array[Vector2]:
 func _place_own_player() -> void:
 	## Client: put its own player on the spot the server picked for it. The
 	## player arrives at (0, 0), as the server never sends the position of a
-	## node the client owns, and the owner's position is the one every peer
-	## then follows. The client moves no other player: its copies of them can
-	## still be at (0, 0) or out of date, so a spot picked from them can land
-	## on someone (found in a multi-peer play-test).
-	var me = get_node_or_null("World/" + str(multiplayer.get_unique_id()))
-	if me and _own_spot != Vector2.INF:
-		me.position = _own_spot
+	## node the client owns. Other players' copies used to stay at (0, 0)
+	## until their owner's sync (#352); _apply_player_spots places them from
+	## the server's list. The client still must not pick a spawn from its
+	## copies of others: they can be out of date, so a spot picked from them
+	## can land on someone (found in a multi-peer play-test).
+	if _own_spot != Vector2.INF:
+		_pending_spots[str(multiplayer.get_unique_id())] = _own_spot
 		_own_spot = Vector2.INF
+	_apply_player_spots({})
+
+
+func _player_spots() -> Dictionary:
+	## Each player name -> position on this peer (the server's copies when
+	## the host calls it).
+	var spots := {}
+	for child in get_node("World").get_children():
+		if child is CharacterBody2D:
+			spots[str(child.name)] = child.position
+	return spots
+
+
+func _apply_player_spots(spots: Dictionary) -> void:
+	## Put each listed player on the given spot. Spots for players not yet
+	## in the tree wait in _pending_spots until _on_world_child_entered.
+	for key in spots:
+		_pending_spots[str(key)] = spots[key]
+	for key in _pending_spots.keys():
+		var node = get_node_or_null("World/" + str(key))
+		if node is CharacterBody2D:
+			node.position = _pending_spots[key]
+			_pending_spots.erase(key)
 
 
 func _on_world_child_entered(node: Node) -> void:
-	# The map (with the spot) can reach a client before its own player does.
-	if node is CharacterBody2D and node.name == str(multiplayer.get_unique_id()):
+	# The map (with the spots) can reach a client before its players do.
+	if not node is CharacterBody2D:
+		return
+	var key := str(node.name)
+	if _pending_spots.has(key):
+		node.position = _pending_spots[key]
+		_pending_spots.erase(key)
+	elif key == str(multiplayer.get_unique_id()) and _own_spot != Vector2.INF:
 		_place_own_player.call_deferred()
 
 
@@ -199,14 +232,14 @@ func _sync_map_params_to_peer(peer_id: int) -> void:
 	var world = get_node("World/worldMap")
 	var parts := WorldSave.split_changes(world.cut_changes(), JOIN_CUTS_PER_MESSAGE)
 	rpc_id(peer_id, "receive_map_params", world_params.to_dict(), spot, parts[0],
-			world.structures_for_sync(), world.bridges_for_sync())
+			world.structures_for_sync(), world.bridges_for_sync(), _player_spots())
 	for i in range(1, parts.size()):
 		rpc_id(peer_id, "receive_join_cuts", parts[i])
 
 
 @rpc("authority", "reliable", "call_remote")
 func receive_map_params(data: Dictionary, spot: Vector2, cuts: Dictionary, placements: Array,
-		bridges: Array = []) -> void:
+		bridges: Array = [], spots: Dictionary = {}) -> void:
 	if multiplayer.get_remote_sender_id() != 1:
 		return  # only the host sends the map; the rpc mode already refuses others
 	var params = MapGenParams.new()
@@ -218,9 +251,20 @@ func receive_map_params(data: Dictionary, spot: Vector2, cuts: Dictionary, place
 	get_node("World/worldMap").replace_structures(placements)  # likewise, before the player is placed
 	get_node("World/worldMap").replace_bridges(bridges)  # plank bridges (#297)
 	_own_spot = spot
+	_apply_player_spots(spots)  # other players' server spots (#352), before any draw
 	_place_own_player()  # or once the player arrives, see _on_world_child_entered
 	var world = get_node("World/worldMap")
 	world.player_spawned = true
+
+
+@rpc("authority", "reliable", "call_remote")
+func receive_player_spots(spots: Dictionary) -> void:
+	## Host: a player just spawned (or moved onto its join spot). Remotes put
+	## their copy on that spot at once (#352), so they never show (0, 0) while
+	## waiting for the owner's MultiplayerSynchronizer.
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	_apply_player_spots(spots)
 
 
 @rpc("authority", "reliable", "call_remote")
@@ -240,6 +284,9 @@ func add_player(peer_id):
 	print("player added", player.name)
 	player.position = _land_spawn_position(player)
 	get_node("/root/Flagoria/World").add_child(player)
+	# Remotes' MultiplayerSpawner copies start at (0, 0) until the owner's
+	# sync; send the server's spot so every peer draws them in place (#352).
+	rpc("receive_player_spots", {str(peer_id): player.position})
 
 	var world = get_node("World/worldMap")
 	world.player_spawned = true

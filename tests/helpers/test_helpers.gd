@@ -132,7 +132,13 @@ func _spawn_session(mode: String, joiners: int) -> int:
 			var s: Dictionary = read.call(i)
 			for id in ids:
 				var seen = s.get("players", {}).get(id)
-				if seen == null or not Vector2(seen["pos"][0], seen["pos"][1]).is_equal_approx(at[id]):
+				var seen_pos = Vector2(seen["pos"][0], seen["pos"][1]) if seen != null else null
+				# A copy at the world origin means the server spot never landed
+				# (#352): name that before the generic mismatch line.
+				if seen_pos != null and seen_pos.is_equal_approx(Vector2.ZERO) and not (at[id] as Vector2).is_equal_approx(Vector2.ZERO):
+					printerr("FAIL spawn_late_join %s %s: peer %s still sees %s at (0, 0), its owner has %s" % [mode, stage, s.get("id"), id, at[id]])
+					bad += 1
+				elif seen == null or not (seen_pos as Vector2).is_equal_approx(at[id]):
 					printerr("FAIL spawn_late_join %s %s: peer %s sees %s at %s, its owner has %s" % [mode, stage, s.get("id"), id, seen, at[id]])
 					bad += 1
 		if bad == 0:
@@ -140,8 +146,8 @@ func _spawn_session(mode: String, joiners: int) -> int:
 		return bad
 
 	# Every peer's copy of every player stands where that player's owner has
-	# it. Owners send their position, relayed by the server, so a late
-	# joiner's copy can trail the owner by seconds under CPU load (#343).
+	# it. The server sends each join spot (#352), so a late joiner must not
+	# wait on that owner's MultiplayerSynchronizer (that delay was #343).
 	var synced := func() -> bool:
 		var owned := {}
 		for i in outs.size():
@@ -190,8 +196,11 @@ func _spawn_session(mode: String, joiners: int) -> int:
 			fail += 1
 		await pause.call(300)
 	if fail == 0:
+		# Every peer must already hold every player (server spots, #352), not
+		# wait for each owner's MultiplayerSynchronizer. A short hold still
+		# covers physics settling onto the spot (~2 px).
 		held_since[0] = 0
-		await wait_for.call(stays_synced, SYNC_WAIT_MS)  # on a timeout, check names the stale copies
+		await wait_for.call(stays_synced, 2000)
 		fail += check.call("join", func(s: Dictionary, server: Dictionary) -> Variant:
 			return server["picked"].get(s["id"]))
 	if fail == 0:
