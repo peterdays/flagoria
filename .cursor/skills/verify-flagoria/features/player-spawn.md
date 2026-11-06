@@ -10,7 +10,7 @@ Players spawn on walkable land from which they can reach at least 200 clear cell
 - `spawn-reachable` the spawn has 200+ reachable clear cells.
 - `spawn-nodes` spawning a player finds every node it needs.
 - `spawn-free-spot` each player gets its own clear walkable spot within `SPAWN_RADIUS` (64 px) of the spawn point, at least `SPAWN_CLEARANCE` (16 px) from every other player, on join and on respawn (#164). The search walks at least `SPAWN_SEARCH_LIMIT` (400) clear cells and keeps going outward when every spot is taken.
-- `spawn-late-join` the server picks each joiner's spot; the joiner stands on it once the map arrives.
+- `spawn-late-join` the server picks each joiner's spot; the joiner stands on it once the map arrives. Every peer also gets the server's spot for every other player with the map (and again when a player is added), so a late joiner never draws someone at `(0, 0)` while waiting for that owner's sync (#352).
 
 ## How to get to it (user POV)
 
@@ -18,7 +18,7 @@ Players spawn on walkable land from which they can reach at least 200 clear cell
 
 ## Driving it with verify-flagoria helpers
 
-Preconditions: `doctor.sh` exits `0`. Time cost: `-- test_spawn_late_join` starts one Godot process per joiner on a dedicated server and on a listen host, ~12 s alone with `--only=` (each check waits up to 10 s for every peer's copies to match their owners); the other spawn tests together ~2 s (`test_spawn_reachable` ~1.5 s over ~104 maps including high-water; `test_spawn_fallback_warns` ~0.1 s).
+Preconditions: `doctor.sh` exits `0`. Time cost: `-- test_spawn_late_join` starts one Godot process per joiner on a dedicated server and on a listen host, ~12 s alone with `--only=` (the join check waits up to 2 s for copies to match after the server spots land; the respawn check still waits up to 10 s); the other spawn tests together ~2 s (`test_spawn_reachable` ~1.5 s over ~104 maps including high-water; `test_spawn_fallback_warns` ~0.1 s).
 
 - **Run.** Run `./.cursor/skills/verify-flagoria/bin/drive-verify.sh` (or `./tools/verify.sh`) and read `artifacts/verify.log`.
 - **Proof.** Each header `-- test_spawn_on_land`, `-- test_spawn_reachable`, `-- test_spawn_fallback_warns`, `-- test_player_spawn_no_missing_nodes`, `-- test_spawn_radius_no_overlap`, `-- test_spawn_full_area_searches_outward`, `-- test_spawn_late_join` appears in the log, no `FAIL` line follows it, and the run ends with `All tests passed.` and `Verification passed.`
