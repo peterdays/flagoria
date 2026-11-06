@@ -39,7 +39,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Player spawn](./player-spawn.md) — spawn on reachable land, a free spot per player within 64 px, late joiners.
 - [Tileset and collision](./tileset-and-collision.md) — tile catalog, water and forest walls.
 - [Biomes](./biomes.md) — biome terrain, plants, stones, island and archipelago shaping, biomes on by default, `render_biomes` coverage gate.
-- [Map save files](./map-save.md) — versioned world saves (inputs plus cuts), v1 migration, Save from the in-game menu, saved-maps API.
+- [Map save files](./map-save.md) — versioned world saves (inputs plus cuts and plank bridges), v1 migration, Save from the in-game menu, saved-maps API.
 - [Map zoom](./map-zoom.md) — local pinch, wheel and Ctrl +/- zoom.
 - [Chopping trees and bushes](./chop-trees-and-bushes.md) — interact-mode chop, tree, pine and bush types, their hit and fall frames, per-type wood and regrow delay, stumps, regrowth (held while a player or mob stands on the stump, one mob-cell set per pass), wood HUD, type checklist.
 - [Chop trees (live drive)](./chop-trees.md) — mode button, tap a tree in reach, two hits, tree hit frames and sounds, stump and wood once.
