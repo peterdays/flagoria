@@ -201,3 +201,100 @@ func _test_build_tower_tap_places() -> int:
 	if fail == 0:
 		print("PASS test_build_tower_tap_places")
 	return fail
+
+
+func _test_build_tower_out_of_reach() -> int:
+	## A clear tower anchor beyond reach is red with the correct reason,
+	## costs zero and cannot commit; moving into reach re-enables placement.
+	print("-- test_build_tower_out_of_reach")
+	var ctx := await _boot_tower_scene()
+	if ctx["anchor"] == null:
+		printerr("FAIL build_tower_out_of_reach: no clear anchor")
+		ctx["scene"].queue_free()
+		await process_frame
+		return 1
+	var fail := 0
+	var interaction: Interaction = ctx["interaction"]
+	var inventory: Inventory = ctx["inventory"]
+	var world = ctx["world"]
+	var player = ctx["player"]
+	var anchor: Vector2i = ctx["anchor"]
+	var near: Vector2 = player.position
+	inventory.add(Inventory.WOOD, 10)
+	interaction.set_mode(Interaction.Mode.INTERACT)
+	interaction.build.set_tool(BuildPlacement.Tool.TOWER)
+	# Keep terrain and inventory valid: only the anchor's reach changes.
+	player.position = world.to_global(world.map_to_local(anchor + Vector2i(0, 10)))
+	var vp := _cell_vp(interaction, world, anchor)
+	interaction.build.update_preview(vp, vp)
+	if interaction.in_reach(anchor) or interaction.build.reasons != ["out of reach"] \
+			or interaction.build.cell_ok.any(func(ok: bool) -> bool: return ok) \
+			or interaction.build.cost != 0:
+		printerr("FAIL build_tower_out_of_reach: reasons %s, ok %s, cost %d"
+				% [interaction.build.reasons, interaction.build.cell_ok, interaction.build.cost])
+		fail += 1
+	if interaction.build.commit() or inventory.count_of(Inventory.WOOD) != 10 \
+			or not world.placed_structures().is_empty():
+		printerr("FAIL build_tower_out_of_reach: refused tower placed or spent wood")
+		fail += 1
+	player.position = near
+	vp = _cell_vp(interaction, world, anchor)
+	interaction.build.update_preview(vp, vp)
+	if not interaction.build.reasons.is_empty() or interaction.build.cost != 10 \
+			or not interaction.build.cell_ok.all(func(ok: bool) -> bool: return ok):
+		printerr("FAIL build_tower_out_of_reach: moving into reach did not restore the green preview")
+		fail += 1
+	ctx["scene"].queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_build_tower_out_of_reach")
+	return fail
+
+
+func _test_construction_tower_cached() -> int:
+	## Footprint, geometry check and placement reuse the same parsed tower
+	## across anchor changes; none mutates the cached definition (#386).
+	print("-- test_construction_tower_cached")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	world.set_process(false)
+	var anchor = _clear_tower_anchor(world)
+	if anchor == null:
+		printerr("FAIL construction_tower_cached: no clear anchor")
+		scene.queue_free()
+		await process_frame
+		return 1
+	var placer := ConstructionPlacer.new(world)
+	var foot := placer.tower_footprint(anchor)
+	var cached: Structure = placer.get("_tower")
+	if cached == null:
+		printerr("FAIL construction_tower_cached: footprint did not cache the tower")
+		fail += 1
+	else:
+		var original: Dictionary = StructurePlacer.footprint(cached, Vector2i.ZERO).duplicate(true)
+		for offset in [Vector2i.ZERO, Vector2i.LEFT, Vector2i.UP]:
+			var at: Vector2i = anchor + offset
+			var cells: Array[Vector2i] = [at]
+			placer.tower_footprint(at)
+			placer.can_place_geometry(BuildCosts.TOWER, cells)
+			if placer.get("_tower") != cached:
+				printerr("FAIL construction_tower_cached: anchor change replaced the cached tower")
+				fail += 1
+		var inventory: Inventory = scene.get_node("Inventory")
+		inventory.add(Inventory.WOOD, 10)
+		var one: Array[Vector2i] = [anchor]
+		if not placer.place(BuildCosts.TOWER, one, inventory) or placer.get("_tower") != cached \
+				or inventory.count_of(Inventory.WOOD) != 0:
+			printerr("FAIL construction_tower_cached: placement did not reuse the cached tower")
+			fail += 1
+		if original != StructurePlacer.footprint(cached, Vector2i.ZERO) \
+				or foot != placer.tower_footprint(anchor):
+			printerr("FAIL construction_tower_cached: preview or placement mutated the definition")
+			fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_construction_tower_cached")
+	return fail

@@ -36,6 +36,10 @@ const _REASON_ORDER := [
 ]
 
 var _map: _WorldMap
+## The shipped tower definition is read-only and unchanged during play.
+## Load once per placer, not once per footprint / preview check (#386).
+var _tower: Structure
+var _tower_loaded := false
 
 
 func _init(map: _WorldMap) -> void:
@@ -129,9 +133,16 @@ func place(kind: StringName, cells: Array[Vector2i], inventory: Inventory) -> bo
 	return false
 
 
+func _load_tower() -> Structure:
+	if not _tower_loaded:
+		_tower = StructurePlacer.load_named(TOWER_STRUCTURE)
+		_tower_loaded = true
+	return _tower
+
+
 func tower_footprint(anchor_cell: Vector2i) -> Array[Vector2i]:
 	## Map cells the wooden tower would cover with its anchor on `anchor_cell`.
-	var structure := StructurePlacer.load_named(TOWER_STRUCTURE)
+	var structure := _load_tower()
 	if structure == null:
 		return []
 	var out: Array[Vector2i] = []
@@ -194,7 +205,7 @@ func _place_tower(cells: Array[Vector2i], inventory: Inventory) -> bool:
 	## by the local peer so TowerCapture can take it (#274).
 	if cells.size() != 1:
 		return false
-	var structure := StructurePlacer.load_named(TOWER_STRUCTURE)
+	var structure := _load_tower()
 	if structure == null:
 		return false
 	var anchor: Vector2i = cells[0]
@@ -228,7 +239,7 @@ func _check_tower(cells: Array[Vector2i], found: Dictionary) -> void:
 	if cells.size() != 1:
 		found[EMPTY_CELLS] = true
 		return
-	var structure := StructurePlacer.load_named(TOWER_STRUCTURE)
+	var structure := _load_tower()
 	if structure == null:
 		found[UNKNOWN_KIND] = true
 		return
