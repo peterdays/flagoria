@@ -250,7 +250,7 @@ func _update_tower_preview(end_viewport: Vector2, inventory: Inventory) -> void:
 	elif not _interaction.in_reach(anchor):
 		var why := _placer.can_place(BuildCosts.TOWER, one, inventory)
 		if why.is_empty():
-			reasons.append(ConstructionPlacer.OCCUPIED)
+			reasons.append("out of reach")
 		else:
 			reasons = why
 	else:
