@@ -197,6 +197,12 @@ func towers() -> Dictionary:
 	return _flags.duplicate(true)
 
 
+func owner_of(id: int) -> int:
+	## Placement `id`'s owner peer (or OWNER_NEUTRAL / OWNER_MOBS), or 0 when
+	## there is no such placement. Read-only; no copy of the placements dict.
+	return _placed[id]["owner"] if _placed.has(id) else 0
+
+
 func set_owner(id: int, owner: int) -> void:
 	## Hand placement `id` to `owner` (a captured tower, #274): its owner
 	## entry and its flag cells' colour change, nothing else.
