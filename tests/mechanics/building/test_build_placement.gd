@@ -510,3 +510,94 @@ func _test_build_preview_matches_commit_mid_invalid() -> int:
 	if fail == 0:
 		print("PASS test_build_preview_matches_commit_mid_invalid")
 	return fail
+
+
+func _test_build_preview_cache_invalidates_on_wood() -> int:
+	## Same drag cells after wood changes must recompute (not keep a green
+	## skip-cache). Time cost: about 0.5 s in tools/verify.sh (~2.2 s alone
+	## with --only=build_preview_cache_invalidates_on_wood).
+	print("-- test_build_preview_cache_invalidates_on_wood")
+	var fail := 0
+	var ctx := await _boot_interact_scene()
+	var found: Dictionary = ctx["found"]
+	if found.is_empty():
+		printerr("FAIL preview_cache_invalidates_on_wood: no shore run")
+		ctx["scene"].queue_free()
+		await process_frame
+		return 1
+	var interaction: Interaction = ctx["interaction"]
+	var inventory: Inventory = ctx["inventory"]
+	var world = ctx["world"]
+	var water_run: Array[Vector2i] = found["water_run"]
+	inventory.add(Inventory.WOOD, water_run.size() + 2)
+	interaction.set_mode(Interaction.Mode.INTERACT)
+	interaction.build.set_tool(BuildPlacement.Tool.PLANK)
+	var start := _cell_vp(interaction, world, water_run[0])
+	var end := _cell_vp(interaction, world, water_run[water_run.size() - 1])
+	interaction.build.update_preview(start, end)
+	if interaction.build.cell_ok.is_empty() \
+			or not interaction.build.cell_ok.all(func(ok: bool) -> bool: return ok):
+		printerr("FAIL preview_cache_invalidates_on_wood: expected green before spend, ok=%s"
+				% [interaction.build.cell_ok])
+		fail += 1
+	inventory.spend(Inventory.WOOD, inventory.count_of(Inventory.WOOD))
+	# Same cells as the green preview — must not skip.
+	interaction.build.update_preview(start, end)
+	if interaction.build.cell_ok.any(func(ok: bool) -> bool: return ok) \
+			or ConstructionPlacer.NOT_ENOUGH_WOOD not in interaction.build.reasons \
+			or interaction.build.cost != 0:
+		printerr("FAIL preview_cache_invalidates_on_wood: after zero wood ok=%s cost=%d reasons=%s"
+				% [interaction.build.cell_ok, interaction.build.cost, interaction.build.reasons])
+		fail += 1
+	ctx["scene"].queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_build_preview_cache_invalidates_on_wood")
+	return fail
+
+
+func _test_build_picker_hides_on_multiplayer_start() -> int:
+	## Host alone in interact + Plank: when multiplayer turns on, the picker
+	## refreshes without a mode change (hides Plank/Tower/Wall, resets to Cut).
+	## Time cost: about 0.4 s in tools/verify.sh (~2.1 s alone with
+	## --only=build_picker_hides_on_multiplayer_start).
+	print("-- test_build_picker_hides_on_multiplayer_start")
+	var fail := 0
+	var ctx := await _boot_interact_scene(false)
+	var scene = ctx["scene"]
+	var interaction: Interaction = ctx["interaction"]
+	interaction.set_mode(Interaction.Mode.INTERACT)
+	interaction.build.set_tool(BuildPlacement.Tool.PLANK)
+	await process_frame
+	var plank_btn: Button = interaction.build._buttons.get(BuildPlacement.Tool.PLANK)
+	if plank_btn == null or not plank_btn.visible or interaction.build.tool != BuildPlacement.Tool.PLANK:
+		printerr("FAIL picker_hides_on_multiplayer_start: Plank not visible host-alone")
+		fail += 1
+	var peer := ENetMultiplayerPeer.new()
+	var api := SceneMultiplayer.new()
+	if peer.create_client("127.0.0.1", 1) != OK:
+		printerr("FAIL picker_hides_on_multiplayer_start: could not start ENet client")
+		fail += 1
+	else:
+		api.multiplayer_peer = peer
+		set_multiplayer(api, scene.get_path())
+		# Do not call _refresh_picker_visible by hand — Interaction._process must.
+		await process_frame
+		await process_frame
+		plank_btn = interaction.build._buttons.get(BuildPlacement.Tool.PLANK)
+		var tower_btn: Button = interaction.build._buttons.get(BuildPlacement.Tool.TOWER)
+		if plank_btn == null or plank_btn.visible or tower_btn == null or tower_btn.visible:
+			printerr("FAIL picker_hides_on_multiplayer_start: MP left Plank/Tower visible")
+			fail += 1
+		if interaction.build.tool != BuildPlacement.Tool.CUT:
+			printerr("FAIL picker_hides_on_multiplayer_start: tool %s want Cut"
+					% interaction.build.tool)
+			fail += 1
+		api.multiplayer_peer = null
+		peer.close()
+		set_multiplayer(null, scene.get_path())
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_build_picker_hides_on_multiplayer_start")
+	return fail

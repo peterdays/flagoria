@@ -44,13 +44,24 @@ var _snap_valid := false
 ## Last placed wall cell while the Wall tool stays selected; cleared on leave.
 var _wall_tip := Vector2i.ZERO
 var _has_wall_tip := false
+## Skip-cache extras: same drag cells can still go stale when wood, reach
+## (player position) or the map change. Bumped on worldMap.ground_changed.
+var _snap_wood := -1
+var _snap_player_pos := Vector2(INF, INF)
+var _snap_map_rev := -1
+var _map_rev := 0
+## Last multiplayer_on seen; Interaction polls and calls on_multiplayer_changed.
+var _mp_was_on := false
 
 
 func setup(interaction: Interaction) -> void:
 	_interaction = interaction
 	_placer = ConstructionPlacer.new(interaction.world_map)
+	if interaction.world_map != null and interaction.world_map.has_signal("ground_changed"):
+		interaction.world_map.ground_changed.connect(_on_ground_changed)
 	_ensure_picker()
 	set_tool(Tool.CUT)
+	_mp_was_on = Interaction.multiplayer_on(interaction.multiplayer)
 	_refresh_picker_visible()
 
 
@@ -71,6 +82,9 @@ func clear_preview() -> void:
 	reasons.clear()
 	cost_viewport = Vector2.ZERO
 	_snap_valid = false
+	_snap_wood = -1
+	_snap_player_pos = Vector2(INF, INF)
+	_snap_map_rev = -1
 
 
 static func snap_run(from_cell: Vector2i, to_cell: Vector2i) -> Array[Vector2i]:
@@ -95,7 +109,8 @@ func update_preview(start_viewport: Vector2, end_viewport: Vector2) -> void:
 	## Recompute the preview for the active tool. Plank: snapped run, green =
 	## longest placeable prefix. Tower: footprint of the anchor under the
 	## finger, all green iff commit will place, else all red. Skips work when
-	## the cell under the finger has not moved.
+	## the snapped cells, wood count, player position and map revision are
+	## unchanged (#383).
 	if tool == Tool.CUT or _interaction == null or _interaction.player == null:
 		clear_preview()
 		return
@@ -176,17 +191,25 @@ func draw_preview(ci: CanvasItem) -> void:
 func on_mode_changed(mode: Interaction.Mode) -> void:
 	if mode != Interaction.Mode.INTERACT:
 		set_tool(Tool.CUT)
+	_mp_was_on = Interaction.multiplayer_on(_interaction.multiplayer) if _interaction else false
+	_refresh_picker_visible()
+
+
+func on_multiplayer_changed(mp_on: bool) -> void:
+	## Called from Interaction when multiplayer_on flips (peer joins while the
+	## host is already in interact + Plank, etc.).
+	if mp_on == _mp_was_on:
+		return
+	_mp_was_on = mp_on
 	_refresh_picker_visible()
 
 
 func _update_plank_preview(start_viewport: Vector2, end_viewport: Vector2, inventory: Inventory) -> void:
 	var from_cell := _cell_at(start_viewport)
 	var to_cell := _cell_at(end_viewport)
-	if _snap_valid and from_cell == _snap_from and to_cell == _snap_to:
+	if _preview_inputs_unchanged(from_cell, to_cell, inventory):
 		return
-	_snap_from = from_cell
-	_snap_to = to_cell
-	_snap_valid = true
+	_remember_preview_inputs(from_cell, to_cell, inventory)
 	cells = snap_run(from_cell, to_cell)
 	var in_reach: Array[Vector2i] = []
 	for cell in cells:
@@ -212,11 +235,9 @@ func _update_tower_preview(end_viewport: Vector2, inventory: Inventory) -> void:
 	## Footprint of the anchor under the finger. All green and cost 10 when
 	## commit will place; all red with reasons otherwise.
 	var anchor := _cell_at(end_viewport)
-	if _snap_valid and anchor == _snap_from:
+	if _preview_inputs_unchanged(anchor, anchor, inventory):
 		return
-	_snap_from = anchor
-	_snap_to = anchor
-	_snap_valid = true
+	_remember_preview_inputs(anchor, anchor, inventory)
 	cells = _placer.tower_footprint(anchor)
 	cell_ok.clear()
 	var one: Array[Vector2i] = [anchor]
@@ -356,11 +377,9 @@ func wall_segment(tip: Vector2i, has_tip: bool, from_cell: Vector2i, to_cell: Ve
 func _update_wall_preview(start_viewport: Vector2, end_viewport: Vector2, inventory: Inventory) -> void:
 	var from_cell := _cell_at(start_viewport)
 	var to_cell := _cell_at(end_viewport)
-	if _snap_valid and from_cell == _snap_from and to_cell == _snap_to:
+	if _preview_inputs_unchanged(from_cell, to_cell, inventory):
 		return
-	_snap_from = from_cell
-	_snap_to = to_cell
-	_snap_valid = true
+	_remember_preview_inputs(from_cell, to_cell, inventory)
 	var run := wall_segment(_wall_tip, _has_wall_tip, from_cell, to_cell)
 	cells = run
 	cell_ok.clear()
@@ -429,7 +448,25 @@ func _cell_at(viewport_pos: Vector2) -> Vector2i:
 	return _interaction.world_map.local_to_map(_interaction.world_map.to_local(world))
 
 
-func _cell_looks_placeable(cell: Vector2i) -> bool:
-	## Cheap per-cell check kept for callers; tint now follows longest_placeable.
-	return not _interaction.world_map.has_bridge(cell) \
-			and _interaction.world_map.predict_cell(cell)[0] == TileCatalog.WATER
+func _on_ground_changed(_cells: Rect2i) -> void:
+	_map_rev += 1
+
+
+func _preview_inputs_unchanged(from_cell: Vector2i, to_cell: Vector2i, inventory: Inventory) -> bool:
+	if not _snap_valid or from_cell != _snap_from or to_cell != _snap_to:
+		return false
+	if inventory.count_of(Inventory.WOOD) != _snap_wood:
+		return false
+	if _map_rev != _snap_map_rev:
+		return false
+	var pos := _interaction.player.global_position if _interaction.player else Vector2(INF, INF)
+	return pos == _snap_player_pos
+
+
+func _remember_preview_inputs(from_cell: Vector2i, to_cell: Vector2i, inventory: Inventory) -> void:
+	_snap_from = from_cell
+	_snap_to = to_cell
+	_snap_valid = true
+	_snap_wood = inventory.count_of(Inventory.WOOD)
+	_snap_player_pos = _interaction.player.global_position if _interaction.player else Vector2(INF, INF)
+	_snap_map_rev = _map_rev
