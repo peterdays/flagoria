@@ -8,8 +8,10 @@ applied on top. An unchanged world is about 1 KB.
 `Scripts/map_save.gd` (`MapSave`) reads and writes the file.
 `Scripts/world_save.gd` (`WorldSave`) is the save in memory. This page covers
 the container format, which is slice 1 of #196. Tree and bush cuts fill
-`world.object_changes` (see [Cut trees and bushes](#cut-trees-and-bushes)). The
-other change sections stay empty until the features that fill them land.
+`world.object_changes` (see [Cut trees and bushes](#cut-trees-and-bushes)).
+Placed plank bridges fill `world.tile_edits` (see
+[Placed plank bridges](#placed-plank-bridges)). `world.structures` stays empty
+until the feature that fills it lands.
 
 ## File layout (version 2)
 
@@ -87,22 +89,50 @@ the same pass as the cuts; a sprout is dropped on a load when the map no
 longer grows that tree on that cell. Joining peers get them in the same cut
 list.
 
+## Placed plank bridges
+
+A plank bridge cell (#226) is a `world.tile_edits` entry on its cell, naming
+the plank piece by its `TileCatalog` name:
+
+```json
+"world": {"tile_edits": {"0,0": {"14,12": {"tile": "BRIDGE_PLANK_H_START_WATER"}, "15,12": {"tile": "BRIDGE_PLANK_H_TIP_E_WATER"}}}}
+```
+
+| Key | Meaning |
+| --- | --- |
+| `tile` | The plank piece drawn on the cell, one of the `BRIDGE_PLANK_*_WATER` names. A name, not atlas coordinates, so a tileset rearrangement keeps old saves readable. |
+
+Only bridge cells are written: every other cell regenerates from the seed, so
+the save grows by one entry per plank. `BridgeBuilder.to_changes` writes the
+entries from the bridge list (`bridges_for_sync`), and
+`BridgeBuilder.from_changes` reads them back into that list for
+`replace_bridges`. On a load, an entry is dropped when its tile is not a plank
+piece, its cell key is malformed, or the map no longer generates water on its
+cell (after a generator change, for example). Entries without `tile` belong
+to other tile edits (#41) and are left alone.
+
+Towers, walls and castles are not saved yet: they belong in `world.structures`
+(#42), which this format already reserves.
+
 ## Saving during play
 
 **Save** in the in-game menu writes the world being played, named after the
 date and time (`2026-10-27 22-15-03`; a second save in the same second gets
 ` 2`). The panel stays open and confirms it on one line ("Saved: 10-27 22:15"),
 so the player can resume or leave. The file holds the generation inputs and
-this peer's tree and bush cuts. Player state (#197) and the rest of the object
-changes (#198) are not saved yet.
+this peer's tree and bush cuts and plank bridges. Player state (#197), placed
+structures (#42) and the rest of the object changes (#198) are not saved yet.
 
 ## Loading
 
 `MapGen.load_map_inputs(path)` makes a save the world the next host starts. It
 sets the params and keeps the change sections. When the host then starts with
-those same params, `Flagoria.setup_server` restores the cuts after it applies
-the params and before any chunk is drawn, so cut cells are drawn as stumps.
-If the params were changed in between, no cuts are applied. A dedicated
+those same params, `Flagoria.setup_server` restores the cuts and plank bridges
+after it applies the params and before any chunk is drawn or any player
+spawns, so cut cells are drawn as stumps and a saved bridge is walkable
+straight away. If the params were changed in between, no changes are applied.
+A player who joins gets the restored bridges with the map, like any other
+bridge (#297). A dedicated
 server started with `--params` reads the params only.
 
 A player who joins gets the host's current cut list with the map params

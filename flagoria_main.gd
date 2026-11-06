@@ -120,14 +120,16 @@ func spawn_mobs() -> int:
 
 
 func _restore_loaded_world() -> int:
-	## After the params are applied and before any chunk is drawn: put back
-	## the cuts of the save MapGen.load_map_inputs read, when this host is
-	## starting that world. Returns how many cuts came back.
+	## After the params are applied and before any chunk is drawn or any
+	## player spawns: put back the cuts and the plank bridges (#226) of the
+	## save MapGen.load_map_inputs read, when this host is starting that
+	## world. Returns how many cuts and bridge cells came back.
 	var loaded: WorldSave = get_node("/root/MapGen").take_loaded_world(world_params)
 	var world = get_node("World/worldMap")
 	if loaded == null or world == null:
 		return 0
-	return world.restore_cuts(loaded.object_changes)
+	var bridges: int = world.replace_bridges(BridgeBuilder.from_changes(loaded.tile_edits, world))
+	return world.restore_cuts(loaded.object_changes) + bridges
 
 
 func _apply_params_to_world(params: MapGenParams) -> void:

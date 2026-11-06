@@ -5,6 +5,8 @@ extends RefCounted
 ## with the same names and asks has_bridge / piece / piece_or when it draws a chunk.
 ## Host sync (#297): to_sync / replace_from_host carry the placed cells to a
 ## joining peer with the map params; live placements go through Interaction.
+## World saves (#226): to_changes / from_changes turn that same list into
+## world.tile_edits entries and back (docs/world-saves.md).
 
 const _WorldMap := preload("res://Scripts/TileMap.gd")
 
@@ -74,6 +76,52 @@ func replace_from_host(list: Array) -> int:
 	return _bridge_cells.size()
 
 
+static func to_changes(list: Array) -> Dictionary[String, Dictionary]:
+	## A to_sync list as world save entries (world.tile_edits, #226): chunk ->
+	## {cell: {"tile": the plank piece's TileCatalog name}}. Names, not atlas
+	## coords, so a save outlives a tileset rearrangement.
+	var names := _plank_names()
+	var out: Dictionary[String, Dictionary] = {}
+	for entry in list:
+		var cell := Vector2i(entry[0], entry[1])
+		var chunk := WorldSave.chunk_key(cell)
+		if not out.has(chunk):
+			out[chunk] = {}
+		out[chunk][WorldSave.cell_key(cell)] = {"tile": names[Vector2i(entry[2], entry[3])]}
+	return out
+
+
+static func from_changes(changes: Dictionary, map: _WorldMap) -> Array:
+	## The to_sync list in world save entries written by to_changes, for
+	## replace_from_host. Call it after apply_map_params, before any bridge
+	## is placed. An entry is dropped when its tile is not a plank piece or
+	## the map no longer generates water on its cell; entries without "tile"
+	## belong to other features and are left alone.
+	var atlases := {}
+	var names := _plank_names()
+	for atlas in names:
+		atlases[names[atlas]] = atlas
+	var out := []
+	for chunk in changes:
+		for key in changes[chunk]:
+			var entry = changes[chunk][key]
+			var cell = WorldSave.parse_cell(str(key))
+			if not entry is Dictionary or not atlases.has(str(entry.get("tile", ""))) or cell == null:
+				continue
+			if map.predict_cell(cell)[0] != TileCatalog.WATER:
+				continue
+			var atlas: Vector2i = atlases[str(entry["tile"])]
+			out.append([cell.x, cell.y, atlas.x, atlas.y])
+	return out
+
+
+static func _plank_names() -> Dictionary:
+	## Atlas -> TileCatalog name of every plank piece laid on water.
+	var out := {}
+	for tile_name: String in TileCatalog.TILES:
+		if tile_name.begins_with("BRIDGE_PLANK_") and tile_name.ends_with("_WATER"):
+			out[TileCatalog.TILES[tile_name]["atlas"]] = tile_name
+	return out
 
 
 func build_bridge(from: Vector2i, to: Vector2i) -> bool:

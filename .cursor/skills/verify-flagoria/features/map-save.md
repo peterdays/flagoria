@@ -8,6 +8,7 @@ A world save holds a world's generation inputs (params and seeds) plus what was 
 
 - `save-round-trip` `MapGen.save_world` / `save_map_inputs` / `load_map_inputs` (`Scripts/map_gen.gd`; file I/O in `Scripts/map_save.gd`, contents in `Scripts/world_save.gd`). Change sections `tile_edits`, `object_changes`, `structures` are sparse and keyed by 32-cell save chunk, so an unchanged world stays small.
 - `save-cuts` cut trees and bushes go in `world.object_changes` with the type's `save_key` and the cut's age, come back as stumps before any chunk is drawn, and a client joining a loaded save gets the same stumps (see [Cut sync](./cut-sync.md)).
+- `save-bridges` placed plank bridges go in `world.tile_edits` as one entry per plank cell naming its `BRIDGE_PLANK_*_WATER` piece (#226), come back before any chunk is drawn or any player spawns, and are walkable once drawn. Untouched cells regenerate from the seed; an old save with no `tile_edits` loads with no bridges. Towers, walls and castles are not saved yet (`world.structures`, #42).
 - `save-from-menu` the in-game menu's Save button (`Scripts/ingame_menu.gd`) names the save after the date and time (`YYYY-MM-DD HH-MM-SS`, ` 2` and so on when taken) and shows "Saved: MM-DD HH:MM".
 - `save-migrate` a version 1 map save (inputs only) loads with empty change sections; every format version has a fixture in `tests/fixtures/`.
 - `save-reject` newer or unknown versions, another format, malformed files or change sections, and a seed left at 0 give clear errors and write no file.
@@ -20,10 +21,10 @@ A world save holds a world's generation inputs (params and seeds) plus what was 
 
 ## Driving it with verify-flagoria helpers
 
-Preconditions: `doctor.sh` exits `0`. Time cost: the save tests together ~2.5 s alone with `--only=`; `-- test_cut_save_late_join` starts a host and a client process.
+Preconditions: `doctor.sh` exits `0`. Time cost: the save tests together ~2.5 s alone with `--only=`; `-- test_bridge_save_round_trip` ~2.8 s alone with `--only=` (about 0.2 s over the runner's own start-up, so about 0.2 s in `tools/verify.sh`); `-- test_cut_save_late_join` starts a host and a client process.
 
 - **Run.** Run `./.cursor/skills/verify-flagoria/bin/drive-verify.sh` (or `./tools/verify.sh`) and read `artifacts/verify.log`.
-- **Proof.** Each header `-- test_map_save_round_trip`, `-- test_map_save_rejects_bad_files`, `-- test_map_save_needs_every_seed`, `-- test_saved_maps_list_rename_delete`, `-- test_world_save_round_trip`, `-- test_world_save_version_check`, `-- test_world_save_migrates_v1`, `-- test_cut_save_round_trip`, `-- test_cut_save_in_game`, `-- test_cut_save_late_join`, `-- test_ingame_menu_save` appears in the log, no `FAIL` line follows it, and the run ends with `All tests passed.` and `Verification passed.`
+- **Proof.** Each header `-- test_map_save_round_trip`, `-- test_map_save_rejects_bad_files`, `-- test_map_save_needs_every_seed`, `-- test_saved_maps_list_rename_delete`, `-- test_world_save_round_trip`, `-- test_world_save_version_check`, `-- test_world_save_migrates_v1`, `-- test_cut_save_round_trip`, `-- test_cut_save_in_game`, `-- test_cut_save_late_join`, `-- test_bridge_save_round_trip`, `-- test_ingame_menu_save` appears in the log, no `FAIL` line follows it, and the run ends with `All tests passed.` and `Verification passed.`
 - **Drive (live).** `bin/launch.sh drives/chop_trees.gd --seed 49` chops a tree, saves through the in-game menu and checks `MapGen.map_saved` fired (see [Chop trees (live drive)](./chop-trees.md)).
 
 ## Gotchas
