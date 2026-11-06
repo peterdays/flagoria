@@ -14,7 +14,7 @@ In a two-player game a tree or bush cut by any player becomes the same walkable 
 - `cut-regrow` the host runs `TileMap.regrow_due` as offline (its own play time, the type's `regrow_delay`, a stump under any player or mob waits, #232) and sends every peer one `apply_regrow_cells(cells)` per tick listing every stump that regrew in it (`TileMap.plants_regrown` -> `Interaction._on_plants_regrown`; see [Regrowth sync messages](./regrow-sync.md), #353). A peer applies it at once with `TileMap.grow_back` for each cell, whatever its own age for that cut; a cell it holds no cut on is left alone. A client's own `regrow_due` does nothing while connected, so its `regrow_delay` never counts. `apply_regrow_cells` is an authority RPC, so the host refuses one sent by a client (an engine error on the host, "not allowed"), and the handler also drops any message whose sender is not peer 1. It travels on the same reliable channel as `apply_cut` and the join list, so a regrowth cannot overtake the cut it ends.
 - `cut-mode` interact mode and the mode button work in every session state: offline, hosting alone, hosting with a peer, connecting, connected.
 - `cut-join-age` the join list carries each cut's age, so a late joiner's saved cuts age like the host's; its stumps still regrow only when the host sends `apply_regrow_cells`. A regrown cell is simply not in the list, so the joiner draws the plant from the map.
-- Not synced: the inventory itself and blocks or bridges (#297).
+- Not synced: the inventory itself. Plank bridges sync separately ([Build sync](./build-sync.md), #297).
 
 ## How to get to it (user POV)
 

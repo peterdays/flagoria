@@ -24,6 +24,13 @@ extends Node2D
 ## tick (#353), which a client applies only when it came from the host.
 ## Trees that sprout on the host (TreeSprouts, #361) go out the same way, in
 ## apply_sprout_cells per sprout pass, SPROUTS_PER_MESSAGE cells at most each.
+## Plank bridges sync the same way (#297): a client asks with
+## request_place_planks, the host checks the placer is alive and in reach,
+## writes through ConstructionPlacer.write_plank, sends apply_bridge to every
+## other peer and charges the placer with receive_charge. A host placing with
+## peers connected spends its own wood through ConstructionPlacer.place and
+## broadcasts apply_bridge. Peers that join later get the host's bridges with
+## the map params. Towers and walls stay host-alone until #278.
 
 signal mode_changed(mode: Mode)
 ## A chop's axe landed on `cell`; `hit` counts from 1 to the type's `hits`.
@@ -361,10 +368,86 @@ func apply_sprout_cells(cells: Array[Vector2i]) -> void:
 		world_map.tree_sprouts().add(cell)
 
 
+func place_planks(cells: Array[Vector2i]) -> bool:
+	## Place a plank run for the local player. Alone it goes through
+	## ConstructionPlacer.place; a host with peers spends then broadcasts
+	## apply_bridge; a client asks the host and returns true when it asked
+	## (the bridge and the wood charge come back).
+	if cells.is_empty():
+		return false
+	if not multiplayer_on(multiplayer):
+		return _place_planks_local(cells)
+	if multiplayer.is_server():
+		return host_place_planks(cells, multiplayer.get_unique_id())
+	if multiplayer.multiplayer_peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+		return false
+	request_place_planks.rpc_id(1, cells)
+	return true
+
+
+func _place_planks_local(cells: Array[Vector2i]) -> bool:
+	var inventory := get_node_or_null(INVENTORY_PATH) as Inventory
+	if inventory == null:
+		return false
+	return ConstructionPlacer.new(world_map).place(BuildCosts.PLANK, cells, inventory)
+
+
+func host_place_planks(cells: Array[Vector2i], peer_id: int) -> bool:
+	## Host: write the plank run for `peer_id`, send it to every other peer,
+	## and charge that peer. When the host places for itself, spend and write
+	## stay atomic through ConstructionPlacer.place.
+	if not multiplayer.is_server() or cells.is_empty():
+		return false
+	var placer_node := get_node_or_null("../" + str(peer_id)) as Node2D
+	if placer_node == null or player_dead(placer_node):
+		return false
+	for cell in cells:
+		if placer_node.global_position.distance_to(cell_center(cell)) > REACH + REACH_SLACK:
+			return false
+	var placer := ConstructionPlacer.new(world_map)
+	var ends: Array[Vector2i] = []
+	if peer_id == multiplayer.get_unique_id():
+		var inventory := get_node_or_null(INVENTORY_PATH) as Inventory
+		if inventory == null or not placer.place(BuildCosts.PLANK, cells, inventory):
+			return false
+		ends = placer.plank_ends(cells)
+	else:
+		ends = placer.write_plank(cells)
+		if ends.is_empty():
+			return false
+		receive_charge.rpc_id(peer_id, cells.size())
+	if not ends.is_empty():
+		apply_bridge.rpc(ends[0], ends[1])
+	return true
+
+
+@rpc("any_peer", "reliable", "call_remote")
+func request_place_planks(cells: Array[Vector2i]) -> void:
+	## Host: a client asks to place planks on `cells`. Dropped when the
+	## placer is dead or out of reach, or the run fails geometry.
+	if not multiplayer.is_server():
+		return
+	host_place_planks(cells, multiplayer.get_remote_sender_id())
+
+
+@rpc("authority", "reliable", "call_remote")
+func apply_bridge(from: Vector2i, to: Vector2i) -> void:
+	## A plank run the host decided: lay it here too.
+	world_map.build_bridge(from, to)
+
+
+@rpc("authority", "reliable", "call_remote")
+func receive_charge(wood: int) -> void:
+	## Take `wood` from the local inventory after the host accepted a place.
+	var inventory := get_node_or_null(INVENTORY_PATH) as Inventory
+	if inventory and wood > 0:
+		inventory.spend(Inventory.WOOD, wood)
+
+
 @rpc("authority", "reliable", "call_remote")
 func receive_yields(yields: Dictionary) -> void:
 	## Add what a cut earned to the local inventory (the host sends a
-	## client's; inventories are local until #297).
+	## client's; inventories stay local per peer).
 	var inventory := get_node_or_null(INVENTORY_PATH) as Inventory
 	if inventory:
 		for resource in yields:

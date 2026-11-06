@@ -5,8 +5,9 @@ extends RefCounted
 ## share the same path. Plank bridges, wooden towers (#273) and free-form
 ## wall blocks (#276) are registered. The placement UI (#225) only talks to
 ## this module.
-## Host-alone first: while multiplayer is on nothing is placed (same gate as
-## BuildCosts and StructurePlacer). Peer sync of placed blocks is #297 / #278.
+## Plank bridges sync between peers (#297): place is allowed in multiplayer for
+## planks; the host decides and broadcasts. Towers and walls stay host-alone
+## until their peer sync (#278).
 
 const _WorldMap := preload("res://Scripts/TileMap.gd")
 
@@ -65,6 +66,42 @@ func can_place(kind: StringName, cells: Array[Vector2i], inventory: Inventory) -
 		if why != "":
 			found[why] = true
 	return _ordered(found)
+
+
+func can_place_geometry(kind: StringName, cells: Array[Vector2i]) -> Array[String]:
+	## Why `kind` cannot go on `cells` from the map alone (no wood, no
+	## multiplayer gate). The host uses this to check a peer's request (#297).
+	var found := {}
+	if cells.is_empty():
+		found[EMPTY_CELLS] = true
+	if not KINDS.has(kind):
+		found[UNKNOWN_KIND] = true
+	else:
+		match kind:
+			BuildCosts.PLANK:
+				_check_plank(cells, found)
+			BuildCosts.TOWER:
+				_check_tower(cells, found)
+			BuildCosts.WALL_BLOCK:
+				_check_wall(cells, found)
+	return _ordered(found)
+
+
+func plank_ends(cells: Array[Vector2i]) -> Array[Vector2i]:
+	## `[from, to]` for a straight contiguous run, or empty when bent.
+	return _straight_ends(cells)
+
+
+func write_plank(cells: Array[Vector2i]) -> Array[Vector2i]:
+	## Write a plank run with no wood spend. Returns `[from, to]` when written,
+	## or empty when geometry refuses or the writer fails. Used by the host
+	## when placing for a remote peer (#297).
+	if not can_place_geometry(BuildCosts.PLANK, cells).is_empty():
+		return []
+	var ends := _straight_ends(cells)
+	if ends.is_empty() or not _map.build_bridge(ends[0], ends[1]):
+		return []
+	return ends
 
 
 func cost(kind: StringName, cells: Array) -> int:

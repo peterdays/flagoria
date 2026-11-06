@@ -66,7 +66,7 @@ func _cell_vp(interaction: Interaction, world, cell: Vector2i) -> Vector2:
 
 func _test_build_picker_includes_wall() -> int:
 	## Interact mode shows Cut / Plank / Tower / Wall; Wall hides while
-	## multiplayer is on (same as Plank/Tower). Time cost: about 0.35 s in
+	## multiplayer is on (Plank stays, #297). Time cost: about 0.35 s in
 	## tools/verify.sh (~2.0 s alone with --only=build_picker_includes_wall).
 	print("-- test_build_picker_includes_wall")
 	var fail := 0
@@ -99,8 +99,11 @@ func _test_build_picker_includes_wall() -> int:
 		await process_frame
 		var wall_btn: Button = interaction.build._buttons.get(BuildPlacement.Tool.WALL)
 		var plank_btn: Button = interaction.build._buttons.get(BuildPlacement.Tool.PLANK)
-		if wall_btn == null or wall_btn.visible or plank_btn == null or plank_btn.visible:
-			printerr("FAIL build_picker_includes_wall: MP should hide Wall and Plank")
+		if wall_btn == null or wall_btn.visible:
+			printerr("FAIL build_picker_includes_wall: MP should hide Wall")
+			fail += 1
+		if plank_btn == null or not plank_btn.visible:
+			printerr("FAIL build_picker_includes_wall: MP should keep Plank visible")
 			fail += 1
 		if interaction.build.tool == BuildPlacement.Tool.WALL:
 			printerr("FAIL build_picker_includes_wall: MP left tool on Wall")

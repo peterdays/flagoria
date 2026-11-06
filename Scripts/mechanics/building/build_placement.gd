@@ -3,8 +3,9 @@ extends RefCounted
 ## Interact-mode build tool (#225 / #273 / #276): Cut / Plank / Tower / Wall
 ## picker, H/V-snapped plank and wall drag, single-anchor tower preview,
 ## green/red preview and wood cost. Placement goes only through
-## ConstructionPlacer. Preview green cells and cost match exactly what commit
-## places and charges. Wall keeps a persistent tip while selected (#276).
+## ConstructionPlacer (planks through Interaction.place_planks so multiplayer
+## asks the host, #297). Preview green cells and cost match exactly what
+## commit places and charges. Wall keeps a persistent tip while selected (#276).
 
 enum Tool { CUT, PLANK, TOWER, WALL }
 
@@ -24,8 +25,9 @@ const TOOL_ICONS := {
 const TOOL_TIPS := {
 	Tool.CUT: "Cut", Tool.PLANK: "Plank", Tool.TOWER: "Tower", Tool.WALL: "Wall",
 }
-## Tools refused while multiplayer is on (same gate as ConstructionPlacer).
-const MP_HIDDEN := [Tool.PLANK, Tool.TOWER, Tool.WALL]
+## Tools that stay host-alone until their own peer sync (#278). Plank is
+## shown in multiplayer once bridges sync (#297).
+const MP_HIDDEN := [Tool.TOWER, Tool.WALL]
 
 var tool := Tool.CUT
 var cells: Array[Vector2i] = []  ## snapped run or tower footprint under the finger
@@ -267,7 +269,9 @@ func _commit_plank(inventory: Inventory) -> bool:
 		if _interaction.in_reach(cell):
 			in_reach.append(cell)
 	var placeable := longest_placeable(in_reach, inventory)
-	return not placeable.is_empty() and _placer.place(BuildCosts.PLANK, placeable, inventory)
+	# Route through Interaction so multiplayer asks the host (#297). Offline
+	# and host-alone still spend and write through ConstructionPlacer.place.
+	return not placeable.is_empty() and _interaction.place_planks(placeable)
 
 
 func _commit_tower(inventory: Inventory) -> bool:

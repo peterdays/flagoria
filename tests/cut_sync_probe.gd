@@ -144,6 +144,18 @@ func _run() -> void:
 					await process_frame
 				done[cell] = interaction._cut(cell)
 				moved_away = regrow < 0.0
+		if me and main.world_params != null and FileAccess.file_exists(out + ".plank"):
+			var inventory: Inventory = main.get_node("Inventory")
+			for cell in parse_cells(FileAccess.get_file_as_string(out + ".plank")):
+				if done.has(cell):
+					continue
+				me.global_position = interaction.cell_center(cell) + Vector2(12, 0)
+				inventory.add(Inventory.WOOD, 1)
+				var wait := Time.get_ticks_msec() + 300
+				while Time.get_ticks_msec() < wait:
+					await process_frame
+				var one: Array[Vector2i] = [cell]
+				done[cell] = interaction.place_planks(one)
 		if not moved_away and me:
 			var wait := Time.get_ticks_msec() + 500  # the host has decided the cuts
 			while Time.get_ticks_msec() < wait:
@@ -188,7 +200,7 @@ func _run() -> void:
 			for peer in main.multiplayer.get_peers():
 				if peer != 1:
 					main.rpc_id(peer, "receive_map_params", main.world_params.to_dict(), Vector2.INF,
-							world.cut_changes(), [["guard_post", main.multiplayer.get_unique_id(), Vector2i(3, 3)]])
+							world.cut_changes(), [["guard_post", main.multiplayer.get_unique_id(), Vector2i(3, 3)]], [])
 		var now_cut: Dictionary = world.cut_changes()
 		var keys := {}
 		for chunk in now_cut:
@@ -207,12 +219,14 @@ func _run() -> void:
 
 static func cell_state(world, cell: Vector2i) -> Dictionary:
 	## What a player meets on `cell`: the foliage tile, the decor under it
-	## (a stump) and whether the cell is clear to walk. Draws its chunk first.
+	## (a stump), whether it is clear to walk, and whether a plank bridge is
+	## there. Draws its chunk first.
 	var clear: bool = world.is_clear_ground(cell)
 	var decor: Vector2i = world.get_cell_atlas_coords(world.GROUND_DECOR_LAYER, cell)
 	var plant: Vector2i = world.get_cell_atlas_coords(1, cell)
 	var predicted: Array = world.predict_cell(cell)
 	return {"plant": [plant.x, plant.y], "decor": [decor.x, decor.y], "clear": clear,
+		"bridge": world.has_bridge(cell),
 		"predict": [predicted[0].x, predicted[0].y, predicted[1].x, predicted[1].y]}
 
 
@@ -242,6 +256,10 @@ func _write(out: String, main, world, listed: Array[Vector2i], me: Node2D, regro
 			var at: Vector2i = world.local_to_map(world.to_local(node.global_position))
 			players[str(node.name)] = [at.x, at.y]
 	var inventory: Inventory = main.get_node("Inventory")
+	var bridges := []
+	for entry in world.bridges_for_sync():
+		bridges.append("%d,%d" % [entry[0], entry[1]])
+	bridges.sort()
 	var file := FileAccess.open(out + ".tmp", FileAccess.WRITE)
 	file.store_string(JSON.stringify({
 		"id": str(main.multiplayer.get_unique_id()),
@@ -253,6 +271,7 @@ func _write(out: String, main, world, listed: Array[Vector2i], me: Node2D, regro
 		"wood": inventory.count_of(Inventory.WOOD),
 		"regrown": regrown,
 		"placements": placements,
+		"bridges": bridges,
 		"players": players,
 		"place_refused": refused,
 		"errors": _errors.snapshot(),

@@ -186,7 +186,8 @@ func _sync_map_params_to_peer(peer_id: int) -> void:
 	## same reliable channel, and regrowth through
 	## Interaction.apply_regrow_cells (#298).
 	## The placed structures go too (StructurePlacer.to_sync), so the peer's
-	## walls block where the host's do from its first frame (#278).
+	## castles match the host's from its first frame (#278 join half).
+	## Placed plank bridges go too (BridgeBuilder.to_sync, #297).
 	## The cut list goes JOIN_CUTS_PER_MESSAGE cuts at a time (#354): the
 	## first part with the params, the rest in receive_join_cuts right after.
 	if world_params == null:
@@ -195,13 +196,15 @@ func _sync_map_params_to_peer(peer_id: int) -> void:
 	var spot: Vector2 = player.position if player else Vector2.INF
 	var world = get_node("World/worldMap")
 	var parts := WorldSave.split_changes(world.cut_changes(), JOIN_CUTS_PER_MESSAGE)
-	rpc_id(peer_id, "receive_map_params", world_params.to_dict(), spot, parts[0], world.structures_for_sync())
+	rpc_id(peer_id, "receive_map_params", world_params.to_dict(), spot, parts[0],
+			world.structures_for_sync(), world.bridges_for_sync())
 	for i in range(1, parts.size()):
 		rpc_id(peer_id, "receive_join_cuts", parts[i])
 
 
 @rpc("authority", "reliable", "call_remote")
-func receive_map_params(data: Dictionary, spot: Vector2, cuts: Dictionary, placements: Array) -> void:
+func receive_map_params(data: Dictionary, spot: Vector2, cuts: Dictionary, placements: Array,
+		bridges: Array = []) -> void:
 	if multiplayer.get_remote_sender_id() != 1:
 		return  # only the host sends the map; the rpc mode already refuses others
 	var params = MapGenParams.new()
@@ -211,6 +214,7 @@ func receive_map_params(data: Dictionary, spot: Vector2, cuts: Dictionary, place
 	_apply_params_to_world(params)
 	get_node("World/worldMap").replace_cuts(cuts)  # the host's set, before the chunks are drawn again
 	get_node("World/worldMap").replace_structures(placements)  # likewise, before the player is placed
+	get_node("World/worldMap").replace_bridges(bridges)  # plank bridges (#297)
 	_own_spot = spot
 	_place_own_player()  # or once the player arrives, see _on_world_child_entered
 	var world = get_node("World/worldMap")

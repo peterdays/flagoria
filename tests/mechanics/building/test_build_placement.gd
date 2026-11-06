@@ -558,7 +558,8 @@ func _test_build_preview_cache_invalidates_on_wood() -> int:
 
 func _test_build_picker_hides_on_multiplayer_start() -> int:
 	## Host alone in interact + Plank: when multiplayer turns on, the picker
-	## refreshes without a mode change (hides Plank/Tower/Wall, resets to Cut).
+	## refreshes without a mode change. Plank stays (bridge sync #297); Tower
+	## and Wall hide. With Plank selected the tool stays Plank.
 	## Time cost: about 0.4 s in tools/verify.sh (~2.1 s alone with
 	## --only=build_picker_hides_on_multiplayer_start).
 	print("-- test_build_picker_hides_on_multiplayer_start")
@@ -586,11 +587,15 @@ func _test_build_picker_hides_on_multiplayer_start() -> int:
 		await process_frame
 		plank_btn = interaction.build._buttons.get(BuildPlacement.Tool.PLANK)
 		var tower_btn: Button = interaction.build._buttons.get(BuildPlacement.Tool.TOWER)
-		if plank_btn == null or plank_btn.visible or tower_btn == null or tower_btn.visible:
-			printerr("FAIL picker_hides_on_multiplayer_start: MP left Plank/Tower visible")
+		var wall_btn: Button = interaction.build._buttons.get(BuildPlacement.Tool.WALL)
+		if plank_btn == null or not plank_btn.visible:
+			printerr("FAIL picker_hides_on_multiplayer_start: Plank should stay visible in MP")
 			fail += 1
-		if interaction.build.tool != BuildPlacement.Tool.CUT:
-			printerr("FAIL picker_hides_on_multiplayer_start: tool %s want Cut"
+		if tower_btn == null or tower_btn.visible or wall_btn == null or wall_btn.visible:
+			printerr("FAIL picker_hides_on_multiplayer_start: Tower/Wall should hide in MP")
+			fail += 1
+		if interaction.build.tool != BuildPlacement.Tool.PLANK:
+			printerr("FAIL picker_hides_on_multiplayer_start: tool %s want Plank"
 					% interaction.build.tool)
 			fail += 1
 		api.multiplayer_peer = null

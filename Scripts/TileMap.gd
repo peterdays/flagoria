@@ -363,26 +363,20 @@ func grow_back(cell: Vector2i) -> bool:
 func cut_changes() -> Dictionary[String, Dictionary]:
 	return _tree_cuts.to_changes()
 
-
 func restore_cuts(changes: Dictionary) -> int:
 	return _tree_cuts.restore(changes)
-
 
 func replace_cuts(changes: Dictionary) -> int:
 	return _tree_cuts.replace(changes)
 
-
 func cut_grown(cell: Vector2i) -> InteractableType:
 	return _tree_cuts.cut_grown(cell)
-
 
 func build_bridge(from: Vector2i, to: Vector2i) -> bool:
 	return _bridges.build_bridge(from, to)
 
-
 func has_bridge(cell: Vector2i) -> bool:
 	return _bridges.has_bridge(cell)
-
 
 func set_bridge_cell(cell: Vector2i, atlas: Vector2i) -> void:
 	## Bridge piece with no adjacency checks (tests: occupied mid-run cell).
@@ -397,34 +391,26 @@ func forget_cut(cell: Vector2i) -> void:
 func has_cut(cell: Vector2i) -> bool:
 	return _tree_cuts.has_cut(cell)
 
-
 func cut_type(cell: Vector2i) -> InteractableType:
 	return _tree_cuts.cut_type(cell)
-
 
 func tree_sprouts() -> TreeSprouts:
 	return _tree_cuts.sprouts
 
-
 func place_wall_cells(cells: Array[Vector2i]) -> bool:
 	return _walls.place_cells(cells)
-
 
 func has_wall(cell: Vector2i) -> bool:
 	return _walls.has_wall(cell)
 
-
 func can_place_structure(structure: Structure, anchor_cell: Vector2i) -> Array[String]:
 	return _structures.can_place(structure, anchor_cell)
-
 
 func place_structure(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
 	return _structures.place(structure, anchor_cell, owner)
 
-
 func placed_structures() -> Dictionary:
 	return _structures.placements()
-
 
 func place_start_castle(owner: int) -> bool:
 	## Peer `owner`'s starting castle by the spawn (StartCastle); false when none fits.
@@ -436,10 +422,14 @@ func place_start_castle(owner: int) -> bool:
 func structures_for_sync() -> Array:
 	return _structures.to_sync()
 
-
 func replace_structures(list: Array) -> int:
 	return _structures.replace_from_host(list)
 
+func bridges_for_sync() -> Array:
+	return _bridges.to_sync()
+
+func replace_bridges(list: Array) -> int:
+	return _bridges.replace_from_host(list)
 
 static func bridge_pieces(length: int, horizontal: bool, land_before: bool, land_after: bool) -> Array[Vector2i]:
 	return BridgeBuilder.bridge_pieces(length, horizontal, land_before, land_after)
