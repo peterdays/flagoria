@@ -11,6 +11,9 @@ Hard failures (exit 1), kept to cases that are almost never false positives:
     (a "## Why this is large" section or a "Size justification:" line);
   * an empty "Feature file:" line or an empty "## How it was checked" section
     in the PR body;
+  * a "## How it was checked" section that lacks a "Verify: once" line and a
+    "Drive: once drives/<name>.gd" or "Drive: not player-facing" line
+    (agent context budget; see tools/agent_budget.py);
   * on a gameplay PR (paths match tools/play_review_paths.py), a missing or
     empty "## Evidence" section that lacks a github user-attachments image or
     video URL and also lacks the text "CI drive artifact".
@@ -241,6 +244,15 @@ def check(pr: PR, allow: Allow, cap: int = CAP) -> list:
     how = _section_body(body, "How it was checked")
     if how is None or not _visible(how):
         out.append(Finding("error", "PR body", "empty or missing '## How it was checked' section"))
+    else:
+        try:
+            import agent_budget as ab  # noqa: WPS433 — same tools/ folder
+            for msg in ab.check_pr_how(body):
+                if "empty or missing" in msg:
+                    continue
+                out.append(Finding("error", "PR body", msg))
+        except Exception as exc:  # pragma: no cover
+            out.append(Finding("error", "PR body", f"could not check Verify/Drive lines: {exc}"))
 
     # Gameplay PRs need ## Evidence with a user-attachments URL or the literal phrase.
     paths = [path for _a, _d, path in pr.numstat]

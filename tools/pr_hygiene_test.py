@@ -25,7 +25,10 @@ SCRATCH_PATH = "/" + "workspace" + "/flagoria/tools"
 ATTRIBUTION = "the owner " + "wants a bigger map"
 CLEAN_BODY = (
     "## Why\nFix a thing.\n\n"
-    "## How it was checked\nRan tools/verify.sh.\n\n"
+    "## How it was checked\n"
+    "Verify: once\n"
+    "Drive: not player-facing\n"
+    "Ran tools/verify.sh.\n\n"
     "Feature file: not player-facing\n\n"
     "Size: ~40 code lines\n"
 )
@@ -63,9 +66,11 @@ FIXTURES = [
     ("excluded files do not count", dict(body=CLEAN_BODY, numstat=[
         (5000, 0, "art/x.png.import"), (3000, 0, "docs/big.md"), (2000, 0, "Scripts/a.gd.uid"),
         (None, None, "art/hero.png"), (1500, 0, ".github/pull_request_template.md"), (900, 0, "Scripts/a.gd")]), 0, None),
-    ("empty Feature file", dict(body="## Why\nX\n\n## How it was checked\nRan verify.\n\nFeature file: \n\nSize: ~1 code lines\n"), 1, []),
+    ("empty Feature file", dict(body="## Why\nX\n\n## How it was checked\nVerify: once\nDrive: not player-facing\n\nFeature file: \n\nSize: ~1 code lines\n"), 1, []),
     ("missing How it was checked", dict(body="## Why\nX\n\nFeature file: not player-facing\n\nSize: ~1 code lines\n"), 1, []),
     ("empty How it was checked", dict(body="## Why\nX\n\n## How it was checked\n\n<!-- only a comment -->\n\nFeature file: not player-facing\n\nSize: ~1 code lines\n"), 1, []),
+    ("missing Verify once line", dict(body="## Why\nX\n\n## How it was checked\nDrive: not player-facing\n\nFeature file: not player-facing\n\nSize: ~1 code lines\n"), 1, []),
+    ("missing Drive line", dict(body="## Why\nX\n\n## How it was checked\nVerify: once\n\nFeature file: not player-facing\n\nSize: ~1 code lines\n"), 1, []),
     ("gameplay without Evidence", dict(body=CLEAN_BODY, numstat=[(10, 0, "Scripts/player.gd")]), 1, []),
     ("gameplay Evidence CI phrase", dict(body=GAMEPLAY_BODY, numstat=[(10, 0, "Scripts/player.gd")]), 0, None),
     ("gameplay Evidence user-attachments", dict(body=GAMEPLAY_BODY_URL, numstat=[(10, 0, "Scripts/player.gd")]), 0, None),

@@ -7,6 +7,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - Working directory is the Flagoria repo root (`project.godot` present).
 - Godot is the version in `project.godot` (currently **4.7.x**, check with `$GODOT --version`). `GODOT` points at the editor binary; when it is unset, `doctor.sh`, `drive-verify.sh` and `tools/verify.sh` use `godot` on `PATH`. If doctor reports Godot missing, run `./tools/ensure_godot.sh` once, then doctor again. Never download Godot with ad-hoc shells mid-task.
 - Run `./.cursor/skills/verify-flagoria/bin/doctor.sh` and require exit `0`.
+- Agent tasks use `brief.template.md` and `python3 tools/agent_budget.py` (`check-brief` / `check-receipt`). PR bodies keep `Verify: once` and `Drive: …` lines.
 - Prefer disposable evidence under `.cursor/skills/verify-flagoria/artifacts/`.
 - Never drive a long-lived game instance that was not started for this verification run.
 
