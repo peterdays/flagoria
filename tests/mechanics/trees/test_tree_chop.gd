@@ -116,3 +116,92 @@ func _test_chop_tree_two_hits() -> int:
 	if fail == 0:
 		print("PASS test_chop_tree_two_hits")
 	return fail
+
+
+func _test_chop_sheet_on_single_cut() -> int:
+	## A finger on one tree plays the chop sheet, including a drag that only
+	## holds that tree (a tap can drift past the 6px threshold). A drag whose
+	## box holds two trees cuts both at once and does not pose. A move of 4
+	## viewport px stays a tap. Time cost: about 0.4 s in tools/verify.sh
+	## (~1.5 s alone with --only=).
+	print("-- test_chop_sheet_on_single_cut")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var menu: Node = scene.get_node("CanvasLayer2/MainMenu")
+	menu.hide()
+	menu.set_process_unhandled_input(false)
+	scene.get_node("CanvasLayer1").show()
+	var world = scene.get_node("World/worldMap")
+	world.clear()
+	for x in range(4, 20):
+		for y in range(4, 16):
+			world.set_cell(0, Vector2i(x, y), TileCatalog.SOURCE_ID, TileCatalog.GRASS_A)
+	var tree_a := Vector2i(10, 8)
+	var tree_b := Vector2i(14, 8)
+	var tree_c := Vector2i(10, 6)
+	world.set_cell(1, tree_a, TileCatalog.SOURCE_ID, TileCatalog.TREE)
+	world.set_cell(1, tree_b, TileCatalog.SOURCE_ID, TileCatalog.TREE)
+	world.set_cell(1, tree_c, TileCatalog.SOURCE_ID, TileCatalog.TREE)
+	var player = load("res://Player/character_body_2d.tscn").instantiate()
+	player.name = str(scene.multiplayer.get_unique_id())
+	player.position = world.to_global(world.map_to_local(Vector2i(10, 10)))
+	scene.get_node("World").add_child(player)
+	await process_frame
+	var interaction: Interaction = scene.get_node("World/Interaction")
+	interaction.set_process(false)
+	interaction.set_mode(Interaction.Mode.INTERACT)
+	var vp: Viewport = scene.get_viewport()
+	var chop_sprite: Sprite2D = player.get_node("ChopSprite")
+	var walk_sprite: Sprite2D = player.get_node("Sprite2D")
+	var at := func(cell: Vector2) -> Vector2:
+		return interaction.get_canvas_transform() * world.to_global(cell * 16.0)
+	var gesture := func(start: Vector2, end_pos: Vector2) -> void:
+		var press := InputEventScreenTouch.new()
+		press.position = start
+		press.pressed = true
+		vp.push_input(press, true)
+		if start.distance_to(end_pos) > 0.5:
+			var drag := InputEventScreenDrag.new()
+			drag.position = end_pos
+			vp.push_input(drag, true)
+		var lift := InputEventScreenTouch.new()
+		lift.position = end_pos
+		lift.pressed = false
+		vp.push_input(lift, true)
+	var posed := func() -> bool:
+		return interaction.chopping() and chop_sprite.visible and not walk_sprite.visible
+	# 4 viewport px is still a tap: one chop, the other tree stands.
+	var origin: Vector2 = at.call(Vector2(10.5, 8.5))
+	gesture.call(origin, origin + Vector2(4, 0))
+	if not posed.call() or interaction.chop_cell != tree_a or not world.has_tree(tree_b):
+		printerr("FAIL chop_sheet_on_single_cut: 4px move chopping %s cell %s pose %s, tree b %s"
+				% [interaction.chopping(), interaction.chop_cell, chop_sprite.visible, world.has_tree(tree_b)])
+		fail += 1
+	player.global_position += Vector2(8, 0)
+	interaction.step_chop(0.05)
+	player.global_position = world.to_global(world.map_to_local(Vector2i(10, 10)))
+	# A drag across two trees cuts both at once, with no chop pose.
+	gesture.call(at.call(Vector2(10.5, 8.5)), at.call(Vector2(14.5, 8.5)))
+	if interaction.chopping() or chop_sprite.visible or world.has_tree(tree_a) or world.has_tree(tree_b):
+		printerr("FAIL chop_sheet_on_single_cut: two-tree drag chopping %s pose %s trees %s %s"
+				% [interaction.chopping(), chop_sprite.visible, world.has_tree(tree_a), world.has_tree(tree_b)])
+		fail += 1
+	# A longer drag that holds only one tree plays the sheet and does not fell it yet.
+	var alone: Vector2 = at.call(Vector2(10.5, 6.5))
+	gesture.call(alone, alone + Vector2(40, 0))
+	if not posed.call() or interaction.chop_cell != tree_c or not world.has_tree(tree_c):
+		printerr("FAIL chop_sheet_on_single_cut: one-tree drag chopping %s cell %s pose %s frame %s tree %s"
+				% [interaction.chopping(), interaction.chop_cell, chop_sprite.visible, chop_sprite.frame_coords, world.has_tree(tree_c)])
+		fail += 1
+	interaction.step_chop(0.16)
+	if not chop_sprite.visible or chop_sprite.frame_coords.x < 1:
+		printerr("FAIL chop_sheet_on_single_cut: sheet did not advance (%s %s)"
+				% [chop_sprite.visible, chop_sprite.frame_coords])
+		fail += 1
+	player.queue_free()
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_chop_sheet_on_single_cut")
+	return fail

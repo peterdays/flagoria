@@ -66,6 +66,19 @@ func run() -> void:
 		return
 	await snapshot("after")
 
+	step("range")
+	if not await range_cut(it, map):
+		done(false)
+		return
+
+	step("constrained")
+	if not await constrained_swing(it, map):
+		done(false)
+		return
+	if not await _resize(1280, 720):
+		done(false)
+		return
+
 	step("save")
 	var saved := []
 	get_root().get_node("MapGen").map_saved.connect(func(path: String) -> void: saved.append(path))
@@ -123,8 +136,30 @@ func chop(it: Node, map: TileMap, cell: Vector2i, hits: int) -> bool:
 		if not await wait_until(func() -> bool: return it.chopping() or not _hits.is_empty(), START_S):
 			printerr("chop: tap %d started no chop: %s" % [attempt, diagnose(it, map, cell)])
 			continue
+		var saw_swing := false
+		var saw_impact := false
 		var stump := func() -> bool: return map.get_cell_atlas_coords(GROUND_DECOR_LAYER, cell) == TileCatalog.STUMP
-		var stumped: bool = await wait_until(stump, FALL_S)
+		var stumped := false
+		var deadline := Time.get_ticks_msec() + int(FALL_S * 1000.0)
+		while Time.get_ticks_msec() < deadline:
+			var pose: Sprite2D = hero().get_node("ChopSprite")
+			if it.chopping() and pose.visible:
+				var col: int = pose.frame_coords.x
+				if col >= 1 and not saw_swing:
+					saw_swing = true
+					print("chop: swing frame %s" % pose.frame_coords)
+					await snapshot("swing")
+				if col >= 2 and not saw_impact:
+					saw_impact = true
+					print("chop: impact frame %s" % pose.frame_coords)
+					await snapshot("impact")
+			if stump.call():
+				stumped = true
+				break
+			await process_frame
+		if not saw_swing or not saw_impact:
+			printerr("chop: tap %d did not show the chop sheet (swing %s, impact %s)" % [attempt, saw_swing, saw_impact])
+			return false
 		if _hits.any(func(c: Vector2i) -> bool: return c != cell):
 			printerr("chop: tap %d chopped %s, not the tree at %s" % [attempt, _hits, cell])
 			return false
@@ -137,6 +172,148 @@ func chop(it: Node, map: TileMap, cell: Vector2i, hits: int) -> bool:
 		printerr("chop: tap %d chop ended with no stump after %d hit(s): %s" % [attempt, _hits.size(), diagnose(it, map, cell)])
 	printerr("chop: no stump at %s after %d taps" % [cell, TAPS])
 	return false
+
+
+## Drags across two trees in reach. Both become stumps at once and the hero
+## stays on the walk sprite: a range cut, not a chop.
+func range_cut(it: Node, map: TileMap) -> bool:
+	var pair: Array[Vector2i] = []
+	for _try in 6:
+		pair = _axis_pair(_trees_in_reach(it, map))
+		if pair.size() == 2:
+			break
+		await hold("ui_down", 15)
+		if not await settle():
+			return false
+	if pair.size() != 2:
+		printerr("chop: no two trees in a row to range-cut from %s" % hero().global_position)
+		return false
+	var a: Vector2i = pair[0]
+	var b: Vector2i = pair[1]
+	print("chop: range %s -> %s" % [a, b])
+	var start := to_window(map, map.map_to_local(a))
+	var end := to_window(map, map.map_to_local(b))
+	await _drag_window(start, end)
+	var pose: Sprite2D = hero().get_node("ChopSprite")
+	var cut: bool = map.choppable(a) == null and map.choppable(b) == null and not it.chopping() and not pose.visible
+	print("chop: range cut %s pose %s chopping %s" % [cut, pose.visible, it.chopping()])
+	await snapshot("range")
+	if not cut:
+		printerr("chop: the drag did not range-cut %s and %s (chopping %s, pose %s)" % [a, b, it.chopping(), pose.visible])
+		return false
+	return true
+
+
+## One more chop at the short landscape window, so the swing is on screen there too.
+func constrained_swing(it: Node, map: TileMap) -> bool:
+	if not await _resize(854, 480):
+		return false
+	var tree: Variant = _nearest_tree(it, map)
+	for _try in 6:
+		if tree != null:
+			break
+		await hold("ui_down", 15)
+		if not await settle():
+			return false
+		tree = _nearest_tree(it, map)
+	if tree == null:
+		printerr("chop: no tree for the constrained swing at %s" % hero().global_position)
+		return false
+	var cell: Vector2i = tree
+	print("chop: constrained tree %s" % cell)
+	if not await settle():
+		return false
+	await tap_cell(cell)
+	var saw := false
+	var deadline := Time.get_ticks_msec() + int(FALL_S * 1000.0)
+	while Time.get_ticks_msec() < deadline:
+		var pose: Sprite2D = hero().get_node("ChopSprite")
+		if it.chopping() and pose.visible and pose.frame_coords.x >= 1 and not saw:
+			saw = true
+			print("chop: constrained swing frame %s" % pose.frame_coords)
+			await snapshot("swing-constrained")
+		if map.get_cell_atlas_coords(GROUND_DECOR_LAYER, cell) == TileCatalog.STUMP:
+			break
+		await process_frame
+	if not saw:
+		printerr("chop: constrained window showed no chop swing")
+		return false
+	return true
+
+
+func _drag_window(start: Vector2, end_pos: Vector2) -> void:
+	var press := InputEventScreenTouch.new()
+	press.index = 0
+	press.pressed = true
+	press.position = start
+	Input.parse_input_event(press)
+	await process_frame
+	await process_frame
+	var drag := InputEventScreenDrag.new()
+	drag.index = 0
+	drag.position = end_pos
+	drag.relative = end_pos - start
+	Input.parse_input_event(drag)
+	await process_frame
+	await process_frame
+	var lift := InputEventScreenTouch.new()
+	lift.index = 0
+	lift.pressed = false
+	lift.position = end_pos
+	Input.parse_input_event(lift)
+	await process_frame
+	await process_frame
+
+
+func _trees_in_reach(it: Node, map: TileMap) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	var at := map.local_to_map(map.to_local(hero().global_position))
+	for dy in range(-8, 9):
+		for dx in range(-8, 9):
+			var c := at + Vector2i(dx, dy)
+			var t: Resource = map.choppable(c)
+			if t != null and t.get("id") in ["tree", "pine"] and it.in_reach(c):
+				out.append(c)
+	return out
+
+
+func _axis_pair(cells: Array[Vector2i]) -> Array[Vector2i]:
+	var best: Array[Vector2i] = []
+	var best_d := 99
+	for i in cells.size():
+		for j in range(i + 1, cells.size()):
+			var d: Vector2i = cells[j] - cells[i]
+			if d.x != 0 and d.y != 0:
+				continue
+			var span := absi(d.x) + absi(d.y)
+			if span >= 1 and span < best_d:
+				best_d = span
+				best = [cells[i], cells[j]]
+	return best
+
+
+func _nearest_tree(it: Node, map: TileMap) -> Variant:
+	var h := hero()
+	var at := map.local_to_map(map.to_local(h.global_position))
+	var best: Variant = null
+	var best_d := INF
+	for c in _trees_in_reach(it, map):
+		var d := h.global_position.distance_to(it.cell_center(c))
+		if d < best_d:
+			best = c
+			best_d = d
+	return best
+
+
+func _resize(width: int, height: int) -> bool:
+	root.size = Vector2i(width, height)
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	DisplayServer.window_set_size(Vector2i(width, height))
+	for _i in 10:
+		await process_frame
+	var got := DisplayServer.window_get_size()
+	print("chop: window %s (asked %dx%d)" % [got, width, height])
+	return got.x == width and got.y == height
 
 
 func diagnose(it: Node, map: TileMap, cell: Vector2i) -> String:
