@@ -137,6 +137,8 @@ func aim_angle() -> float:
 func can_aim() -> bool:
 	if player == null or player.health.is_dead():
 		return false
+	if _parchment_open():
+		return false
 	var menu := get_node_or_null(MENU_PATH)
 	if menu != null and menu.is_open():
 		return false
@@ -205,10 +207,19 @@ func _offset_from_button(pos: Vector2) -> Vector2:
 	return pos - button.aim_center() if button != null else Vector2.ZERO
 
 
+func _parchment_open() -> bool:
+	var node := get_tree().get_first_node_in_group(ParchmentMap.GROUP)
+	return node != null and node.is_open()
+
+
 func _input(event: InputEvent) -> void:
 	# Touches go here, not to _unhandled_input: the move stick and the map
 	# zoom read touches in _input too, and a finger on the button must be seen
 	# whatever they do with the other fingers.
+	if _parchment_open():
+		if _touch_index != -1:
+			_drop_touch()
+		return
 	if event is InputEventScreenTouch:
 		_on_touch(event)
 	elif event is InputEventScreenDrag and event.index == _touch_index:

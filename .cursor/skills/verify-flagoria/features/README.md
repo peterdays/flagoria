@@ -48,7 +48,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Tree sprouts](./tree-sprouts.md) — trees sprout on free cells where a biome is below its target tree share, host-decided, one `apply_sprout_cells` per pass, kept in saves and join lists.
 - [Dead player cuts nothing](./dead-player-cut.md) — interact-mode taps and drags ignored while the hero is dead, host refuses `request_cut` from a dead peer.
 - [Cut request limit](./cut-rate-limit.md) — host-side per-peer bucket on `request_cut` (162 at once, 162.5 a second), drops a flood with no reply, never limits a real drag or walk.
-- [Explored map](./explored-map.md) — minimap panel, cells revealed within 10 cells of the hero.
+- [Explored map](./explored-map.md) — wood minimap (collapse, reopen, maximize) and the parchment full map; cells revealed within 10 cells of the hero.
 - [Build costs](./build-costs.md) — wood per plank (1), wall block (2), tower (10), starting castle (0), half back on removal, `Inventory.spend`, `BuildCosts.buy` refuses with too little wood or while multiplayer is on; live path is the build picker.
 - [Construction placement](./construction-placement.md) — shared `can_place` / `cost` / `place` for buildables; plank, wooden tower and wall block (through `BuildCosts.buy`); live path is the build picker.
 - [Build placement](./build-placement.md)

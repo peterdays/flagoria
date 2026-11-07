@@ -52,6 +52,7 @@ GAMEPLAY = [
     "Scripts/tile_catalog.gd", "Scripts/BiomeCatalog.gd",  # tiles and biome tables of the world map
     "Scripts/world_save.gd",  # what a saved world keeps
     "Scripts/explored_map.gd", "Scripts/minimap_panel.gd",  # explored map and its HUD panel
+    "Scripts/parchment_map.gd", "Scripts/map_wood_button.gd",  # parchment full map and its wood controls
     "Scripts/resource_hud.gd", "Scripts/score_hud.gd",
     "Scripts/ingame_menu.gd", "Scripts/quit_prompt.gd", "Scripts/number_pad.gd",
     "data/interactables/*.tres",  # choppable types: hits, yields, regrowth, art and sounds

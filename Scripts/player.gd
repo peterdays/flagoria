@@ -126,6 +126,9 @@ func _physics_process(delta):
 	if health.is_dead():
 		velocity = Vector2.ZERO
 		return
+	if _map_covers_play():
+		velocity = Vector2.ZERO
+		return
 	player_movement(delta)
 	var direction := walk_direction()
 	if direction != _sent_walk_direction:
@@ -136,6 +139,7 @@ func _physics_process(delta):
 func _unhandled_input(event):
 	if not is_multiplayer_authority(): return
 	if health.is_dead(): return
+	if _map_covers_play(): return
 	
 	if Input.is_action_just_pressed("attack"):
 		attack_animation.rpc()
@@ -182,6 +186,12 @@ func _turn_swing() -> void:
 	var origin := AttackAimScript.ORIGIN
 	weapon.position = origin + (weapon.position - origin).rotated(swing_turn)
 	weapon.rotation += swing_turn
+
+
+func _map_covers_play() -> bool:
+	## The parchment full map is open: this hero does not move or attack.
+	var node := get_tree().get_first_node_in_group(ParchmentMap.GROUP)
+	return node != null and node.is_open()
 
 
 func sword_active() -> bool:

@@ -60,6 +60,13 @@ func _process(delta: float) -> void:
 		
 
 func _input(event: InputEvent) -> void:
+	if _map_covers():
+		# A finger on the parchment pans the sheet; it does not hold the stick.
+		if ongoing_drag != -1:
+			ongoing_drag = -1
+			touch.texture_normal = _knob()
+			emit_signal("analogic_change", Vector2.ZERO)
+		return
 	if event is InputEventScreenDrag or ( event is InputEventScreenTouch and event.is_pressed()):
 		var event_dist_from_center = (event.position - global_position).length()
 
@@ -78,6 +85,13 @@ func _input(event: InputEvent) -> void:
 		touch.texture_normal = _knob()
 		emit_signal("analogic_change", Vector2.ZERO)
 		
+
+func _map_covers() -> bool:
+	if not is_inside_tree() or Engine.is_editor_hint():
+		return false
+	var node := get_tree().get_first_node_in_group("fullscreen_map")
+	return node != null and node.has_method("is_open") and node.is_open()
+
 
 func get_button_pos() -> Vector2:
 	return touch.position + radius

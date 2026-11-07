@@ -4,7 +4,7 @@ extends Control
 ## the ground the local hero has explored, centred on the hero, at 2 screen
 ## pixels per world cell. Cells the hero has not been near show as mist.
 ## Exploration is local to this client for now (no network traffic); a new
-## world clears it. M hides or shows the panel.
+## world clears it. M or the header hides it; maximize opens the parchment.
 ##
 ## Each explored 32 x 32 cell chunk has a 64 x 64 image and texture. A
 ## reveal paints only the newly explored cells and the 1-cell ring around
@@ -58,7 +58,9 @@ const _NEIGHBOURS := [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1), Vector
 var explored := ExploredMap.new()
 var hero_cell := Vector2i.ZERO
 var facing := "Down"
-var shown := true  ## false after M hides the panel
+var shown := true  ## false after collapse or M hides the panel
+var parchment: ParchmentMap
+var _reopen: MapWoodButton
 
 var _textures := {}  ## chunk (Vector2i) -> ImageTexture
 var _images := {}  ## chunk (Vector2i) -> Image behind its texture
@@ -88,6 +90,7 @@ func _ready() -> void:
 	frame.mouse_filter = MOUSE_FILTER_IGNORE
 	add_child(frame)
 	_mist = ImageTexture.create_from_image(_mist_image())
+	_add_header_buttons()
 	var map := _map()
 	if map:
 		map.ground_changed.connect(_on_ground_changed)
@@ -114,18 +117,87 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo \
-			and event.keycode == KEY_M and not event.shift_pressed and local_player() != null:
+	if not (event is InputEventKey) or not event.pressed or event.echo or local_player() == null:
+		return
+	if event.keycode != KEY_M:
+		return
+	if event.shift_pressed:
+		if parchment.is_open():
+			parchment.hide_map()
+		else:
+			maximize()
+	else:
 		shown = not shown
-		visible = shown
-		get_viewport().set_input_as_handled()
+		if parchment.is_open():
+			parchment.hide_map()
+	apply_chrome()
+	get_viewport().set_input_as_handled()
+
+
+func _add_header_buttons() -> void:
+	## Collapse and maximize sit in the wood header. The reopen chip is a
+	## sibling, so it stays on screen after the panel hides.
+	var collapse := _header_button("CollapseButton", MapWoodButton.Glyph.MINUS, Vector2(184, 1))
+	collapse.activated.connect(collapse_panel)
+	var maximize_button := _header_button("MaximizeButton", MapWoodButton.Glyph.SQUARE, Vector2(204, 1))
+	maximize_button.activated.connect(maximize)
+	_reopen = MapWoodButton.new()
+	_reopen.name = "MapReopen"
+	_reopen.glyph = MapWoodButton.Glyph.PANEL
+	_reopen.size = Vector2(56, 24)
+	_reopen.visible = false
+	_reopen.texture_filter = TEXTURE_FILTER_NEAREST
+	_reopen.activated.connect(reopen_panel)
+	parchment = ParchmentMap.new()
+	parchment.panel = self
+	# The canvas layer is still entering the tree when the panel's _ready runs.
+	var layer := get_parent()
+	layer.add_child.call_deferred(_reopen)
+	layer.add_child.call_deferred(parchment)
+
+
+func _header_button(node_name: String, glyph: int, at: Vector2) -> MapWoodButton:
+	var button := MapWoodButton.new()
+	button.name = node_name
+	button.glyph = glyph
+	button.position = at
+	button.size = Vector2(18, 14)
+	add_child(button)
+	return button
+
+
+func collapse_panel() -> void:
+	shown = false
+	apply_chrome()
+
+
+func reopen_panel() -> void:
+	shown = true
+	apply_chrome()
+
+
+func maximize() -> void:
+	if local_player() == null:
+		return
+	parchment.show_map()
+	apply_chrome()
+
+
+func apply_chrome() -> void:
+	## The wood window, the reopen chip, or neither while the parchment is up.
+	var playing := local_player() != null
+	var map_open := parchment != null and parchment.is_open()
+	visible = shown and playing and not map_open
+	if _reopen:
+		_reopen.visible = not shown and playing and not map_open
+	_place_reopen()
 
 
 func tick() -> void:
 	## Shows the panel while there is a local hero and reveals the cells
 	## around it.
 	var player := local_player()
-	visible = shown and player != null
+	apply_chrome()
 	if player == null:
 		return
 	var map := _map()
@@ -182,7 +254,10 @@ func local_player() -> Node2D:
 	var world := get_node_or_null(WORLD_PATH)
 	if world == null:
 		return null
-	return world.get_node_or_null(str(multiplayer.get_unique_id())) as Node2D
+	var player := world.get_node_or_null(str(multiplayer.get_unique_id())) as Node2D
+	if player == null or player.get("lastAnimDirection") == null:
+		return null  # a stand-in node with the hero's name is not a hero
+	return player
 
 
 func chunk_texture(chunk: Vector2i) -> ImageTexture:
@@ -313,12 +388,11 @@ func _draw_map() -> void:
 				_view.draw_texture(tex, Vector2((Vector2i(cx, cy) * ExploredMap.CHUNK - top_left) * CELL_PX))
 	var marker: Texture2D = HERO.get(facing, HERO["Down"])
 	_view.draw_texture(marker, Vector2(half * CELL_PX + Vector2i.ONE - HERO_ANCHOR))
-	_draw_city_walls(top_left, half)
+	paint_city_walls(_view, top_left, WINDOW.size)
 
 
-
-func _draw_city_walls(top_left: Vector2i, half: Vector2i) -> void:
-	## Owner-coloured city wall cells over the explored window (#277).
+func paint_city_walls(target: CanvasItem, top_left: Vector2i, window_size: Vector2i) -> void:
+	## Owner-coloured city wall cells over an explored window (#277).
 	var cities: Cities = get_node_or_null(WORLD_PATH + "/Cities")
 	if cities == null or cities.cities.is_empty():
 		return
@@ -336,9 +410,9 @@ func _draw_city_walls(top_left: Vector2i, half: Vector2i) -> void:
 				continue
 			var local := (cell - top_left) * CELL_PX
 			if local.x < -CELL_PX or local.y < -CELL_PX \
-					or local.x >= WINDOW.size.x or local.y >= WINDOW.size.y:
+					or local.x >= window_size.x or local.y >= window_size.y:
 				continue
-			_view.draw_rect(Rect2(Vector2(local), Vector2(CELL_PX, CELL_PX)), colour)
+			target.draw_rect(Rect2(Vector2(local), Vector2(CELL_PX, CELL_PX)), colour)
 
 
 func _on_ground_changed(cells: Rect2i) -> void:
@@ -350,6 +424,9 @@ func _on_ground_changed(cells: Rect2i) -> void:
 	_images.clear()
 	_terrain.clear()
 	_last_sample = Vector2i.MAX
+	if parchment and parchment.is_open():
+		parchment.hide_map()
+	apply_chrome()
 	_view.queue_redraw()
 
 
@@ -362,7 +439,21 @@ func _fit_pixel_scale() -> void:
 		return
 	var k := floorf(stretch) / stretch if stretch >= 1.0 else 1.0
 	scale = Vector2(k, k)
-	position = Vector2(get_viewport_rect().size.x - (size.x + MARGIN) * k, TOP * k)
+	position = Vector2(get_viewport_rect().size.x - (size.x + MARGIN) * k, maxf(TOP * k, 23.0))
+	_place_reopen()
+
+
+func _place_reopen() -> void:
+	if _reopen == null:
+		return
+	var stretch := get_viewport().get_final_transform().get_scale().x
+	if stretch <= 0.0:
+		return
+	var k := floorf(stretch) / stretch if stretch >= 1.0 else 1.0
+	_reopen.scale = Vector2(k, k)
+	var view_w := get_viewport_rect().size.x
+	# Below the header, so a click that collapses the panel does not land on the chip.
+	_reopen.position = Vector2(view_w - (_reopen.size.x + MARGIN) * k, maxf(TOP * k, 23.0) + 22.0 * k)
 
 
 func _map() -> Node:

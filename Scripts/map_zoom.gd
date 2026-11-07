@@ -35,6 +35,9 @@ func _input(event: InputEvent) -> void:
 
 func handle(event: InputEvent) -> bool:
 	## Applies one input event; true when the event was used for zooming.
+	if _parchment_open():
+		# Zoom is used up while the parchment is open; the camera stays put.
+		return _is_zoom_event(event)
 	if event is InputEventScreenTouch:
 		return _on_touch(event)
 	if event is InputEventScreenDrag:
@@ -111,6 +114,24 @@ func _on_drag(event: InputEventScreenDrag) -> bool:
 func _touch_distance() -> float:
 	var points: Array = _map_touches.values()
 	return (points[0] as Vector2).distance_to(points[1])
+
+
+func _parchment_open() -> bool:
+	var node := get_tree().get_first_node_in_group(ParchmentMap.GROUP)
+	return node != null and node.is_open()
+
+
+func _is_zoom_event(event: InputEvent) -> bool:
+	if event is InputEventMouseButton:
+		var button := event as InputEventMouseButton
+		return button.button_index == MOUSE_BUTTON_WHEEL_UP \
+				or button.button_index == MOUSE_BUTTON_WHEEL_DOWN
+	if event is InputEventKey and event.pressed and event.ctrl_pressed:
+		return event.keycode == KEY_EQUAL or event.keycode == KEY_PLUS \
+				or event.keycode == KEY_KP_ADD or event.keycode == KEY_MINUS \
+				or event.keycode == KEY_KP_SUBTRACT or event.keycode == KEY_0 \
+				or event.keycode == KEY_KP_0
+	return false
 
 
 func starts_on_hud(pos: Vector2) -> bool:

@@ -63,6 +63,18 @@ a 1 px dither of `#ffffff` and `#d9e6f2`. The panel is drawn at a whole
 number of screen pixels per art pixel, rounding down, so at fractional
 window stretches it stays clear of the attack button.
 
+The header carries two controls drawn in code (`Scripts/map_wood_button.gd`)
+in the frame's own colours, ink `#2a2238` on light wood `#e0a96b`: a minus
+that collapses the window, and a square that opens the parchment. Collapsed,
+a 56x24 wood chip in the same corner (a small map and an up chevron) opens
+the panel again. The frame PNG is unchanged.
+
+The parchment (`Scripts/parchment_map.gd`) fills the viewport. It is old
+paper, not a second wood frame: `#e7d7b1` with a `#cbb98a` dither, a
+`#8a5a32` edge and the same ink. Explored cells use the panel's map colours.
+Unexplored cells stay that paper fog. A drag pans the sheet, the cross
+recentres on the hero, and the X closes it.
+
 ## Touch controls
 
 The move stick and the attack button use the Castle Stone UI set in `touch/`.
