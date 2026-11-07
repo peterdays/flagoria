@@ -8,7 +8,7 @@ Wall pieces are picked from their neighbours by `WallSolver` (`Scripts/mechanics
 
 - `wall-solve` each wall cell gets its piece (post, end, straight, corner, T, cross) from its N/E/S/W neighbours.
 - `wall-collision` every stone and palisade piece blocks; an open gate leaves a 12 px gap for the player.
-- `bridge-planks` `build_bridge` lays one straight run of planks over water; they stay when the chunk is drawn again, the hero walks across them, plain water still blocks, and a new map clears them.
+- `bridge-planks` `build_bridge` lays one straight run of planks over water; they stay when the chunk is drawn again, the hero walks across them, plain water still blocks, and a new map clears them. Adjoining runs are one deck ([Bridge joins](./bridge-joins.md)).
 
 ## How to get to it (user POV)
 
