@@ -11,6 +11,8 @@ Project-local verification for Flagoria. Read this cold mid-task. Prefer the fea
 
 **Missing Godot:** run `./tools/ensure_godot.sh` once (same 4.7.2 pin as CI). Do not `find`/`curl` Godot mid-task. Cloud agent environments should bake that install into the environment `install` script so doctor finds Godot at boot.
 
+**Feature map first (context budget):** read `features/README.md` only to pick the feature file, then open that feature file and follow its `Drive:`, cited tests, and paths. Prefer those paths over repo-wide greps. Before Ready: one matching drive under xvfb when player-facing, and one `./tools/verify.sh` (or `bin/drive-verify.sh`). Re-run a check only after it failed. Doctor before trusting a drive.
+
 **Repo root:** every command below assumes the current working directory is the Flagoria checkout root (the directory that contains `project.godot` and `tools/verify.sh`).
 
 **Scratch / evidence:**

@@ -1,6 +1,6 @@
 # Flagoria verification map
 
-Maintained recipes for proving user-facing and CI-facing behavior. Read this index, then the matching feature file.
+Maintained recipes for proving user-facing and CI-facing behavior. Read this index only to pick the matching feature file, then open that file and stay on the paths, tests, and `Drive:` it names. Do not treat this index as a reason to open every feature.
 
 ## Baseline preconditions
 
