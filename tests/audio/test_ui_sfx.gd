@@ -93,7 +93,7 @@ func _test_ui_sfx_presses() -> int:
 		[panel.get_node("Margin/VBox/Buttons/RandomSeed"), "click"],
 		[panel.get_node("Margin/VBox/Buttons/RandomSpecs"), "click"],
 		[panel.get_node("Margin/VBox/ButtonsDefaults/Reset"), "click"],
-		[panel.get_node("Margin/VBox/Buttons2/Back"), "back"],
+		[panel.get_node("Margin/VBox/ButtonsDefaults/Back"), "back"],
 	]
 	for press in presses:
 		ui._last_ms.clear()  # cooldowns are wall-clock; each step is a new press

@@ -4,8 +4,10 @@ extends Node2D
 ## button. Combat is the default and leaves the map to the attack controls.
 ## In interact mode the Cut/Plank picker shows (#225). Cut: a tap chops the
 ## nearest tree or bush (a choppable, see InteractableCatalog) on or next to
-## the tapped cell through ChopAction; a drag selects a range and cuts every
-## choppable in reach when the finger lifts. Plank: a drag snaps to a
+## the tapped cell through ChopAction. A drag past 6 viewport pixels selects
+## a range. One plant in that range is still that chop (a finger can drift
+## past the threshold on a single tree). Two or more plants are cut at once,
+## with no chop pose. Plank: a drag snaps to a
 ## horizontal or vertical run; green/red preview and wood cost follow the
 ## finger; lift places the longest valid prefix through ConstructionPlacer.
 ## Mouse clicks and drags count as touches. Touches that start on a HUD
@@ -178,7 +180,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				build.update_preview(_start, _end)
 				build.commit()
 			elif _dragging:
-				cut_range(selection_rect())
+				_release_drag()
 			else:
 				interact_at(to_world(_end))
 			_cancel()
@@ -238,6 +240,16 @@ func choppables_in_rect(rect: Rect2) -> Array[Vector2i]:
 			if world_map.choppable(cell) and grown.has_point(cell_center(cell)) and in_reach(cell):
 				out.append(cell)
 	return out
+
+
+func _release_drag() -> void:
+	## The finger lifted on a drag. One plant plays the chop sheet. More than
+	## one is a range cut. If the chop cannot start (one is already swinging),
+	## the plant is cut at once, as a range cut.
+	var cells := choppables_in_rect(selection_rect())
+	if cells.size() == 1 and start_chop(cells[0]):
+		return
+	cut_range(selection_rect())
 
 
 func cut_range(rect: Rect2) -> int:

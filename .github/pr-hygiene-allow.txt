@@ -4,3 +4,4 @@
 #   size-exclude:<glob>  leave matching paths out of the size count
 # Keep entries generic (role or noreply addresses, generated files). Adding a
 # personal address here would itself publish it.
+cursoragent@cursor.com

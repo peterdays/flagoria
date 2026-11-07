@@ -293,7 +293,7 @@ func _begin_step(i: int, t: float) -> void:
 		"ui_click":
 			_scene.get_node("CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/MapSettingsButton").pressed.emit()
 		"ui_back":
-			_scene.get_node("CanvasLayer2/MainMenu").admin_panel.get_node("Margin/VBox/Buttons2/Back").pressed.emit()
+			_scene.get_node("CanvasLayer2/MainMenu").admin_panel.get_node("Margin/VBox/ButtonsDefaults/Back").pressed.emit()
 		"ui_menu_open":
 			_ui_menu.show()
 		"ui_menu_close":

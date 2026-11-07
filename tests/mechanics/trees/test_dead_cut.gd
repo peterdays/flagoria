@@ -5,7 +5,8 @@ extends "res://tests/helpers/test_helpers.gd"
 
 func _test_dead_cut_alone() -> int:
 	## Alone, with the hero dead: a drag over a tree in reach and a tap on it
-	## leave the tree and add no wood. After the respawn the same drag cuts it.
+	## leave the tree and add no wood. After the respawn the same drag, one tree
+	## in the box, plays the chop; stepping it fells the tree.
 	## Time cost: about 0.5 s alone with --only=dead_cut_alone (~2 s runner
 	## start-up). Isolation: the painted patch must survive respawn (#359).
 	print("-- test_dead_cut_alone")
@@ -68,8 +69,14 @@ func _test_dead_cut_alone() -> int:
 	health.set_health_now(health.max_health)
 	player.position = below
 	swipe.call()
+	# One tree in the drag plays the chop; it is not a stump until the swings finish.
+	if not interaction.chopping() or not world.has_tree(tree) or inventory.count_of(Inventory.WOOD) != 0:
+		printerr("FAIL dead_cut_alone: after the respawn the drag did not start a chop (tree %s, wood %s, chopping %s)"
+				% [world.has_tree(tree), inventory.count_of(Inventory.WOOD), interaction.chopping()])
+		fail += 1
+	interaction.step_chop(1.0)
 	if world.has_tree(tree) or inventory.count_of(Inventory.WOOD) != InteractableCatalog.by_id("tree").amount_of(Inventory.WOOD):
-		printerr("FAIL dead_cut_alone: after the respawn the drag left tree %s, wood %s"
+		printerr("FAIL dead_cut_alone: after the respawn the chop left tree %s, wood %s"
 				% [world.has_tree(tree), inventory.count_of(Inventory.WOOD)])
 		fail += 1
 	player.queue_free()
