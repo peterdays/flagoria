@@ -64,6 +64,7 @@ Mistakes that have cost time in this repository before. "Enforced by" says what 
 
 | Mistake | Rule | Enforced by |
 |---|---|---|
+| Mid-task `find`/`curl`/`unzip` of Godot (minutes of shell thrash every gameplay agent) | Godot must already be on `PATH` (or `GODOT`). If doctor says it is missing, run `./tools/ensure_godot.sh` once, then continue. Never download Godot inside a feature implement loop. Cloud environments bake that install into the environment `install` script. | `doctor.sh` points at `tools/ensure_godot.sh`. Review for ad-hoc downloads. |
 | Committing `.import` files that Godot re-saved during a run (hundreds of unrelated files in a diff) | Commit `.import` changes only when the PR is about imports. Before committing, check `git status --short -- '*.import'` and revert unrelated ones with `git checkout -- ':(glob)**/*.import'`. A project-wide re-import is its own PR. | Committed `.import` files match the current Godot defaults (#154), so a clean run makes no churn. Otherwise review. |
 | Two Godot runs sharing one `user://` (settings, saves) and breaking each other | Give every run its own user dirs: separate `XDG_CONFIG_HOME`, `XDG_DATA_HOME` and `XDG_CACHE_HOME`. Work in your own `git worktree` off fresh `origin/main`, not in a checkout another task is using. | `tools/verify.sh` makes per-run temporary dirs (#155). Direct `godot` calls: review. |
 | Killing another task's Godot (for example `pkill godot`) | Stop only processes this run started, by their recorded PIDs. | Review. |

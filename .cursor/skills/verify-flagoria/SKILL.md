@@ -9,6 +9,8 @@ Project-local verification for Flagoria. Read this cold mid-task. Prefer the fea
 
 **Engine:** the latest stable Godot, which is the version in `project.godot` (`config/features`, currently `4.7`). When a newer stable Godot ships, move the project to it; older editors are not supported. The tools use `GODOT` if it is set, else `godot` on `PATH`, and refuse a binary whose `--version` does not match `project.godot`.
 
+**Missing Godot:** run `./tools/ensure_godot.sh` once (same 4.7.2 pin as CI). Do not `find`/`curl` Godot mid-task. Cloud agent environments should bake that install into the environment `install` script so doctor finds Godot at boot.
+
 **Repo root:** every command below assumes the current working directory is the Flagoria checkout root (the directory that contains `project.godot` and `tools/verify.sh`).
 
 **Scratch / evidence:**

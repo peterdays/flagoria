@@ -48,7 +48,7 @@ fi
 # Same lookup as tools/verify.sh: GODOT if set, else `godot` on PATH.
 GODOT="${GODOT:-godot}"
 if [[ ! -x "$GODOT" ]] && ! command -v "$GODOT" >/dev/null 2>&1; then
-  echo "doctor: Godot not found: ${GODOT} (put godot on PATH or set GODOT to the Godot ${want:-editor} binary)" >&2
+  echo "doctor: Godot not found: ${GODOT} (run ./tools/ensure_godot.sh once, or put godot on PATH / set GODOT)" >&2
   ok=0
 else
   ver="$("$GODOT" --version 2>/dev/null || true)"
