@@ -12,7 +12,7 @@ city owned by the tower's owner. Capturing the tower (#274) transfers the
 city. Breaking the loop dissolves it. Boundary tint is drawn on the city
 walls in the world; the minimap paints the same walls in the owner's colour.
 Host alone only: while multiplayer is on the city list stays empty (sync is
-#278). Wooden tower posts (`TOWER_WOOD_*`) are not barriers — a free-form or
+#278). Tower ring cells (`TOWER_STONE_*`) are not barriers — a free-form or
 stone/palisade ring must enclose them. Castle and guard_post use `WALL_*`, so
 their own courtyards are cities.
 
@@ -53,7 +53,7 @@ against ~1.5 s for runner start-up). Drive about 20 s under xvfb.
 ## Gotchas
 
 - Water and map edges do not close a city (design decision for #277).
-- `TOWER_WOOD_*` cells are not barriers; only free-form walls and `WALL_*` /
+- Tower ring cells are not barriers; only free-form walls and `WALL_*` /
   `PALISADE_*` structure cells are.
 - Drive evidence closes the default-open MinimapPanel for play shots, then
   opens it for the minimap city-wall shot.

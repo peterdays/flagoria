@@ -5,8 +5,7 @@ extends RefCounted
 ## tileset swap changes only this file and the TileSet. See docs/tiles.md.
 
 const SOURCE_ID := 0
-## Terrain set and terrain of the world TileSet's "Island" terrain (Match Corners and
-## Sides). Paint with set_cells_terrain_connect(cells, ISLAND_TERRAIN_SET, ISLAND_TERRAIN).
+## Island terrain set (Match Corners and Sides). See docs/tiles.md.
 const ISLAND_TERRAIN_SET := 0
 const ISLAND_TERRAIN := 0
 
@@ -41,9 +40,7 @@ const GRASS_CORNER_IN_SE := Vector2i(1, 2)
 const GRASS_CORNER_IN_SW := Vector2i(2, 2)
 const GRASS_CORNER_IN_NW := Vector2i(3, 2)
 
-## Island blob pieces for the "Island" terrain: ISLAND_BLOB_<mask>, 8-neighbour
-## mask N1 NE2 E4 SE8 S16 SW32 W64 NW128 (a corner bit counts only when both
-## its sides are land). _W1-_W3 are weighted variants of the same piece.
+## Island blob pieces ISLAND_BLOB_<mask>. _W variants share a piece. See docs/tiles.md.
 const ISLAND_BLOB_000 := Vector2i(16, 8)
 const ISLAND_BLOB_001 := Vector2i(17, 8)
 const ISLAND_BLOB_004 := Vector2i(18, 8)
@@ -168,11 +165,7 @@ const STUMP := Vector2i(8, 2)
 ## What a chopped bush leaves: walkable ground decor, no collision.
 const BUSH_STUMP := Vector2i(8, 3)
 
-## Plank bridges (layer 0, no collision, so walkable). Straight runs only:
-## H runs W->E, V runs N->S. START has land on the W/N side, END on the E/S
-## side, SINGLE on both; TIP_x is an unfinished end open towards x. _WATER
-## pieces are baked over WATER and replace a water cell; the others have a
-## transparent background for sky maps. BROKEN pieces are art only for now.
+## Plank bridges (layer 0, no collision). Runs, tips, water and broken: see docs/tiles.md.
 const BRIDGE_PLANK_H := Vector2i(8, 15)
 const BRIDGE_PLANK_V := Vector2i(9, 15)
 const BRIDGE_PLANK_H_START := Vector2i(10, 15)
@@ -248,10 +241,7 @@ const WALL_GATE_V := Vector2i(22, 2)
 const WALL_H_DMG_CRACK := Vector2i(23, 2)
 const WALL_H_DMG_CHUNK := Vector2i(16, 3)
 const WALL_V_DMG_CRACK := Vector2i(17, 3)
-## Wooden palisade walls (overlay layer, transparent background). Slot i
-## matches stone slot i: WALL_* (16 + i % 8, i / 8) -> PALISADE_* (i % 8, 15 + i / 8).
-## GATE_V_OPEN and the _JOIN_ pieces (a straight run whose end meets a stone
-## wall) have no stone counterpart.
+## Wooden palisade walls. Slot i matches stone. Join cells stay unused; collars overlay.
 const PALISADE_POST := Vector2i(0, 15)
 const PALISADE_END_N := Vector2i(1, 15)
 const PALISADE_END_E := Vector2i(2, 15)
@@ -283,8 +273,8 @@ const PALISADE_H_JOIN_E := Vector2i(3, 18)
 const PALISADE_H_JOIN_W := Vector2i(4, 18)
 const PALISADE_V_JOIN_N := Vector2i(5, 18)
 const PALISADE_V_JOIN_S := Vector2i(6, 18)
-## Name -> {source_id, atlas}. Every constant above appears here.
-const TILES := {
+## Name -> {source_id, atlas}. Caps and tower rings are added in _with_junctions.
+const _CORE := {
 	"WATER": {"source_id": SOURCE_ID, "atlas": WATER},
 	"SAND": {"source_id": SOURCE_ID, "atlas": SAND},
 	"SWAMP": {"source_id": SOURCE_ID, "atlas": SWAMP},
@@ -532,3 +522,13 @@ const TILES := {
 	"PALISADE_V_JOIN_N": {"source_id": SOURCE_ID, "atlas": PALISADE_V_JOIN_N},
 	"PALISADE_V_JOIN_S": {"source_id": SOURCE_ID, "atlas": PALISADE_V_JOIN_S},
 }
+static var TILES := _with_junctions(_CORE)
+
+static func _with_junctions(core: Dictionary) -> Dictionary:
+	var t := core.duplicate()
+	for i in 4:
+		t["CAP_COLLAR_" + "NESW"[i]] = {"source_id": SOURCE_ID, "atlas": Vector2i(8 + i, 4)}
+	var arms := "NW_X,NW_N,NW_W,NW_NW,N_X,N_N,NE_X,NE_E,NE_N,NE_NE,W_X,W_W,E_X,E_E,SW_X,SW_S,SW_W,SW_SW,S_X,S_S,SE_X,SE_E,SE_S,SE_ES".split(",")
+	for i in arms.size():
+		t["TOWER_STONE_" + arms[i]] = {"source_id": SOURCE_ID, "atlas": Vector2i(i, 5)}
+	return t

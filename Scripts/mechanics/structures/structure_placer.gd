@@ -33,6 +33,9 @@ const DIR := "res://structures"
 ## layer-1 atlas or NO_PLANT for none]. generate_chunk draws these instead
 ## of the generated cell; a new map clears them.
 var _cells: Dictionary = {}
+## Auto wall or tower-ring cell -> WallSolver entry. Solved with free-form
+## walls, not on its own (#414).
+var _auto: Dictionary = {}
 ## Placement id -> {"name", "owner", "anchor"} (for saves, #42).
 var _placed: Dictionary = {}
 ## Placement id -> its `team` flag cells, the towers TowerCapture watches.
@@ -66,9 +69,29 @@ func placements() -> Dictionary:
 
 func clear() -> void:
 	_cells.clear()
+	_auto.clear()
 	_placed.clear()
 	_flags.clear()
 	_next_id = 1
+
+
+func auto_cells() -> Dictionary:
+	## Auto wall and tower-ring cells -> solver entries.
+	return _auto
+
+
+func apply_solved(cell: Vector2i, tile_name: String) -> void:
+	## Store and, when the chunk is drawn, paint a solved structure wall.
+	var atlas: Vector2i = _atlas(tile_name)
+	if not _cells.has(cell) or _cells[cell][1] == atlas:
+		return
+	_cells[cell][1] = atlas
+	_map._predict_cache.erase(cell)
+	if _map.get_cell_source_id(0, cell) == -1:
+		return
+	_map.erase_cell(1, cell)
+	_map.erase_cell(_WorldMap.GROUND_DECOR_LAYER, cell)
+	_map.set_cell(1, cell, TileCatalog.SOURCE_ID, atlas)
 
 
 func can_place(structure: Structure, anchor_cell: Vector2i) -> Array[String]:
@@ -103,10 +126,11 @@ func can_place(structure: Structure, anchor_cell: Vector2i) -> Array[String]:
 
 func place(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
 	## Write `structure` with its anchor on `anchor_cell` for peer `owner`:
-	## ground cells, then object cells with wall and gate pieces from
-	## WallSolver (an `open` gate drawn open) and the owner's flag colour. Plants, decor and stumps
-	## under it are removed. Returns the new placement id, or -1 and
-	## nothing written when can_place gives any reason.
+	## ground cells, then object cells. Auto walls and tower rings are solved
+	## with every other wall (an `open` gate drawn open). The owner's flag
+	## colour is applied. Plants, decor and stumps under it are removed.
+	## Returns the new placement id, or -1 and nothing written when can_place
+	## gives any reason.
 	if not can_place(structure, anchor_cell).is_empty():
 		return -1
 	return _write(structure, anchor_cell, owner)
@@ -152,12 +176,6 @@ static func load_named(structure_name: String) -> Structure:
 
 func _write(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
 	var foot := footprint(structure, anchor_cell)
-	var walls := {}
-	for cell: Vector2i in foot:
-		var o: Dictionary = foot[cell][1]
-		if not o.is_empty() and o["tile"].begins_with("WALL_"):
-			walls[cell] = {"gate": o["tile"].contains("GATE"), "open": "open" in o["attributes"]}
-	var solved := WallSolver.solve(walls)
 	var flags: Array[Vector2i] = []
 	for cell: Vector2i in foot:
 		var g: Dictionary = foot[cell][0]
@@ -166,12 +184,14 @@ func _write(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
 		var object := _WorldMap.NO_PLANT
 		if not o.is_empty():
 			var tile: String = o["tile"]
-			if "auto" in o["attributes"] and solved.has(cell):
-				tile = solved[cell]
-			if "team" in o["attributes"] and tile.begins_with("PROP_FLAG_"):
-				tile = OWNER_FLAGS.get(owner, OTHER_OWNER_FLAG)
-				flags.append(cell)
-			object = _atlas(tile)
+			var attrs: PackedStringArray = o["attributes"]
+			if "auto" in attrs and _remember_auto(structure, anchor_cell, cell, tile, attrs):
+				pass
+			else:
+				if "team" in attrs and tile.begins_with("PROP_FLAG_"):
+					tile = OWNER_FLAGS.get(owner, OTHER_OWNER_FLAG)
+					flags.append(cell)
+				object = _atlas(tile)
 		_cells[cell] = [ground, object]
 		_map.forget_cut(cell)
 		_map._predict_cache.erase(cell)
@@ -188,8 +208,27 @@ func _write(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
 	_placed[id] = {"name": structure.name, "owner": owner, "anchor": anchor_cell}
 	if not flags.is_empty():
 		_flags[id] = flags
+	_map._walls.resolve()
 	_map.ground_changed.emit(Rect2i(anchor_cell - structure.anchor, structure.size))
 	return id
+
+
+func _remember_auto(structure: Structure, anchor_cell: Vector2i, cell: Vector2i, tile: String, attrs: PackedStringArray) -> bool:
+	## Record a solved wall or tower ring. False when `tile` is neither.
+	if tile.begins_with("TOWER_"):
+		var ring := WallSolver.ring_at(cell - anchor_cell + structure.anchor)
+		if ring == "":
+			return false
+		_auto[cell] = {"family": WallSolver.TOWER, "ring": ring}
+		return true
+	if tile.begins_with("WALL_"):
+		_auto[cell] = {
+			"family": WallSolver.STONE,
+			"gate": tile.contains("GATE"),
+			"open": "open" in attrs,
+		}
+		return true
+	return false
 
 
 func towers() -> Dictionary:

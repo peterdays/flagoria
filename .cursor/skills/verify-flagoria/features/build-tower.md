@@ -10,8 +10,10 @@ refusal reason otherwise. On release, placement goes through
 `structures/tower_wood.txt`). The builder owns the tower and its team flag so
 `TowerCapture` can take it (#274). Land only; no overlap with structures,
 players or mobs; unlimited count. While multiplayer is on, the Tower icon is
-hidden (same gate as Plank). Placeholder tiles `TOWER_WOOD_POST` / `TOWER_WOOD_WALL`
-and the picker icon come from `tools/art/gen_tower_wood_tiles.py`.
+hidden (same gate as Plank). The placed ring is `TOWER_STONE_*` (the centre
+stays the team flag). The file still names `TOWER_WOOD_POST` / `TOWER_WOOD_WALL`
+as the auto entries the solver replaces. The picker icon comes from
+`tools/art/gen_tower_wood_tiles.py`.
 
 ## Sub-features
 

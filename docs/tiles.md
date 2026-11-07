@@ -238,7 +238,11 @@ Every wall piece blocks (physics layer 0). The rects come from the stone envelop
 
 ## Palisade walls
 
-Wooden walls in the same footprint and order as the stone set: stone `WALL_*` (16 + i % 8, i / 8) is `PALISADE_*` (i % 8, 15 + i / 8), with the same collision. Overlay layer 1, like trees and bushes. Five pieces have no stone counterpart: `GATE_V_OPEN` (12 px gap, like `GATE_H_OPEN`), and `H_JOIN_E`/`H_JOIN_W`/`V_JOIN_N`/`V_JOIN_S`, a straight palisade cell whose E/W/N/S neighbour is a stone wall. The solver picks E before W and N before S.
+Wooden walls in the same footprint and order as the stone set: stone `WALL_*` (16 + i % 8, i / 8) is `PALISADE_*` (i % 8, 15 + i / 8), with the same collision. Overlay layer 1, like trees and bushes. `GATE_V_OPEN` (12 px gap, like `GATE_H_OPEN`) has no stone counterpart. `H_JOIN_*` and `V_JOIN_*` stay in the atlas and are not selected. A palisade that touches stone gets a `CAP_COLLAR_*` overlay on that side instead.
+
+## Collar caps and tower ring
+
+`CAP_COLLAR_N/E/S/W` are (8, 4) to (11, 4), drawn above layer 1, with no collision. The first stone side in N, E, S, W order goes on layer `wall_caps`; the second goes on `wall_caps_2`. A third or fourth side is solved and not drawn. `TOWER_STONE_<cell>_<arms>` fills row 5, columns 0–23: the 3×3 ring around the team flag. `<arms>` lists outer sides that have a wall neighbour, in N, E, S, W order, or `X` when none. The centre cell stays `PROP_FLAG_*` on sand. Horizontal stone gates `(20, 2)` and `(21, 2)` close the outline at pixels (6..9, 14); their collision is unchanged.
 
 | Name | Cell |
 |---|---|

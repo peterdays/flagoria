@@ -4,8 +4,9 @@ extends "res://tests/helpers/test_helpers.gd"
 
 func _test_wall_solver() -> int:
 	## WallSolver picks pieces from N/E/S/W neighbours, turns only the corners
-	## of a notch in an enclosure into CORNER_IN, joins palisade runs to stone,
-	## and only returns names that exist in TileCatalog.TILES.
+	## of a notch in an enclosure into CORNER_IN, lists a collar for every
+	## stone side of a palisade (no baked JOIN piece), and only returns names
+	## that exist in TileCatalog.TILES.
 	print("-- test_wall_solver")
 	var fail := 0
 	var cases := [
@@ -53,8 +54,25 @@ func _test_wall_solver() -> int:
 		Vector2i(5, 1): {},
 	}
 	cases.append(["palisade meets stone", mixed, {
-		Vector2i(0, 0): "WALL_T_W", Vector2i(1, 0): "PALISADE_H_JOIN_W", Vector2i(2, 0): "PALISADE_H",
-		Vector2i(3, 0): "PALISADE_END_E", Vector2i(5, 0): "PALISADE_V_JOIN_S", Vector2i(5, 1): "WALL_END_S",
+		Vector2i(0, 0): "WALL_T_W", Vector2i(1, 0): "PALISADE_H", Vector2i(2, 0): "PALISADE_H",
+		Vector2i(3, 0): "PALISADE_END_E", Vector2i(5, 0): "PALISADE_V", Vector2i(5, 1): "WALL_END_S",
+	}])
+	var two := {
+		Vector2i(0, 0): {"family": WallSolver.PALISADE},
+		Vector2i(0, -1): {}, Vector2i(1, 0): {},
+	}
+	cases.append(["two stone sides", two, {Vector2i(0, 0): "PALISADE_CORNER_OUT_SW"}])
+	var three := {
+		Vector2i(0, 0): {"family": WallSolver.PALISADE},
+		Vector2i(0, -1): {}, Vector2i(1, 0): {}, Vector2i(-1, 0): {},
+	}
+	cases.append(["three stone sides", three, {Vector2i(0, 0): "PALISADE_T_S"}])
+	var tower := {
+		Vector2i(0, 0): {"family": WallSolver.TOWER, "ring": "N"},
+		Vector2i(0, -1): {"family": WallSolver.PALISADE},
+	}
+	cases.append(["tower arm", tower, {
+		Vector2i(0, 0): "TOWER_STONE_N_N", Vector2i(0, -1): "PALISADE_END_N",
 	}])
 	# Damage shows on plain H and V only; a missing variant keeps the plain piece.
 	var damaged := _walls_from_rows(["####", "#...", "#..."], WallSolver.PALISADE)
@@ -80,6 +98,29 @@ func _test_wall_solver() -> int:
 			if got.get(cell, "") != c[2][cell]:
 				printerr("FAIL wall_solver %s: %s should be %s, got %s" % [c[0], cell, c[2][cell], got.get(cell, "")])
 				fail += 1
+	var cap_cases := [
+		[mixed, Vector2i(1, 0), ["CAP_COLLAR_W"]],
+		[mixed, Vector2i(5, 0), ["CAP_COLLAR_S"]],
+		[two, Vector2i(0, 0), ["CAP_COLLAR_N", "CAP_COLLAR_E"]],
+		[three, Vector2i(0, 0), ["CAP_COLLAR_N", "CAP_COLLAR_E", "CAP_COLLAR_W"]],
+		[tower, Vector2i(0, -1), ["CAP_COLLAR_S"]],
+	]
+	for c in cap_cases:
+		var got_caps: Array = WallSolver.caps(c[0]).get(c[1], [])
+		if got_caps != c[2]:
+			printerr("FAIL wall_solver caps at %s: %s want %s" % [c[1], got_caps, c[2]])
+			fail += 1
+	# A tower cell in the wall line keeps the notch enclosed.
+	var open_notch := _walls_from_rows([
+		"#######....", "#..#..#....", "#..#..#####", "#.........#", "#.........#", "####.######",
+	])
+	var closed := open_notch.duplicate(true)
+	closed[Vector2i(4, 5)] = {"family": WallSolver.TOWER, "ring": "N"}
+	if WallSolver.solve(open_notch)[Vector2i(6, 2)] != "WALL_CORNER_OUT_SW" \
+			or WallSolver.solve(closed)[Vector2i(6, 2)] != "WALL_CORNER_IN_SW" \
+			or WallSolver.solve(closed)[Vector2i(4, 5)] != "TOWER_STONE_N_X":
+		printerr("FAIL wall_solver: tower cell did not close the notch")
+		fail += 1
 	if fail == 0:
 		print("PASS test_wall_solver")
 	return fail

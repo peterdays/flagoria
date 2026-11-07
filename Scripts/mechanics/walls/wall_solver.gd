@@ -1,15 +1,18 @@
 class_name WallSolver
 extends RefCounted
-## Picks the wall piece for each wall cell from its neighbours (#36). Stone
-## (WALL_*) and wooden palisade (PALISADE_*) cells share one solver and
-## connect to each other, but each cell keeps its own family. The result is
-## TileCatalog names for the overlay layer. Pure: no TileMap access.
+## Picks the wall piece for each wall cell from its neighbours (#36, #414).
+## Stone (WALL_*), wooden palisade (PALISADE_*) and tower ring (TOWER_STONE_*)
+## cells share one solver. Each cell keeps its own family. A palisade that
+## touches stone gets collar caps instead of a baked join piece. Pure: no
+## TileMap access.
 
 const STONE := "WALL"
 const PALISADE := "PALISADE"
+const TOWER := "TOWER"
 
 ## Neighbour steps in mask bit order: N 1, E 2, S 4, W 8.
 const STEPS: Array[Vector2i] = [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]
+const SIDE := ["N", "E", "S", "W"]
 const MASK_TABLE := {
 	0: "POST", 1: "END_S", 2: "END_W", 4: "END_N", 8: "END_E", 5: "V", 10: "H",
 	6: "CORNER_OUT_NW", 12: "CORNER_OUT_NE", 3: "CORNER_OUT_SW", 9: "CORNER_OUT_SE",
@@ -19,23 +22,27 @@ const MASK_TABLE := {
 const BEND_STEP := {
 	"NW": Vector2i(1, 1), "NE": Vector2i(-1, 1), "SW": Vector2i(1, -1), "SE": Vector2i(-1, -1),
 }
+## Offset inside the 3x3 tower -> ring name. The centre (1, 1) is the flag.
+const RING_AT := {
+	Vector2i(0, 0): "NW", Vector2i(1, 0): "N", Vector2i(2, 0): "NE",
+	Vector2i(0, 1): "W", Vector2i(2, 1): "E",
+	Vector2i(0, 2): "SW", Vector2i(1, 2): "S", Vector2i(2, 2): "SE",
+}
+## Outer sides of a ring cell, already in N, E, S, W order (SE is E then S).
+const RING_ARMS := {
+	"NW": "NW", "N": "N", "NE": "NE", "W": "W", "E": "E", "SW": "SW", "S": "S", "SE": "ES",
+}
+
+
+static func ring_at(offset: Vector2i) -> String:
+	return RING_AT.get(offset, "")
 
 
 static func solve(walls: Dictionary) -> Dictionary:
-	## walls: cell (Vector2i) -> {"family": STONE or PALISADE, "gate": bool,
-	## "open": bool, "damage": "" / "CRACK" / "CHUNK"}; missing keys mean a
-	## closed, undamaged stone wall. Returns cell -> TileCatalog name.
-	## - Gates count as wall neighbours. A gate with N and S neighbours is
-	##   GATE_V, otherwise GATE_H; "open" adds _OPEN.
-	## - Inside corners: a CORNER_OUT_q turns into CORNER_IN_q when the cell
-	##   along both of its arms is outside every enclosure and the cell on the
-	##   other side of the bend is enclosed. A corner that encloses nothing
-	##   stays OUT.
-	## - A palisade H with a stone neighbour E or W becomes H_JOIN_E or
-	##   H_JOIN_W (E first); V becomes V_JOIN_N or V_JOIN_S (N first).
-	## - Damage applies to plain H and V only.
-	## A piece with no art in its family (stone GATE_V_OPEN, any V_DMG_CHUNK)
-	## falls back to the closed or undamaged piece.
+	## cell -> {"family", "gate", "open", "damage", "ring"}. Missing keys: closed
+	## undamaged stone. Returns TileCatalog names. Every entry is a neighbour.
+	## Gate N+S is GATE_V, else GATE_H. CORNER_OUT flips to CORNER_IN in a notch.
+	## Damage applies to plain H and V only.
 	var outside := _outside(walls)
 	var out := {}
 	for cell: Vector2i in walls:
@@ -45,6 +52,9 @@ static func solve(walls: Dictionary) -> Dictionary:
 		for i in STEPS.size():
 			if walls.has(cell + STEPS[i]):
 				mask |= 1 << i
+		if family == TOWER:
+			out[cell] = _tower_piece(str(w.get("ring", "")), mask)
+			continue
 		var piece: String
 		if w.get("gate", false):
 			piece = "GATE_V" if mask & 5 == 5 else "GATE_H"
@@ -56,8 +66,6 @@ static func solve(walls: Dictionary) -> Dictionary:
 				var q := piece.right(2)
 				if outside.has(cell + BEND_STEP[q]) and not outside.has(cell - BEND_STEP[q]):
 					piece = "CORNER_IN_" + q
-			if family == PALISADE:
-				piece = _join(walls, cell, piece)
 			var damage: String = w.get("damage", "")
 			if damage != "" and (piece == "H" or piece == "V") \
 					and TileCatalog.TILES.has("%s_%s_DMG_%s" % [family, piece, damage]):
@@ -66,14 +74,37 @@ static func solve(walls: Dictionary) -> Dictionary:
 	return out
 
 
-static func _join(walls: Dictionary, cell: Vector2i, piece: String) -> String:
-	var sides := {"H": [["E", Vector2i(1, 0)], ["W", Vector2i(-1, 0)]],
-		"V": [["N", Vector2i(0, -1)], ["S", Vector2i(0, 1)]]}
-	for side in sides.get(piece, []):
-		var at: Vector2i = cell + side[1]
-		if walls.has(at) and walls[at].get("family", STONE) == STONE:
-			return "%s_JOIN_%s" % [piece, side[0]]
-	return piece
+static func caps(walls: Dictionary) -> Dictionary:
+	## Palisade cell -> every CAP_COLLAR_* on a stone side, N then E then S then W.
+	## Drawing uses the first two. A third or fourth has no approved layer or baked tile.
+	var out := {}
+	for cell: Vector2i in walls:
+		var w: Dictionary = walls[cell]
+		if w.get("family", STONE) != PALISADE:
+			continue
+		var list: Array[String] = []
+		for i in STEPS.size():
+			var at: Vector2i = cell + STEPS[i]
+			if walls.has(at) and _is_stone(walls[at]):
+				list.append("CAP_COLLAR_" + SIDE[i])
+		if not list.is_empty():
+			out[cell] = list
+	return out
+
+
+static func _is_stone(w: Dictionary) -> bool:
+	var family: String = w.get("family", STONE)
+	return family == STONE or family == TOWER
+
+
+static func _tower_piece(ring: String, mask: int) -> String:
+	var arms := ""
+	var possible: String = RING_ARMS.get(ring, "")
+	for i in possible.length():
+		var bit := "NESW".find(possible[i])
+		if bit >= 0 and (mask & (1 << bit)) != 0:
+			arms += possible[i]
+	return "TOWER_STONE_%s_%s" % [ring, "X" if arms.is_empty() else arms]
 
 
 static func _outside(walls: Dictionary) -> Dictionary:
