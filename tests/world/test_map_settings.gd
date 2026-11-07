@@ -375,7 +375,7 @@ func _test_map_settings_uses_menu_theme() -> int:
 	if panel.theme != theme:
 		printerr("FAIL map_settings_uses_menu_theme panel root theme is %s" % panel.theme)
 		fail += 1
-	for button_name in ["RandomSeed", "Reset", "Back", "Start"]:
+	for button_name in ["RandomSeed", "RandomSpecs", "Reset", "Back", "Start"]:
 		var b: Button = panel.find_child(button_name)
 		if b.get_theme_stylebox("normal") != theme.get_stylebox("normal", "Button") \
 				or b.get_theme_font("font") != theme.default_font \
@@ -410,6 +410,7 @@ func _test_map_settings_rows_centered() -> int:
 	for spin in panel._spin_boxes.values():
 		rows.append(spin.get_parent())
 	rows.append(panel.find_child("Buttons"))
+	rows.append(panel.find_child("ButtonsDefaults"))
 	rows.append(panel.find_child("Buttons2"))
 	for row in rows:
 		# Extent of the row's children, which is what the player sees.
@@ -525,7 +526,7 @@ func _test_map_settings_bottom_buttons_visible() -> int:
 				% [row_name, rect, vp, rect.end.y - vp.end.y]
 			)
 			fail += 1
-	for button_name in ["Back", "Start"]:
+	for button_name in ["RandomSeed", "RandomSpecs", "Reset", "Back", "Start"]:
 		var b: Control = panel.find_child(button_name, true, false)
 		if b == null:
 			printerr("FAIL map_settings_bottom_buttons_visible: missing %s" % button_name)
@@ -541,4 +542,103 @@ func _test_map_settings_bottom_buttons_visible() -> int:
 	panel.queue_free()
 	if fail == 0:
 		print("PASS test_map_settings_bottom_buttons_visible viewport=%s" % vp.size)
+	return fail
+
+
+func _test_map_settings_five_button_rows() -> int:
+	## Five Map Settings actions: two equal pairs, then Host with these alone.
+	## The four shorter labels are narrower than the old 160 px floor; the host
+	## label keeps the width its text needs. Rows stay inside the 480x270
+	## viewport and do not overlap. Time cost: ~0.05 s in verify (measured
+	## 45 ms inside the running suite).
+	print("-- test_map_settings_five_button_rows")
+	var theme: Theme = load("res://art/ui/main_menu_theme.tres")
+	var font: Font = theme.default_font
+	var font_size: int = theme.get_font_size("font_size", "Button")
+	var style: StyleBox = theme.get_stylebox("normal", "Button")
+	var pad_x: float = style.get_content_margin(SIDE_LEFT) + style.get_content_margin(SIDE_RIGHT)
+	var panel = load("res://map_admin_panel.tscn").instantiate()
+	root.add_child(panel)
+	for i in 5:
+		await process_frame
+	var vp: Rect2 = root.get_visible_rect()
+	var fail := 0
+	var rows := {
+		"Buttons": ["RandomSeed", "RandomSpecs"],
+		"ButtonsDefaults": ["Reset", "Back"],
+		"Buttons2": ["Start"],
+	}
+	var rects: Array[Rect2] = []
+	var pair_left := -1.0
+	var pair_width := -1.0
+	for row_name in ["Buttons", "ButtonsDefaults", "Buttons2"]:
+		var row: HBoxContainer = panel.get_node("Margin/VBox/" + row_name)
+		var want: Array = rows[row_name]
+		var children := row.get_children()
+		if children.size() != want.size():
+			printerr("FAIL map_settings_five_button_rows %s has %s children, want %s" % [row_name, children.size(), want])
+			fail += 1
+			continue
+		if row.get_theme_constant("separation") < 6:
+			printerr("FAIL map_settings_five_button_rows %s separation %s, want at least 6" % [row_name, row.get_theme_constant("separation")])
+			fail += 1
+		var prev_end := -1.0
+		for i in children.size():
+			var b: Button = children[i]
+			if b.name != want[i]:
+				printerr("FAIL map_settings_five_button_rows %s child %s is %s" % [row_name, i, b.name])
+				fail += 1
+			var rect := b.get_global_rect()
+			rects.append(rect)
+			if not vp.encloses(rect):
+				printerr("FAIL map_settings_five_button_rows %s rect %s outside %s" % [b.name, rect, vp])
+				fail += 1
+			if b.size.y < 24.0:
+				printerr("FAIL map_settings_five_button_rows %s height %s is under 24" % [b.name, b.size.y])
+				fail += 1
+			var text_w := font.get_string_size(b.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+			if b.size.x + 0.5 < text_w + pad_x:
+				printerr(
+					"FAIL map_settings_five_button_rows %s width %s clips text %s + pad %s"
+					% [b.name, b.size.x, text_w, pad_x]
+				)
+				fail += 1
+			if b.name != "Start" and b.size.x >= 160.0:
+				printerr("FAIL map_settings_five_button_rows %s width %s is not under the old 160 floor" % [b.name, b.size.x])
+				fail += 1
+			if prev_end >= 0.0 and rect.position.x < prev_end + 6.0:
+				printerr("FAIL map_settings_five_button_rows %s gap %.1f is under 6" % [b.name, rect.position.x - prev_end])
+				fail += 1
+			prev_end = rect.end.x
+		if want.size() == 2:
+			var left: float = children[0].get_global_rect().position.x
+			var width: float = children[0].size.x
+			if absf(children[1].size.x - width) > 1.0:
+				printerr("FAIL map_settings_five_button_rows %s button widths %.1f and %.1f differ" % [row_name, width, children[1].size.x])
+				fail += 1
+			if pair_left < 0.0:
+				pair_left = left
+				pair_width = width
+			elif absf(left - pair_left) > 1.0 or absf(width - pair_width) > 1.0 or absf(children[1].size.x - width) > 1.0:
+				printerr(
+					"FAIL map_settings_five_button_rows %s left %.1f width %.1f does not match the other pair (%.1f, %.1f)"
+					% [row_name, left, width, pair_left, pair_width]
+				)
+				fail += 1
+	var host: Button = panel.get_node("Margin/VBox/Buttons2/Start")
+	if absf(host.get_global_rect().get_center().x - vp.get_center().x) > 1.0:
+		printerr("FAIL map_settings_five_button_rows Host is not centered on the viewport")
+		fail += 1
+	for i in rects.size():
+		for j in range(i + 1, rects.size()):
+			if rects[i].intersects(rects[j]):
+				printerr("FAIL map_settings_five_button_rows overlap %s and %s" % [rects[i], rects[j]])
+				fail += 1
+	var scroll: Control = panel.get_node("Margin/VBox/Scroll")
+	if scroll.size.y < 80.0:
+		printerr("FAIL map_settings_five_button_rows scroll height %s leaves no room for the form" % scroll.size.y)
+		fail += 1
+	panel.queue_free()
+	if fail == 0:
+		print("PASS test_map_settings_five_button_rows viewport=%s" % vp.size)
 	return fail
