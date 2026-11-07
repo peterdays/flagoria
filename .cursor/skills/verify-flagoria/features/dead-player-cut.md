@@ -6,7 +6,7 @@ A dead hero cannot cut trees or bushes (#349). In interact mode a tap or a drag 
 
 ## Sub-features
 
-- `dead-input` while the local player's `PlayerHealth.is_dead()` is true, interact-mode touches are ignored: a drag over a tree in reach and a tap on it leave the tree and add no wood. A touch that began while alive is dropped. After the respawn the same drag cuts again.
+- `dead-input` while the local player's `PlayerHealth.is_dead()` is true, interact-mode touches are ignored: a drag over a tree in reach and a tap on it leave the tree and add no wood. A touch that began while alive is dropped. After the respawn the same one-tree drag starts the chop; the test steps it to the stump.
 - `dead-host-refuse` the host's `request_cut` returns without cutting when the sender's player is dead, before the reach check: no stump on any peer and no wood for the sender.
 - `painted-tree-survives-respawn` a TREE painted on grass stays a tree after `health.respawn()` even when MapGen seeds would grow a bush there (#359): the painted scene pins spawn on the stand cell and freezes TileMap processing so `resolve_player_spawn` does not `generate_chunk` over the paint.
 

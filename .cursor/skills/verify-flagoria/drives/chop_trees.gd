@@ -10,6 +10,9 @@ const SETTLE_FRAMES := 10  ## physics frames the hero must keep still
 const TAPS := 3  ## taps tried before the drive fails
 const START_S := 0.5  ## s a tap has to start a chop
 const FALL_S := 2.0  ## s a started chop has to leave a stump (fell_at(2) is 0.56)
+## Viewport px of a one-tree drag. Past the 6 px threshold, and short enough
+## that the box still holds only the tree under the finger.
+const ONE_DRAG_PX := 7.0
 ## The chop's sounds in order, with the clip number dropped (#265).
 const SOUNDS := ["tree_chop", "leaf_rustle", "tree_chop", "leaf_rustle", "tree_crack", "tree_fall", "wood_pickup"]
 
@@ -65,6 +68,27 @@ func run() -> void:
 		done(false)
 		return
 	await snapshot("after")
+
+	step("one-drag")
+	if not await one_drag(it, map, "drag-impact", "drag-cut"):
+		done(false)
+		return
+
+	step("range")
+	if not await range_cut(it, map):
+		done(false)
+		return
+
+	step("constrained")
+	if not await _resize(854, 480):
+		done(false)
+		return
+	if not await one_drag(it, map, "drag-impact-constrained", "drag-cut-constrained"):
+		done(false)
+		return
+	if not await _resize(1280, 720):
+		done(false)
+		return
 
 	step("save")
 	var saved := []
@@ -123,8 +147,30 @@ func chop(it: Node, map: TileMap, cell: Vector2i, hits: int) -> bool:
 		if not await wait_until(func() -> bool: return it.chopping() or not _hits.is_empty(), START_S):
 			printerr("chop: tap %d started no chop: %s" % [attempt, diagnose(it, map, cell)])
 			continue
+		var saw_swing := false
+		var saw_impact := false
 		var stump := func() -> bool: return map.get_cell_atlas_coords(GROUND_DECOR_LAYER, cell) == TileCatalog.STUMP
-		var stumped: bool = await wait_until(stump, FALL_S)
+		var stumped := false
+		var deadline := Time.get_ticks_msec() + int(FALL_S * 1000.0)
+		while Time.get_ticks_msec() < deadline:
+			var pose: Sprite2D = hero().get_node("ChopSprite")
+			if it.chopping() and pose.visible:
+				var col: int = pose.frame_coords.x
+				if col >= 1 and not saw_swing:
+					saw_swing = true
+					print("chop: swing frame %s" % pose.frame_coords)
+					await snapshot("swing")
+				if col >= 2 and not saw_impact:
+					saw_impact = true
+					print("chop: impact frame %s" % pose.frame_coords)
+					await snapshot("impact")
+			if stump.call():
+				stumped = true
+				break
+			await process_frame
+		if not saw_swing or not saw_impact:
+			printerr("chop: tap %d did not show the chop sheet (swing %s, impact %s)" % [attempt, saw_swing, saw_impact])
+			return false
 		if _hits.any(func(c: Vector2i) -> bool: return c != cell):
 			printerr("chop: tap %d chopped %s, not the tree at %s" % [attempt, _hits, cell])
 			return false
@@ -137,6 +183,182 @@ func chop(it: Node, map: TileMap, cell: Vector2i, hits: int) -> bool:
 		printerr("chop: tap %d chop ended with no stump after %d hit(s): %s" % [attempt, _hits.size(), diagnose(it, map, cell)])
 	printerr("chop: no stump at %s after %d taps" % [cell, TAPS])
 	return false
+
+
+## A finger drag whose box holds one tree. The chop sheet reaches an impact
+## frame, then that tree becomes a stump. `impact_label` and `cut_label` are
+## the snapshot names.
+func one_drag(it: Node, map: TileMap, impact_label: String, cut_label: String) -> bool:
+	var plan := {}
+	for _try in 6:
+		if not await settle():
+			return false
+		plan = _one_plan(it, map)
+		if not plan.is_empty():
+			break
+		await hold("ui_down", 12)
+	if plan.is_empty():
+		printerr("chop: no one-tree drag from %s" % hero().global_position)
+		return false
+	var cell: Vector2i = plan["cell"]
+	print("chop: one-drag targets %d %s, %.1f viewport px, window %s" % [
+			int(plan["count"]), cell, float(plan["px"]), DisplayServer.window_get_size()])
+	var hits: Array[Vector2i] = []
+	var on_hit := func(c: Vector2i, _hit: int) -> void: hits.append(c)
+	it.chop_hit.connect(on_hit)
+	var start: Vector2 = plan["start"]
+	var end_pos: Vector2 = plan["end"]
+	await _drag_window(start, end_pos)
+	var pose: Sprite2D = hero().get_node("ChopSprite")
+	var walk: Sprite2D = hero().get_node("Sprite2D")
+	if not it.chopping() or it.chop_cell != cell or not pose.visible or walk.visible \
+			or map.choppable(cell) == null:
+		it.chop_hit.disconnect(on_hit)
+		printerr("chop: one-drag did not start on %s (chopping %s cell %s pose %s walk %s tree %s)" % [
+				cell, it.chopping(), it.chop_cell, pose.visible, walk.visible, map.choppable(cell) != null])
+		return false
+	var saw_impact := false
+	var stumped := false
+	var deadline := Time.get_ticks_msec() + int(FALL_S * 1000.0)
+	while Time.get_ticks_msec() < deadline:
+		if it.chopping() and pose.visible and pose.frame_coords.x >= 2 and not saw_impact:
+			saw_impact = true
+			print("chop: one-drag impact frame %s" % pose.frame_coords)
+			await snapshot(impact_label)
+		if map.get_cell_atlas_coords(GROUND_DECOR_LAYER, cell) == TileCatalog.STUMP:
+			stumped = true
+			break
+		await process_frame
+	it.chop_hit.disconnect(on_hit)
+	await snapshot(cut_label)
+	var own := not hits.any(func(c: Vector2i) -> bool: return c != cell)
+	if not saw_impact or not stumped or hits.size() != 2 or not own:
+		printerr("chop: one-drag result swing %s stump %s hits %s" % [saw_impact, stumped, hits])
+		return false
+	print("chop: one-drag stump at %s after %d hit(s)" % [cell, hits.size()])
+	return true
+
+
+## A drag of ONE_DRAG_PX viewport px that boxes exactly one tree, or {}.
+func _one_plan(it: Node, map: TileMap) -> Dictionary:
+	var zoom: Node = hero().get_node_or_null("Camera2D/MapZoom")
+	var stretch := root.get_final_transform()
+	var dirs: Array[Vector2] = []
+	for i in 8:
+		dirs.append(Vector2.from_angle(float(i) * TAU / 8.0) * ONE_DRAG_PX)
+	for c in _trees_in_reach(it, map):
+		var cell: Vector2i = c
+		var origin_view := map.get_global_transform_with_canvas() * map.map_to_local(cell)
+		for d in dirs:
+			if d.length() <= 6.0:
+				continue
+			var end_view := origin_view + d
+			if zoom != null and (bool(zoom.call("starts_on_hud", origin_view)) \
+					or bool(zoom.call("starts_on_hud", end_view))):
+				continue
+			var rect := Rect2(it.to_world(origin_view), Vector2.ZERO).expand(it.to_world(end_view))
+			var cells: Array = it.choppables_in_rect(rect)
+			if cells.size() == 1 and cells[0] == cell:
+				return {
+					"cell": cell,
+					"start": stretch * origin_view,
+					"end": stretch * end_view,
+					"count": cells.size(),
+					"px": d.length(),
+				}
+	return {}
+
+
+## Drags across two trees in reach. Both become stumps at once and the hero
+## stays on the walk sprite: a range cut, not a chop.
+func range_cut(it: Node, map: TileMap) -> bool:
+	var pair: Array[Vector2i] = []
+	for _try in 6:
+		pair = _axis_pair(_trees_in_reach(it, map))
+		if pair.size() == 2:
+			break
+		await hold("ui_down", 15)
+		if not await settle():
+			return false
+	if pair.size() != 2:
+		printerr("chop: no two trees in a row to range-cut from %s" % hero().global_position)
+		return false
+	var a: Vector2i = pair[0]
+	var b: Vector2i = pair[1]
+	print("chop: range %s -> %s" % [a, b])
+	var start := to_window(map, map.map_to_local(a))
+	var end := to_window(map, map.map_to_local(b))
+	await _drag_window(start, end)
+	var pose: Sprite2D = hero().get_node("ChopSprite")
+	var cut: bool = map.choppable(a) == null and map.choppable(b) == null and not it.chopping() and not pose.visible
+	print("chop: range cut %s pose %s chopping %s" % [cut, pose.visible, it.chopping()])
+	await snapshot("range")
+	if not cut:
+		printerr("chop: the drag did not range-cut %s and %s (chopping %s, pose %s)" % [a, b, it.chopping(), pose.visible])
+		return false
+	return true
+
+
+func _drag_window(start: Vector2, end_pos: Vector2) -> void:
+	var press := InputEventScreenTouch.new()
+	press.index = 0
+	press.pressed = true
+	press.position = start
+	Input.parse_input_event(press)
+	await process_frame
+	await process_frame
+	var drag := InputEventScreenDrag.new()
+	drag.index = 0
+	drag.position = end_pos
+	drag.relative = end_pos - start
+	Input.parse_input_event(drag)
+	await process_frame
+	await process_frame
+	var lift := InputEventScreenTouch.new()
+	lift.index = 0
+	lift.pressed = false
+	lift.position = end_pos
+	Input.parse_input_event(lift)
+	await process_frame
+	await process_frame
+
+
+func _trees_in_reach(it: Node, map: TileMap) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	var at := map.local_to_map(map.to_local(hero().global_position))
+	for dy in range(-8, 9):
+		for dx in range(-8, 9):
+			var c := at + Vector2i(dx, dy)
+			var t: Resource = map.choppable(c)
+			if t != null and t.get("id") in ["tree", "pine"] and it.in_reach(c):
+				out.append(c)
+	return out
+
+
+func _axis_pair(cells: Array[Vector2i]) -> Array[Vector2i]:
+	var best: Array[Vector2i] = []
+	var best_d := 99
+	for i in cells.size():
+		for j in range(i + 1, cells.size()):
+			var d: Vector2i = cells[j] - cells[i]
+			if d.x != 0 and d.y != 0:
+				continue
+			var span := absi(d.x) + absi(d.y)
+			if span >= 1 and span < best_d:
+				best_d = span
+				best = [cells[i], cells[j]]
+	return best
+
+
+func _resize(width: int, height: int) -> bool:
+	root.size = Vector2i(width, height)
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	DisplayServer.window_set_size(Vector2i(width, height))
+	for _i in 10:
+		await process_frame
+	var got := DisplayServer.window_get_size()
+	print("chop: window %s (asked %dx%d)" % [got, width, height])
+	return got.x == width and got.y == height
 
 
 func diagnose(it: Node, map: TileMap, cell: Vector2i) -> String:
