@@ -164,7 +164,7 @@ Older single edge tiles, kept for hand-placed maps.
 
 ## Bridges
 
-Plank bridges sit on layer 0, the ground layer, in place of water. They have no collision, so the hero walks on them, and they are not a mob home. `TileMap.build_bridge(from, to)` (`Scripts/mechanics/bridges/bridge_builder.gd`) lays one straight run over generated water and picks the pieces with `bridge_pieces`. Placed bridges stay when a chunk is drawn again and are cleared by a new map.
+Plank bridges sit on layer 0, the ground layer, in place of water. They have no collision, so the hero walks on them, and they are not a mob home. `TileMap.build_bridge(from, to)` (`Scripts/mechanics/bridges/bridge_builder.gd`) lays one straight run over generated water. Each placed cell then takes its `_WATER` piece from the planks and walkable ground beside it, and every placed cell is solved again, including after `erase_cells`. Plain `H` / `V` continues the deck, so two runs that meet have no end cap on the shared side. `START` / `END` / `SINGLE` (the rope and tying) appear only on a side that touches walkable ground. `TIP_*` appears only on a side of open water. The longer straight run keeps its axis when a shorter branch meets it. `bridge_pieces` is that same choice for one run with no other plank beside it. Placed bridges stay when a chunk is drawn again and are cleared by a new map.
 
 H runs west to east, V runs north to south. `START` has a land joint on the west (H) or north (V) end, `END` on the east or south end, `SINGLE` on both. `TIP_x` is an unfinished end that points to x. The `_WATER` pieces have water baked in and are the ones placed today. The plain pieces have a transparent background for sky shores. `BROKEN` pieces are art only: nothing places them yet.
 

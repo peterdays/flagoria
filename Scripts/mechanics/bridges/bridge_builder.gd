@@ -3,6 +3,9 @@ extends RefCounted
 ## Plank bridges on the world map: laying a straight run over water and the
 ## placed pieces. Moved from Scripts/TileMap.gd (#261). The map keeps wrappers
 ## with the same names and asks has_bridge / piece / piece_or when it draws a chunk.
+## A cell's piece follows the planks and land next to it (#416): plain deck
+## where two runs meet, a land joint only against walkable ground, a tip only
+## against open water. Placing or removing a run solves the whole set again.
 ## Host sync (#297): to_sync / replace_from_host carry the placed cells to a
 ## joining peer with the map params; live placements go through Interaction.
 ## World saves (#226): to_changes / from_changes turn that same list into
@@ -73,6 +76,7 @@ func replace_from_host(list: Array) -> int:
 		_map._predict_cache.erase(cell)
 		if _map.get_cell_source_id(0, cell) != -1:
 			_map.set_cell(0, cell, TileCatalog.SOURCE_ID, atlas)
+	_resolve_all()
 	return _bridge_cells.size()
 
 
@@ -126,41 +130,57 @@ static func _plank_names() -> Dictionary:
 
 func build_bridge(from: Vector2i, to: Vector2i) -> bool:
 	## Lay a straight plank bridge on the water cells from `from` to `to`, both
-	## included, in one row (H) or one column (V). An end piece shows a land
-	## joint when the cell past it is walkable ground, else an unfinished tip.
-	## Planks have no collision, so the hero walks on them; they stay when
-	## the chunk is drawn again. False, and nothing placed, unless every cell
-	## is generated water with no bridge yet.
+	## included, in one row (H) or one column (V). Planks have no collision, so
+	## the hero walks on them; they stay when the chunk is drawn again. False,
+	## and nothing placed, unless every cell is generated water with no bridge
+	## yet. Pieces are not kept from this run's ends: `_resolve_all` picks each
+	## placed cell from the planks and land beside it, including cells already
+	## there, so a second run that meets this one becomes one deck.
 	if from.x != to.x and from.y != to.y:
 		return false
 	var first := Vector2i(mini(from.x, to.x), mini(from.y, to.y))
 	var length := absi(to.x - from.x) + absi(to.y - from.y) + 1
-	var land := func(c: Vector2i) -> bool:
-		return not _bridge_cells.has(c) and _map.ground_is_walkable(_map.predict_cell(c)[0])
-	var horizontal := from.x != to.x
-	if from == to:  # one cell: across the land it touches, H by default
-		horizontal = land.call(first + Vector2i.LEFT) or land.call(first + Vector2i.RIGHT) \
-				or not (land.call(first + Vector2i.UP) or land.call(first + Vector2i.DOWN))
-	var step := Vector2i.RIGHT if horizontal else Vector2i.DOWN
+	var step := Vector2i.RIGHT if from.y == to.y else Vector2i.DOWN
 	for i in length:
 		var c := first + step * i
 		if _bridge_cells.has(c) or _map.predict_cell(c)[0] != TileCatalog.WATER:
 			return false
-	var pieces := bridge_pieces(length, horizontal, land.call(first - step), land.call(first + step * length))
 	for i in length:
 		var c := first + step * i
-		_bridge_cells[c] = pieces[i]
+		_bridge_cells[c] = Vector2i.ZERO
 		_map.tree_sprouts().touch(c)
 		_map._predict_cache.erase(c)
-		if _map.get_cell_source_id(0, c) != -1:
-			_map.set_cell(0, c, TileCatalog.SOURCE_ID, pieces[i])
+	_resolve_all()
+	return true
+
+
+func erase_cells(cells: Array[Vector2i]) -> bool:
+	## Take bridge cells off the map and solve what remains. A neighbour that
+	## lost the plank beside it shows a tip or a land joint again. True when at
+	## least one cell was a bridge. A cell that was drawn returns to the water
+	## the map generates there.
+	var gone: Array[Vector2i] = []
+	for cell in cells:
+		if not _bridge_cells.has(cell):
+			continue
+		_bridge_cells.erase(cell)
+		gone.append(cell)
+	if gone.is_empty():
+		return false
+	for cell in gone:
+		_map._predict_cache.erase(cell)
+		if _map.get_cell_source_id(0, cell) != -1:
+			_map.set_cell(0, cell, TileCatalog.SOURCE_ID, _map.predict_cell(cell)[0])
+	_resolve_all()
 	return true
 
 
 static func bridge_pieces(length: int, horizontal: bool, land_before: bool, land_after: bool) -> Array[Vector2i]:
-	## The _WATER plank pieces of a straight run of `length` cells, W->E (H) or
-	## N->S (V): START/END where land is before/after the run, SINGLE for one
-	## cell with land on both sides, TIP_ at an end with no land, H/V between.
+	## The _WATER plank pieces of one isolated straight run of `length` cells,
+	## W->E (H) or N->S (V): START/END where land is before/after the run,
+	## SINGLE for one cell with land on both sides, TIP_ at an end with no land,
+	## H/V between. Placed cells use `_piece_at` instead, which matches this for
+	## a run with no other plank beside it.
 	var axis := "H" if horizontal else "V"
 	var out: Array[Vector2i] = []
 	for i in length:
@@ -179,3 +199,92 @@ static func bridge_pieces(length: int, horizontal: bool, land_before: bool, land
 			piece += "_TIP_W" if horizontal else "_TIP_N"
 		out.append(TileCatalog.TILES["BRIDGE_PLANK_%s_WATER" % piece]["atlas"])
 	return out
+
+
+func _resolve_all() -> void:
+	## Pick every placed cell's piece from the planks and land around it, and
+	## repaint a drawn cell whose piece changed.
+	var cells: Array = _bridge_cells.keys()
+	for cell in cells:
+		var atlas := _piece_at(cell)
+		var prev: Vector2i = _bridge_cells[cell]
+		_bridge_cells[cell] = atlas
+		if prev == atlas:
+			continue
+		_map._predict_cache.erase(cell)
+		if _map.get_cell_source_id(0, cell) != -1:
+			_map.set_cell(0, cell, TileCatalog.SOURCE_ID, atlas)
+
+
+func _piece_at(cell: Vector2i) -> Vector2i:
+	var horizontal := _span_horizontal(cell)
+	var back := Vector2i.LEFT if horizontal else Vector2i.UP
+	var fore := Vector2i.RIGHT if horizontal else Vector2i.DOWN
+	return _piece_from_sides(horizontal, _neighbour(cell + back), _neighbour(cell + fore))
+
+
+func _span_horizontal(cell: Vector2i) -> bool:
+	## Axis of the plank at `cell`. The longer straight run of bridges wins, so
+	## a short side branch does not turn the main deck. With no bridge next to
+	## the cell, land on the left or right (or no land above or below) keeps it
+	## horizontal: the same choice a one-cell run used before neighbour solving.
+	var west := _neighbour(cell + Vector2i.LEFT)
+	var east := _neighbour(cell + Vector2i.RIGHT)
+	var north := _neighbour(cell + Vector2i.UP)
+	var south := _neighbour(cell + Vector2i.DOWN)
+	var h_span := 0
+	var v_span := 0
+	if west == "bridge" or east == "bridge":
+		h_span = 1 + _bridge_steps(cell, Vector2i.LEFT) + _bridge_steps(cell, Vector2i.RIGHT)
+	if north == "bridge" or south == "bridge":
+		v_span = 1 + _bridge_steps(cell, Vector2i.UP) + _bridge_steps(cell, Vector2i.DOWN)
+	if h_span != v_span:
+		return h_span > v_span
+	if h_span == 0:
+		return west == "land" or east == "land" or not (north == "land" or south == "land")
+	if (west == "land" or east == "land") != (north == "land" or south == "land"):
+		return west == "land" or east == "land"
+	return true
+
+
+func _bridge_steps(cell: Vector2i, step: Vector2i) -> int:
+	var n := 0
+	var at := cell + step
+	while _bridge_cells.has(at):
+		n += 1
+		at += step
+	return n
+
+
+func _neighbour(cell: Vector2i) -> String:
+	## "bridge" when a plank is there, "land" on walkable generated ground,
+	## "open" on water or other blocked ground. A plank is not land: the joint
+	## rope belongs on a shore, not on the cell where two placements meet.
+	if _bridge_cells.has(cell):
+		return "bridge"
+	if _map.ground_is_walkable(_map.predict_cell(cell)[0]):
+		return "land"
+	return "open"
+
+
+static func _piece_from_sides(horizontal: bool, before: String, after: String) -> Vector2i:
+	## _WATER piece for one cell. `before` is west (H) or north (V), `after` is
+	## east or south. A bridge side continues the deck. Land puts the joint on
+	## that side (START / END / SINGLE). Open water opposite a continuation is
+	## the tip that points at the open side. A cell with open water on both
+	## sides uses the far tip, matching bridge_pieces for one cell.
+	var axis := "H" if horizontal else "V"
+	var piece := axis
+	if before == "land" and after == "land":
+		piece += "_SINGLE"
+	elif before == "land":
+		piece += "_START"
+	elif after == "land":
+		piece += "_END"
+	elif before == "bridge" and after != "bridge":
+		piece += "_TIP_E" if horizontal else "_TIP_S"
+	elif after == "bridge" and before != "bridge":
+		piece += "_TIP_W" if horizontal else "_TIP_N"
+	elif before != "bridge":
+		piece += "_TIP_E" if horizontal else "_TIP_S"
+	return TileCatalog.TILES["BRIDGE_PLANK_%s_WATER" % piece]["atlas"]
