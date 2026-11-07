@@ -117,10 +117,12 @@ func _test_bridge_joins() -> int:
 	## Two placements that meet become one deck (#416): plain planks across the
 	## old end, rope only on walkable ground, a tip only on open water. Removing
 	## the continuation puts the tip back; placing it again joins the deck.
-	## A one-cell side branch does not turn the longer run. Land, a diagonal,
-	## an occupied cell and a floating cell stay refused. Time cost: about
-	## 0.5 s in tools/verify.sh (~2.2 s for --only=bridge_joins,bridge_planks,
-	## against ~1.7 s of runner start-up).
+	## A one-cell side branch does not turn the longer run. A north-south gap
+	## is placed, removed and rejoined the same way; missing that gap, or a
+	## removal that does not land, fails the test. Land, a diagonal, an
+	## occupied cell and a floating cell stay refused. Time cost: about 0.5 s
+	## in tools/verify.sh (~2.2 s for --only=bridge_joins, against ~1.7 s of
+	## runner start-up).
 	print("-- test_bridge_joins")
 	var fail := 0
 	var scene = load("res://flagoria_main.tscn").instantiate()
@@ -135,14 +137,17 @@ func _test_bridge_joins() -> int:
 		world.apply_map_params(_spawn_params(s, 0.0))
 		world.generate_chunk(Vector2(0, 0))
 		gap = _gap_between_land(world, Vector2i.RIGHT, 4, 8)
-		vertical = _gap_between_land(world, Vector2i.DOWN, 4, 6)
 		plus = _open_plus(world)
+		var avoid: Array[Vector2i] = []
+		avoid.append_array(gap)
+		avoid.append_array(plus)
+		vertical = _column_from_land(world, Vector2i.DOWN, 4, 8, avoid)
 		floating = _floating_water(world, gap, plus)
-		if not gap.is_empty() and not plus.is_empty() and floating.x != 1 << 20:
+		if not gap.is_empty() and not plus.is_empty() and not vertical.is_empty() and floating.x != 1 << 20:
 			seed_value = s
 			break
-	if gap.is_empty() or plus.is_empty() or floating.x == 1 << 20:
-		printerr("FAIL bridge_joins: no shore gap, open plus and floating water on the origin chunk")
+	if gap.is_empty() or plus.is_empty() or vertical.is_empty() or floating.x == 1 << 20:
+		printerr("FAIL bridge_joins: no shore gap, vertical gap, open plus and floating water on the origin chunk")
 		scene.queue_free()
 		return 1
 	# Side branch on a longer straight run, away from the shore gap.
@@ -242,22 +247,42 @@ func _test_bridge_joins() -> int:
 		printerr("FAIL bridge_joins: middle rejoin refused")
 		fail += 1
 	fail += _keys_match(world, gap, deck, "middle rejoined")
-	if not vertical.is_empty() and not _shares(vertical, gap) and not _shares(vertical, plus):
-		var vfirst: Array[Vector2i] = [vertical[0], vertical[1], vertical[2]]
-		var vrest: Array[Vector2i] = []
-		for i in range(3, vertical.size()):
-			vrest.append(vertical[i])
-		if world.build_bridge(vfirst[0], vfirst[2]) and world.build_bridge(vrest[0], vrest[vrest.size() - 1]):
-			fail += _keys_match(world, vertical, _joined_keys(vertical.size(), false, true, true), "vertical joined")
-			if world._bridges.erase_cells(vrest):
-				fail += _keys_match(world, vfirst, _joined_keys(3, false, true, false), "vertical removed")
-		else:
-			printerr("FAIL bridge_joins: vertical run refused")
+	var vfirst: Array[Vector2i] = [vertical[0], vertical[1], vertical[2]]
+	var vrest: Array[Vector2i] = []
+	for i in range(3, vertical.size()):
+		vrest.append(vertical[i])
+	var v_land_after := _walkable_ground(world, vertical[vertical.size() - 1] + Vector2i.DOWN)
+	if not world.build_bridge(vfirst[0], vfirst[2]):
+		printerr("FAIL bridge_joins: vertical first run refused")
+		fail += 1
+	else:
+		fail += _keys_match(world, vfirst, _joined_keys(3, false, true, false), "vertical separate")
+		if not world.build_bridge(vrest[0], vrest[vrest.size() - 1]):
+			printerr("FAIL bridge_joins: vertical continuation refused")
 			fail += 1
+		else:
+			var vdeck: Array = _joined_keys(vertical.size(), false, true, v_land_after)
+			fail += _keys_match(world, vertical, vdeck, "vertical joined")
+			if not world._bridges.erase_cells(vrest):
+				printerr("FAIL bridge_joins: vertical removal failed")
+				fail += 1
+			else:
+				fail += _keys_match(world, vfirst, _joined_keys(3, false, true, false), "vertical removed")
+				for c in vrest:
+					if world.has_bridge(c) or world.get_cell_atlas_coords(0, c) != TileCatalog.WATER:
+						printerr("FAIL bridge_joins: vertical removed %s is %s bridge %s"
+								% [c, world.get_cell_atlas_coords(0, c), world.has_bridge(c)])
+						fail += 1
+				if not world.build_bridge(vrest[0], vrest[vrest.size() - 1]):
+					printerr("FAIL bridge_joins: vertical rejoin refused")
+					fail += 1
+				else:
+					fail += _keys_match(world, vertical, vdeck, "vertical rejoined")
 	scene.queue_free()
 	await process_frame
 	if fail == 0:
-		print("PASS test_bridge_joins (seed %s, gap %s at %s)" % [seed_value, gap.size(), gap[0]])
+		print("PASS test_bridge_joins (seed %s, gap %s at %s, vertical %s at %s)"
+				% [seed_value, gap.size(), gap[0], vertical.size(), vertical[0]])
 	return fail
 
 
@@ -301,9 +326,13 @@ func _joined_keys(n: int, horizontal: bool, land_before: bool, land_after: bool)
 	return keys
 
 
-func _gap_between_land(world, step: Vector2i, min_n: int, max_n: int) -> Array[Vector2i]:
+func _gap_between_land(world, step: Vector2i, min_n: int, max_n: int, avoid: Array = []) -> Array[Vector2i]:
 	## Shortest drawn water run of min_n..max_n cells with walkable ground at
-	## both ends. Empty when the chunk has none.
+	## both ends, skipping any run that uses a cell in `avoid`. Empty when the
+	## chunk has none.
+	var blocked := {}
+	for c in avoid:
+		blocked[c] = true
 	var land := func(c: Vector2i) -> bool:
 		return not world.has_bridge(c) and world.ground_is_walkable(world.predict_cell(c)[0])
 	var best: Array[Vector2i] = []
@@ -311,19 +340,63 @@ func _gap_between_land(world, step: Vector2i, min_n: int, max_n: int) -> Array[V
 		if not land.call(cell):
 			continue
 		var run: Array[Vector2i] = []
+		var hits_avoid := false
 		for i in range(1, max_n + 1):
 			var w: Vector2i = cell + step * i
+			if blocked.has(w):
+				hits_avoid = true
+				break
 			if world.get_cell_source_id(0, w) == -1 or world.predict_cell(w)[0] != TileCatalog.WATER \
 					or world.has_bridge(w):
 				break
 			run.append(w)
-		if run.size() < min_n or not land.call(cell + step * (run.size() + 1)):
+		if hits_avoid or run.size() < min_n or not land.call(cell + step * (run.size() + 1)):
 			continue
 		if world.get_cell_source_id(0, cell + step * (run.size() + 1)) == -1:
 			continue
 		if best.is_empty() or run.size() < best.size():
 			best = run
 	return best
+
+
+func _column_from_land(world, step: Vector2i, min_n: int, max_n: int, avoid: Array) -> Array[Vector2i]:
+	## Water run of min_n..max_n cells leaving walkable ground along `step`.
+	## Skips a run that uses `avoid`. Prefers one that also arrives on walkable
+	## ground; otherwise the shortest whose far cell is drawn, so the end is a
+	## tip when that cell is not walkable ground. Empty when the chunk has none.
+	var blocked := {}
+	for c in avoid:
+		blocked[c] = true
+	var best: Array[Vector2i] = []
+	var best_landed := false
+	for cell in world.get_used_cells(0):
+		if not _walkable_ground(world, cell) or blocked.has(cell):
+			continue
+		var run: Array[Vector2i] = []
+		var stopped := false
+		for i in range(1, max_n + 1):
+			var w: Vector2i = cell + step * i
+			if blocked.has(w) or world.get_cell_source_id(0, w) == -1 \
+					or world.predict_cell(w)[0] != TileCatalog.WATER or world.has_bridge(w):
+				stopped = true
+				break
+			run.append(w)
+		if run.size() < min_n:
+			continue
+		var far: Vector2i = run[run.size() - 1] + step
+		if stopped and blocked.has(far):
+			continue
+		if world.get_cell_source_id(0, far) == -1 or blocked.has(far):
+			continue
+		var landed := _walkable_ground(world, far)
+		if best.is_empty() or (landed and not best_landed) or (landed == best_landed and run.size() < best.size()):
+			best = run
+			best_landed = landed
+	return best
+
+
+func _walkable_ground(world, cell: Vector2i) -> bool:
+	return not world.has_bridge(cell) and world.ground_is_walkable(world.predict_cell(cell)[0])
 
 
 func _open_plus(world) -> Array[Vector2i]:
@@ -373,12 +446,5 @@ func _floating_water(world, gap: Array[Vector2i], plus: Array[Vector2i]) -> Vect
 func _near(cell: Vector2i, cells: Array[Vector2i]) -> bool:
 	for c in cells:
 		if absi(c.x - cell.x) + absi(c.y - cell.y) <= 1:
-			return true
-	return false
-
-
-func _shares(a: Array[Vector2i], b: Array[Vector2i]) -> bool:
-	for c in a:
-		if c in b:
 			return true
 	return false
