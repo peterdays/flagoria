@@ -27,7 +27,9 @@ jobs:
           persist-credentials: false
 
       - name: Self-test the check
-        run: python3 tools/pr_hygiene_test.py
+        run: |
+          python3 tools/pr_hygiene_test.py
+          python3 tools/agent_budget.py --self-test
 
       - name: Check this pull request
         run: python3 tools/pr_hygiene.py --event "$GITHUB_EVENT_PATH"
