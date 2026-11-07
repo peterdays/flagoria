@@ -15,6 +15,28 @@ Write everything in a neutral, impersonal project voice ("the game should…", "
 
 The only personal identity allowed anywhere is the git commit author metadata, using the git commit author identity already configured for commits. Do not repeat that identity in file contents, PR bodies, or issue text.
 
+## New issue format
+
+Every new issue has a concise native GitHub title and these three body sections, in this order:
+
+### What it does
+
+State the intended change or tracking purpose in one sentence.
+
+### Scope
+
+Describe one concern. State what is included and what is out of scope. Link related issues instead of copying their scope.
+
+### Done when
+
+List executable completion checks. Each check identifies an actor, an action, and an observable pass condition. Avoid criteria such as "works correctly" without a defined result.
+
+Use the task issue form when available. Issues created through the API, CLI, or any other route must use the same native title and body sections.
+
+This format applies to all new issues, including roadmap and epic trackers. A new tracker links its tasks and defines completion as acceptance of the included tasks, with deferred scope stated explicitly.
+
+Do not automatically rewrite historical issues to match this format.
+
 ## Other house rules
 
 - Two-player multiplayer must keep working after every change.
@@ -33,7 +55,8 @@ The only personal identity allowed anywhere is the git commit author metadata, u
 - For scripted verification recipes (launch, doctor, drive, evidence), use `.cursor/skills/verify-flagoria/` when that skill is present.
 - Every new player-facing mechanic (a new choppable, a tower, a wall type, a city rule) adds its feature file `.cursor/skills/verify-flagoria/features/<feature>.md` and its index line in `features/README.md` in the same pull request. It also adds a drive under `.cursor/skills/verify-flagoria/drives/` when a player can reach the feature in a running game. Before each checkpoint in #253's gate, a verification maintenance pass checks the skill against the game. The rule and the pass are described in [docs/architecture.md](docs/architecture.md#rules).
 - Before a pull request is Ready: run that feature's drive locally under xvfb (`./.cursor/skills/verify-flagoria/bin/launch.sh drives/<name>.gd --display`, using the feature file's `Drive:` line), compare the screenshots to the screens the feature file promises, fix mismatches, and attach the screenshots on the pull request (or point at the CI `drive-screenshots` artifact). Pull requests that are not player-facing skip the drive and say so under Feature file.
-- Merges need the repository's required checks green and review threads resolved.
+- Merges require these four checks to pass on the current pull request head: `Load project and parse scripts`, `Privacy and size check`, `Netcode stress`, and `Gameplay drives`. Review threads must be resolved. Gameplay pull requests also require the contributor's own feature drive run and reviewed screenshot evidence, as described above. These requirements do not replace the approval rules under Human in the loop.
+- Roadmap and epic trackers follow [docs/issue-trackers.md](docs/issue-trackers.md).
 
 ## Known mistakes and the rules that prevent them
 
@@ -55,6 +78,7 @@ Agents do not take irreversible project actions on their own. The maintainer app
 
 - Never merge, deploy, change secrets or permissions, or run destructive git commands (force-push to shared branches, history rewrites, branch deletion, hard resets of others' work) without the maintainer's approval.
 - Opening pull requests, filing issues, and commenting are fine.
-- Merges happen only through the maintainer's pipeline: CI green, Play Sentinel PASS (the project's gameplay and usability review), and review threads resolved.
+- Merges happen only through the maintainer's pipeline and require approval or an existing standing permission that covers the specific merge. These four checks must pass on the current pull request head: `Load project and parse scripts`, `Privacy and size check`, `Netcode stress`, and `Gameplay drives`. Review threads must be resolved. For gameplay changes, the contributor runs the relevant feature drive, reviews its screenshots against the feature's expected behavior, and attaches or links the evidence before marking the pull request Ready.
+- The optional gameplay and usability advisor provides advice only. Its approval is not a QA or merge gate. Contributors remain responsible for verification and evidence. Passing checks or receiving advice grants no merge, release, deployment, or other approval authority.
 
 Related: the privacy rule above, and the small-PR and verify notes under Other house rules.
