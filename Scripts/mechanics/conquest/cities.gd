@@ -3,7 +3,8 @@ extends Node2D
 ## Closed wall loops around a flag tower make a city (#277). For each placement
 ## with a team flag, a flood fill from the flag through non-barrier cells finds
 ## the enclosed region. Barriers are free-form walls and structure WALL_* /
-## PALISADE_* cells (including gates). Water and map edges do not close a city:
+## PALISADE_* cells (including gates). Tower rings are not barriers.
+## Water and map edges do not close a city:
 ## reaching either means the region is open (design decision for #277).
 ## City record: tower id, wall cells, interior cells. Owner follows the tower's
 ## owner (capture via #274 transfers the city). Breaking the loop dissolves it.
@@ -127,6 +128,7 @@ func _city_from_tower(id: int, flags: Array) -> Dictionary:
 
 func _is_barrier(cell: Vector2i) -> bool:
 	## Free-form walls and structure WALL_* / PALISADE_* (gates included).
+	## Tower ring cells are neighbours for the wall solver but not city barriers.
 	if _map.has_wall(cell):
 		return true
 	if not _map._structures.has_cell(cell):
@@ -134,7 +136,8 @@ func _is_barrier(cell: Vector2i) -> bool:
 	var atlas: Vector2i = _map._structures.object_at(cell)
 	if atlas == _map.NO_PLANT:
 		return false
-	return not WallBuilder._atlas_wall_name(atlas).is_empty()
+	var name := WallBuilder._atlas_wall_name(atlas)
+	return name.begins_with("WALL_") or name.begins_with("PALISADE_")
 
 
 func _is_escape(cell: Vector2i) -> bool:

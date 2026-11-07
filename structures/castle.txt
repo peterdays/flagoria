@@ -10,7 +10,7 @@ legend:
   # = WALL_H auto
   F = PROP_FLAG_BLUE team
   G = WALL_GATE_H auto open
-  T = WALL_POST
+  T = WALL_POST auto
   s = SAND
 ground:
   .......

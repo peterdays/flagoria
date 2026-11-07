@@ -11,7 +11,8 @@ starting on the neighbour of the tip toward the finger. Leaving the Wall tool
 clears the tip. Gaps and diagonals are refused with feedback and spend no wood.
 Each wall block costs 2 wood through `ConstructionPlacer` /
 `BuildCosts.WALL_BLOCK` (spend before write, full refund on writer refusal).
-Pieces come from `WallSolver` (`PALISADE_*`); no gates in this slice. Length is
+Pieces come from `WallSolver` (`PALISADE_*`); no gates in this slice. A cell
+that touches stone gets collar overlays ([Wall and tower junctions](./wall-junctions.md)). Length is
 unlimited (reach still bounds a drag). Land only; refuse structures, existing
 walls, players, mobs, trees and bushes. Collision stays when a chunk redraws.
 While multiplayer is on, the Wall icon is hidden (same gate as Plank / Tower);

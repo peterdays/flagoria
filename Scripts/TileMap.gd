@@ -273,7 +273,7 @@ func set_tile_type_z1(pos_vec, alt, moist, _temp, chance, biome_id: int = BiomeC
 			set_cell(1, pos_vec, TileCatalog.SOURCE_ID, _structures.object_at(pos_vec))
 		return
 	if _walls.has_wall(pos_vec):
-		set_cell(1, pos_vec, TileCatalog.SOURCE_ID, _walls.piece(pos_vec))
+		_walls.paint_cell(pos_vec)
 		return
 	if not is_walkable_land(pos_vec) or _bridges.has_bridge(pos_vec):
 		return
