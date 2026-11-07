@@ -1,0 +1,36 @@
+name: Task
+description: Define one focused change and its observable completion criteria.
+body:
+  - type: input
+    id: what-it-does
+    attributes:
+      label: What it does
+      description: State the intended change in one sentence.
+      placeholder: Make adjoining bridge placements display continuous planking.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Describe one concern. State what is included and what is out of scope.
+      placeholder: |
+        Included:
+        - ...
+
+        Out of scope:
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: done-when
+    attributes:
+      label: Done when
+      description: Give executable checks with an actor, an action, and an observable pass condition.
+      placeholder: |
+        - [ ] An automated test places two adjoining bridge segments and confirms no internal end caps.
+        - [ ] A contributor checks the rendered bridge and confirms end details appear only at actual land contacts.
+    validations:
+      required: true
