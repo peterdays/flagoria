@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Build the dedicated image and check it on a compose network: a second
-# container joins, a params mount changes the seed, one crash restarts,
-# and SIGTERM exits 0. Does not use host networking. A client on the host
-# talking to the published UDP port is not this script.
+# Build the dedicated image. Keeps the compose-network join, params,
+# SIGTERM and one-shot restart checks, and also joins the published UDP
+# port from host processes dialing 127.0.0.1 (not the compose DNS name).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -17,10 +16,14 @@ if ! docker info >/dev/null 2>&1; then
 	exit 1
 fi
 
-projects=(flagoria-ds-default flagoria-ds-params flagoria-ds-restart)
+projects=(flagoria-ds-default flagoria-ds-params flagoria-ds-restart flagoria-ds-publish)
+host_pids=()
 clients=(flagoria-ds-client flagoria-ds-params-client flagoria-ds-write)
 cleanup() {
 	local name project
+	if [ "${#host_pids[@]}" -gt 0 ]; then
+		kill "${host_pids[@]}" 2>/dev/null || true
+	fi
 	for name in "${clients[@]}"; do
 		docker rm -f "$name" >/dev/null 2>&1 || true
 	done
@@ -43,8 +46,55 @@ wait_log() {
 	return 1
 }
 
+dump_failure() {
+	local server_id="$1"
+	shift
+	echo "--- host name resolution ---" >&2
+	getent ahosts localhost >&2 || true
+	getent ahosts 127.0.0.1 >&2 || true
+	echo "--- host udp sockets ---" >&2
+	ss -uln >&2 || true
+	echo "--- server logs ---" >&2
+	docker logs "$server_id" >&2 || true
+	local log
+	for log in "$@"; do
+		echo "--- client log ${log} ---" >&2
+		cat "$log" >&2 || true
+	done
+}
+
+json_field() {
+	python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d.get(sys.argv[2], ""))' "$1" "$2"
+}
+
+player_pos() {
+	python3 -c 'import json,sys
+d=json.load(open(sys.argv[1]))
+p=(d.get("players") or {}).get(sys.argv[2])
+print("" if not p else "%s %s" % (p[0], p[1]))' "$1" "$2"
+}
+
+sees_both() {
+	python3 -c 'import json,sys
+d=json.load(open(sys.argv[1]))
+ids=[i for i in (d.get("players") or {}) if i not in ("","0","1")]
+mine=str(d.get("id",""))
+print("yes" if mine not in ("","0","1") and len(ids) >= 2 and mine in ids else "no")' "$1"
+}
+
 echo "== build =="
 docker compose -p flagoria-ds-default build
+
+echo "== import host project for published-port clients =="
+GODOT="${GODOT:-godot}"
+command -v "$GODOT" >/dev/null
+host_xdg="$(mktemp -d)"
+XDG_CONFIG_HOME="${host_xdg}/c" XDG_DATA_HOME="${host_xdg}/d" XDG_CACHE_HOME="${host_xdg}/a" \
+	"$GODOT" --headless --path "$ROOT" --editor --quit
+
+echo "--- host name resolution (diagnostic; the published-port dial is 127.0.0.1) ---"
+getent ahosts localhost || true
+getent ahosts 127.0.0.1 || true
 
 workdir="$(mktemp -d)"
 cat >"${workdir}/join.gd" <<'EOF'
@@ -189,10 +239,32 @@ run_client flagoria-ds-params flagoria-ds-params-client \
 	-e FLAGORIA_SERVER_PORT=9799 -e FLAGORIA_EXPECT_SEED=43701
 wait_log flagoria-ds-params-client "DOCKER_JOINED"
 if ! docker logs flagoria-ds-params-client 2>&1 | grep -q "seed 43701"; then
-	echo "client did not report seed 43701" >&2
+	echo "compose-network client did not report seed 43701" >&2
+	dump_failure "$server_id"
 	docker logs flagoria-ds-params-client >&2 || true
 	exit 1
 fi
+publish_out="${workdir}/publish-9799.json"
+publish_log="${workdir}/publish-9799.log"
+XDG_CONFIG_HOME="${workdir}/h9799/c" XDG_DATA_HOME="${workdir}/h9799/d" XDG_CACHE_HOME="${workdir}/h9799/a" \
+	"$GODOT" --headless --path "$ROOT" --script res://tests/docker_publish_probe.gd -- \
+	--address=127.0.0.1 --port=9799 --out="$publish_out" >"$publish_log" 2>&1 &
+host_pids+=($!)
+seed_ok=0
+for _ in $(seq 1 40); do
+	if [ -f "$publish_out" ] && [ "$(json_field "$publish_out" seed)" = 43701 ]; then
+		seed_ok=1
+		break
+	fi
+	sleep 1
+done
+if [ "$seed_ok" != 1 ]; then
+	echo "host client did not receive seed 43701 via published 127.0.0.1:9799" >&2
+	dump_failure "$server_id" "$publish_log"
+	exit 1
+fi
+echo "published 9799: host client endpoint $(json_field "$publish_out" endpoint) seed 43701"
+kill "${host_pids[-1]}" 2>/dev/null || true
 docker compose -p flagoria-ds-params stop --timeout 15
 server_code="$(docker inspect -f '{{.State.ExitCode}}' "$server_id")"
 if [ "$server_code" != 0 ]; then
@@ -200,6 +272,112 @@ if [ "$server_code" != 0 ]; then
 	exit 1
 fi
 echo "params mount: client received altitude seed 43701"
+
+echo "== published UDP, two host clients, movement, compose restart =="
+FLAGORIA_PUBLISH=127.0.0.1:9786:9786 \
+	docker compose -p flagoria-ds-publish up -d --no-build
+server_id="$(docker compose -p flagoria-ds-publish ps -q)"
+if ! wait_log "$server_id" "Dedicated server listening on UDP port 9786"; then
+	dump_failure "$server_id"
+	exit 1
+fi
+start_host() {
+	local out="$1" log="$2" port="$3" xdg="$4"
+	mkdir -p "${xdg}/c" "${xdg}/d" "${xdg}/a"
+	XDG_CONFIG_HOME="${xdg}/c" XDG_DATA_HOME="${xdg}/d" XDG_CACHE_HOME="${xdg}/a" \
+		"$GODOT" --headless --path "$ROOT" --script res://tests/docker_publish_probe.gd -- \
+		--address=127.0.0.1 --port="$port" --out="$out" >"$log" 2>&1 &
+	host_pids+=($!)
+}
+both_present() {
+	local a="$1" b="$2"
+	[ -f "$a" ] && [ -f "$b" ] || return 1
+	[ "$(sees_both "$a")" = yes ] && [ "$(sees_both "$b")" = yes ]
+}
+start_host "${workdir}/pub-a.json" "${workdir}/pub-a.log" 9786 "${workdir}/xa"
+start_host "${workdir}/pub-b.json" "${workdir}/pub-b.log" 9786 "${workdir}/xb"
+present=0
+for _ in $(seq 1 45); do
+	if both_present "${workdir}/pub-a.json" "${workdir}/pub-b.json"; then
+		present=1
+		break
+	fi
+	sleep 1
+done
+if [ "$present" != 1 ]; then
+	echo "two host clients did not see each other on published 127.0.0.1:9786" >&2
+	dump_failure "$server_id" "${workdir}/pub-a.log" "${workdir}/pub-b.log"
+	exit 1
+fi
+aid="$(json_field "${workdir}/pub-a.json" id)"
+start_xy="$(player_pos "${workdir}/pub-a.json" "$aid")"
+moved=0
+for action in ui_right ui_left ui_down ui_up; do
+	printf '%s\n' "$action" >"${workdir}/pub-a.json.walk"
+	for _ in $(seq 1 8); do
+		now="$(player_pos "${workdir}/pub-a.json" "$aid")"
+		seen="$(player_pos "${workdir}/pub-b.json" "$aid")"
+		if python3 -c 'import sys; a=sys.argv[1].split(); b=sys.argv[2].split(); c=sys.argv[3].split();
+import math
+ok=len(a)==2 and len(b)==2 and len(c)==2 and math.dist((float(a[0]),float(a[1])),(float(b[0]),float(b[1])))>=4 and math.dist((float(b[0]),float(b[1])),(float(c[0]),float(c[1])))<1
+sys.exit(0 if ok else 1)' "$start_xy" "$now" "$seen"; then
+			moved=1
+			break
+		fi
+		sleep 0.5
+	done
+	rm -f "${workdir}/pub-a.json.walk"
+	if [ "$moved" = 1 ]; then
+		break
+	fi
+done
+if [ "$moved" != 1 ]; then
+	echo "published-port clients did not observe movement of ${aid}" >&2
+	dump_failure "$server_id" "${workdir}/pub-a.log" "${workdir}/pub-b.log"
+	exit 1
+fi
+echo "published 9786: both host clients present, movement of ${aid} seen"
+for pid in "${host_pids[@]}"; do
+	kill "$pid" 2>/dev/null || true
+done
+host_pids=()
+before_listen="$(docker logs "$server_id" 2>&1 | grep -c 'Dedicated server listening on UDP port 9786' || true)"
+restart_started=$(date +%s)
+docker compose -p flagoria-ds-publish restart --timeout 15 dedicated
+server_id="$(docker compose -p flagoria-ds-publish ps -q)"
+heard=0
+while [ $(( $(date +%s) - restart_started )) -le 60 ]; do
+	count="$(docker logs "$server_id" 2>&1 | grep -c 'Dedicated server listening on UDP port 9786' || true)"
+	running="$(docker inspect -f '{{.State.Status}}' "$server_id" 2>/dev/null || true)"
+	if [ "$count" -gt "$before_listen" ] && [ "$running" = running ]; then
+		heard=1
+		break
+	fi
+	sleep 1
+done
+if [ "$heard" != 1 ]; then
+	echo "published server did not listen again after docker compose restart" >&2
+	dump_failure "$server_id"
+	exit 1
+fi
+rm -f "${workdir}/re-a.json" "${workdir}/re-b.json"
+start_host "${workdir}/re-a.json" "${workdir}/re-a.log" 9786 "${workdir}/rea"
+start_host "${workdir}/re-b.json" "${workdir}/re-b.log" 9786 "${workdir}/reb"
+rejoined=0
+while [ $(( $(date +%s) - restart_started )) -le 60 ]; do
+	if both_present "${workdir}/re-a.json" "${workdir}/re-b.json"; then
+		rejoined=1
+		break
+	fi
+	sleep 1
+done
+if [ "$rejoined" != 1 ]; then
+	echo "clients did not rejoin via published 127.0.0.1:9786 within 60s of docker compose restart" >&2
+	dump_failure "$server_id" "${workdir}/re-a.log" "${workdir}/re-b.log"
+	exit 1
+fi
+echo "published 9786: rejoin after docker compose restart in $(( $(date +%s) - restart_started ))s"
+docker compose -p flagoria-ds-publish stop --timeout 15
 
 echo "== one crash restart, then a graceful stop =="
 # The entrypoint exits 1 once when FLAGORIA_CRASH_ONCE=1. A manual docker

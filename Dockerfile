@@ -13,12 +13,15 @@ RUN apt-get update \
 		procps \
 	&& rm -rf /var/lib/apt/lists/*
 
+# 4.7.2-stable publishes SHA512-SUMS.txt. It does not publish SHA256-SUMS.txt.
 ARG GODOT_VERSION=4.7.2
-RUN curl -fsSL -o /tmp/godot.zip \
+COPY docker/godot-4.7.2-linux.sha512 /tmp/godot.sha512
+RUN curl -fsSL -o "/tmp/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" \
 		"https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" \
-	&& unzip -q /tmp/godot.zip -d /tmp/godot \
+	&& cd /tmp && sha512sum -c godot.sha512 \
+	&& unzip -q "/tmp/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" -d /tmp/godot \
 	&& install -m 755 "/tmp/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" /usr/local/bin/godot \
-	&& rm -rf /tmp/godot /tmp/godot.zip \
+	&& rm -rf /tmp/godot "/tmp/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" /tmp/godot.sha512 \
 	&& godot --version
 
 # Ubuntu's image already has uid 1000. This account is only the server process.
