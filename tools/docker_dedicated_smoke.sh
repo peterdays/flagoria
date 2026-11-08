@@ -185,7 +185,8 @@ FLAGORIA_PARAMS_FILE="${workdir}/out/map.json" \
 	docker compose -p flagoria-ds-params up -d --no-build
 server_id="$(docker compose -p flagoria-ds-params ps -q)"
 wait_log "$server_id" "Dedicated server listening on UDP port 9799"
-run_client flagoria-ds-params flagoria-ds-params-client -e FLAGORIA_EXPECT_SEED=43701
+run_client flagoria-ds-params flagoria-ds-params-client \
+	-e FLAGORIA_SERVER_PORT=9799 -e FLAGORIA_EXPECT_SEED=43701
 wait_log flagoria-ds-params-client "DOCKER_JOINED"
 if ! docker logs flagoria-ds-params-client 2>&1 | grep -q "seed 43701"; then
 	echo "client did not report seed 43701" >&2
