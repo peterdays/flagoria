@@ -47,7 +47,7 @@ There is no public release planned for now, but the multiplayer experience shoul
 **What is missing**
 
 - No dedicated-server export: `export_presets.cfg` has only the Android preset.
-- No Docker Compose setup yet. The `-- --server` host runs the same game code as a player's host; one client joining it is tested, two clients moving on it are not proven yet.
+- No Docker Compose setup yet. The `-- --server` host runs the same game code as a player's host. One client joining it is tested. Two headless clients on that host, one walking with an input action while the server and the other client see the move, are `test_two_player_smoke`. Two GUI humans, a cut the other client sees, and a sword hit the other client sees are not that test.
 
 **Likely next steps**
 

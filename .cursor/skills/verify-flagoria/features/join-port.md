@@ -30,3 +30,4 @@ Preconditions: `doctor.sh` exits `0`. Time cost: `join_port_button` ~4 s in veri
 - IPv6 is not accepted. `::1` is an unsupported address, not host `:` and port `1`.
 - The client peer timeout is capped (`set_timeout(8, 800, 3000)`), so the port-1 case fails in about 3 s.
 - The drive binds UDP `9786` and `9799` on loopback. Run one copy at a time, and not beside the two-player pair.
+- This drive clicks Join for one client and checks server seeds and nearby ground. It is not `test_two_player_smoke` and not the `drives/two_player/` Host/Join pair. It does not prove two humans, a synced cut, or a synced sword hit.

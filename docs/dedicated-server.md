@@ -8,7 +8,7 @@ Time-boxed findings for a headless dedicated server, plus the dedicated-server b
 
 **Conditional go** on the engine. **No-go** on shipping a dedicated server from product code alone.
 
-Godot 4.7.2 can run headless, bind ENet on UDP, and accept peers. At spike time Flagoria was a listen-server only: Main Menu Host always spawns a local player. The `-- --server` boot path now hosts headless without a local player. There is still no dedicated-server export preset. Two GUI clients moving on a headless host have still not been proven.
+Godot 4.7.2 can run headless, bind ENet on UDP, and accept peers. At spike time Flagoria was a listen-server only: Main Menu Host always spawns a local player. The `-- --server` boot path now hosts headless without a local player. There is still no dedicated-server export preset. Two GUI clients moving and fighting on a headless host have still not been proven. Headless movement of two joiners is a different check: `test_two_player_smoke` (below).
 
 ## Environment
 
@@ -87,7 +87,7 @@ A minimal throwaway project outside the game repo showed:
 
 Headless ENet listen and peer connect work on 4.7.2 without a GPU. Re-run on a free port when 9786 is already taken by another local server.
 
-Not shown: two Flagoria game clients moving on a headless dedicated host. That needs product boot and RPC work. In-game Host/Join on two GUI instances remains the supported play path (README two-player checklist).
+Headless movement of two joiners is `test_two_player_smoke` in `tests/net/test_two_player_smoke.gd`, run by `./tools/verify.sh`. It starts one `--dedicated` process and two headless clients (`tests/late_join_probe.gd`). Client A holds an input action (`ui_right`, `ui_left`, `ui_down`, or `ui_up`) until it has moved at least 4 px. The server and client B then see A within 1 px of where A has itself. The test does not click Main Menu Host or Join. Two humans at two GUI windows, a cut seen by the other client, and a sword hit seen by the other client are not this test. The menu Host/Join pair `drives/two_player/` clicks those buttons and is not this CI test. The Join-port drive `drives/join_port.gd` clicks Join only, against a dedicated server, and checks that server's map seeds and nearby ground; it is one client, not two humans.
 
 ## Dedicated server boot
 
@@ -114,14 +114,22 @@ What the boot does (`start_dedicated_server` in `flagoria_main.gd`):
 
 - Hides the main menu and spawns no local player (no node `1` under `World`).
 - Calls `setup_server` with the `--params` map save, or else the current `MapGen.params`, the same path as Main Menu Host. Seeds left at 0 are randomized.
-- Generates the origin chunk.
+- Generates the origin chunk. `with_castle` is false, so this boot does not place a starting castle. That is intentional: a dedicated host has no local player.
 - Joining clients get a player and the full map params through the existing Join path (`receive_map_params`).
 
 A port outside 1 to 65535, a port that cannot be bound, or a `--params` file that is missing or not a map save logs an error and exits `1`. A launch without `--server` behaves as before.
 
 The server runs until it is stopped. SIGTERM ends the process without a graceful shutdown (exit `143`). There is no quit command yet.
 
+Current limits of this boot, not open bugs to fix in this note:
+
+- No starting castle, as above (`setup_server(..., with_castle)` is false).
+- Chunk refresh on a peer follows `World/<that peer's unique id>` (`TileMap._process`). The dedicated server is peer 1 and has no player node, so it does not move its chunk center after someone joins. A listen host refreshes around peer 1 only, not around remote players.
+- Cities, tower capture, and flags-held points do nothing while `Interaction.multiplayer_on` is true: a client, or a host with at least one peer connected. Conquest runs only while the host is alone.
+
 Clients join with Main Menu Join. A blank address uses `localhost` on UDP `9786`. A hostname or an IPv4 address may include `:port` (`127.0.0.1:9799`, `localhost:9799`); a bare host keeps port `9786`. The typed text stays in the address field and in `Could not join …`. A missing host, a non-numeric port, or a port outside 1 to 65535 is rejected on the menu before any connection attempt. An address with more than one colon (such as `::1`) is rejected instead of being read as a host and a port.
+
+`drives/join_port.gd` clicks that Join button. For a blank address it waits until `world_params` are the dedicated server's seeds (not the client's local map fixture) and 81 of 81 nearby layer-0 cells are drawn (`ground=81/81`). It then returns to the menu and does the same for `127.0.0.1:9799` against a server on 9799. That drive is one client. It does not press Host, and it does not show a second human, a synced cut, or a synced sword hit.
 
 `test_dedicated_server_join` in `tests/net/test_dedicated_server.gd` starts a `-- --server` process, joins it through the main scene's Join path, and checks that the client gets map params and its own player and that the host has no node `1`. Waits are bounded at 30 seconds, and the server process is killed at the end. `test_dedicated_server_params_file` starts one with `--params` and checks that the joining client gets exactly the saved params, and that a missing file exits `1`.
 
@@ -134,7 +142,7 @@ Single samples on the verification host (not a full bench):
 | Throwaway headless ENet server (idle) | ~104 MiB | ~29% during startup |
 | Flagoria `$GODOT --headless --path .` (idle main menu) | ~123 MiB | ~15% during startup |
 
-Idle dedicated hosting should be close to headless editor plus project. Two real game clients were not automated here.
+Idle dedicated hosting should be close to headless editor plus project. Two real GUI clients were not sampled here. Headless movement of two joiners is `test_two_player_smoke`, not this spike.
 
 ## 6. Docker
 
@@ -150,21 +158,20 @@ None found for headless ENet on 4.7.2. `--headless`, `ENetMultiplayerPeer`, and 
 Blockers are product and process, not engine version:
 
 1. No dedicated-server export preset for a slim dedicated binary.
-2. No automated two-player smoke yet (tracked elsewhere).
+2. No GUI proof of two humans moving, cutting, or landing a sword hit on a headless host. The headless smoke is `test_two_player_smoke`.
 
 The listen-server-only flow and the missing server-mode flag were blockers at spike time. `-- --server` addresses both.
 
 ## Verification
 
-- `./tools/verify.sh` on this docs branch passed (docs-only; map characterization is on current `main`).
-- When `.cursor/skills/verify-flagoria/` is present, run Doctor then Drive verify.
+- Run `./tools/verify.sh`. It must print `All tests passed.` and `Verification passed.`, including `PASS test_two_player_smoke`.
+- When `.cursor/skills/verify-flagoria/` is present, `./.cursor/skills/verify-flagoria/bin/check-map.sh` must exit 0. This feature file is `Drive: not player-facing`.
 
 ## Suggested next steps
 
-1. Prove two GUI clients moving and fighting on a `-- --server` host.
+1. Prove two GUI clients moving and fighting on a `-- --server` host. The headless input smoke does not do that.
 2. Add a clean quit for the server (signal or command). Join already accepts `host:port`.
 3. Add a Linux dedicated-server export preset; document UDP `9786`.
-4. Automate the two-player smoke against the headless host.
 
 ## Acceptance vs this doc
 
@@ -173,5 +180,5 @@ The listen-server-only flow and the missing server-mode flag were blockers at sp
 | Commands and logs for headless and ENet | Documented above |
 | Headless process boots as a server without a local player | Yes (`-- --server`, automated test) |
 | Headless process accepts a game client that gets map params | Yes (automated test, one client) |
-| Headless process accepts two game clients that see each other move | Not proven (manual GUI check pending) |
-| In-game Host unchanged; Join accepts an optional port | Yes (Host still listens on `9786`; Join dials `host` or `host:port`) |
+| Headless process accepts two headless clients; one walks with an input action and the server and the other client see that position | Yes (`test_two_player_smoke`). Not a GUI Host/Join click, and not a cut or a sword hit. |
+| In-game Host unchanged; Join accepts an optional port | Yes. Host still listens on `9786`. `drives/join_port.gd` clicks Join for blank `localhost:9786` and for `127.0.0.1:9799`, and checks that server's seeds plus `ground=81/81`. One client. Two GUI humans are not that drive. |
