@@ -76,7 +76,7 @@ static func solve(walls: Dictionary) -> Dictionary:
 
 static func caps(walls: Dictionary) -> Dictionary:
 	## Palisade cell -> every CAP_COLLAR_* on a stone side, N then E then S then W.
-	## Drawing uses the first two. A third or fourth has no approved layer or baked tile.
+	## Each name is drawn on its own cap layer, in that order.
 	var out := {}
 	for cell: Vector2i in walls:
 		var w: Dictionary = walls[cell]

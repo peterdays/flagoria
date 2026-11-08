@@ -30,9 +30,9 @@ const INVENTORY_PATH := "/root/Flagoria/Inventory"
 const INTERACTION_PATH := "/root/Flagoria/World/Interaction"
 const MAP_PATH := "/root/Flagoria/World/worldMap"
 ## Walk frame is 16 px, centred on Sprite2D at (0, -8), so the body runs from
-## the feet (this node's origin) up 16 px. Wall caps sit at z 2 and z 3.
+## the feet (this node's origin) up 16 px. Wall caps sit at z 2 through 5.
 const BODY_RECT := Rect2(-8, -16, 16, 16)
-const WALL_CAP_LAYER := 4
+const WALL_CAP_LAYER := 6
 ## The hero draws over a wall until about two thirds of the body is on it.
 const WALL_COVER_FRACTION := 2.0 / 3.0
 const MapZoom := preload("res://Scripts/map_zoom.gd")
@@ -121,7 +121,7 @@ func _process(_delta):
 
 
 func _apply_wall_draw() -> void:
-	## Walls are z 1 and their caps are z 2 and z 3, so a body that only
+	## Walls are z 1 and their caps are z 2 through 5, so a body that only
 	## overlaps the face of a wall would lose its head. Stay above the caps
 	## until most of the body is on a wall, then drop behind the wall layer.
 	var map := get_node_or_null(MAP_PATH) as TileMap

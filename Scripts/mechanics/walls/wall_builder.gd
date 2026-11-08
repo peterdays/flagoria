@@ -1,13 +1,16 @@
 class_name WallBuilder
 extends RefCounted
 ## Free-form palisades solved with structure walls and tower rings (#276, #414).
-## Pieces on layer 1. First collar on CAP_LAYER, second on CAP_LAYER_2. A third
-## or fourth collar is stored and not drawn. Caps add no collision.
+## Pieces on layer 1. Each stone side draws its own CAP_COLLAR_* on the next
+## cap layer, in N, E, S, W order. Caps add no collision.
 
 const _WorldMap := preload("res://Scripts/TileMap.gd")
 
 const CAP_LAYER := 3
 const CAP_LAYER_2 := 4
+const CAP_LAYER_3 := 5
+const CAP_LAYER_4 := 6
+const CAP_LAYERS: Array[int] = [3, 4, 5, 6]
 
 ## Free-form wall cells -> WallSolver entry ({"family": PALISADE, ...}).
 var _wall_cells: Dictionary = {}
@@ -130,12 +133,10 @@ func _paint_free(cell: Vector2i) -> void:
 
 
 func _paint_caps(cell: Vector2i) -> void:
-	## First collar on CAP_LAYER, second on CAP_LAYER_2. Further names stay
-	## stored and are not drawn.
+	## One existing collar tile per stone side. Unused layers are cleared.
 	var caps: Array = _caps.get(cell, [])
-	var layers: Array[int] = [CAP_LAYER, CAP_LAYER_2]
-	for i in layers.size():
-		var layer: int = layers[i]
+	for i in CAP_LAYERS.size():
+		var layer: int = CAP_LAYERS[i]
 		if i < caps.size():
 			_map.set_cell(layer, cell, TileCatalog.SOURCE_ID, TileCatalog.TILES[caps[i]]["atlas"])
 		elif _map.get_cell_source_id(layer, cell) != -1:
@@ -145,7 +146,7 @@ func _paint_caps(cell: Vector2i) -> void:
 func _erase_tiles(cell: Vector2i) -> void:
 	if _map.get_cell_source_id(1, cell) != -1:
 		_map.erase_cell(1, cell)
-	for layer in [CAP_LAYER, CAP_LAYER_2]:
+	for layer in CAP_LAYERS:
 		if _map.get_cell_source_id(layer, cell) != -1:
 			_map.erase_cell(layer, cell)
 

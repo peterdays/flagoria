@@ -107,7 +107,9 @@ func run() -> void:
 	step("caps-cleared")
 	if not map._walls.erase_cells(gap_cells) or not map._walls.cap_names(gap).is_empty() \
 			or map.get_cell_source_id(WallBuilder.CAP_LAYER, gap) != -1 \
-			or map.get_cell_source_id(WallBuilder.CAP_LAYER_2, gap) != -1:
+			or map.get_cell_source_id(WallBuilder.CAP_LAYER_2, gap) != -1 \
+			or map.get_cell_source_id(WallBuilder.CAP_LAYER_3, gap) != -1 \
+			or map.get_cell_source_id(WallBuilder.CAP_LAYER_4, gap) != -1:
 		printerr("wall_junctions: collars stayed after remove")
 		done(false)
 		return
