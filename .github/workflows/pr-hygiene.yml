@@ -29,6 +29,9 @@ jobs:
       - name: Self-test the check
         run: python3 tools/pr_hygiene_test.py
 
+      - name: Self-test commit identity
+        run: python3 tools/commit_identity_test.py
+
       - name: Check this pull request
         run: python3 tools/pr_hygiene.py --event "$GITHUB_EVENT_PATH"
 

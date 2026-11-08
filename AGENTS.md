@@ -58,6 +58,14 @@ Do not automatically rewrite historical issues to match this format.
 - Merges require these four checks to pass on the current pull request head: `Load project and parse scripts`, `Privacy and size check`, `Netcode stress`, and `Gameplay drives`. Review threads must be resolved. Gameplay pull requests also require the contributor's own feature drive run and reviewed screenshot evidence, as described above. These requirements do not replace the approval rules under Human in the loop.
 - Roadmap and epic trackers follow [docs/issue-trackers.md](docs/issue-trackers.md).
 
+## Commit identity
+
+New commits must use the configured personal-provider address as both the raw author email and the raw committer email. That address is the one already used in that role in this repository. It is read only from `FLAGORIA_COMMIT_IDENTITY_EMAIL` in private configuration. Do not write it into policy, prompts, source, fixtures, logs, or pull request text. A noreply address or a platform agent address is not a substitute. Names may stay in ordinary git metadata.
+
+Commit messages must not add `Co-authored-by` or other personal or agent-credit trailers. Check the commit object after it is written. A hook listing is not acceptance: inactive sample hooks can be all that `.git/hooks` contains while another hooks path still appends a trailer, and a runtime can append a trailer without that hook. A missing private address fails the check.
+
+Only commits that are not already in the trusted base are checked. The squash message is checked separately, so a trailer removed from a branch commit is still rejected when the squash message would carry it again. The trusted workflow is proposed in `tools/commit_identity_workflow.yml` and is not installed. Details, evidence, and the activation steps that were not taken are in [docs/commit-identity.md](docs/commit-identity.md).
+
 ## Known mistakes and the rules that prevent them
 
 Mistakes that have cost time in this repository before. "Enforced by" says what catches each one. "Review" means nothing automatic catches it yet, so the rule is only as strong as the person following it.
@@ -72,6 +80,7 @@ Mistakes that have cost time in this repository before. "Enforced by" says what 
 | A stacked PR still showing its parent's commits, or still targeting the parent branch, after the parent merged | After the parent merges: `gh pr edit <child> --base main`, then on the child branch `git fetch origin && git merge origin/main`, resolve, and push. Merged branches are not deleted automatically here, so GitHub does not retarget the child for you. Say in the child's description which PR it stacks on. | Review. |
 | Rebasing a branch with an open PR and force-pushing it (review threads lose context, other worktrees break) | Bring the branch up to date by merging `origin/main` into it and pushing normally. Force-push only with the maintainer's approval (see below). | Review. |
 | A PR that leaks an email address, a local path or an attribution, or that runs far over the size cap without saying why | Follow the privacy rule and the size rule above, and fill in `.github/pull_request_template.md` (including the `Size:` line). Run `python3 tools/pr_hygiene.py --base origin/main --title "…" --body-file body.md` before opening the PR. False positive: add an entry to `.github/pr-hygiene-allow.txt` (format in the header of `tools/pr_hygiene.py`). | The `pr-hygiene` workflow fails on email addresses, local paths, and over-cap PRs with no `## Why this is large` section or `Size justification:` line. Attribution phrases, the PR author's login and a missing `Size:` line are warnings only. Names: review. |
+| A new commit with a credit trailer, or with an author or committer email other than the configured personal-provider address | Reject the trailer and both raw email mismatches. Future-only against the trusted base. Do not accept a platform agent or a web merge committer as a substitute. | `tools/commit_identity.py` when the trusted workflow in `docs/commit-identity.md` is activated. Until then, review. The workflow is not installed. |
 
 ## Human in the loop
 

@@ -1,0 +1,150 @@
+# Proposal only. GitHub does not run files outside .github/workflows.
+# Do not install this until the private address and the activation notes in
+# docs/commit-identity.md are reviewed. Do not change on: to pull_request.
+# That event runs the workflow file from the pull request and would execute
+# untrusted code. This proposal checks out the trusted base, fetches the head
+# as objects from this repository, and does not run pull-request files.
+name: commit-identity
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+  statuses: write
+
+concurrency:
+  group: commit-identity-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  branch-commits:
+    name: Branch commit identity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout trusted base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Fetch exact head from this repository
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -eu
+          git fetch --no-tags origin "$BASE_SHA" "pull/${PR_NUMBER}/head"
+          git -c core.hooksPath=/dev/null rev-parse --verify "${HEAD_SHA}^{commit}"
+
+      - name: Check raw author, committer, and trailers
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          FLAGORIA_COMMIT_IDENTITY_EMAIL: ${{ secrets.FLAGORIA_COMMIT_IDENTITY_EMAIL }}
+          GITHUB_TOKEN: ""
+          GH_TOKEN: ""
+        run: python3 tools/commit_identity.py check --repo . --base "$BASE_SHA" --head "$HEAD_SHA"
+
+  squash-message:
+    name: Squash message
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout trusted base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Fetch exact head from this repository
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -eu
+          git fetch --no-tags origin "$BASE_SHA" "pull/${PR_NUMBER}/head"
+          git -c core.hooksPath=/dev/null rev-parse --verify "${HEAD_SHA}^{commit}"
+
+      - name: Read squash settings or fail closed
+        id: modes
+        run: |
+          set -eu
+          title=$(gh api "repos/${GITHUB_REPOSITORY}" --jq .squash_merge_commit_title)
+          message=$(gh api "repos/${GITHUB_REPOSITORY}" --jq .squash_merge_commit_message)
+          if [ -z "$title" ] || [ -z "$message" ]; then
+            echo "squash settings unavailable" >&2
+            exit 1
+          fi
+          echo "title=$title" >> "$GITHUB_OUTPUT"
+          echo "message=$message" >> "$GITHUB_OUTPUT"
+
+      - name: Check the squash message that those settings would build
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TITLE_MODE: ${{ steps.modes.outputs.title }}
+          MESSAGE_MODE: ${{ steps.modes.outputs.message }}
+          GITHUB_TOKEN: ""
+          GH_TOKEN: ""
+        run: |
+          python3 tools/commit_identity.py squash --repo . --base "$BASE_SHA" --head "$HEAD_SHA" \
+            --title-mode "$TITLE_MODE" --message-mode "$MESSAGE_MODE" \
+            --event "$GITHUB_EVENT_PATH"
+
+  web-merge:
+    name: Web merge committer
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout trusted base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Reject a GitHub web merge committer
+        env:
+          GITHUB_TOKEN: ""
+          GH_TOKEN: ""
+        run: python3 tools/commit_identity.py merge-via --via github-web --method squash
+
+  record:
+    name: Record exact head
+    runs-on: ubuntu-latest
+    needs: [branch-commits, squash-message, web-merge]
+    if: ${{ always() }}
+    steps:
+      - name: Post the status on the head that was read
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BRANCH_RESULT: ${{ needs.branch-commits.result }}
+          SQUASH_RESULT: ${{ needs.squash-message.result }}
+          WEB_RESULT: ${{ needs.web-merge.result }}
+        run: |
+          set -eu
+          current=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)
+          state=failure
+          if [ "$current" != "$HEAD_SHA" ]; then
+            desc="stale head; not accepted"
+          elif [ "$BRANCH_RESULT" != "success" ]; then
+            desc="branch commits rejected"
+          elif [ "$SQUASH_RESULT" != "success" ]; then
+            desc="squash message rejected"
+          elif [ "$WEB_RESULT" != "success" ]; then
+            desc="web merge committer is not controlled"
+          else
+            state=success
+            desc="exact head accepted"
+          fi
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
+            -f state="$state" -f context="commit-identity" -f description="$desc"
