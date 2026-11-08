@@ -206,7 +206,9 @@ FLAGORIA_PUBLISH=127.0.0.1:9787:9786 \
 	docker compose -p flagoria-ds-restart up -d --no-build
 server_id="$(docker compose -p flagoria-ds-restart ps -q)"
 wait_log "$server_id" "Dedicated server listening on UDP port 9786"
-docker kill -s KILL "$server_id" >/dev/null
+# docker kill is a manual stop and does not trip the restart policy.
+# Kill pid 1 from inside the container so the crash is the process dying.
+docker exec "$server_id" kill -KILL 1
 for _ in $(seq 1 90); do
 	count="$(docker logs "$server_id" 2>&1 | grep -c 'Dedicated server listening on UDP port 9786' || true)"
 	if [ "$count" -ge 2 ]; then

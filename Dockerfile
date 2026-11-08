@@ -10,6 +10,7 @@ RUN apt-get update \
 		libdbus-1-3 \
 		libsystemd0 \
 		libudev1 \
+		procps \
 	&& rm -rf /var/lib/apt/lists/*
 
 ARG GODOT_VERSION=4.7.2
