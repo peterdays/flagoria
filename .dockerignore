@@ -1,0 +1,10 @@
+.git
+.github
+.godot
+.cursor
+artifacts
+tests
+tools
+docs
+**/*.md
+docker/no-params

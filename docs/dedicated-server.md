@@ -140,10 +140,7 @@ Idle dedicated hosting should be close to headless editor plus project. Two real
 
 ## 6. Docker
 
-`docker` was not available (`docker: command not found`). Feasibility note only:
-
-- Likely image layout: Linux Godot 4.7 headless or editor binary, or a dedicated-server export plus `.pck`, run `--headless --path` or the exported binary, publish UDP `9786`.
-- Blocked here by: no dedicated-server export preset, and no Docker CLI to prove a build.
+[Docker dedicated server](docker-dedicated-server.md) is the container path: the official Godot 4.7.2 Linux editor, `--headless -- --server`, UDP `9786`, a read-only generation-params mount, and at most three restarts after a crash. It is not an export preset and it does not keep world changes. The bare `godot -- --server` command in [Laptop dedicated server](laptop-dedicated-server.md) is still the path without Docker. `tools/docker_dedicated_smoke.sh` is the loopback build, join, params, and SIGTERM check.
 
 ## 7. Engine upgrade blockers
 
