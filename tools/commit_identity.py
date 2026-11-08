@@ -127,16 +127,32 @@ def parse_commit_object(sha: str, raw: str) -> Commit:
     return Commit(sha, email_from_ident(author), email_from_ident(committer), body)
 
 
+class CommandFailed(Exception):
+    """A process failed. The message is fixed and never includes arguments."""
+
+
+def public_failure(exc: BaseException) -> str:
+    """Return a fixed phrase. Process arguments and addresses stay out of it."""
+    del exc
+    return "commit-identity: command failed"
+
+
 def git_command(repo: Path, args: list[str]) -> list[str]:
     """Object reads disable hooks so a fetched repo cannot run hook code."""
     return ["git", "-C", str(repo), "-c", "core.hooksPath=/dev/null", *args]
 
 
 def git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        git_command(repo, list(args)),
-        check=check, capture_output=True, text=True,
-    )
+    try:
+        proc = subprocess.run(
+            git_command(repo, list(args)),
+            check=False, capture_output=True, text=True,
+        )
+    except OSError:
+        raise CommandFailed(public_failure(OSError())) from None
+    if check and proc.returncode != 0:
+        raise CommandFailed(public_failure(subprocess.CalledProcessError(proc.returncode, args))) from None
+    return proc
 
 
 def read_config(repo: Path, key: str) -> str | None:
@@ -283,6 +299,60 @@ def stale_findings(expected: str, current: str) -> list[Finding]:
             "pull request head moved before the result was recorded",
         )]
     return []
+
+
+@dataclass(frozen=True)
+class Snapshot:
+    """Inputs that can change without a new commit object."""
+    head: str
+    base: str
+    title: str
+    body: str
+    title_mode: str
+    message_mode: str
+
+
+@dataclass(frozen=True)
+class StatusPlan:
+    """What a run may record. Final success is withheld.
+
+    A stored status stays in place until a later post replaces it. An in-run
+    match does not survive a later settings change, because that change has
+    no workflow event, and a GitHub Actions status is not pinned to one
+    workflow file. Callers therefore clear with failure and do not post success.
+    """
+    clear: str
+    final: str
+    in_run_match: bool
+    reason: str
+
+
+def recorded_state(previous: str | None, posted: str | None) -> str | None:
+    """The previous status remains when nothing new is posted."""
+    if posted is None:
+        return previous
+    return posted
+
+
+def status_plan(before: Snapshot, after: Snapshot, checks_ok: bool) -> StatusPlan:
+    reason = "in-run-match-not-durable"
+    matched = True
+    for field, label in (
+        ("head", "head"),
+        ("base", "base"),
+        ("title", "title"),
+        ("body", "body"),
+        ("title_mode", "title-mode"),
+        ("message_mode", "message-mode"),
+    ):
+        if getattr(before, field) != getattr(after, field):
+            matched = False
+            reason = label
+            break
+    if matched and not checks_ok:
+        matched = False
+        reason = "checks"
+    return StatusPlan("failure", "failure", matched, reason)
 
 
 def blob_appends_trailer(text: str) -> bool:
@@ -446,6 +516,16 @@ def check_repository(repo: Path, base: str, head: str, email: str | None) -> lis
     return findings
 
 
+def _config_text(email: str, name: str) -> str:
+    """One user section. The address is a single validated line, not a process argument."""
+    if any(ch in name for ch in "\n\r\x00"):
+        raise ValueError("name")
+    text = "[user]\n\temail = " + email + "\n"
+    if name:
+        text += "\tname = " + name + "\n"
+    return text
+
+
 def configure_git(config_path: Path) -> list[Finding]:
     email, findings = load_email()
     if email is None:
@@ -459,18 +539,16 @@ def configure_git(config_path: Path) -> list[Finding]:
             ))
     if findings:
         return findings
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        ["git", "config", "--file", str(config_path), "user.email", email],
-        check=True, capture_output=True, text=True,
-    )
     name = os.environ.get(ENV_NAME, "").strip()
-    if name:
-        subprocess.run(
-            ["git", "config", "--file", str(config_path), "user.name", name],
-            check=True, capture_output=True, text=True,
-        )
-    return []
+    try:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(_config_text(email, name), encoding="utf-8")
+    except (OSError, ValueError):
+        findings.append(Finding(
+            "identity-config-unwritable", "config",
+            "could not write the git config file",
+        ))
+    return findings
 
 
 def event_title_body(path: str) -> tuple[str, str]:
@@ -525,7 +603,36 @@ def main(argv: list[str] | None = None) -> int:
     stale_p.add_argument("--expected", required=True)
     stale_p.add_argument("--current", required=True)
 
+    plan_p = sub.add_parser("plan")
+    plan_p.add_argument("--before", required=True)
+    plan_p.add_argument("--after", required=True)
+    plan_p.add_argument("--checks-ok", required=True)
+
     args = parser.parse_args(argv)
+    try:
+        return _dispatch(args)
+    except CommandFailed:
+        print(public_failure(CommandFailed("commit-identity: command failed")))
+        return 1
+
+
+def _snapshot(path: str) -> Snapshot:
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    return Snapshot(
+        head=str(data.get("head") or ""),
+        base=str(data.get("base") or ""),
+        title=str(data.get("title") or ""),
+        body=str(data.get("body") or ""),
+        title_mode=str(data.get("title_mode") or ""),
+        message_mode=str(data.get("message_mode") or ""),
+    )
+
+
+def _checks_ok(value: str) -> bool:
+    return value.strip().lower() in {"1", "true", "yes"}
+
+
+def _dispatch(args: argparse.Namespace) -> int:
     if args.cmd == "check":
         email, findings = load_email()
         findings.extend(check_repository(Path(args.repo), args.base, args.head, email))
@@ -549,8 +656,19 @@ def main(argv: list[str] | None = None) -> int:
         return report(merge_via_findings(args.via, args.method))
     if args.cmd == "stale":
         return report(stale_findings(args.expected, args.current))
+    if args.cmd == "plan":
+        plan = status_plan(_snapshot(args.before), _snapshot(args.after), _checks_ok(args.checks_ok))
+        match = "yes" if plan.in_run_match else "no"
+        print(f"clear={plan.clear} final={plan.final} in_run_match={match} reason={plan.reason}")
+        # An in-run match is not a recorded success. Exit 0 only so a caller
+        # can see the match; the final state is still failure.
+        return 0 if plan.in_run_match else 1
     return 2
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception:
+        sys.stderr.write("commit-identity: FAIL internal\n")
+        sys.exit(1)

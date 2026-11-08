@@ -6,6 +6,7 @@ Synthetic addresses are built at runtime so this file contains none.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import stat
 import subprocess
@@ -332,10 +333,148 @@ def test_configure_and_startup_do_not_leak() -> None:
         [str(ROOT / "tools" / "commit_identity_startup.sh")],
         check=False, capture_output=True, text=True, env=env,
     )
-    assert startup.returncode == 0, startup.stderr
+    assert startup.returncode == 2
+    assert "not installed as an include" in startup.stderr
+    assert "not a waited gate" in startup.stderr
     assert_silent(startup.stdout + startup.stderr)
     after = hashlib.sha256(home_cfg.read_bytes()).hexdigest() if home_cfg.exists() else None
     assert before == after
+
+
+def test_failures_do_not_leak_the_address() -> None:
+    leaked = subprocess.CalledProcessError(
+        1, ["git", "config", "--file", "x", "user.email", PERSONAL],
+    )
+    assert "@" not in ci.public_failure(leaked)
+    if PERSONAL in ci.public_failure(leaked):
+        raise AssertionError("failure text contained the address")
+    repo = init_repo()
+    try:
+        ci.git(repo, "not-a-real-subcommand")
+    except ci.CommandFailed as exc:
+        text = str(exc)
+        assert "not-a-real-subcommand" not in text
+        assert "@" not in text
+    else:
+        raise AssertionError("git failure was not contained")
+    blocked = Path(tempfile.mkdtemp(prefix="cfg-")) / "blocked"
+    blocked.write_text("x")
+    proc = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "commit_identity.py"),
+         "configure-git", "--git-config", str(blocked / "child")],
+        check=False, capture_output=True, text=True,
+        env=isolated(**{ci.ENV_EMAIL: PERSONAL}),
+    )
+    assert proc.returncode == 1
+    assert "identity-config-unwritable" in proc.stdout
+    assert_silent(proc.stdout + proc.stderr)
+    if PERSONAL in proc.stdout + proc.stderr:
+        raise AssertionError("configure failure contained the address")
+
+
+def _snap(**overrides) -> ci.Snapshot:
+    base = dict(
+        head="a" * 40, base="b" * 40, title="title", body="body",
+        title_mode="COMMIT_OR_PR_TITLE", message_mode="COMMIT_MESSAGES",
+    )
+    base.update(overrides)
+    return ci.Snapshot(**base)
+
+
+def test_outcome_binding_withholds_success() -> None:
+    same = _snap()
+    matched = ci.status_plan(same, same, True)
+    assert matched.in_run_match is True
+    assert matched.clear == "failure"
+    assert matched.final == "failure"
+    assert matched.reason == "in-run-match-not-durable"
+    assert ci.recorded_state("success", None) == "success"
+    assert ci.recorded_state("success", matched.clear) == "failure"
+    cases = {
+        "head": _snap(head="c" * 40),
+        "base": _snap(base="d" * 40),
+        "title": _snap(title="other"),
+        "body": _snap(body="other"),
+        "title-mode": _snap(title_mode="PR_TITLE"),
+        "message-mode": _snap(message_mode="BLANK"),
+    }
+    for reason, after in cases.items():
+        plan = ci.status_plan(same, after, True)
+        assert plan.in_run_match is False
+        assert plan.final == "failure"
+        assert plan.reason == reason
+    failed = ci.status_plan(same, same, False)
+    assert failed.reason == "checks"
+    assert failed.final == "failure"
+    before = Path(tempfile.mkdtemp(prefix="plan-"))
+    left = before / "before.json"
+    right = before / "after.json"
+    payload = {
+        "head": "a" * 40, "base": "b" * 40, "title": "title", "body": "body",
+        "title_mode": "COMMIT_OR_PR_TITLE", "message_mode": "COMMIT_MESSAGES",
+    }
+    left.write_text(json.dumps(payload))
+    changed = dict(payload, body="edited")
+    right.write_text(json.dumps(changed))
+    proc = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "commit_identity.py"), "plan",
+         "--before", str(left), "--after", str(right), "--checks-ok", "true"],
+        check=False, capture_output=True, text=True, env=isolated(),
+    )
+    assert proc.returncode == 1
+    assert "reason=body" in proc.stdout
+    assert "final=failure" in proc.stdout
+    assert "edited" not in proc.stdout
+    right.write_text(json.dumps(payload))
+    proc = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "commit_identity.py"), "plan",
+         "--before", str(left), "--after", str(right), "--checks-ok", "false"],
+        check=False, capture_output=True, text=True, env=isolated(),
+    )
+    assert proc.returncode == 1
+    assert "reason=checks" in proc.stdout
+
+
+def _workflow_steps(text: str) -> list[dict]:
+    """Pair each step's env block with its run script. Not a string search."""
+    steps: list[dict] = []
+    current: dict | None = None
+    in_env = False
+    in_run = False
+    run_lines: list[str] = []
+    for raw in text.splitlines():
+        if raw.startswith("      - name:") or raw.startswith("      - uses:"):
+            if current is not None:
+                current["run"] = "\n".join(run_lines)
+                steps.append(current)
+            current = {"env": {}, "run": "", "header": raw.strip()}
+            in_env = False
+            in_run = False
+            run_lines = []
+            continue
+        if current is None:
+            continue
+        if raw.startswith("        env:"):
+            in_env = True
+            in_run = False
+            continue
+        if raw.startswith("        run:"):
+            in_env = False
+            in_run = True
+            continue
+        if raw.startswith("        uses:") or raw.startswith("        with:"):
+            in_env = False
+            in_run = False
+            continue
+        if in_env and raw.startswith("          ") and ":" in raw:
+            key, value = raw.strip().split(":", 1)
+            current["env"][key] = value.strip()
+        elif in_run:
+            run_lines.append(raw)
+    if current is not None:
+        current["run"] = "\n".join(run_lines)
+        steps.append(current)
+    return steps
 
 
 def test_cli_check_and_proposal_are_inactive() -> None:
@@ -361,22 +500,32 @@ def test_cli_check_and_proposal_are_inactive() -> None:
     assert live == []
     proposal = (ROOT / "tools" / "commit_identity_workflow.yml").read_text(encoding="utf-8")
     assert "\npull_request:\n" not in proposal
-    for needle in (
-        "pull_request_target:",
-        "persist-credentials: false",
-        "github.event.pull_request.base.sha",
-        "github.event.pull_request.head.sha",
-        'pull/${PR_NUMBER}/head',
-        'GITHUB_TOKEN: ""',
-        "FLAGORIA_COMMIT_IDENTITY_EMAIL",
-        "commit-identity",
-        "stale head",
-        "merge-via --via github-web --method squash",
-        "tools/commit_identity.py check",
-        "tools/commit_identity.py squash",
-    ):
-        assert needle in proposal, needle
+    assert "state=success" not in proposal
+    assert "state=failure" in proposal
     assert "clone_url" not in proposal
+    steps = _workflow_steps(proposal)
+    assert steps, "workflow steps were not parsed"
+    saw_secret = saw_gh = False
+    for step in steps:
+        run = step["run"]
+        env = step["env"]
+        values = " ".join(env.values())
+        has_secret = "FLAGORIA_COMMIT_IDENTITY_EMAIL" in values
+        has_token_value = "github.token" in values
+        if "gh " in run or run.strip().startswith("gh"):
+            saw_gh = True
+            assert env.get("GH_TOKEN") == "${{ github.token }}", step["header"]
+            assert env.get("GITHUB_TOKEN") == "${{ github.token }}", step["header"]
+            assert not has_secret, step["header"]
+        if has_secret:
+            saw_secret = True
+            assert env.get("GH_TOKEN") == '""', step["header"]
+            assert env.get("GITHUB_TOKEN") == '""', step["header"]
+            assert not has_token_value, step["header"]
+        if "tools/commit_identity.py check" in run or "tools/commit_identity.py squash" in run:
+            assert env.get("GITHUB_TOKEN") == '""', step["header"]
+            assert not has_token_value, step["header"]
+    assert saw_secret and saw_gh
     sources = [
         ROOT / "tools" / "commit_identity.py",
         ROOT / "tools" / "commit_identity_test.py",
@@ -406,6 +555,8 @@ def main() -> int:
         test_hooks_are_not_executed_and_are_reported,
         test_tree_controls_are_future_only,
         test_configure_and_startup_do_not_leak,
+        test_failures_do_not_leak_the_address,
+        test_outcome_binding_withholds_success,
         test_cli_check_and_proposal_are_inactive,
     ]
     failed = 0

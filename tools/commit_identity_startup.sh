@@ -1,9 +1,8 @@
 #!/bin/sh
 # Proposed private startup. Nothing in the saved environment calls this.
-# The address is taken from FLAGORIA_COMMIT_IDENTITY_EMAIL. This script does
-# not print it, does not invent a noreply or platform address, and does not
-# disable hooks. A hook scan is not acceptance of a commit; the commit object
-# still has to be checked after it is written.
+# Writing a git config file does not install an include and is not a waited
+# gate. The script exits non-zero even after a successful write so it cannot
+# be read as enforcement. It does not print the address.
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
@@ -15,4 +14,7 @@ if [ -z "$CONFIG" ]; then
 fi
 
 python3 "$ROOT/tools/commit_identity.py" configure-git --git-config "$CONFIG"
+echo "commit-identity: wrote a git config file only; it is not installed as an include and nothing waits for it" >&2
 python3 "$ROOT/tools/commit_identity.py" controls --repo "$REPO"
+echo "commit-identity: not a waited gate" >&2
+exit 2
