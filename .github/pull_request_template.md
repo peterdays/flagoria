@@ -15,8 +15,11 @@ Gameplay PRs also need a non-empty "## Evidence" section.
 
 ## How it was checked
 
-<!-- Required. For example: tools/verify.sh, tests, a two-player run, screenshots.
-     Do not leave this section empty. -->
+<!-- Required. Keep the Verify/Drive receipt lines. One green pass each unless a
+     check failed and was re-run. See tools/agent_budget.py. -->
+Verify: once
+Drive: not player-facing
+<!-- Or: Drive: once drives/<name>.gd -->
 
 Feature file: <!-- Required. "added" or "updated" (name the file under
 .cursor/skills/verify-flagoria/features/, plus its Drive: line when a player can
