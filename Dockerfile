@@ -27,7 +27,9 @@ RUN useradd --create-home --home-dir /var/lib/flagoria --uid 10001 flagoria \
 
 WORKDIR /opt/flagoria
 COPY --chown=flagoria:flagoria . /opt/flagoria
-RUN chmod 755 /opt/flagoria/docker/entrypoint.sh
+# WORKDIR creates this directory as root. Import has to add .godot here.
+RUN chown flagoria:flagoria /opt/flagoria \
+	&& chmod 755 /opt/flagoria/docker/entrypoint.sh
 
 USER flagoria
 ENV HOME=/var/lib/flagoria \
