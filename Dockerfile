@@ -20,7 +20,8 @@ RUN curl -fsSL -o /tmp/godot.zip \
 	&& rm -rf /tmp/godot /tmp/godot.zip \
 	&& godot --version
 
-RUN useradd --create-home --home-dir /var/lib/flagoria --uid 1000 flagoria \
+# Ubuntu's image already has uid 1000. This account is only the server process.
+RUN useradd --create-home --home-dir /var/lib/flagoria --uid 10001 flagoria \
 	&& mkdir -p /params \
 	&& chown flagoria:flagoria /params
 
