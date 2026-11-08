@@ -1,0 +1,54 @@
+name: docker dedicated
+
+# Builds the dedicated-server image and runs the loopback smoke.
+# Not a required check. It does not change the netcode stress tier.
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - docker-compose.yml
+      - .dockerignore
+      - docker/**
+      - tools/docker_dedicated_smoke.sh
+      - .github/workflows/docker-dedicated.yml
+      - addons/server_shutdown/**
+  push:
+    branches:
+      - main
+    paths:
+      - Dockerfile
+      - docker-compose.yml
+      - .dockerignore
+      - docker/**
+      - tools/docker_dedicated_smoke.sh
+      - .github/workflows/docker-dedicated.yml
+      - addons/server_shutdown/**
+
+jobs:
+  smoke:
+    name: Docker dedicated smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Godot 4.7.2
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/godot.zip \
+            https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
+          unzip -q -o /tmp/godot.zip -d /tmp/godot
+          sudo install -m 755 /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version
+
+      - name: Build and loopback smoke
+        run: ./tools/docker_dedicated_smoke.sh
+
+  job-times:
+    name: Job times
+    needs: [smoke]
+    if: ${{ !cancelled() }}
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/job-times.yml

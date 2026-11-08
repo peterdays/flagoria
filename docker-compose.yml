@@ -1,0 +1,23 @@
+# Dedicated server. UDP only. No host network, no extra privileges.
+# FLAGORIA_PUBLISH is the host mapping (default every interface, port 9786).
+# Loopback-only: FLAGORIA_PUBLISH=127.0.0.1:9786:9786
+# Another port: FLAGORIA_SERVER_PORT=9799 FLAGORIA_PUBLISH=9799:9799
+# Generation params only: FLAGORIA_PARAMS_FILE=./island.json
+# That file is not a saved world. Cuts and buildings in it are not restored.
+services:
+  dedicated:
+    build: .
+    image: flagoria-dedicated
+    ports:
+      - "${FLAGORIA_PUBLISH:-9786:9786}/udp"
+    environment:
+      FLAGORIA_SERVER_PORT: ${FLAGORIA_SERVER_PORT:-9786}
+      FLAGORIA_PARAMS: ${FLAGORIA_PARAMS_FILE:+/params/map.json}
+    volumes:
+      - type: bind
+        source: ${FLAGORIA_PARAMS_FILE:-./docker/no-params}
+        target: /params/map.json
+        read_only: true
+    stop_signal: SIGTERM
+    stop_grace_period: 10s
+    restart: on-failure:3

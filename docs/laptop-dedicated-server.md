@@ -34,6 +34,8 @@ The process closes ENet, prints one line `Dedicated server stopped.`, and exits 
 
 `--params <file>` loads generation parameters only. Cuts, bridges, structures, and walls in the file are not restored, and the server does not autosave. Putting a changed world back is #15.
 
+A machine that already has Docker can use [Docker dedicated server](docker-dedicated-server.md) instead of this command. That image is the same `-- --server` process. This bare command remains the path without Docker.
+
 The SIGTERM helper is `addons/server_shutdown/`. Rebuild the Linux library, if needed, with:
 
 ```bash
