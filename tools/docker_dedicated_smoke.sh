@@ -121,7 +121,7 @@ func _run() -> void:
 		quit(1)
 		return
 	var src := ProjectSettings.globalize_path(str(saved["path"]))
-	var out := "/params/out/map.json"
+	var out := "/var/lib/flagoria/map.json"
 	var body := FileAccess.get_file_as_string(src)
 	var handle := FileAccess.open(out, FileAccess.WRITE)
 	if handle == null:
@@ -170,10 +170,10 @@ mkdir -p "${workdir}/out"
 docker compose -p flagoria-ds-default run -d --no-deps --name flagoria-ds-write \
 	--entrypoint godot \
 	-v "${workdir}/write.gd:/tmp/write.gd:ro" \
-	-v "${workdir}/out:/params/out" \
 	dedicated \
 	--headless --path /opt/flagoria --script /tmp/write.gd >/dev/null
 write_code="$(docker wait flagoria-ds-write)"
+docker cp flagoria-ds-write:/var/lib/flagoria/map.json "${workdir}/out/map.json" || true
 if [ "$write_code" != 0 ] || [ ! -s "${workdir}/out/map.json" ]; then
 	echo "could not write a params file (exit ${write_code})" >&2
 	docker logs flagoria-ds-write >&2 || true
