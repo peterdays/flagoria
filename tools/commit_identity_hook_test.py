@@ -169,7 +169,7 @@ def test_wrong_author_and_committer(root: Path) -> None:
         fail("wrong committer was not named as a committer mismatch")
 
 
-def test_trailers_rejected(root: Path) -> None:
+def test_platform_trailers_allowed(root: Path) -> None:
     work, bare = init_pair(root, "trailer")
     hook.install(str(work))
     base = commit(work, "base")
@@ -178,14 +178,12 @@ def test_trailers_rejected(root: Path) -> None:
     credit = "Co-authored-by: " + OTHER_NAME + " <" + OTHER_EMAIL + ">"
     for label in (credit, "Made-with: tool", "Generated-by: tool"):
         git(work, "reset", "--hard", base)
-        commit(work, "credit\n\n" + label)
+        git(bare, "update-ref", "refs/heads/main", base)
+        sha = commit(work, "credit\n\n" + label)
         result = push(work, "HEAD:refs/heads/main")
-        assert_rejected(result, base, bare, "refs/heads/main")
-        if "agent-credit trailer" not in result.stderr:
-            fail("trailer push was rejected for another reason")
-        if OTHER_EMAIL in result.stderr or OTHER_NAME in result.stderr:
-            fail("trailer rejection included trailer contents")
+        assert_accepted(result, bare, "refs/heads/main", sha)
     git(work, "reset", "--hard", base)
+    git(bare, "update-ref", "refs/heads/main", base)
     prose = commit(work, "Notes on Co-authored-by lines")
     assert_accepted(push(work, "HEAD:refs/heads/main"), bare, "refs/heads/main", prose)
 
@@ -405,7 +403,7 @@ def test_new_branch_multiref_noop_delete(root: Path) -> None:
     good_tip = commit(work, "good side")
     git(work, "checkout", "main")
     git(work, "checkout", "-b", "bad-branch")
-    commit(work, "bad side\n\nCo-authored-by: " + OTHER_NAME + " <" + OTHER_EMAIL + ">")
+    commit(work, "bad side", name=OTHER_NAME, email=OTHER_EMAIL)
     multi = push(work, "good-branch:refs/heads/good-branch", "bad-branch:refs/heads/bad-branch")
     assert_rejected(multi, None, bare, "refs/heads/good-branch")
     if ref_sha(bare, "refs/heads/bad-branch") is not None:
@@ -464,7 +462,7 @@ def main() -> int:
         tests = [
             test_matching_commit_passes,
             test_wrong_author_and_committer,
-            test_trailers_rejected,
+            test_platform_trailers_allowed,
             test_missing_identity,
             test_security_hook_still_runs,
             test_in_repo_chain_preserves_security,
