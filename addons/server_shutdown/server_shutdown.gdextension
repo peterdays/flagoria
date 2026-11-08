@@ -1,0 +1,13 @@
+[configuration]
+
+entry_symbol = "server_shutdown_init"
+compatibility_minimum = "4.2"
+reloadable = false
+
+[libraries]
+
+linux.debug.x86_64 = "res://addons/server_shutdown/libserver_shutdown.so"
+linux.release.x86_64 = "res://addons/server_shutdown/libserver_shutdown.so"
+linux.editor.x86_64 = "res://addons/server_shutdown/libserver_shutdown.so"
+linux.template_debug.x86_64 = "res://addons/server_shutdown/libserver_shutdown.so"
+linux.template_release.x86_64 = "res://addons/server_shutdown/libserver_shutdown.so"

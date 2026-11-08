@@ -119,7 +119,9 @@ What the boot does (`start_dedicated_server` in `flagoria_main.gd`):
 
 A port outside 1 to 65535, a port that cannot be bound, or a `--params` file that is missing or not a map save logs an error and exits `1`. A launch without `--server` behaves as before.
 
-The server runs until it is stopped. SIGTERM ends the process without a graceful shutdown (exit `143`). There is no quit command yet.
+The server runs until it is stopped. `kill -TERM <pid>` closes ENet, prints one line `Dedicated server stopped.`, and exits 0. A joined client returns to the main menu. The dedicated path does not call UPnP. A laptop LAN runbook is [Laptop dedicated server](laptop-dedicated-server.md): default UDP `9786`, optional `--port`, and the machine's LAN IPv4. That LAN join is manual, not a CI gate.
+
+`--params <file>` loads generation parameters only. Cuts, bridges, structures, and walls are not restored, and the server does not autosave (#15).
 
 Clients join with Main Menu Join. A blank address uses `localhost` on UDP `9786`. A hostname or an IPv4 address may include `:port` (`127.0.0.1:9799`, `localhost:9799`); a bare host keeps port `9786`. The typed text stays in the address field and in `Could not join …`. A missing host, a non-numeric port, or a port outside 1 to 65535 is rejected on the menu before any connection attempt. An address with more than one colon (such as `::1`) is rejected instead of being read as a host and a port.
 
@@ -162,7 +164,7 @@ The listen-server-only flow and the missing server-mode flag were blockers at sp
 ## Suggested next steps
 
 1. Prove two GUI clients moving and fighting on a `-- --server` host.
-2. Add a clean quit for the server (signal or command). Join already accepts `host:port`.
+2. SIGTERM quit is in place (`kill -TERM`, one `Dedicated server stopped.` line, exit 0). Join already accepts `host:port`.
 3. Add a Linux dedicated-server export preset; document UDP `9786`.
 4. Automate the two-player smoke against the headless host.
 
