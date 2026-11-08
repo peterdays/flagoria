@@ -119,7 +119,7 @@ What the boot does (`start_dedicated_server` in `flagoria_main.gd`):
 
 A port outside 1 to 65535, a port that cannot be bound, or a `--params` file that is missing or not a map save logs an error and exits `1`. A launch without `--server` behaves as before.
 
-The server runs until it is stopped. `kill -TERM <pid>` closes ENet, prints one line `Dedicated server stopped.`, and exits 0. A joined client returns to the main menu. The dedicated path does not call UPnP. A laptop LAN runbook is [Laptop dedicated server](laptop-dedicated-server.md): default UDP `9786`, optional `--port`, and the machine's LAN IPv4. That LAN join is manual, not a CI gate.
+The server runs until it is stopped. `kill -TERM <pid>` closes ENet, prints one line `Dedicated server stopped.`, and exits 0. A joined client returns to the main menu. The dedicated path does not call UPnP. A laptop LAN runbook is [Laptop dedicated server](laptop-dedicated-server.md): default UDP `9786`, optional `--port`, and the machine's LAN IPv4. That LAN join is manual, not a CI gate. Friends off that LAN use [Private VPN access](private-server.md). The process still has no bind flag; the VPN address and the host firewall are a manual step.
 
 `--params <file>` loads generation parameters only. Cuts, bridges, structures, and walls are not restored, and the server does not autosave (#15).
 

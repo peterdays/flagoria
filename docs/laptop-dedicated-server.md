@@ -14,7 +14,7 @@ The log shows:
 Dedicated server listening on UDP port 9786
 ```
 
-On another computer on the same LAN, Main Menu Join uses that laptop's IPv4 address and port `9786`. The address is the LAN interface (often `192.168.x.x` or `10.x.x.x`; `ip -4 addr` lists them). Do not publish that port on a public address. This path does not change a firewall or a VPN, and it does not call UPnP.
+On another computer on the same LAN, Main Menu Join uses that laptop's IPv4 address and port `9786`. The address is the LAN interface (often `192.168.x.x` or `10.x.x.x`; `ip -4 addr` lists them). Do not publish that port on a public address. This path does not change a firewall or a VPN, and it does not call UPnP. Friends who are not on that LAN use [Private VPN access](private-server.md). That runbook does not open the port on a public address.
 
 A different UDP port is the `--port` flag:
 
