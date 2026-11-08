@@ -15,6 +15,16 @@ Write everything in a neutral, impersonal project voice ("the game should…", "
 
 The only personal identity allowed anywhere is the git commit author metadata, using the git commit author identity already configured for commits. Do not repeat that identity in file contents, PR bodies, or issue text.
 
+## Commit identity
+
+Cursor agents use the trusted private repo-local identity config (`user.name` and `user.email` in this checkout's local git config) for the raw author and the raw committer. That config is the existing intended personal-provider address. Do not copy the name or address into files, issues, pull requests, or commit messages.
+
+If that local identity is missing, stop and report a blocker. Do not substitute an agent address or a GitHub noreply address.
+
+Before pushing, inspect the raw commit. Author and committer must match the local identity, and the message must not contain a `Co-authored-by` line or any other agent-credit trailer. If the platform inserts such a trailer or overrides the identity, stop and report a blocker before pushing. Do not skip hooks, including security hooks, and do not rewrite a commit that has already been pushed.
+
+A merge commit made by GitHub may use GitHub's committer. That committer is not required to match the personal-provider address. This guidance does not block ordinary merges and is not an automated or security control.
+
 ## New issue format
 
 Every new issue has a concise native GitHub title and these three body sections, in this order:
@@ -71,6 +81,7 @@ Mistakes that have cost time in this repository before. "Enforced by" says what 
 | Two Godot runs sharing one `user://` (settings, saves) and breaking each other | Give every run its own user dirs: separate `XDG_CONFIG_HOME`, `XDG_DATA_HOME` and `XDG_CACHE_HOME`. Work in your own `git worktree` off fresh `origin/main`, not in a checkout another task is using. | `tools/verify.sh` makes per-run temporary dirs (#155). Direct `godot` calls: review. |
 | Killing another task's Godot (for example `pkill godot`) | Stop only processes this run started, by their recorded PIDs. | Review. |
 | `git`/`gh` acting with a stale or wrong token because `GH_TOKEN` or `GITHUB_TOKEN` is set in the environment (push rejected, or a PR opened by the wrong account) | Run `git` and `gh` as `env -u GH_TOKEN -u GITHUB_TOKEN git …` / `… gh …` so the configured login is used. | Review. |
+| Cursor commit authored or committed as an agent or noreply address, or carrying a `Co-authored-by` or other agent-credit trailer | Use the trusted private repo-local identity config for the raw author and the raw committer. If it is missing, report a blocker and do not substitute an agent or noreply address. Verify the raw commit before push. A GitHub merge committer need not match that address. | Review. |
 | A stacked PR still showing its parent's commits, or still targeting the parent branch, after the parent merged | After the parent merges: `gh pr edit <child> --base main`, then on the child branch `git fetch origin && git merge origin/main`, resolve, and push. Merged branches are not deleted automatically here, so GitHub does not retarget the child for you. Say in the child's description which PR it stacks on. | Review. |
 | Rebasing a branch with an open PR and force-pushing it (review threads lose context, other worktrees break) | Bring the branch up to date by merging `origin/main` into it and pushing normally. Force-push only with the maintainer's approval (see below). | Review. |
 | A PR that leaks an email address, a local path or an attribution, or that runs far over the size cap without saying why | Follow the privacy rule and the size rule above, and fill in `.github/pull_request_template.md` (including the `Size:` line). Run `python3 tools/pr_hygiene.py --base origin/main --title "…" --body-file body.md` before opening the PR. False positive: add an entry to `.github/pr-hygiene-allow.txt` (format in the header of `tools/pr_hygiene.py`). | The `pr-hygiene` workflow fails on email addresses, local paths, and over-cap PRs with no `## Why this is large` section or `Size justification:` line. Attribution phrases, the PR author's login and a missing `Size:` line are warnings only. Names: review. |
