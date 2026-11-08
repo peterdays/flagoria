@@ -24,6 +24,10 @@ var _join_address := ""
 ## Host and port of the last Join attempt. 0 / "" until one starts.
 var _join_host := ""
 var _join_port := 0
+## Dedicated server only: SIGTERM writes a byte to this file.
+var _dedicated := false
+var _server_quit_path := ""
+var _server_shutdown_started := false
 
 
 func _ready():
@@ -92,8 +96,44 @@ func start_dedicated_server(port: int, params: MapGenParams = null) -> Error:
 		push_error("dedicated server: cannot listen on UDP port %s (error %s)" % [port, err])
 		return err
 	get_node("World/worldMap").resolve_player_spawn()
+	_install_server_quit()
 	print("Dedicated server listening on UDP port %s" % port)
 	return OK
+
+
+func _install_server_quit() -> void:
+	## Catch SIGTERM so a laptop `kill -TERM` closes ENet and exits 0.
+	## The helper loads with the project. Its handler arms only when this
+	## process was started with `--server`. Load status 2 means it is
+	## already loaded, which is fine.
+	_dedicated = true
+	_server_quit_path = "/tmp/flagoria-server-quit-%d" % OS.get_process_id()
+	var status := GDExtensionManager.load_extension("res://addons/server_shutdown/server_shutdown.gdextension")
+	if status != GDExtensionManager.LOAD_STATUS_OK and status != GDExtensionManager.LOAD_STATUS_ALREADY_LOADED:
+		push_error("dedicated server: SIGTERM helper failed to load (status %s)" % status)
+
+
+func _process(_delta: float) -> void:
+	if not _dedicated or _server_shutdown_started or _server_quit_path == "":
+		return
+	if not FileAccess.file_exists(_server_quit_path):
+		return
+	var handle := FileAccess.open(_server_quit_path, FileAccess.READ)
+	if handle == null or handle.get_length() <= 0:
+		return
+	_shutdown_dedicated()
+
+
+func _shutdown_dedicated() -> void:
+	## One log line, then exit 0 after the disconnect can leave the socket.
+	if _server_shutdown_started:
+		return
+	_server_shutdown_started = true
+	enet_peer.close()
+	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	print("Dedicated server stopped.")
+	get_tree().create_timer(0.2).timeout.connect(func() -> void:
+		get_tree().quit(0))
 
 
 func setup_server(params: MapGenParams, port: int = PORT, with_castle := true) -> Error:

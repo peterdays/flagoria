@@ -35,6 +35,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 | `art/` | Tiles, sprites, sounds, theme and their credits. |
 | `structures/` | Hand-drawn structure text files (`structures/guard_post.txt`, `structures/castle.txt`) in the format `Scripts/mechanics/structures/structure.gd` parses. |
 | `addons/virtual_joystick/` | Vendored touch joystick. |
+| `addons/server_shutdown/` | Linux SIGTERM helper for `-- --server` only. |
 | `tests/` | Runner (`tests/run_tests.gd`, plus its own self-checks), area test files (`tests/<area>/test_*.gd`), shared helpers (`tests/helpers/test_helpers.gd`), probes started as separate processes, `tests/fixtures/`, `tests/golden/`. |
 | `tools/` | Verify, CLI, renders, asset generators, CI helpers (`tools/pr_hygiene.py`, `tools/file_budget.py`, `tools/play_review_paths.py`, `tools/stress_netcode.py`, `tools/ci_job_times.py`), and the local commit-identity pre-push check (`tools/commit_identity_hook.py`). |
 | `.github/workflows/` | verify, pr-hygiene, play-review-label, play-review, pr-debug-apk, android-apk, job-times. |
