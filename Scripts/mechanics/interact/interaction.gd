@@ -4,10 +4,10 @@ extends Node2D
 ## button. Combat is the default and leaves the map to the attack controls.
 ## In interact mode the Cut/Plank picker shows (#225). Cut: a tap chops the
 ## nearest tree or bush (a choppable, see InteractableCatalog) on or next to
-## the tapped cell through ChopAction. A drag past 6 viewport pixels selects
-## a range. One plant in that range is still that chop (a finger can drift
-## past the threshold on a single tree). Two or more plants are cut at once,
-## with no chop pose. Plank: a drag snaps to a
+## the tapped cell through ChopAction. A drag past 6 viewport pixels aims a
+## cone the way an attack aims: the drag sets the direction and the sweep
+## reach, clamped to CHOP_REACH. Every plant in that cone is queued and each
+## plays its full chop before the next starts. Plank: a drag snaps to a
 ## horizontal or vertical run; green/red preview and wood cost follow the
 ## finger; lift places the longest valid prefix through ConstructionPlacer.
 ## Mouse clicks and drags count as touches. Touches that start on a HUD
@@ -40,7 +40,9 @@ signal chop_hit(cell: Vector2i, hit: int)
 
 enum Mode { COMBAT, INTERACT }
 
-const REACH := 80.0  ## world px from the player to a plant it can cut
+const REACH := 80.0  ## world px for building (planks, towers, walls)
+const CHOP_REACH := 240.0  ## chop cone max; 8× sword reach 30, sword unchanged
+const CHOP_ARC := PI * 0.75  ## same 135° sweep as AttackAim.ARC
 ## Extra world px the host allows a client's cut, as its copy of that
 ## player's position can lag a little behind.
 const REACH_SLACK := 24.0
@@ -223,12 +225,35 @@ func in_reach(cell: Vector2i) -> bool:
 	return player != null and player.global_position.distance_to(cell_center(cell)) <= REACH
 
 
+func chop_in_reach(cell: Vector2i) -> bool:
+	return player != null and player.global_position.distance_to(cell_center(cell)) <= CHOP_REACH
+
+
+func chop_sweep() -> Dictionary:
+	## The drag as a chop cone: direction, and reach clamped to CHOP_REACH.
+	## Empty when the finger has not moved.
+	var delta := to_world(_end) - to_world(_start)
+	if delta.length() <= 0.001 or player == null:
+		return {}
+	return {"direction": delta.angle(), "reach": minf(delta.length(), CHOP_REACH)}
+
+
+func cell_in_chop_sweep(cell: Vector2i, sweep: Dictionary) -> bool:
+	if sweep.is_empty() or player == null:
+		return false
+	var offset := cell_center(cell) - player.global_position
+	if offset.length() > float(sweep["reach"]) or offset.length() <= 0.001:
+		return false
+	return absf(angle_difference(float(sweep["direction"]), offset.angle())) <= CHOP_ARC * 0.5
+
+
 func cell_center(cell: Vector2i) -> Vector2:
 	return world_map.to_global(world_map.map_to_local(cell))
 
 
 func choppables_in_rect(rect: Rect2) -> Array[Vector2i]:
-	## Cells in reach with a tree or bush that the world-space `rect` overlaps.
+	## Cells in chop reach whose centres the world-space `rect` overlaps.
+	## Kept for probes that count a box. A chop drag uses choppables_in_sweep.
 	var half := Vector2(world_map.tile_set.tile_size) * world_map.global_scale / 2.0
 	var grown := rect.grow_individual(half.x, half.y, half.x, half.y)
 	var a := world_map.local_to_map(world_map.to_local(rect.position))
@@ -237,27 +262,17 @@ func choppables_in_rect(rect: Rect2) -> Array[Vector2i]:
 	for y in range(mini(a.y, b.y), maxi(a.y, b.y) + 1):
 		for x in range(mini(a.x, b.x), maxi(a.x, b.x) + 1):
 			var cell := Vector2i(x, y)
-			if world_map.choppable(cell) and grown.has_point(cell_center(cell)) and in_reach(cell):
+			if world_map.choppable(cell) and grown.has_point(cell_center(cell)) and chop_in_reach(cell):
 				out.append(cell)
 	return out
 
 
+func choppables_in_sweep() -> Array[Vector2i]:
+	return _chop.plants_in_sweep()
+
+
 func _release_drag() -> void:
-	## The finger lifted on a drag. One plant plays the chop sheet. More than
-	## one is a range cut. If the chop cannot start (one is already swinging),
-	## the plant is cut at once, as a range cut.
-	var cells := choppables_in_rect(selection_rect())
-	if cells.size() == 1 and start_chop(cells[0]):
-		return
-	cut_range(selection_rect())
-
-
-func cut_range(rect: Rect2) -> int:
-	## Cut every plant choppables_in_rect finds; returns how many were cut.
-	var cut := 0
-	for cell in choppables_in_rect(rect):
-		cut += int(_cut(cell))
-	return cut
+	_chop.enqueue(choppables_in_sweep())
 
 
 func interact_at(world_pos: Vector2) -> bool:
@@ -270,7 +285,7 @@ func interact_at(world_pos: Vector2) -> bool:
 		for dx in range(-1, 2):
 			var cell := tapped + Vector2i(dx, dy)
 			var d := world_pos.distance_to(cell_center(cell))
-			if d < best_d and world_map.choppable(cell) and in_reach(cell):
+			if d < best_d and world_map.choppable(cell) and chop_in_reach(cell):
 				best = cell
 				best_d = d
 	return best_d < INF and start_chop(best)
@@ -331,7 +346,7 @@ func request_cut(cell: Vector2i) -> void:
 		return
 	var cutter := get_node_or_null("../" + str(peer)) as Node2D
 	if cutter == null or player_dead(cutter) \
-			or cutter.global_position.distance_to(cell_center(cell)) > REACH + REACH_SLACK:
+			or cutter.global_position.distance_to(cell_center(cell)) > CHOP_REACH + REACH_SLACK:
 		return
 	var type := host_cut(cell)
 	if type != null:
@@ -469,11 +484,14 @@ func receive_yields(yields: Dictionary) -> void:
 func _draw() -> void:
 	if mode != Mode.INTERACT or player == null:
 		return
-	draw_arc(to_local(player.global_position), REACH, 0.0, TAU, 48, FILL_COLOR, 1.0)
+	draw_arc(to_local(player.global_position), CHOP_REACH, 0.0, TAU, 48, FILL_COLOR, 1.0)
 	if build.tool in [BuildPlacement.Tool.PLANK, BuildPlacement.Tool.TOWER, BuildPlacement.Tool.WALL]:
 		build.draw_preview(self)
 	elif _dragging:
-		var rect := selection_rect()
-		rect.position = to_local(rect.position)
-		draw_rect(rect, FILL_COLOR)
-		draw_rect(rect, LINE_COLOR, false, 1.0)
+		var sweep := chop_sweep()
+		if not sweep.is_empty():
+			var origin := to_local(player.global_position)
+			var points := ChopAction.cone_points(origin, float(sweep["direction"]), float(sweep["reach"]))
+			draw_colored_polygon(points, FILL_COLOR)
+			points.append(origin)
+			draw_polyline(points, LINE_COLOR, 1.0)

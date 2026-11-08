@@ -121,8 +121,8 @@ func _test_chop_tree_two_hits() -> int:
 func _test_chop_sheet_on_single_cut() -> int:
 	## A finger on one tree plays the chop sheet, including a drag that only
 	## holds that tree (a tap can drift past the 6px threshold). A drag whose
-	## box holds two trees cuts both at once and does not pose. A move of 4
-	## viewport px stays a tap. Time cost: about 0.4 s in tools/verify.sh
+	## cone holds two trees queues both and plays each chop in turn. A move
+	## of 4 viewport px stays a tap. Time cost: about 0.4 s in tools/verify.sh
 	## (~1.5 s alone with --only=).
 	print("-- test_chop_sheet_on_single_cut")
 	var fail := 0
@@ -181,18 +181,34 @@ func _test_chop_sheet_on_single_cut() -> int:
 	player.global_position += Vector2(8, 0)
 	interaction.step_chop(0.05)
 	player.global_position = world.to_global(world.map_to_local(Vector2i(10, 10)))
-	# A drag across two trees cuts both at once, with no chop pose.
-	gesture.call(at.call(Vector2(10.5, 8.5)), at.call(Vector2(14.5, 8.5)))
-	if interaction.chopping() or chop_sprite.visible or world.has_tree(tree_a) or world.has_tree(tree_b):
-		printerr("FAIL chop_sheet_on_single_cut: two-tree drag chopping %s pose %s trees %s %s"
-				% [interaction.chopping(), chop_sprite.visible, world.has_tree(tree_a), world.has_tree(tree_b)])
+	# A drag aimed up the column queues both northern trees. The near one
+	# poses. The far one stays up until that chop finishes. The side tree
+	# is outside the cone.
+	var feet: Vector2 = at.call(Vector2(10.5, 10.5))
+	gesture.call(feet, at.call(Vector2(10.5, 10.5 - 68.0 / 16.0)))
+	if not posed.call() or interaction.chop_cell != tree_a or not world.has_tree(tree_a) \
+			or not world.has_tree(tree_c) or not world.has_tree(tree_b):
+		printerr("FAIL chop_sheet_on_single_cut: queue start cell %s pose %s a %s c %s b %s"
+				% [interaction.chop_cell, posed.call(), world.has_tree(tree_a), world.has_tree(tree_c), world.has_tree(tree_b)])
 		fail += 1
-	# A longer drag that holds only one tree plays the sheet and does not fell it yet.
-	var alone: Vector2 = at.call(Vector2(10.5, 6.5))
-	gesture.call(alone, alone + Vector2(40, 0))
-	if not posed.call() or interaction.chop_cell != tree_c or not world.has_tree(tree_c):
+	interaction.step_chop(0.50)
+	if not world.has_tree(tree_a) or interaction.chop_cell != tree_a:
+		printerr("FAIL chop_sheet_on_single_cut: near tree fell before 0.56 s")
+		fail += 1
+	interaction.step_chop(0.30)
+	if world.has_tree(tree_a) or not world.has_tree(tree_c) or interaction.chop_cell != tree_c:
+		printerr("FAIL chop_sheet_on_single_cut: queue did not move to the far tree")
+		fail += 1
+	interaction.step_chop(0.70)
+	if world.has_tree(tree_c) or not world.has_tree(tree_b) or interaction.chopping():
+		printerr("FAIL chop_sheet_on_single_cut: far tree %s side tree %s chopping %s"
+				% [world.has_tree(tree_c), world.has_tree(tree_b), interaction.chopping()])
+		fail += 1
+	# A drag toward the remaining side tree plays its sheet and does not fell it yet.
+	gesture.call(feet, at.call(Vector2(15.5, 10.5)))
+	if not posed.call() or interaction.chop_cell != tree_b or not world.has_tree(tree_b):
 		printerr("FAIL chop_sheet_on_single_cut: one-tree drag chopping %s cell %s pose %s frame %s tree %s"
-				% [interaction.chopping(), interaction.chop_cell, chop_sprite.visible, chop_sprite.frame_coords, world.has_tree(tree_c)])
+				% [interaction.chopping(), interaction.chop_cell, chop_sprite.visible, chop_sprite.frame_coords, world.has_tree(tree_b)])
 		fail += 1
 	interaction.step_chop(0.16)
 	if not chop_sprite.visible or chop_sprite.frame_coords.x < 1:

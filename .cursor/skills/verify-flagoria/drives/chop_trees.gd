@@ -239,64 +239,112 @@ func one_drag(it: Node, map: TileMap, impact_label: String, cut_label: String) -
 	return true
 
 
-## A drag of ONE_DRAG_PX viewport px that boxes exactly one tree, or {}.
+## A drag from the hero toward one tree, long enough for that tree and no other.
 func _one_plan(it: Node, map: TileMap) -> Dictionary:
 	var zoom: Node = hero().get_node_or_null("Camera2D/MapZoom")
-	var stretch := root.get_final_transform()
-	var dirs: Array[Vector2] = []
-	for i in 8:
-		dirs.append(Vector2.from_angle(float(i) * TAU / 8.0) * ONE_DRAG_PX)
+	var origin := hero().global_position
 	for c in _trees_in_reach(it, map):
 		var cell: Vector2i = c
-		var origin_view := map.get_global_transform_with_canvas() * map.map_to_local(cell)
-		for d in dirs:
-			if d.length() <= 6.0:
-				continue
-			var end_view := origin_view + d
-			if zoom != null and (bool(zoom.call("starts_on_hud", origin_view)) \
-					or bool(zoom.call("starts_on_hud", end_view))):
-				continue
-			var rect := Rect2(it.to_world(origin_view), Vector2.ZERO).expand(it.to_world(end_view))
-			var cells: Array = it.choppables_in_rect(rect)
-			if cells.size() == 1 and cells[0] == cell:
-				return {
-					"cell": cell,
-					"start": stretch * origin_view,
-					"end": stretch * end_view,
-					"count": cells.size(),
-					"px": d.length(),
-				}
+		var to_cell: Vector2 = it.cell_center(cell) - origin
+		if to_cell.length() < 8.0 or to_cell.length() + 12.0 > Interaction.CHOP_REACH:
+			continue
+		var end_world: Vector2 = origin + to_cell.normalized() * (to_cell.length() + 12.0)
+		var start_canvas: Vector2 = hero().get_global_transform_with_canvas() * Vector2.ZERO
+		var end_canvas: Vector2 = map.get_global_transform_with_canvas() * map.to_local(end_world)
+		var start := root.get_final_transform() * start_canvas
+		var end_pos := root.get_final_transform() * end_canvas
+		if start.distance_to(end_pos) <= 6.0:
+			continue
+		if zoom != null and (bool(zoom.call("starts_on_hud", start_canvas)) or bool(zoom.call("starts_on_hud", end_canvas))):
+			continue
+		it._start = start_canvas
+		it._end = end_canvas
+		var cells: Array = it.choppables_in_sweep()
+		it._start = Vector2.ZERO
+		it._end = Vector2.ZERO
+		if cells.size() == 1 and cells[0] == cell:
+			return {
+				"cell": cell,
+				"start": start,
+				"end": end_pos,
+				"count": cells.size(),
+				"px": start.distance_to(end_pos),
+			}
 	return {}
 
 
-## Drags across two trees in reach. Both become stumps at once and the hero
-## stays on the walk sprite: a range cut, not a chop.
+## Drags from the hero through two trees in one cone. The near tree plays the
+## chop sheet while the far tree is still standing, then the far tree gets
+## its own chop. Both end as stumps.
 func range_cut(it: Node, map: TileMap) -> bool:
-	var pair: Array[Vector2i] = []
-	for _try in 6:
-		pair = _axis_pair(_trees_in_reach(it, map))
-		if pair.size() == 2:
-			break
-		await hold("ui_down", 15)
+	var plan := {}
+	for _try in 8:
 		if not await settle():
 			return false
-	if pair.size() != 2:
-		printerr("chop: no two trees in a row to range-cut from %s" % hero().global_position)
+		plan = _range_plan(it, map)
+		if not plan.is_empty():
+			break
+		await hold("ui_down", 12)
+	if plan.is_empty():
+		printerr("chop: no two trees in one chop cone from %s" % hero().global_position)
 		return false
-	var a: Vector2i = pair[0]
-	var b: Vector2i = pair[1]
-	print("chop: range %s -> %s" % [a, b])
-	var start := to_window(map, map.map_to_local(a))
-	var end := to_window(map, map.map_to_local(b))
-	await _drag_window(start, end)
+	var cells: Array = plan["cells"]
+	var near: Vector2i = cells[0]
+	var far: Vector2i = cells[1]
+	print("chop: range %s then %s, chop reach %.0f sword reach %.0f ratio %.2f" % [
+			near, far, Interaction.CHOP_REACH, AimConeStyle.SWORD_REACH,
+			Interaction.CHOP_REACH / AimConeStyle.SWORD_REACH])
+	await _drag_window(plan["start"], plan["end"])
 	var pose: Sprite2D = hero().get_node("ChopSprite")
-	var cut: bool = map.choppable(a) == null and map.choppable(b) == null and not it.chopping() and not pose.visible
-	print("chop: range cut %s pose %s chopping %s" % [cut, pose.visible, it.chopping()])
-	await snapshot("range")
-	if not cut:
-		printerr("chop: the drag did not range-cut %s and %s (chopping %s, pose %s)" % [a, b, it.chopping(), pose.visible])
+	if not it.chopping() or it.chop_cell != near or not pose.visible or map.choppable(far) == null:
+		printerr("chop: range did not start on %s (cell %s chopping %s far %s)" % [
+				near, it.chop_cell, it.chopping(), map.choppable(far) != null])
 		return false
-	return true
+	await snapshot("range-first")
+	var deadline := Time.get_ticks_msec() + 4000
+	var second := false
+	while Time.get_ticks_msec() < deadline:
+		if map.choppable(near) == null and it.chopping() and it.chop_cell == far and pose.visible:
+			second = true
+			await snapshot("range-second")
+			break
+		await process_frame
+	if not second:
+		printerr("chop: the far tree %s did not get its own chop" % far)
+		return false
+	var finish_by := Time.get_ticks_msec() + 3000
+	while Time.get_ticks_msec() < finish_by:
+		if map.choppable(far) == null:
+			await snapshot("range")
+			print("chop: range sequence finished %s then %s" % [near, far])
+			return true
+		await process_frame
+	printerr("chop: range sequence did not finish %s %s chopping %s" % [near, far, it.chopping()])
+	return false
+
+
+func _range_plan(it: Node, map: TileMap) -> Dictionary:
+	var origin := hero().global_position
+	var start_canvas: Vector2 = hero().get_global_transform_with_canvas() * Vector2.ZERO
+	for c in _trees_in_reach(it, map):
+		var far: Vector2i = c
+		var to_far: Vector2 = it.cell_center(far) - origin
+		if to_far.length() < 24.0 or to_far.length() + 12.0 > Interaction.CHOP_REACH:
+			continue
+		var end_world: Vector2 = origin + to_far.normalized() * (to_far.length() + 12.0)
+		var end_canvas: Vector2 = map.get_global_transform_with_canvas() * map.to_local(end_world)
+		it._start = start_canvas
+		it._end = end_canvas
+		var selected: Array = it.choppables_in_sweep()
+		it._start = Vector2.ZERO
+		it._end = Vector2.ZERO
+		if selected.size() >= 2:
+			return {
+				"cells": selected,
+				"start": root.get_final_transform() * start_canvas,
+				"end": root.get_final_transform() * end_canvas,
+			}
+	return {}
 
 
 func _drag_window(start: Vector2, end_pos: Vector2) -> void:
@@ -326,11 +374,11 @@ func _drag_window(start: Vector2, end_pos: Vector2) -> void:
 func _trees_in_reach(it: Node, map: TileMap) -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	var at := map.local_to_map(map.to_local(hero().global_position))
-	for dy in range(-8, 9):
-		for dx in range(-8, 9):
+	for dy in range(-16, 17):
+		for dx in range(-16, 17):
 			var c := at + Vector2i(dx, dy)
 			var t: Resource = map.choppable(c)
-			if t != null and t.get("id") in ["tree", "pine"] and it.in_reach(c):
+			if t != null and t.get("id") in ["tree", "pine"] and it.chop_in_reach(c):
 				out.append(c)
 	return out
 

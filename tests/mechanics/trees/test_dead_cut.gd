@@ -48,12 +48,12 @@ func _test_dead_cut_alone() -> int:
 		e.position = pos
 		e.pressed = pressed
 		vp.push_input(e, true)
-	var swipe := func() -> void:  # a drag across the tree
-		touch.call(at.call(Vector2(9.2, 8.3)), true)
+	var swipe := func() -> void:  # aim from the hero up through the tree
+		touch.call(at.call(Vector2(10.5, 10.5)), true)
 		var e := InputEventScreenDrag.new()
-		e.position = at.call(Vector2(11.8, 8.7))
+		e.position = at.call(Vector2(10.5, 8.2))
 		vp.push_input(e, true)
-		touch.call(at.call(Vector2(11.8, 8.7)), false)
+		touch.call(at.call(Vector2(10.5, 8.2)), false)
 	var health: PlayerHealth = player.health
 	health.set_health_now(0)
 	swipe.call()
