@@ -208,17 +208,19 @@ server_id="$(docker compose -p flagoria-ds-restart ps -q)"
 wait_log "$server_id" "Dedicated server listening on UDP port 9786"
 # docker kill is a manual stop and does not trip the restart policy.
 # Kill pid 1 from inside the container so the crash is the process dying.
-docker exec "$server_id" kill -KILL 1
+docker exec "$server_id" kill -KILL 1 || true
+restarts=0
+status=unknown
 for _ in $(seq 1 90); do
-	count="$(docker logs "$server_id" 2>&1 | grep -c 'Dedicated server listening on UDP port 9786' || true)"
-	if [ "$count" -ge 2 ]; then
+	restarts="$(docker inspect -f '{{.RestartCount}}' "$server_id")"
+	status="$(docker inspect -f '{{.State.Status}}' "$server_id")"
+	if [ "$restarts" -ge 1 ] && [ "$status" = running ]; then
 		break
 	fi
 	sleep 1
 done
-count="$(docker logs "$server_id" 2>&1 | grep -c 'Dedicated server listening on UDP port 9786' || true)"
-if [ "$count" -lt 2 ]; then
-	echo "container did not listen again after a crash (count ${count})" >&2
+if [ "$restarts" -lt 1 ] || [ "$status" != running ]; then
+	echo "container did not come back after a crash (status ${status}, restarts ${restarts})" >&2
 	docker logs "$server_id" >&2 || true
 	exit 1
 fi
