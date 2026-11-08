@@ -30,6 +30,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
+echo "== import host project for the joining client =="
+host_xdg="$(mktemp -d)"
+XDG_CONFIG_HOME="${host_xdg}/c" XDG_DATA_HOME="${host_xdg}/d" XDG_CACHE_HOME="${host_xdg}/a" \
+	"$GODOT" --headless --path "$ROOT" --editor --quit
+
 echo "== build =="
 docker compose -p flagoria-ds-default build
 
