@@ -31,7 +31,7 @@ Generation params are a read-only bind mount. The file is a map save used only f
 FLAGORIA_PARAMS_FILE=./island.json docker compose up -d
 ```
 
-`docker compose stop` sends SIGTERM. The process closes ENet, prints one `Dedicated server stopped.` line, and exits 0. A joined client returns to the main menu. A crash restarts at most three times (`restart: on-failure:3`). A clean SIGTERM does not restart.
+`docker compose stop` sends SIGTERM. The process closes ENet, prints one `Dedicated server stopped.` line, and exits 0. A joined client returns to the main menu. A crash restarts at most three times (`restart: on-failure:3`). A clean SIGTERM does not restart. `FLAGORIA_CRASH_ONCE=1` is only for the smoke: the process exits 1 once, then the restart policy starts it. Leave it unset.
 
 The image imports the project during the build. Its home directory is writable and is discarded with the container. The process is not root.
 

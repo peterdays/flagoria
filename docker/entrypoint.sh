@@ -4,6 +4,14 @@
 # file is passed to --params and is not a world restore.
 set -eu
 
+# Smoke only. The file lives in the container home, so a restart of the
+# same container continues into the server instead of exiting again.
+if [ "${FLAGORIA_CRASH_ONCE:-}" = 1 ] && [ ! -f "${HOME}/crashed-once" ]; then
+	touch "${HOME}/crashed-once"
+	echo "dedicated server: exiting once so the restart policy can run" >&2
+	exit 1
+fi
+
 port="${FLAGORIA_SERVER_PORT:-9786}"
 case "$port" in
 	''|*[!0-9]*)

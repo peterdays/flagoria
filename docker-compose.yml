@@ -13,6 +13,7 @@ services:
     environment:
       FLAGORIA_SERVER_PORT: ${FLAGORIA_SERVER_PORT:-9786}
       FLAGORIA_PARAMS: ${FLAGORIA_PARAMS_FILE:+/params/map.json}
+      FLAGORIA_CRASH_ONCE: ${FLAGORIA_CRASH_ONCE:-}
     volumes:
       - type: bind
         source: ${FLAGORIA_PARAMS_FILE:-./docker/no-params}

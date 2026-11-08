@@ -202,25 +202,16 @@ fi
 echo "params mount: client received altitude seed 43701"
 
 echo "== one crash restart, then a graceful stop =="
+# The entrypoint exits 1 once when FLAGORIA_CRASH_ONCE=1. A manual docker
+# kill does not trip on-failure.
 FLAGORIA_PUBLISH=127.0.0.1:9787:9786 \
+FLAGORIA_CRASH_ONCE=1 \
 	docker compose -p flagoria-ds-restart up -d --no-build
 server_id="$(docker compose -p flagoria-ds-restart ps -q)"
 wait_log "$server_id" "Dedicated server listening on UDP port 9786"
-# docker kill is a manual stop and does not trip the restart policy.
-# Kill pid 1 from inside the container so the crash is the process dying.
-docker exec "$server_id" kill -KILL 1 || true
-restarts=0
-status=unknown
-for _ in $(seq 1 90); do
-	restarts="$(docker inspect -f '{{.RestartCount}}' "$server_id")"
-	status="$(docker inspect -f '{{.State.Status}}' "$server_id")"
-	if [ "$restarts" -ge 1 ] && [ "$status" = running ]; then
-		break
-	fi
-	sleep 1
-done
-if [ "$restarts" -lt 1 ] || [ "$status" != running ]; then
-	echo "container did not come back after a crash (status ${status}, restarts ${restarts})" >&2
+restarts="$(docker inspect -f '{{.RestartCount}}' "$server_id")"
+if [ "$restarts" -lt 1 ] || [ "$restarts" -gt 3 ]; then
+	echo "restart count ${restarts} after the one-shot exit" >&2
 	docker logs "$server_id" >&2 || true
 	exit 1
 fi
