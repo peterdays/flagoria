@@ -1,5 +1,6 @@
 extends Node2D
 
+const JoinAddress = preload("res://Scripts/join_address.gd")
 const PORT = 9786
 ## Most cuts in one join message (#354); see _sync_map_params_to_peer.
 const JOIN_CUTS_PER_MESSAGE := 500
@@ -18,7 +19,11 @@ var _pending_spots: Dictionary = {}
 ## Called instead of SceneTree.quit() when set (tests).
 var quit_hook := Callable()
 ## Address last passed to create_client; used by the join-failed message (#348).
+## The typed endpoint when the field has text, otherwise "localhost".
 var _join_address := ""
+## Host and port of the last Join attempt. 0 / "" until one starts.
+var _join_host := ""
+var _join_port := 0
 
 
 func _ready():
@@ -296,11 +301,25 @@ func add_player(peer_id):
 
 func add_player_joined(port: int = PORT):
 	print("player_joined")
-	var server_ip := "localhost"
-	if address_entry.text:
-		server_ip = address_entry.text
-	_join_address = server_ip
-	var err := enet_peer.create_client(server_ip, port)
+	var parsed: Dictionary = JoinAddress.parse(address_entry.text if address_entry != null else "")
+	if not parsed["ok"]:
+		_fail_join_address(str(parsed["error"]))
+		return
+	# A host:port in the field is the address Join dials. Callers that pass a
+	# port and a host-only field (the join-fail drive, headless tests) keep
+	# that port. An explicit port in the text wins, so the typed endpoint and
+	# the socket agree.
+	var host := str(parsed["host"])
+	if parsed["explicit"]:
+		port = int(parsed["port"])
+	_join_host = host
+	_join_port = port
+	_join_address = str(parsed["endpoint"])
+	# A fresh peer each attempt: close() then create_client on the same
+	# object fails a second Join after a timeout.
+	enet_peer.close()
+	enet_peer = ENetMultiplayerPeer.new()
+	var err := enet_peer.create_client(host, port)
 	if err != OK:
 		_on_join_failed()
 		return
@@ -327,13 +346,23 @@ func _on_connection_failed() -> void:
 
 func _on_join_failed() -> void:
 	## Close the peer and put the main menu back with "Could not join …" (#348).
+	_close_join_peer()
+	var menu := get_node("CanvasLayer2/MainMenu")
+	menu.show_join_failed(_join_address if _join_address != "" else "localhost")
+
+
+func _fail_join_address(message: String) -> void:
+	## The field is not a host or host:port. No ENet client is opened.
+	_close_join_peer()
+	get_node("CanvasLayer2/MainMenu").show_address_error(message)
+
+
+func _close_join_peer() -> void:
 	enet_peer.close()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	var world = get_node_or_null("World/worldMap")
 	if world:
 		world.player_spawned = false
-	var menu := get_node("CanvasLayer2/MainMenu")
-	menu.show_join_failed(_join_address if _join_address != "" else "localhost")
 
 
 func _on_server_disconnected() -> void:

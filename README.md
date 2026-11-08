@@ -4,7 +4,7 @@ Flagoria - A Captivating Island Adventure!
 
 Features:
 - procedurally generated island world with biomes (oceanic, temperate, continental, dense archipelago), beaches, swamps, trees, bushes, flowers and stones; seeds and generation settings in **Map Settings**
-- multiplayer over ENet (UDP `9786`) with UPnP port mapping; Host/Join from the main menu, or a headless dedicated server (`-- --server`, see [docs/dedicated-server.md](docs/dedicated-server.md))
+- multiplayer over ENet (UDP `9786`) with UPnP port mapping; Host/Join from the main menu (Join takes a hostname or an IPv4 address and an optional `:port`), or a headless dedicated server (`-- --server`, see [docs/dedicated-server.md](docs/dedicated-server.md))
 - PVP with hearts: 3 hearts in half-heart steps, a short blink of invulnerability after each hit, respawn on death (half a heart back every 5 s)
 - mobs (slimes, crabs, piglets) that wander, chase, hurt on contact and can be fought with the sword
 - music, combat sound effects and footsteps, with Music and Sound effects volume in the main menu ([docs/audio.md](docs/audio.md))

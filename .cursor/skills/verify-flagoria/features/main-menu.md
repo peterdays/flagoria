@@ -7,7 +7,7 @@ The main menu offers Map Settings, Host, Join (with an address field), Music / S
 ## Sub-features
 
 - `menu-theme` `art/ui/main_menu_theme.tres`, applied in `flagoria_main.tscn`.
-- `menu-host-join` Host and Join buttons; an empty address joins localhost. Tapping the address opens the on-screen letter keyboard (see [Touch controls](./touch-controls.md)).
+- `menu-host-join` Host and Join buttons; an empty address joins localhost on UDP 9786. A hostname or IPv4 address may add `:port` (see [Join an address with an optional port](./join-port.md)). Tapping the address opens the on-screen letter keyboard (see [Touch controls](./touch-controls.md)).
 - `menu-volume` Music and Sound effects sliders (see `audio.md`).
 - `menu-mob-rate` Mob spawns slider (`MobRateRow`, `Scripts/game_settings.gd`): 0.5 to 3.0 in 0.25 steps, default 2.0, saved in user settings section `gameplay`. Only the host's rate places mobs (see [Mobs](./mobs.md)).
 - `menu-sfx` every button plays the UI click, Back plays back (see `audio.md`).

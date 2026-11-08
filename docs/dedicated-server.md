@@ -121,7 +121,7 @@ A port outside 1 to 65535, a port that cannot be bound, or a `--params` file tha
 
 The server runs until it is stopped. SIGTERM ends the process without a graceful shutdown (exit `143`). There is no quit command yet.
 
-Clients join with Main Menu Join. Join always uses port `9786`, so a server on another port cannot be reached from the GUI yet.
+Clients join with Main Menu Join. A blank address uses `localhost` on UDP `9786`. A hostname or an IPv4 address may include `:port` (`127.0.0.1:9799`, `localhost:9799`); a bare host keeps port `9786`. The typed text stays in the address field and in `Could not join …`. A missing host, a non-numeric port, or a port outside 1 to 65535 is rejected on the menu before any connection attempt. An address with more than one colon (such as `::1`) is rejected instead of being read as a host and a port.
 
 `test_dedicated_server_join` in `tests/net/test_dedicated_server.gd` starts a `-- --server` process, joins it through the main scene's Join path, and checks that the client gets map params and its own player and that the host has no node `1`. Waits are bounded at 30 seconds, and the server process is killed at the end. `test_dedicated_server_params_file` starts one with `--params` and checks that the joining client gets exactly the saved params, and that a missing file exits `1`.
 
@@ -162,7 +162,7 @@ The listen-server-only flow and the missing server-mode flag were blockers at sp
 ## Suggested next steps
 
 1. Prove two GUI clients moving and fighting on a `-- --server` host.
-2. Add a clean quit for the server (signal or command), and a way for Join to use a non-default port.
+2. Add a clean quit for the server (signal or command). Join already accepts `host:port`.
 3. Add a Linux dedicated-server export preset; document UDP `9786`.
 4. Automate the two-player smoke against the headless host.
 
@@ -174,4 +174,4 @@ The listen-server-only flow and the missing server-mode flag were blockers at sp
 | Headless process boots as a server without a local player | Yes (`-- --server`, automated test) |
 | Headless process accepts a game client that gets map params | Yes (automated test, one client) |
 | Headless process accepts two game clients that see each other move | Not proven (manual GUI check pending) |
-| In-game Host/Join unchanged | Yes (GUI launch takes no new path without `--server`) |
+| In-game Host unchanged; Join accepts an optional port | Yes (Host still listens on `9786`; Join dials `host` or `host:port`) |
