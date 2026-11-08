@@ -30,7 +30,7 @@ func run() -> void:
 func _in_front() -> bool:
 	var body := hero()
 	var map: TileMap = current_scene.get_node(MAP)
-	var front: int = map.get_layer_z_index(4) + 1
+	var front: int = map.get_layer_z_index(6) + 1
 	print("hero_wall: z %s want %s cover %.2f window %s" % [
 			body.z_index, front, body._wall_cover(map), DisplayServer.window_get_size()])
 	if body.z_index != front:

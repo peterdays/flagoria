@@ -23,7 +23,7 @@ func _test_hero_draws_over_wall_face() -> int:
 	await process_frame
 	var center: Vector2 = world.to_global(world.map_to_local(wall))
 	var bottom := center.y + 8.0
-	var front_z: int = world.get_layer_z_index(4) + 1
+	var front_z: int = world.get_layer_z_index(6) + 1
 	# 6 px of the 16 px body on the wall: the head overlaps, the hero stays in front.
 	player.position = Vector2(center.x, bottom + 10.0)
 	await process_frame

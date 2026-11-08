@@ -15,8 +15,9 @@ func _test_wall_junctions() -> int:
 	var params := _spawn_params(11, 0.0)
 	world.apply_map_params(params)
 	world.generate_chunk(Vector2(0, 0))
-	if world.get_layers_count() < 5 or world.get_layer_z_index(WallBuilder.CAP_LAYER) <= 1 \
-			or world.get_layer_z_index(WallBuilder.CAP_LAYER_2) <= world.get_layer_z_index(WallBuilder.CAP_LAYER):
+	if world.get_layers_count() < 7 or world.get_layer_z_index(WallBuilder.CAP_LAYER) <= 1 \
+			or world.get_layer_z_index(WallBuilder.CAP_LAYER_2) <= world.get_layer_z_index(WallBuilder.CAP_LAYER) \
+			or world.get_layer_z_index(WallBuilder.CAP_LAYER_4) <= world.get_layer_z_index(WallBuilder.CAP_LAYER_3):
 		printerr("FAIL wall_junctions: cap layers missing or under the walls")
 		fail += 1
 	fail += _gate_outline()
@@ -144,6 +145,74 @@ func _test_wall_junctions() -> int:
 		print("PASS test_wall_junctions")
 	return fail
 
+
+func _test_wall_collar_sides() -> int:
+	## Three stone sides draw three collars and four draw four, in N,E,S,W
+	## order. Removing the palisade clears every cap layer; placing it again
+	## brings them back. One- and two-side cells are unchanged. Time cost:
+	## about 0.5 s in tools/verify.sh.
+	print("-- test_wall_collar_sides")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	var tower := StructurePlacer.load_named("tower_wood")
+	var found: Variant = null
+	for seed_value in [11, 42, 99, 7, 1, 3]:
+		var params := _spawn_params(seed_value, 0.0)
+		params.tree_min_chance = 0.85
+		params.bush_min_chance = 0.85
+		params.pine_min_chance = 0.85
+		world.apply_map_params(params)
+		world.generate_chunk(Vector2(0, 0))
+		found = _collar_plus(world, tower)
+		if found != null:
+			break
+	if found == null:
+		printerr("FAIL wall_collar_sides: no clear plus of four towers")
+		scene.queue_free()
+		return 1
+	var p: Vector2i = found[0]
+	var anchors: Array = found[1]
+	for i in 3:
+		if world.place_structure(tower, anchors[i], 1) <= 0:
+			printerr("FAIL wall_collar_sides: tower %s refused at %s" % [i, anchors[i]])
+			scene.queue_free()
+			return 1
+	var cells: Array[Vector2i] = [p]
+	if not world.place_wall_cells(cells):
+		printerr("FAIL wall_collar_sides: palisade refused at %s" % p)
+		scene.queue_free()
+		return 1
+	var three: Array = ["CAP_COLLAR_N", "CAP_COLLAR_E", "CAP_COLLAR_W"]
+	if world._walls.cap_names(p) != three or _name_of(world._walls.piece(p)) != "PALISADE_T_S":
+		printerr("FAIL wall_collar_sides: three sides %s piece %s" % [world._walls.cap_names(p), _name_of(world._walls.piece(p))])
+		fail += 1
+	fail += _cap_layers(world, p, three, "three collars")
+	if world.place_structure(tower, anchors[3], 1) <= 0:
+		printerr("FAIL wall_collar_sides: south tower refused")
+		fail += 1
+	else:
+		var four: Array = ["CAP_COLLAR_N", "CAP_COLLAR_E", "CAP_COLLAR_S", "CAP_COLLAR_W"]
+		if world._walls.cap_names(p) != four or _name_of(world._walls.piece(p)) != "PALISADE_CROSS":
+			printerr("FAIL wall_collar_sides: four sides %s piece %s" % [world._walls.cap_names(p), _name_of(world._walls.piece(p))])
+			fail += 1
+		fail += _cap_layers(world, p, four, "four collars")
+		if not world._walls.erase_cells(cells):
+			printerr("FAIL wall_collar_sides: remove failed")
+			fail += 1
+		else:
+			fail += _cap_layers(world, p, [], "cleared")
+			if not world.place_wall_cells(cells) or world._walls.cap_names(p) != four:
+				printerr("FAIL wall_collar_sides: readd %s" % world._walls.cap_names(p))
+				fail += 1
+			fail += _cap_layers(world, p, four, "readded")
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_wall_collar_sides")
+	return fail
+
 func _gate_outline() -> int:
 	var tex := load("res://art/flagoria/flagoria_tiles_v3.png") as Texture2D
 	var img := tex.get_image() if tex != null else null
@@ -219,12 +288,13 @@ func _expect_prefix(world, cell: Vector2i, prefix: String, label: String) -> int
 	return 0
 
 func _cap_layers(world, cell: Vector2i, caps: Array, label: String) -> int:
-	var drawn := [
-		_tile_name(world, WallBuilder.CAP_LAYER, cell),
-		_tile_name(world, WallBuilder.CAP_LAYER_2, cell),
-	]
-	if drawn != caps.slice(0, 2):
-		printerr("FAIL wall_junctions: %s drew %s, want %s" % [label, drawn, caps.slice(0, 2)])
+	var drawn: Array[String] = []
+	var want: Array[String] = []
+	for i in WallBuilder.CAP_LAYERS.size():
+		drawn.append(_tile_name(world, WallBuilder.CAP_LAYERS[i], cell))
+		want.append(caps[i] if i < caps.size() else "")
+	if drawn != want:
+		printerr("FAIL wall_junctions: %s drew %s, want %s" % [label, drawn, want])
 		return 1
 	return 0
 
@@ -239,6 +309,30 @@ func _name_of(atlas: Vector2i) -> String:
 				or n.begins_with("TOWER_STONE_") or n.begins_with("CAP_COLLAR_") or n.begins_with("PROP_FLAG_")):
 			return n
 	return str(atlas)
+
+func _collar_plus(world, tower: Structure) -> Variant:
+	## Palisade cell plus tower anchors N, E, W, S whose corner cells touch it.
+	for p: Vector2i in world.get_used_cells(0):
+		if not world.predicted_clear(p):
+			continue
+		var anchors: Array[Vector2i] = [
+			p + Vector2i(-1, -1), p + Vector2i(2, 0), p + Vector2i(-2, 2), p + Vector2i(1, 3),
+		]
+		var seen := {}
+		var ok := true
+		for a in anchors:
+			var foot: Array = StructurePlacer.footprint(tower, a).keys()
+			for c in foot:
+				if seen.has(c) or c == p or world.get_cell_source_id(0, c) == -1 or not world.predicted_clear(c):
+					ok = false
+					break
+				seen[c] = true
+			if not ok:
+				break
+		if ok:
+			return [p, anchors]
+	return null
+
 
 func _sample(world, cells: Array) -> Dictionary:
 	var out := {}

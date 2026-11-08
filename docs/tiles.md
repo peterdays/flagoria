@@ -242,7 +242,7 @@ Wooden walls in the same footprint and order as the stone set: stone `WALL_*` (1
 
 ## Collar caps and tower ring
 
-`CAP_COLLAR_N/E/S/W` are (8, 4) to (11, 4), drawn above layer 1, with no collision. The first stone side in N, E, S, W order goes on layer `wall_caps`; the second goes on `wall_caps_2`. A third or fourth side is solved and not drawn. `TOWER_STONE_<cell>_<arms>` fills row 5, columns 0–23: the 3×3 ring around the team flag. `<arms>` lists outer sides that have a wall neighbour, in N, E, S, W order, or `X` when none. The centre cell stays `PROP_FLAG_*` on sand. Horizontal stone gates `(20, 2)` and `(21, 2)` close the outline at pixels (6..9, 14); their collision is unchanged.
+`CAP_COLLAR_N/E/S/W` are (8, 4) to (11, 4), drawn above layer 1, with no collision. Each stone side in N, E, S, W order is its own `CAP_COLLAR_*` on `wall_caps`, `wall_caps_2`, `wall_caps_3`, then `wall_caps_4`. `TOWER_STONE_<cell>_<arms>` fills row 5, columns 0–23: the 3×3 ring around the team flag. `<arms>` lists outer sides that have a wall neighbour, in N, E, S, W order, or `X` when none. The centre cell stays `PROP_FLAG_*` on sand. Horizontal stone gates `(20, 2)` and `(21, 2)` close the outline at pixels (6..9, 14); their collision is unchanged.
 
 | Name | Cell |
 |---|---|
