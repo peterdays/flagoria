@@ -26,19 +26,7 @@ func run() -> void:
 		return
 	var it: Node = current_scene.get_node(INTERACTION)
 	var map: TileMap = current_scene.get_node(WORLD_MAP)
-	var tree: Variant = nearest_tree(it, map)
-	if tree == null:
-		printerr("chop: no tree in reach of the hero at %s; launch with the seed above" % hero().global_position)
-		done(false)
-		return
-	var cell: Vector2i = tree
-	var tree_type: Resource = map.choppable(cell)
-	var wood_yield: int = tree_type.yields[&"wood"]
 	var inventory: Node = current_scene.get_node(INVENTORY)
-	var wood_before: int = inventory.count_of(&"wood")
-	print("chop: target %s, %.1f px from the hero, %d hits, +%d wood" % [
-			cell, hero().global_position.distance_to(it.cell_center(cell)), tree_type.hits, wood_yield])
-	await snapshot("before")
 
 	step("interact-mode")
 	await toggle_mode()
@@ -47,46 +35,26 @@ func run() -> void:
 		done(false)
 		return
 
-	step("chop")
-	it.chop_hit.connect(func(c: Vector2i, _hit: int) -> void: _hits.append(c))
-	if not await chop(it, map, cell, tree_type.hits):
-		done(false)
-		return
-	for i in 10:  # a second yield would land in these frames
-		await physics_frame
-	var wood_after: int = inventory.count_of(&"wood")
-	if wood_after - wood_before != wood_yield:
-		printerr("chop: wood went %d -> %d, not +%d" % [wood_before, wood_after, wood_yield])
-		done(false)
-		return
-	var sounds := []
-	for stream: AudioStream in it.sfx_log:
-		sounds.append(stream.resource_path.get_file().get_basename().trim_suffix("_01").trim_suffix("_02").trim_suffix("_03"))
-	print("chop: sounds %s" % [sounds])
-	if sounds != SOUNDS:
-		printerr("chop: sounds %s, expected %s" % [sounds, SOUNDS])
-		done(false)
-		return
-	await snapshot("after")
+	step("paint")
+	var layout: Dictionary = _paint_fixed(map)
+	print("chop: fixed tap %s drag %s spared %s reach %.0f sword %.0f" % [
+			layout["tap"], layout["drag"], layout["spared"],
+			Interaction.CHOP_REACH, AimConeStyle.SWORD_REACH])
+	await snapshot("before")
 
-	step("one-drag")
-	if not await one_drag(it, map, "drag-impact", "drag-cut"):
+	step("tap-sweep")
+	var tap_at: Vector2 = to_window(map, map.map_to_local(layout["tap"][0]))
+	if not await _play_tap(it, map, inventory, tap_at, layout["tap"], layout["spared"], "tap"):
 		done(false)
 		return
 
-	step("range")
-	if not await range_cut(it, map):
+	step("drag-sweep")
+	if not await _play_drag(it, map, inventory, layout["drag"], layout["spared"], "drag"):
 		done(false)
 		return
 
-	step("constrained")
-	if not await _resize(854, 480):
-		done(false)
-		return
-	if not await one_drag(it, map, "drag-impact-constrained", "drag-cut-constrained"):
-		done(false)
-		return
-	if not await _resize(1280, 720):
+	step("recover-cancel")
+	if not await _recover_cancel(it, map, layout["recover"]):
 		done(false)
 		return
 
@@ -102,6 +70,126 @@ func run() -> void:
 
 
 ## Waits until the hero has not moved for SETTLE_FRAMES physics frames.
+func _paint_fixed(map: TileMap) -> Dictionary:
+	map.set_process(false)
+	var origin: Vector2i = map.local_to_map(map.to_local(hero().global_position))
+	for y in range(-20, 21):
+		for x in range(-20, 21):
+			var cell := origin + Vector2i(x, y)
+			map.set_cell(0, cell, TileCatalog.SOURCE_ID, TileCatalog.GRASS_A)
+			map.erase_cell(1, cell)
+			map.erase_cell(map.GROUND_DECOR_LAYER, cell)
+	var tap: Array[Vector2i] = [
+		origin + Vector2i(0, -2), origin + Vector2i(0, -4),
+		origin + Vector2i(0, -6), origin + Vector2i(0, -15),
+	]
+	var spared: Array[Vector2i] = [origin + Vector2i(0, -16), origin + Vector2i(0, 8)]
+	var drag: Array[Vector2i] = [origin + Vector2i(4, 1), origin + Vector2i(8, 1)]
+	var recover: Array[Vector2i] = [origin + Vector2i(0, 2), origin + Vector2i(0, 4)]
+	for cell in tap + spared + drag + recover:
+		map.set_cell(1, cell, TileCatalog.SOURCE_ID, TileCatalog.TREE)
+	return {"tap": tap, "spared": spared, "drag": drag, "recover": recover}
+
+
+func _play_tap(it: Node, map: TileMap, inventory: Node, at: Vector2, expected: Array, spared: Array, label: String) -> bool:
+	var wood_before: int = inventory.count_of(&"wood")
+	var press := InputEventScreenTouch.new()
+	press.index = 0
+	press.pressed = true
+	press.position = at
+	Input.parse_input_event(press)
+	await process_frame
+	var lift := InputEventScreenTouch.new()
+	lift.index = 0
+	lift.pressed = false
+	lift.position = at
+	Input.parse_input_event(lift)
+	await process_frame
+	var got: Array = it.sweep_cells()
+	print("chop: tap sweep %s" % [got])
+	if got != expected:
+		printerr("chop: tap selected %s, want %s" % [got, expected])
+		return false
+	await snapshot(label + "-first")
+	return await _wait_sweep(it, map, inventory, expected, spared, wood_before, label)
+
+
+func _play_drag(it: Node, map: TileMap, inventory: Node, expected: Array, spared: Array, label: String) -> bool:
+	var origin := hero().global_position
+	var far: Vector2i = expected[expected.size() - 1]
+	var to_far: Vector2 = it.cell_center(far) - origin
+	var end_world: Vector2 = origin + to_far.normalized() * minf(to_far.length() + 12.0, Interaction.CHOP_REACH)
+	var start: Vector2 = to_window(hero(), Vector2.ZERO)
+	var end_pos: Vector2 = to_window(map, map.to_local(end_world))
+	var wood_before: int = inventory.count_of(&"wood")
+	await _drag_window(start, end_pos)
+	var got: Array = it.sweep_cells()
+	print("chop: drag sweep %s reach %.1f" % [got, to_far.length() + 12.0])
+	if got != expected:
+		printerr("chop: drag selected %s, want %s" % [got, expected])
+		return false
+	await snapshot(label + "-first")
+	return await _wait_sweep(it, map, inventory, expected, spared, wood_before, label)
+
+
+func _wait_sweep(it: Node, map: TileMap, inventory: Node, expected: Array, spared: Array, wood_before: int, label: String) -> bool:
+	var deadline := Time.get_ticks_msec() + int(expected.size() * 900 + 1000)
+	while Time.get_ticks_msec() < deadline:
+		if not it.chopping() and it.sweep_cells().is_empty():
+			break
+		await process_frame
+	if it.chopping() or not it.sweep_cells().is_empty():
+		printerr("chop: %s still running %s" % [label, it.sweep_cells()])
+		return false
+	var wood := 0
+	for cell in expected:
+		var standing: bool = map.choppable(cell) != null
+		if standing or map.get_cell_atlas_coords(map.GROUND_DECOR_LAYER, cell) != TileCatalog.STUMP:
+			printerr("chop: %s target %s was not felled" % [label, cell])
+			return false
+		wood += 3
+	for cell in spared:
+		if map.choppable(cell) == null:
+			printerr("chop: %s spared %s was cut" % [label, cell])
+			return false
+	var gained: int = inventory.count_of(&"wood") - wood_before
+	if gained != wood:
+		printerr("chop: %s wood %+d, want %+d" % [label, gained, wood])
+		return false
+	await snapshot(label + "-done")
+	print("chop: %s finished %d trees, wood %+d, idle" % [label, expected.size(), gained])
+	return true
+
+
+func _recover_cancel(it: Node, map: TileMap, pair: Array) -> bool:
+	var origin := hero().global_position
+	var far: Vector2i = pair[1]
+	var to_far: Vector2 = it.cell_center(far) - origin
+	var end_world: Vector2 = origin + to_far.normalized() * (to_far.length() + 12.0)
+	await _drag_window(to_window(hero(), Vector2.ZERO), to_window(map, map.to_local(end_world)))
+	if it.sweep_cells() != pair:
+		printerr("chop: recover drag selected %s, want %s" % [it.sweep_cells(), pair])
+		return false
+	var deadline := Time.get_ticks_msec() + 2000
+	while Time.get_ticks_msec() < deadline:
+		if it.chopping() and it.chop_time >= 0.57 and it.chop_time < 0.64:
+			break
+		await process_frame
+	if not it.chopping() or it.chop_time < 0.57:
+		printerr("chop: did not catch recovery, chopping %s time %s" % [it.chopping(), it.chop_time])
+		return false
+	hero().global_position += Vector2(6, 0)
+	await process_frame
+	await process_frame
+	var second: Vector2i = pair[1]
+	if it.chopping() or not it.sweep_cells().is_empty() or map.choppable(second) == null:
+		printerr("chop: recovery move started %s chopping %s queue %s" % [second, it.chopping(), it.sweep_cells()])
+		return false
+	await snapshot("recover-cancel")
+	print("chop: recovery move left %s standing and the queue empty" % second)
+	return true
+
+
 func settle(timeout_s: float = 5.0) -> bool:
 	var last := Vector2.INF
 	var still := 0

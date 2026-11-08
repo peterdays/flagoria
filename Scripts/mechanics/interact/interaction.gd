@@ -2,12 +2,12 @@ class_name Interaction
 extends Node2D
 ## Combat or interact mode for the local player, switched with the HUD mode
 ## button. Combat is the default and leaves the map to the attack controls.
-## In interact mode the Cut/Plank picker shows (#225). Cut: a tap chops the
-## nearest tree or bush (a choppable, see InteractableCatalog) on or next to
-## the tapped cell through ChopAction. A drag past 6 viewport pixels aims a
-## cone the way an attack aims: the drag sets the direction and the sweep
-## reach, clamped to CHOP_REACH. Every plant in that cone is queued and each
-## plays its full chop before the next starts. Plank: a drag snaps to a
+## In interact mode the Cut/Plank picker shows (#225). Cut: one gesture
+## starts one sweep. A tap aims the chop cone the way an attack tap aims,
+## from the hero toward the finger (or the hero's facing), out to CHOP_REACH.
+## A drag past 6 viewport pixels aims that same cone: direction and length
+## come from the drag, clamped to CHOP_REACH. Every plant in the cone is
+## queued and each plays its full chop before the next starts. Plank: a drag snaps to a
 ## horizontal or vertical run; green/red preview and wood cost follow the
 ## finger; lift places the longest valid prefix through ConstructionPlacer.
 ## Mouse clicks and drags count as touches. Touches that start on a HUD
@@ -184,7 +184,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			elif _dragging:
 				_release_drag()
 			else:
-				interact_at(to_world(_end))
+				_release_tap()
 			_cancel()
 			get_viewport().set_input_as_handled()
 	elif event is InputEventScreenDrag and event.index == _touch:
@@ -252,8 +252,6 @@ func cell_center(cell: Vector2i) -> Vector2:
 
 
 func choppables_in_rect(rect: Rect2) -> Array[Vector2i]:
-	## Cells in chop reach whose centres the world-space `rect` overlaps.
-	## Kept for probes that count a box. A chop drag uses choppables_in_sweep.
 	var half := Vector2(world_map.tile_set.tile_size) * world_map.global_scale / 2.0
 	var grown := rect.grow_individual(half.x, half.y, half.x, half.y)
 	var a := world_map.local_to_map(world_map.to_local(rect.position))
@@ -275,24 +273,29 @@ func _release_drag() -> void:
 	_chop.enqueue(choppables_in_sweep())
 
 
-func interact_at(world_pos: Vector2) -> bool:
-	## A tap: chop the tree or bush in reach nearest `world_pos`, on the
-	## tapped cell or one of its 8 neighbours.
-	var tapped := world_map.local_to_map(world_map.to_local(world_pos))
-	var best := Vector2i.ZERO
-	var best_d := INF
-	for dy in range(-1, 2):
-		for dx in range(-1, 2):
-			var cell := tapped + Vector2i(dx, dy)
-			var d := world_pos.distance_to(cell_center(cell))
-			if d < best_d and world_map.choppable(cell) and chop_in_reach(cell):
-				best = cell
-				best_d = d
-	return best_d < INF and start_chop(best)
+func _release_tap() -> void:
+	var delta := to_world(_end) - player.global_position
+	var direction := delta.angle() if delta.length() > 1.0 else _facing_angle()
+	_chop.enqueue(_chop.plants_toward(direction, CHOP_REACH))
+
+
+func _facing_angle() -> float:
+	var facing := "Down"
+	if player != null and "lastAnimDirection" in player:
+		facing = str(player.lastAnimDirection)
+	match facing:
+		"Up": return Vector2.UP.angle()
+		"Left": return Vector2.LEFT.angle()
+		"Right": return Vector2.RIGHT.angle()
+		_: return Vector2.DOWN.angle()
 
 
 func chopping() -> bool:
 	return _chop.chopping()
+
+
+func sweep_cells() -> Array[Vector2i]:
+	return _chop.sweep_cells()
 
 
 func start_chop(cell: Vector2i) -> bool:

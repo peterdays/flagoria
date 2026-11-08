@@ -165,12 +165,28 @@ func _test_interact_cut_trees() -> int:
 		if passes != (x == 8):
 			printerr("FAIL interact_cut_trees: walking through column %s passes=%s" % [x, passes])
 			fail += 1
-	# A tap on the empty cell next to the tree at (10, 6) chops it down.
-	touch.call(0, at.call(Vector2(11.3, 6.5)), true)
-	touch.call(0, at.call(Vector2(11.3, 6.5)), false)
-	interaction.step_chop(1.0)
-	if world.has_tree(Vector2i(10, 6)) or inventory.count_of(Inventory.WOOD) != want_wood + tree_wood:
-		printerr("FAIL interact_cut_trees: the tap did not cut the tree at (10, 6)")
+	# A tap north is one sweep in that direction, not a second chop of the same cell.
+	var far_east := Vector2i(10 + 20, 10)
+	world.set_cell(0, far_east, TileCatalog.SOURCE_ID, TileCatalog.GRASS_A)
+	world.set_cell(1, far_east, TileCatalog.SOURCE_ID, TileCatalog.TREE)
+	touch.call(0, at.call(Vector2(10.5, 6.5)), true)
+	touch.call(0, at.call(Vector2(10.5, 6.5)), false)
+	var tapped: Array[Vector2i] = interaction.sweep_cells()
+	if tapped.is_empty() or not Vector2i(10, 6) in tapped or far_east in tapped:
+		printerr("FAIL interact_cut_trees: tap sweep %s" % [tapped])
+		fail += 1
+	var tap_wood := 0
+	for cell in tapped:
+		var kind: InteractableType = world.choppable(cell)
+		if kind != null:
+			tap_wood += kind.amount_of(Inventory.WOOD)
+	for _i in tapped.size():
+		interaction.step_chop(0.70)
+	if interaction.chopping() or not interaction.sweep_cells().is_empty() \
+			or world.has_tree(Vector2i(10, 6)) or not world.has_tree(far_east) \
+			or inventory.count_of(Inventory.WOOD) != want_wood + tap_wood:
+		printerr("FAIL interact_cut_trees: tap sweep wood %s want %s chopping %s"
+				% [inventory.count_of(Inventory.WOOD), want_wood + tap_wood, interaction.chopping()])
 		fail += 1
 	player.queue_free()
 	scene.queue_free()
