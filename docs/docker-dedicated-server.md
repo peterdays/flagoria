@@ -35,4 +35,4 @@ FLAGORIA_PARAMS_FILE=./island.json docker compose up -d
 
 The image imports the project during the build. Its home directory is writable and is discarded with the container. The process is not root.
 
-`tools/docker_dedicated_smoke.sh` builds the image and, on `127.0.0.1` only, joins the default port, checks a params mount on port 9799, restarts once after a kill, and checks the SIGTERM exit. It does nothing when this file is only being read.
+`tools/docker_dedicated_smoke.sh` builds the image. Its client is a second container on the compose network, not a process on the host. It checks join, the main menu after SIGTERM, a params mount on port 9799, one crash restart, and a final SIGTERM that stays down. Joining through the published host UDP port is a separate path and was not completed from a host process on the verification runner.
