@@ -42,14 +42,20 @@ func _test_interact_mode_toggle() -> int:
 
 
 func _test_interact_cut_trees() -> int:
-	## In interact mode a drag across a row of trees and a bush cuts the plants
-	## in the range that are within reach of the player, and only those: trees
-	## out of reach or outside the range stay. Each cut tree becomes a walkable
-	## stump and the bush a BUSH_STUMP, each giving its type's wood, shown on
-	## the HUD. A tap chops down the nearest
-	## tree next to it, a pinch cuts nothing, and combat mode cuts nothing.
+	## In interact mode a drag aims a chop cone. Plants in that cone are queued
+	## and each plays a full chop. Plants outside the cone stay. Each cut tree
+	## becomes a walkable stump and the bush a BUSH_STUMP, each giving its
+	## type's wood, shown on the HUD. A tap chops the nearest tree next to it,
+	## a pinch cuts nothing, and combat mode cuts nothing.
 	print("-- test_interact_cut_trees")
 	var fail := 0
+	if AimConeStyle.SWORD_REACH != 30.0 or Interaction.CHOP_REACH / AimConeStyle.SWORD_REACH < 4.0:
+		printerr("FAIL interact_cut_trees: chop reach %s sword reach %s"
+				% [Interaction.CHOP_REACH, AimConeStyle.SWORD_REACH])
+		fail += 1
+	print("chop reach %s px, sword reach %s px, ratio %.2f" % [
+			Interaction.CHOP_REACH, AimConeStyle.SWORD_REACH,
+			Interaction.CHOP_REACH / AimConeStyle.SWORD_REACH])
 	var scene = load("res://flagoria_main.tscn").instantiate()
 	root.add_child(scene)
 	var menu: Node = scene.get_node("CanvasLayer2/MainMenu")
@@ -93,11 +99,10 @@ func _test_interact_cut_trees() -> int:
 			if world.has_tree(Vector2i(x, 8)):
 				out.append(x)
 		return out
-	var swipe := func() -> void:  # drag from the right end of row 8 to x=5
-		touch.call(0, at.call(Vector2(16.5, 8.4)), true)
-		drag.call(0, at.call(Vector2(11.0, 8.6)))
-		drag.call(0, at.call(Vector2(5.5, 8.6)))
-		touch.call(0, at.call(Vector2(5.5, 8.6)), false)
+	var swipe := func() -> void:  # aim up from the hero, 50 world px (short of the far trees)
+		touch.call(0, at.call(Vector2(10.5, 10.5)), true)
+		drag.call(0, at.call(Vector2(10.5, 10.5 - 50.0 / 16.0)))
+		touch.call(0, at.call(Vector2(10.5, 10.5 - 50.0 / 16.0)), false)
 
 	# Combat mode: the same drag cuts nothing.
 	swipe.call()
@@ -114,18 +119,27 @@ func _test_interact_cut_trees() -> int:
 	if row.call().size() != 16:
 		printerr("FAIL interact_cut_trees: a pinch cut %s" % [row.call()])
 		fail += 1
-	# Reach is 80 px: from (10, 10) that is x 6..14 on row 8 (12 is a bush).
+	# Cone aimed up, 50 px. The near row is inside. The ends and (10, 6) are not.
+	# Nothing is a stump until each queued chop finishes.
 	swipe.call()
-	var want_cut := [6, 7, 8, 9, 10, 11, 13, 14]
+	if not interaction.chopping() or inventory.count_of(Inventory.WOOD) != 0:
+		printerr("FAIL interact_cut_trees: drag did not queue a chop (chopping %s wood %s)"
+				% [interaction.chopping(), inventory.count_of(Inventory.WOOD)])
+		fail += 1
 	var tree_wood := InteractableCatalog.by_id("tree").amount_of(Inventory.WOOD)
+	var want_cut := [8, 9, 10, 11]
+	for _step in 8:
+		interaction.step_chop(0.70)
 	var want_wood := want_cut.size() * tree_wood + InteractableCatalog.by_id("bush").amount_of(Inventory.WOOD)
 	var left: Array = row.call()
 	for x in want_cut:
 		var cell := Vector2i(x, 8)
 		if left.has(x) or world.get_cell_atlas_coords(world.GROUND_DECOR_LAYER, cell) != TileCatalog.STUMP:
-			printerr("FAIL interact_cut_trees: %s is not a stump after the drag" % cell)
+			printerr("FAIL interact_cut_trees: %s is not a stump after the queue" % cell)
 			fail += 1
-	if left != [4, 5, 15, 16, 17, 18, 19, 20] or world.choppable(Vector2i(12, 8)) != null \
+	if left.has(8) or left.has(9) or left.has(10) or left.has(11) \
+			or not left.has(6) or not left.has(14) \
+			or world.choppable(Vector2i(12, 8)) != null \
 			or world.get_cell_atlas_coords(world.GROUND_DECOR_LAYER, Vector2i(12, 8)) != TileCatalog.BUSH_STUMP \
 			or not world.has_tree(Vector2i(10, 6)):
 		printerr("FAIL interact_cut_trees: trees left after the drag %s" % [left])
@@ -151,12 +165,28 @@ func _test_interact_cut_trees() -> int:
 		if passes != (x == 8):
 			printerr("FAIL interact_cut_trees: walking through column %s passes=%s" % [x, passes])
 			fail += 1
-	# A tap on the empty cell next to the tree at (10, 6) chops it down.
-	touch.call(0, at.call(Vector2(11.3, 6.5)), true)
-	touch.call(0, at.call(Vector2(11.3, 6.5)), false)
-	interaction.step_chop(1.0)
-	if world.has_tree(Vector2i(10, 6)) or inventory.count_of(Inventory.WOOD) != want_wood + tree_wood:
-		printerr("FAIL interact_cut_trees: the tap did not cut the tree at (10, 6)")
+	# A tap north is one sweep in that direction, not a second chop of the same cell.
+	var far_east := Vector2i(10 + 20, 10)
+	world.set_cell(0, far_east, TileCatalog.SOURCE_ID, TileCatalog.GRASS_A)
+	world.set_cell(1, far_east, TileCatalog.SOURCE_ID, TileCatalog.TREE)
+	touch.call(0, at.call(Vector2(10.5, 6.5)), true)
+	touch.call(0, at.call(Vector2(10.5, 6.5)), false)
+	var tapped: Array[Vector2i] = interaction.sweep_cells()
+	if tapped.is_empty() or not Vector2i(10, 6) in tapped or far_east in tapped:
+		printerr("FAIL interact_cut_trees: tap sweep %s" % [tapped])
+		fail += 1
+	var tap_wood := 0
+	for cell in tapped:
+		var kind: InteractableType = world.choppable(cell)
+		if kind != null:
+			tap_wood += kind.amount_of(Inventory.WOOD)
+	for _i in tapped.size():
+		interaction.step_chop(0.70)
+	if interaction.chopping() or not interaction.sweep_cells().is_empty() \
+			or world.has_tree(Vector2i(10, 6)) or not world.has_tree(far_east) \
+			or inventory.count_of(Inventory.WOOD) != want_wood + tap_wood:
+		printerr("FAIL interact_cut_trees: tap sweep wood %s want %s chopping %s"
+				% [inventory.count_of(Inventory.WOOD), want_wood + tap_wood, interaction.chopping()])
 		fail += 1
 	player.queue_free()
 	scene.queue_free()

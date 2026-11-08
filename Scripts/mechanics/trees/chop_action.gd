@@ -11,6 +11,11 @@ extends RefCounted
 ## A chop's axe landed on `cell`; `hit` counts from 1 to the type's `hits`.
 signal chop_hit(cell: Vector2i, hit: int)
 
+## Why the swing stopped. NONE until it does. FINISHED is the full pose.
+## TARGET means the plant left before it fell. PLAYER means move, death, or
+## leaving interact mode. Interaction uses this to keep or drop the queue.
+enum Stop { NONE, FINISHED, TARGET, PLAYER }
+
 ## One chop, in s: wind-up 0.10, swing 0.04, impact 0.10, recover 0.08. Each
 ## entry ends a column of the hero's chop sheet. Chops chain with no idle.
 const CHOP_FRAME_ENDS := [0.10, 0.14, 0.24, 0.32]
@@ -28,6 +33,9 @@ var chop_cell := Vector2i.ZERO  ## the plant being chopped
 var chop_type: InteractableType  ## its type, set when the chop starts
 var chop_time := -1.0  ## s since the chop's first wind-up, or -1 when not chopping
 var chop_hits := 0
+var _stop := Stop.NONE
+var _queue: Array[Vector2i] = []
+var _hold_origin := false
 var _chop_from := Vector2.ZERO  ## player position when the chop started
 var _chop_facing := "Down"
 var _felled := false
@@ -83,14 +91,17 @@ func chopping() -> bool:
 func start_chop(cell: Vector2i) -> bool:
 	## Start chopping the tree or bush at `cell`; false while another chop
 	## runs, or when there is nothing to chop in reach there.
-	if chopping() or not _i.world_map.choppable(cell) or not _i.in_reach(cell):
+	if chopping() or not _i.world_map.choppable(cell) or not _i.chop_in_reach(cell):
 		return false
+	if not _hold_origin:
+		_chop_from = _i.player.global_position
+	_hold_origin = true
+	_stop = Stop.NONE
 	chop_cell = cell
 	chop_type = _i.world_map.choppable(cell)
 	chop_time = 0.0
 	chop_hits = 0
 	_felled = false
-	_chop_from = _i.player.global_position
 	var d := _i.cell_center(cell) - _i.player.global_position
 	if absf(d.x) > absf(d.y):
 		_chop_facing = "Left" if d.x < 0.0 else "Right"
@@ -98,6 +109,14 @@ func start_chop(cell: Vector2i) -> bool:
 		_chop_facing = "Up" if d.y < 0.0 else "Down"
 	_pose()
 	return true
+
+
+static func cone_points(origin: Vector2, aim: float, reach: float) -> PackedVector2Array:
+	var points := PackedVector2Array([origin])
+	for i in 17:
+		var angle := aim - Interaction.CHOP_ARC * 0.5 + Interaction.CHOP_ARC * float(i) / 16.0
+		points.append(origin + Vector2.from_angle(angle) * reach)
+	return points
 
 
 static func fell_at(hits: int) -> float:
@@ -115,10 +134,14 @@ func step_chop(delta: float) -> void:
 	_step_fx(delta)
 	if not chopping():
 		return
-	if not _felled and (_i.mode != Interaction.Mode.INTERACT or _i.player == null
-			or _i.player.global_position.distance_to(_chop_from) > MOVE_CANCEL
-			or _i.world_map.choppable(chop_cell) != chop_type or _player_dead()):
+	if _gesture_cancelled():
+		_queue.clear()
+		_hold_origin = false
 		cancel_chop()
+		return
+	if not _felled and _i.world_map.choppable(chop_cell) != chop_type:
+		cancel_chop()
+		_start_queued()
 		return
 	chop_time += delta
 	while chop_hits < chop_type.hits and chop_time >= chop_hits * CHOP_TIME + IMPACT_AT:
@@ -131,8 +154,103 @@ func step_chop(delta: float) -> void:
 			_on_fell()
 	if chop_time >= chop_type.hits * CHOP_TIME:
 		cancel_chop()
+		_start_queued()
 	else:
 		_pose()
+
+
+func _gesture_cancelled() -> bool:
+	## Holds for the wind-up, the hits, the recovery, and the gap before the
+	## next plant. The origin stays where the gesture started.
+	if _i.mode != Interaction.Mode.INTERACT or _i.player == null or _player_dead():
+		return true
+	return _i.player.global_position.distance_to(_chop_from) > MOVE_CANCEL
+
+
+func plants_in_sweep() -> Array[Vector2i]:
+	return _plants_in( _i.chop_sweep())
+
+
+func plants_toward(direction: float, reach: float) -> Array[Vector2i]:
+	return _plants_in({"direction": direction, "reach": minf(reach, Interaction.CHOP_REACH)})
+
+
+func _plants_in(sweep: Dictionary) -> Array[Vector2i]:
+	if sweep.is_empty() or _i.player == null:
+		return []
+	var map := _i.world_map
+	var tile := float(map.tile_set.tile_size.x) * map.global_scale.x
+	var span := int(ceil(float(sweep["reach"]) / maxf(tile, 1.0))) + 1
+	var center := map.local_to_map(map.to_local(_i.player.global_position))
+	var found: Array[Vector2i] = []
+	for y in range(center.y - span, center.y + span + 1):
+		for x in range(center.x - span, center.x + span + 1):
+			var cell := Vector2i(x, y)
+			if map.choppable(cell) and _i.cell_in_chop_sweep(cell, sweep):
+				found.append(cell)
+	var origin := _i.player.global_position
+	found.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		var da := origin.distance_squared_to(_i.cell_center(a))
+		var db := origin.distance_squared_to(_i.cell_center(b))
+		if da != db:
+			return da < db
+		if a.y != b.y:
+			return a.y < b.y
+		return a.x < b.x)
+	return found
+
+
+func enqueue(cells: Array[Vector2i]) -> void:
+	## One gesture fills the queue. A later tap or drag does not add to it.
+	if chopping() or not _queue.is_empty():
+		return
+	_hold_origin = false
+	var seen := {}
+	if chopping():
+		seen[chop_cell] = true
+	for queued in _queue:
+		seen[queued] = true
+	var fresh: Array[Vector2i] = []
+	for cell in cells:
+		if seen.has(cell):
+			continue
+		seen[cell] = true
+		fresh.append(cell)
+	if fresh.is_empty():
+		return
+	if not chopping():
+		var first: Vector2i = fresh.pop_front()
+		if not start_chop(first):
+			_queue.append_array(fresh)
+			_start_queued()
+			return
+	_queue.append_array(fresh)
+
+
+func sweep_cells() -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	if chopping():
+		out.append(chop_cell)
+	out.append_array(_queue)
+	return out
+
+
+func _start_queued() -> void:
+	if _gesture_cancelled():
+		_queue.clear()
+		_hold_origin = false
+		return
+	while not _queue.is_empty():
+		var cell: Vector2i = _queue.pop_front()
+		if start_chop(cell):
+			return
+	_hold_origin = false
+
+
+func take_stop() -> Stop:
+	var reason := _stop
+	_stop = Stop.NONE
+	return reason
 
 
 func cancel_chop() -> void:

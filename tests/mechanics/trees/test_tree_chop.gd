@@ -23,7 +23,7 @@ func _test_chop_tree_two_hits() -> int:
 		for y in range(4, 14):
 			world.set_cell(0, Vector2i(x, y), TileCatalog.SOURCE_ID, TileCatalog.GRASS_A)
 	world.set_cell(1, Vector2i(10, 8), TileCatalog.SOURCE_ID, TileCatalog.TREE)
-	world.set_cell(1, Vector2i(12, 8), TileCatalog.SOURCE_ID, TileCatalog.TREE_PINE_SMALL)
+	world.set_cell(1, Vector2i(18, 10), TileCatalog.SOURCE_ID, TileCatalog.TREE_PINE_SMALL)
 	var player = load("res://Player/character_body_2d.tscn").instantiate()
 	player.name = str(scene.multiplayer.get_unique_id())
 	player.position = world.to_global(world.map_to_local(Vector2i(10, 10)))
@@ -42,7 +42,7 @@ func _test_chop_tree_two_hits() -> int:
 			e.pressed = pressed
 			vp.push_input(e, true)
 	var tree := Vector2i(10, 8)
-	var pine := Vector2i(12, 8)
+	var pine := Vector2i(18, 10)
 	var run_to := func(t: float) -> void:  # step the chop clock up to t s
 		interaction.step_chop(t - maxf(interaction.chop_time, 0.0))
 	var chop_sprite: Sprite2D = player.get_node("ChopSprite")
@@ -65,7 +65,7 @@ func _test_chop_tree_two_hits() -> int:
 		printerr("FAIL chop_tree_two_hits: after one hit: hits %s, tree %s, wood %s, chop pose %s %s"
 				% [hits, world.has_tree(tree), inventory.count_of(Inventory.WOOD), chop_sprite.visible, chop_sprite.frame_coords])
 		fail += 1
-	tap.call(Vector2(12.5, 8.5))  # mid-chop: no second chop
+	tap.call(Vector2(18.5, 10.5))  # mid-chop: the sweep already started, no second one
 	run_to.call(0.47)
 	if hits != [[tree, 1], [tree, 2]] or interaction.chop_cell != tree:
 		printerr("FAIL chop_tree_two_hits: second impact hits %s, chopping %s" % [hits, interaction.chop_cell])
@@ -93,7 +93,7 @@ func _test_chop_tree_two_hits() -> int:
 				% [interaction.chopping(), chop_sprite.visible, inventory.count_of(Inventory.WOOD), hits])
 		fail += 1
 	# Moving away mid-chop cancels: no stump, no wood.
-	tap.call(Vector2(12.5, 8.5))
+	tap.call(Vector2(18.5, 10.5))
 	run_to.call(0.2)
 	player.global_position += Vector2(8, 0)
 	interaction.step_chop(1.0)
@@ -121,8 +121,8 @@ func _test_chop_tree_two_hits() -> int:
 func _test_chop_sheet_on_single_cut() -> int:
 	## A finger on one tree plays the chop sheet, including a drag that only
 	## holds that tree (a tap can drift past the 6px threshold). A drag whose
-	## box holds two trees cuts both at once and does not pose. A move of 4
-	## viewport px stays a tap. Time cost: about 0.4 s in tools/verify.sh
+	## cone holds two trees queues both and plays each chop in turn. A move
+	## of 4 viewport px stays a tap. Time cost: about 0.4 s in tools/verify.sh
 	## (~1.5 s alone with --only=).
 	print("-- test_chop_sheet_on_single_cut")
 	var fail := 0
@@ -181,18 +181,34 @@ func _test_chop_sheet_on_single_cut() -> int:
 	player.global_position += Vector2(8, 0)
 	interaction.step_chop(0.05)
 	player.global_position = world.to_global(world.map_to_local(Vector2i(10, 10)))
-	# A drag across two trees cuts both at once, with no chop pose.
-	gesture.call(at.call(Vector2(10.5, 8.5)), at.call(Vector2(14.5, 8.5)))
-	if interaction.chopping() or chop_sprite.visible or world.has_tree(tree_a) or world.has_tree(tree_b):
-		printerr("FAIL chop_sheet_on_single_cut: two-tree drag chopping %s pose %s trees %s %s"
-				% [interaction.chopping(), chop_sprite.visible, world.has_tree(tree_a), world.has_tree(tree_b)])
+	# A drag aimed up the column queues both northern trees. The near one
+	# poses. The far one stays up until that chop finishes. The side tree
+	# is outside the cone.
+	var feet: Vector2 = at.call(Vector2(10.5, 10.5))
+	gesture.call(feet, at.call(Vector2(10.5, 10.5 - 68.0 / 16.0)))
+	if not posed.call() or interaction.chop_cell != tree_a or not world.has_tree(tree_a) \
+			or not world.has_tree(tree_c) or not world.has_tree(tree_b):
+		printerr("FAIL chop_sheet_on_single_cut: queue start cell %s pose %s a %s c %s b %s"
+				% [interaction.chop_cell, posed.call(), world.has_tree(tree_a), world.has_tree(tree_c), world.has_tree(tree_b)])
 		fail += 1
-	# A longer drag that holds only one tree plays the sheet and does not fell it yet.
-	var alone: Vector2 = at.call(Vector2(10.5, 6.5))
-	gesture.call(alone, alone + Vector2(40, 0))
-	if not posed.call() or interaction.chop_cell != tree_c or not world.has_tree(tree_c):
+	interaction.step_chop(0.50)
+	if not world.has_tree(tree_a) or interaction.chop_cell != tree_a:
+		printerr("FAIL chop_sheet_on_single_cut: near tree fell before 0.56 s")
+		fail += 1
+	interaction.step_chop(0.30)
+	if world.has_tree(tree_a) or not world.has_tree(tree_c) or interaction.chop_cell != tree_c:
+		printerr("FAIL chop_sheet_on_single_cut: queue did not move to the far tree")
+		fail += 1
+	interaction.step_chop(0.70)
+	if world.has_tree(tree_c) or not world.has_tree(tree_b) or interaction.chopping():
+		printerr("FAIL chop_sheet_on_single_cut: far tree %s side tree %s chopping %s"
+				% [world.has_tree(tree_c), world.has_tree(tree_b), interaction.chopping()])
+		fail += 1
+	# A drag toward the remaining side tree plays its sheet and does not fell it yet.
+	gesture.call(feet, at.call(Vector2(15.5, 10.5)))
+	if not posed.call() or interaction.chop_cell != tree_b or not world.has_tree(tree_b):
 		printerr("FAIL chop_sheet_on_single_cut: one-tree drag chopping %s cell %s pose %s frame %s tree %s"
-				% [interaction.chopping(), interaction.chop_cell, chop_sprite.visible, chop_sprite.frame_coords, world.has_tree(tree_c)])
+				% [interaction.chopping(), interaction.chop_cell, chop_sprite.visible, chop_sprite.frame_coords, world.has_tree(tree_b)])
 		fail += 1
 	interaction.step_chop(0.16)
 	if not chop_sprite.visible or chop_sprite.frame_coords.x < 1:
@@ -204,4 +220,118 @@ func _test_chop_sheet_on_single_cut() -> int:
 	await process_frame
 	if fail == 0:
 		print("PASS test_chop_sheet_on_single_cut")
+	return fail
+
+
+func _test_chop_sweep_bounds_and_cancel() -> int:
+	## A tap north selects the facing cone out to CHOP_REACH, not the cell under
+	## the finger alone. 240 px is inside and 256 px is outside. Sword reach
+	## stays 30. Recovery movement, mode, and death do not start the next tree.
+	print("-- test_chop_sweep_bounds_and_cancel")
+	var fail := 0
+	if AimConeStyle.SWORD_REACH != 30.0 or Interaction.CHOP_REACH != 240.0:
+		printerr("FAIL chop_sweep_bounds: reach chop %s sword %s" % [Interaction.CHOP_REACH, AimConeStyle.SWORD_REACH])
+		return 1
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var menu: Node = scene.get_node("CanvasLayer2/MainMenu")
+	menu.hide()
+	menu.set_process_unhandled_input(false)
+	scene.get_node("CanvasLayer1").show()
+	var world = scene.get_node("World/worldMap")
+	world.set_process(false)
+	world.clear()
+	for x in range(-4, 24):
+		for y in range(-8, 16):
+			world.set_cell(0, Vector2i(x, y), TileCatalog.SOURCE_ID, TileCatalog.GRASS_A)
+	var near := Vector2i(10, 8)       # 32 px north
+	var mid := Vector2i(10, 6)        # 64 px
+	var edge := Vector2i(10, 10 - 15) # 240 px, on the chop boundary
+	var past := Vector2i(10, 10 - 16) # 256 px, past it
+	var side := Vector2i(16, 10)      # 96 px east, outside a north cone
+	for cell in [near, mid, edge, past, side]:
+		world.set_cell(1, cell, TileCatalog.SOURCE_ID, TileCatalog.TREE)
+	var player = load("res://Player/character_body_2d.tscn").instantiate()
+	player.name = str(scene.multiplayer.get_unique_id())
+	player.position = world.to_global(world.map_to_local(Vector2i(10, 10)))
+	player.lastAnimDirection = "Up"
+	scene.get_node("World").add_child(player)
+	await process_frame
+	var interaction: Interaction = scene.get_node("World/Interaction")
+	interaction.set_process(false)
+	interaction.set_mode(Interaction.Mode.INTERACT)
+	var inventory: Inventory = scene.get_node("Inventory")
+	var vp: Viewport = scene.get_viewport()
+	var at := func(cell: Vector2) -> Vector2:
+		return interaction.get_canvas_transform() * world.to_global(cell * 16.0)
+	var tap := func(pos: Vector2) -> void:
+		var press := InputEventScreenTouch.new()
+		press.position = pos
+		press.pressed = true
+		vp.push_input(press, true)
+		var lift := InputEventScreenTouch.new()
+		lift.position = pos
+		lift.pressed = false
+		vp.push_input(lift, true)
+	# Inside the boundary, outside it, and off to the side.
+	if not interaction.chop_in_reach(edge) or interaction.chop_in_reach(past) \
+			or player.global_position.distance_to(interaction.cell_center(edge)) > 240.0 \
+			or player.global_position.distance_to(interaction.cell_center(past)) <= 240.0 \
+			or player.global_position.distance_to(interaction.cell_center(near)) <= AimConeStyle.SWORD_REACH:
+		printerr("FAIL chop_sweep_bounds: distances edge %.1f past %.1f near %.1f"
+				% [player.global_position.distance_to(interaction.cell_center(edge)),
+				player.global_position.distance_to(interaction.cell_center(past)),
+				player.global_position.distance_to(interaction.cell_center(near))])
+		fail += 1
+	tap.call(at.call(Vector2(10.5, 8.5)))
+	var selected: Array[Vector2i] = interaction.sweep_cells()
+	var want: Array[Vector2i] = [near, mid, edge]
+	if selected != want:
+		printerr("FAIL chop_sweep_bounds: tap selected %s, want %s" % [selected, want])
+		fail += 1
+	# Same gesture again does not add a second copy of the near tree.
+	tap.call(at.call(Vector2(10.5, 8.5)))
+	if interaction.sweep_cells() != want:
+		printerr("FAIL chop_sweep_bounds: second tap changed the sweep to %s" % [interaction.sweep_cells()])
+		fail += 1
+	# Drop the far queued tree before its turn. It must not pay wood.
+	world.erase_cell(1, edge)
+	var tree_wood := InteractableCatalog.by_id("tree").amount_of(Inventory.WOOD)
+	interaction.step_chop(0.60)  # recovery of the first tree, after the fall
+	if world.has_tree(near) or interaction.chop_cell != near or not interaction.chopping():
+		printerr("FAIL chop_sweep_bounds: first tree not in recovery")
+		fail += 1
+	player.global_position += Vector2(4, 0)
+	interaction.step_chop(0.20)
+	if interaction.chopping() or not interaction.sweep_cells().is_empty() or not world.has_tree(mid) \
+			or inventory.count_of(Inventory.WOOD) != tree_wood:
+		printerr("FAIL chop_sweep_bounds: recovery move started the next tree wood %s chopping %s"
+				% [inventory.count_of(Inventory.WOOD), interaction.chopping()])
+		fail += 1
+	# Mode switch during recovery of a fresh two-tree sweep.
+	player.global_position = world.to_global(world.map_to_local(Vector2i(10, 10)))
+	world.set_cell(1, near, TileCatalog.SOURCE_ID, TileCatalog.TREE)
+	tap.call(at.call(Vector2(10.5, 8.5)))
+	interaction.step_chop(0.60)
+	interaction.set_mode(Interaction.Mode.COMBAT)
+	interaction.step_chop(0.20)
+	if interaction.chopping() or world.has_tree(mid) == false or not world.has_tree(side):
+		printerr("FAIL chop_sweep_bounds: recovery mode switch did not stop the queue")
+		fail += 1
+	# Death during recovery.
+	interaction.set_mode(Interaction.Mode.INTERACT)
+	player.global_position = world.to_global(world.map_to_local(Vector2i(10, 10)))
+	world.set_cell(1, near, TileCatalog.SOURCE_ID, TileCatalog.TREE)
+	tap.call(at.call(Vector2(10.5, 8.5)))
+	interaction.step_chop(0.60)
+	player.health.set_health_now(0)
+	interaction.step_chop(0.20)
+	if interaction.chopping() or not world.has_tree(mid):
+		printerr("FAIL chop_sweep_bounds: recovery death started the next tree")
+		fail += 1
+	player.queue_free()
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_chop_sweep_bounds_and_cancel")
 	return fail

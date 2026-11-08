@@ -7,7 +7,7 @@ In interact mode the hero chops trees and bushes for wood. Each choppable kind i
 ## Sub-features
 
 - `chop-tap` a tap, or a drag whose box holds one plant, chops that plant: two hits (140 ms and 460 ms), it falls at 560 ms (`ChopAction.step_chop`, `fell_at` in `Scripts/mechanics/trees/chop_action.gd`, driven by `Interaction`). A finger that moves more than 6 viewport pixels but still boxes one tree plays this chop (`Interaction._release_drag`).
-- `chop-range` a drag of more than 6 viewport pixels whose box holds two or more choppables cuts every one of them in reach at once, with no chop pose (`Interaction.cut_range`).
+- `chop-range` a drag of more than 6 viewport pixels aims a cone (`CHOP_REACH` 240 px, 135°). Every choppable in that cone is queued and each plays a full chop, nearest first (`ChopAction.enqueue`).
 - `chop-yield` a fallen plant gives its type's `yields` (tree and pine 3 wood, bush 1, tunable in the `.tres`).
 - `bush-effects` a bush hit draws `art/flagoria/fx/bush_hit.png` in place of the bush tile (the tile switches to its invisible alternative 1 with the same collision) and `fx_leaves.png` frames 0-1; the fall plays frames 2-3, the bush break sound, and no puff.
 - `hit-sheet-reference` `InteractableType.hit_row` warns when the atlas is missing from `tiles` (`last_hit_row_missed`); `tree_hit.png` and `pine_hit.png` match `tests/golden/hit_sheets.txt` (sha256 and size) (#357). Canopy sway feel is parked for a phone play test.
