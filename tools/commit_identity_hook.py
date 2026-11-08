@@ -36,14 +36,18 @@ exec python3 "$root/tools/commit_identity_hook.py" pre-push "$@"
 
 CHAIN = """#!/bin/sh
 # flagoria-commit-identity-chain
+# Keep the exact stdin bytes. A command substitution drops the trailing
+# newline, and a while-read hook then never sees the last ref.
 here=$(CDPATH= cd -- "$(dirname "$0")" && pwd) || exit 1
-input=$(cat)
+payload=$(mktemp) || exit 1
+trap 'rm -f "$payload"' EXIT
+cat > "$payload" || exit 1
 if [ -x "$here/pre-push.flagoria-previous" ]; then
-  printf '%s' "$input" | "$here/pre-push.flagoria-previous" "$@"
+  "$here/pre-push.flagoria-previous" "$@" < "$payload"
   status=$?
   [ "$status" -eq 0 ] || exit "$status"
 fi
-printf '%s' "$input" | "$here/pre-push.flagoria-identity" "$@"
+"$here/pre-push.flagoria-identity" "$@" < "$payload"
 exit $?
 """
 
@@ -151,6 +155,7 @@ def install_shim(dest: Path) -> None:
         write_exec(current, SHIM)
         return
     if is_ours(current, CHAIN_MARKER):
+        write_exec(current, CHAIN)
         write_exec(dest / "pre-push.flagoria-identity", SHIM)
         return
     if current.exists() or current.is_symlink():

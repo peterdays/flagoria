@@ -309,6 +309,61 @@ def test_in_repo_chain_preserves_security(root: Path) -> None:
     assert_accepted(accepted, bare, "refs/heads/main", sha)
 
 
+def test_chain_forwards_every_ref_to_read_loop(root: Path) -> None:
+    ## A standard `while read` loop, with no extra end-of-file clause, must see
+    ## every ref. Rejecting the only ref, or the last of several, leaves the remote unchanged.
+    work, bare = init_pair(root, "readlines")
+    local_hooks = work / "line-hooks"
+    local_hooks.mkdir()
+    seen = root / "refs-seen"
+    original = (
+        "#!/bin/sh\n"
+        f"seen='{seen}'\n"
+        ": > \"$seen\"\n"
+        "while IFS= read -r line; do\n"
+        "  printf '%s\\n' \"$line\" >> \"$seen\"\n"
+        "  set -- $line\n"
+        "  if [ \"$3\" = refs/heads/reject ]; then exit 1; fi\n"
+        "done\n"
+        "exit 0\n"
+    )
+    write_exec(local_hooks / "pre-push", original)
+    original_bytes = (local_hooks / "pre-push").read_bytes()
+    git(work, "config", "core.hooksPath", str(local_hooks))
+    hook.install(str(work))
+    if (local_hooks / "pre-push.flagoria-previous").read_bytes() != original_bytes:
+        fail("chained security hook bytes changed")
+    if "input=$(cat)" in (local_hooks / "pre-push").read_text(encoding="utf-8"):
+        fail("chain still captures stdin with command substitution")
+    base = commit(work, "base")
+    accepted = push(work, "HEAD:refs/heads/main")
+    assert_accepted(accepted, bare, "refs/heads/main", base)
+    first = [line.split() for line in seen.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if len(first) != 1 or len(first[0]) != 4 or first[0][2] != "refs/heads/main":
+        fail(f"single-ref push was not read in full: {first}")
+    git(work, "checkout", "-b", "reject")
+    commit(work, "reject me")
+    one = push(work, "HEAD:refs/heads/reject")
+    assert_rejected(one, None, bare, "refs/heads/reject")
+    if ref_sha(bare, "refs/heads/main") != base:
+        fail("rejected single-ref push moved main")
+    if not any(len(line.split()) == 4 and line.split()[2] == "refs/heads/reject"
+            for line in seen.read_text(encoding="utf-8").splitlines()):
+        fail("single-ref rejection never saw the ref line")
+    git(work, "checkout", "main")
+    git(work, "checkout", "-b", "ok")
+    commit(work, "ok side")
+    many = push(work, "ok:refs/heads/ok", "reject:refs/heads/reject")
+    assert_rejected(many, None, bare, "refs/heads/ok")
+    if ref_sha(bare, "refs/heads/reject") is not None:
+        fail("rejected multi-ref push updated the last ref")
+    if ref_sha(bare, "refs/heads/main") != base:
+        fail("rejected multi-ref push moved main")
+    got = [line.split()[2] for line in seen.read_text(encoding="utf-8").splitlines() if len(line.split()) == 4]
+    if got != ["refs/heads/ok", "refs/heads/reject"]:
+        fail(f"read loop did not see both refs, last included: {got}")
+
+
 def test_external_unrelated_hooks_left_alone(root: Path) -> None:
     work, _bare = init_pair(root, "external")
     hooks = root / "external-hooks"
@@ -413,6 +468,7 @@ def main() -> int:
             test_missing_identity,
             test_security_hook_still_runs,
             test_in_repo_chain_preserves_security,
+            test_chain_forwards_every_ref_to_read_loop,
             test_external_unrelated_hooks_left_alone,
             test_new_branch_multiref_noop_delete,
             test_signature_block_is_not_the_message,
