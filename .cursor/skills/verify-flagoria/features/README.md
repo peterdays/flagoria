@@ -33,6 +33,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Map Settings panel](./map-settings-panel.md) — map parameters before Host, rows from `@export_range` hints, number pad, five action buttons in two pairs plus Host (#217), Random specs (#335).
 - [Two-player Host/Join](./two-player-host-join.md) — multiplayer boot (headless peers scripted; two-launch menu drive; GUI checklist manual).
 - [Join failure returns to the main menu](./join-fail.md) — failed Join shows `Could not join …` on the main menu; host quit reloads to the menu (#348).
+- [Join an address with an optional port](./join-port.md) — hostname or IPv4, optional `:port`, default UDP 9786; bad addresses rejected on the menu (#434).
 - [Dedicated server](./dedicated-server.md) — `-- --server` headless host, `--params` save file, a client joining it.
 - [Player health](./player-health.md) — hearts, HUD, regen, death, respawn hold, rejoin, health sync.
 - [Combat and aiming](./combat-and-aiming.md) — swing, 30 px reach, mid-swing hitbox, mouse and touch aim, exact-angle swing, cone, cancel, wall line-of-sight; live `combat_hud` drive.

@@ -1,5 +1,7 @@
 extends PanelContainer
 
+const JoinAddress = preload("res://Scripts/join_address.gd")
+
 @onready var main_menu = $"."
 @onready var address_entry = $MarginContainer/VBoxContainer/AddressEntry
 @onready var join_status: Label = $MarginContainer/VBoxContainer/JoinStatus
@@ -15,7 +17,7 @@ var admin_panel: PanelContainer
 
 signal new_server_created
 signal new_player_added
-signal new_player_joined
+signal new_player_joined(port: int)
 
 
 func _ready() -> void:
@@ -80,6 +82,11 @@ func _on_host_button_pressed():
 
 
 func _on_join_button_pressed():
+	var parsed: Dictionary = JoinAddress.parse(address_entry.text)
+	if not parsed["ok"]:
+		# Stay on the menu. A bad address never opens an ENet client.
+		show_address_error(str(parsed["error"]))
+		return
 	join_status.visible = false
 	join_status.text = ""
 	main_menu.hide()
@@ -87,7 +94,7 @@ func _on_join_button_pressed():
 		admin_panel.hide()
 	ux_layer.show()
 	get_node("/root/MusicPlayer").play(get_node("/root/MusicPlayer").GAME_TRACK)
-	emit_signal("new_player_joined")
+	emit_signal("new_player_joined", int(parsed["port"]))
 
 
 func _on_map_settings_pressed() -> void:
@@ -108,11 +115,21 @@ func _on_admin_closed() -> void:
 func show_join_failed(address: String) -> void:
 	## Bring the main menu back after a join that never connected (#348).
 	## Message copy is fixed in the issue: "Could not join <address>".
+	_show_status("Could not join %s" % address)
+
+
+func show_address_error(message: String) -> void:
+	## A typed address that Join will not dial. Shown at once, with no
+	## connection attempt. The address field is left as typed.
+	_show_status(message)
+
+
+func _show_status(message: String) -> void:
 	if admin_panel:
 		admin_panel.hide()
 	ux_layer.hide()
 	main_menu.show()
-	join_status.text = "Could not join %s" % address
+	join_status.text = message
 	join_status.visible = true
 	get_node("/root/MusicPlayer").play(get_node("/root/MusicPlayer").MENU_TRACK)
 

@@ -12,7 +12,7 @@ Drive: not player-facing
 
 ## How to get to it (user POV)
 
-- `godot --headless --path . -- --server --port 9799`, then Main Menu → Join on a GUI instance (details in `docs/dedicated-server.md`).
+- `godot --headless --path . -- --server --port 9799`, then Main Menu → Join `127.0.0.1:9799` (see [Join an address with an optional port](./join-port.md); details in `docs/dedicated-server.md`).
 
 ## Driving it with verify-flagoria helpers
 
