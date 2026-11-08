@@ -11,9 +11,9 @@ does not run the check until install is run there.
 
 New outgoing commits must use the raw author and committer from this
 checkout's local git user.name and user.email. A Co-authored-by, Made-with,
-or Generated-by trailer is rejected. Commits already reachable from a
-remote-tracking ref are not rechecked. GitHub's own merge committer is
-outside this check.
+or Generated-by trailer is allowed and left in place. Commits already
+reachable from a remote-tracking ref are not rechecked. GitHub's own merge
+committer is outside this check.
 """
 from __future__ import annotations
 
@@ -25,8 +25,6 @@ from pathlib import Path
 
 MARKER = "flagoria-commit-identity-hook"
 CHAIN_MARKER = "flagoria-commit-identity-chain"
-TRAILER_KEYS = ("co-authored-by", "made-with", "generated-by")
-
 SHIM = """#!/bin/sh
 # flagoria-commit-identity-hook
 set -e
@@ -261,7 +259,7 @@ def identity_from_header(line: str) -> tuple[str, str]:
 def commit_errors(repo: str, sha: str, name: str, email: str) -> list[str]:
     shown = sha[:12]
     raw = git(repo, "cat-file", "-p", sha).stdout
-    headers, body = header_and_body(raw)
+    headers, _body = header_and_body(raw)
     author = committer = None
     for line in headers:
         if line.startswith("author "):
@@ -273,11 +271,8 @@ def commit_errors(repo: str, sha: str, name: str, email: str) -> list[str]:
         errors.append(f"commit identity: {shown} author does not match repo-local identity")
     if committer != (name, email):
         errors.append(f"commit identity: {shown} committer does not match repo-local identity")
-    for message_line in body.splitlines():
-        key = message_line.strip().split(":", 1)[0].strip().lower()
-        if key in TRAILER_KEYS:
-            errors.append(f"commit identity: {shown} has an agent-credit trailer")
-            break
+    # Platform attribution trailers (Co-authored-by, Made-with, Generated-by)
+    # stay in the message. They are not an author or committer header.
     return errors
 
 
