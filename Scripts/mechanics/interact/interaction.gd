@@ -272,9 +272,9 @@ func _release_drag() -> void:
 
 
 func _release_tap() -> void:
-	var delta := to_world(_end) - player.global_position
-	var direction := delta.angle() if delta.length() > 1.0 else _facing_angle()
-	_chop.enqueue(_chop.plants_toward(direction, CHOP_REACH))
+	## A short press on the attack button. Facing and full reach. `_end` is
+	## not used: cut mode never writes it, and a build drag may have.
+	_chop.enqueue(_chop.plants_toward(_facing_angle(), CHOP_REACH))
 
 
 func _facing_angle() -> float:

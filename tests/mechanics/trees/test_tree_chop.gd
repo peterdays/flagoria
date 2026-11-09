@@ -137,9 +137,11 @@ func _test_chop_sheet_on_single_cut() -> int:
 	var tree_a := Vector2i(10, 8)
 	var tree_b := Vector2i(14, 8)
 	var tree_c := Vector2i(10, 6)
+	var tree_west := Vector2i(6, 10)
 	world.set_cell(1, tree_a, TileCatalog.SOURCE_ID, TileCatalog.TREE)
 	world.set_cell(1, tree_b, TileCatalog.SOURCE_ID, TileCatalog.TREE)
 	world.set_cell(1, tree_c, TileCatalog.SOURCE_ID, TileCatalog.TREE)
+	world.set_cell(1, tree_west, TileCatalog.SOURCE_ID, TileCatalog.TREE)
 	var player = load("res://Player/character_body_2d.tscn").instantiate()
 	player.name = str(scene.multiplayer.get_unique_id())
 	player.position = world.to_global(world.map_to_local(Vector2i(10, 10)))
@@ -158,14 +160,19 @@ func _test_chop_sheet_on_single_cut() -> int:
 		_chop_from_button(vp, button, end_pos - start)
 	var posed := func() -> bool:
 		return interaction.chopping() and chop_sprite.visible and not walk_sprite.visible
-	# 4 viewport px on the button is still a facing chop. The hero faces the
-	# northern trees, so the side tree stays up.
-	player.lastAnimDirection = "Up"
-	var origin: Vector2 = at.call(Vector2(10.5, 8.5))
+	# 4 viewport px on the button is still a facing chop. The hero faces east,
+	# so the eastern tree is the target. A cone toward the viewport corner
+	# (or toward `_end`, left on the opposite tree as a build drag would)
+	# does not cover that target.
+	player.lastAnimDirection = "Right"
+	interaction._end = at.call(Vector2(6.5, 10.5))
+	var origin: Vector2 = button.aim_center()
 	gesture.call(origin, origin + Vector2(4, 0))
-	if not posed.call() or interaction.chop_cell != tree_a or not world.has_tree(tree_b):
-		printerr("FAIL chop_sheet_on_single_cut: 4px move chopping %s cell %s pose %s, tree b %s"
-				% [interaction.chopping(), interaction.chop_cell, chop_sprite.visible, world.has_tree(tree_b)])
+	if not posed.call() or interaction.chop_cell != tree_b or not world.has_tree(tree_west) \
+			or not world.has_tree(tree_a):
+		printerr("FAIL chop_sheet_on_single_cut: 4px move chopping %s cell %s pose %s, west %s north %s"
+				% [interaction.chopping(), interaction.chop_cell, chop_sprite.visible,
+					world.has_tree(tree_west), world.has_tree(tree_a)])
 		fail += 1
 	player.global_position += Vector2(8, 0)
 	interaction.step_chop(0.05)
@@ -317,4 +324,54 @@ func _test_chop_sweep_bounds_and_cancel() -> int:
 	await process_frame
 	if fail == 0:
 		print("PASS test_chop_sweep_bounds_and_cancel")
+	return fail
+
+
+func _test_chop_tap_ignores_stale_end() -> int:
+	## A short attack-button press chops in the facing direction at full
+	## reach. `_end` is left on the opposite tree, as a build drag would.
+	## A cone toward that point, or toward the viewport corner, does not
+	## cover the facing tree. Time cost: about 0.3 s in tools/verify.sh.
+	print("-- test_chop_tap_ignores_stale_end")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var menu: Node = scene.get_node("CanvasLayer2/MainMenu")
+	menu.hide()
+	menu.set_process_unhandled_input(false)
+	scene.get_node("CanvasLayer1").show()
+	var world = scene.get_node("World/worldMap")
+	world.clear()
+	for x in range(4, 20):
+		for y in range(6, 16):
+			world.set_cell(0, Vector2i(x, y), TileCatalog.SOURCE_ID, TileCatalog.GRASS_A)
+	var east := Vector2i(14, 10)
+	var west := Vector2i(6, 10)
+	world.set_cell(1, east, TileCatalog.SOURCE_ID, TileCatalog.TREE)
+	world.set_cell(1, west, TileCatalog.SOURCE_ID, TileCatalog.TREE)
+	var player = load("res://Player/character_body_2d.tscn").instantiate()
+	player.name = str(scene.multiplayer.get_unique_id())
+	player.position = world.to_global(world.map_to_local(Vector2i(10, 10)))
+	scene.get_node("World").add_child(player)
+	await process_frame
+	player.lastAnimDirection = "Right"
+	var interaction: Interaction = scene.get_node("World/Interaction")
+	interaction.set_process(false)
+	interaction.set_mode(Interaction.Mode.INTERACT)
+	var at := func(cell: Vector2) -> Vector2:
+		return interaction.get_canvas_transform() * world.to_global(cell * 16.0)
+	interaction._end = at.call(Vector2(6.5, 10.5))
+	interaction._start = interaction._end
+	var button: Node = scene.get_node("CanvasLayer1/TouchScreenButton")
+	_chop_from_button(scene.get_viewport(), button, Vector2(3, 0))
+	var selected: Array = interaction.sweep_cells()
+	if interaction.chop_cell != east or west in selected or not world.has_tree(west):
+		printerr("FAIL chop_tap_ignores_stale_end: cell %s sweep %s west standing %s"
+				% [interaction.chop_cell, selected, world.has_tree(west)])
+		fail += 1
+	player.queue_free()
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_chop_tap_ignores_stale_end")
 	return fail
