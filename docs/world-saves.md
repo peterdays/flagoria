@@ -52,6 +52,12 @@ floats, so each entry's reader converts its own integers.
 There are no timestamps in the file: the saved maps list uses the file's
 modified time.
 
+The main menu's Worlds screen lists every file in that folder, by name and
+modified time. Load hosts that file. Host, and New world, start a match whose
+saves go in a new file, so an existing save is not replaced. Save writes that
+match's file again. A file already in the folder is listed as it is; opening
+the list does not rewrite it. Rename and a terrain preview are still #40.
+
 ## Cut trees and bushes
 
 A felled tree or bush is a `world.object_changes` entry on its cell:

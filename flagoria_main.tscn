@@ -234,6 +234,10 @@ text = "Map Settings"
 layout_mode = 2
 text = "Host"
 
+[node name="WorldsButton" type="Button" parent="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Worlds"
+
 [node name="JoinButton" type="Button" parent="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer"]
 layout_mode = 2
 text = "Join"
@@ -322,4 +326,5 @@ layer = 10
 
 [connection signal="pressed" from="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/MapSettingsButton" to="CanvasLayer2/MainMenu" method="_on_map_settings_pressed"]
 [connection signal="pressed" from="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/HostButton" to="CanvasLayer2/MainMenu" method="_on_host_button_pressed"]
+[connection signal="pressed" from="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/WorldsButton" to="CanvasLayer2/MainMenu" method="_on_worlds_pressed"]
 [connection signal="pressed" from="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/JoinButton" to="CanvasLayer2/MainMenu" method="_on_join_button_pressed"]

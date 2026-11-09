@@ -10,6 +10,8 @@ var host_port := PORT
 const Player = preload("res://Player/character_body_2d.tscn")
 @onready var address_entry = $CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/AddressEntry
 var world_params: MapGenParams
+## The world save this match writes. Empty until Host or Load chooses one.
+var save_name := ""
 ## Client: the spot the server picked for its own player, until it is placed.
 var _own_spot := Vector2.INF
 ## Server spots for players not yet spawned here (#352). Applied in

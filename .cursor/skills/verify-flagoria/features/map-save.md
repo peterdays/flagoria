@@ -13,7 +13,7 @@ A world save holds a world's generation inputs (params and seeds) plus what was 
 - `save-from-menu` the in-game menu's Save button (`Scripts/ingame_menu.gd`) names the save after the date and time (`YYYY-MM-DD HH-MM-SS`, ` 2` and so on when taken) and shows "Saved: MM-DD HH:MM".
 - `save-migrate` a version 1 map save (inputs only) loads with empty change sections; every format version has a fixture in `tests/fixtures/`.
 - `save-reject` newer or unknown versions, another format, malformed files or change sections, and a seed left at 0 give clear errors and write no file.
-- `save-list` `MapSave` lists saves newest first with name and date, renames and deletes them, and refuses a name outside the saves folder. API only: no menu shows the list yet.
+- `save-list` `MapSave` lists saves newest first with name and date, renames and deletes them, and refuses a name outside the saves folder. The main menu Worlds screen shows that list and can load or delete; rename stays on the API (#40). See [Saved worlds](./saved-worlds.md).
 
 ## How to get to it (user POV)
 
