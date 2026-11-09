@@ -11,6 +11,7 @@ Drive: not player-facing
 - `ds-params` `--params <file>` hosts the map in that save (#193); a joining client gets exactly its params, and a missing file stops the server with exit 1 before it listens. The file's generation params are what is hosted. Cuts, bridges, structures, and walls are not restored, and the server does not autosave (#15).
 - `ds-quit` SIGTERM closes ENet, prints `Dedicated server stopped.` once, and exits 0 (`test_server_quit`). A client that joined with `add_player_joined` is back on the main menu within 6 s of SIGTERM. The dedicated path does not call UPnP.
 - `ds-docker` the same process in a non-root image (`docs/docker-dedicated-server.md`). Generation params are a read-only mount. A crash restarts at most three times. Not a player drive.
+- `ds-vpn` private VPN access is a manual runbook (`docs/private-server.md`). It is not a player drive and not a CI gate.
 
 ## How to get to it (user POV)
 

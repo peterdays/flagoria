@@ -9,7 +9,7 @@ docker compose up -d
 docker compose logs -f
 ```
 
-The log shows `Dedicated server listening on UDP port 9786`. Compose publishes that UDP port on the machine. It does not change a firewall, a VPN, or UPnP, and it does not use host networking. Do not forward the port onto a public address. Another computer on the same LAN joins the machine's LAN IPv4 at port `9786`. Two clients moving on that LAN is a manual check.
+The log shows `Dedicated server listening on UDP port 9786`. Compose publishes that UDP port on the machine. It does not change a firewall, a VPN, or UPnP, and it does not use host networking. Do not forward the port onto a public address. Another computer on the same LAN joins the machine's LAN IPv4 at port `9786`. Two clients moving on that LAN is a manual check. Friends off that LAN use [Private VPN access](private-server.md). Publishing `9786:9786` on every host interface is not that step.
 
 Loopback only:
 
