@@ -70,13 +70,22 @@ func _unhandled_input(_event):
 		get_tree().quit()
 
 
+func _on_new_world_pressed() -> void:
+	## A new match, even if a save was loaded and not hosted yet.
+	get_node("/root/MapGen").clear_loaded_world()
+	get_node("/root/Flagoria").save_name = ""
+	_on_host_button_pressed()
+
+
 func _on_host_button_pressed():
-	## A new world: its own save name, and none of a previously loaded world.
+	## Host the loaded world when there is one. Otherwise start a new match
+	## in its own save file.
 	var map_gen = get_node("/root/MapGen")
-	map_gen.clear_loaded_world()
-	var menu_script: GDScript = load("res://Scripts/ingame_menu.gd")
-	get_node("/root/Flagoria").save_name = menu_script.unused_save_name(
-			menu_script.auto_save_name(Time.get_datetime_dict_from_system()))
+	var game = get_node("/root/Flagoria")
+	if not map_gen.has_loaded_world():
+		var menu_script: GDScript = load("res://Scripts/ingame_menu.gd")
+		game.save_name = menu_script.unused_save_name(
+				menu_script.auto_save_name(Time.get_datetime_dict_from_system()))
 	_begin_host()
 
 
@@ -151,7 +160,7 @@ func _worlds_panel() -> PanelContainer:
 	box.add_child(buttons)
 	_world_button(buttons, "Load", _on_load_world_pressed)
 	_world_button(buttons, "Delete", _on_delete_world_pressed)
-	_world_button(buttons, "NewWorld", _on_host_button_pressed).text = "New world"
+	_world_button(buttons, "NewWorld", _on_new_world_pressed).text = "New world"
 	var confirm := HBoxContainer.new()
 	confirm.name = "Confirm"
 	confirm.visible = false

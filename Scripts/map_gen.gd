@@ -72,6 +72,10 @@ func load_map_inputs(path: String) -> String:
 	return result["error"]
 
 
+func has_loaded_world() -> bool:
+	return _loaded_world != null
+
+
 func clear_loaded_world() -> void:
 	## Drop a world that was loaded but is not the one about to be hosted.
 	_loaded_world = null
