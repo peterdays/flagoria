@@ -78,6 +78,13 @@ if ! python3 "$ROOT/tools/file_budget.py"; then
   exit 1
 fi
 
+echo "== Issue triage scorer (tools/issue_triage_test.py) =="
+# Fast and needs no Godot. Parser and path rule for the issue triage labels.
+if ! python3 "$ROOT/tools/issue_triage_test.py"; then
+  echo "error: issue triage scorer tests failed (see above)" >&2
+  exit 1
+fi
+
 echo "== Feature map (check-map.sh) =="
 # Fast and needs no Godot. Every feature file must carry a Drive: line; see
 # .cursor/skills/verify-flagoria/bin/check-map.sh.
