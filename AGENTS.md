@@ -41,11 +41,66 @@ Describe one concern. State what is included and what is out of scope. Link rela
 
 List executable completion checks. Each check identifies an actor, an action, and an observable pass condition. Avoid criteria such as "works correctly" without a defined result.
 
-Use the task issue form when available. Issues created through the API, CLI, or any other route must use the same native title and body sections.
+Use the task issue form when available. Issues created through the API, CLI, or any other route must use the same native title and body sections, plus the triage headings under Issue triage labels.
 
 This format applies to all new issues, including roadmap and epic trackers. A new tracker links its tasks and defines completion as acceptance of the included tasks, with deferred scope stated explicitly.
 
 Do not automatically rewrite historical issues to match this format.
+
+## Issue triage labels
+
+The task form collects reach, impact, confidence, effort, risk area and severity. A workflow on issue open and edit (`issue-triage`) reads those fields from the body and applies routing labels. It scores an issue only when the author login equals `SCORED_AUTHOR` in `tools/issue_triage.py`. Every other author is ignored. The workflow does not call a model or any external service.
+
+The labels are a routing hint for bots that open pull requests. They are not an approval record. Approvals are tracked outside this repository.
+
+`RICE = reach * impact * confidence / effort`. Reach is an integer 1 through 10, impact is one of 0.25, 0.5, 1, 2 or 3, and effort is person-weeks one of 0.25, 0.5, 1, 2 or 4. The form records confidence as 50, 80 or 100, and the scorer uses that as 0.5, 0.8 or 1. One bucket label is applied when the fields parse:
+
+- `rice: low` when the score is below 6
+- `rice: med` when the score is at least 6 and below 12
+- `rice: high` when the score is 12 or more
+
+Exactly one path label is applied:
+
+- `triage: auto-merge` — a later pull request may auto-merge when the required checks are green.
+- `triage: escalate` — an owner decision comes before merge.
+
+Escalate when any of these is true. Otherwise the path is `triage: auto-merge`.
+
+- A high-blast risk area is selected and severity is med or high. High-blast areas are saves/world data, netcode/multiplayer sync, release/signing/CI and security/privacy.
+- Severity is high, whatever else is selected, including core input or none. Severity high is decided before the high-blast check.
+- Any of the six fields is missing or is not one of the values above.
+
+`core input` and `none` are not high-blast. Low severity does not escalate on its own, even when a high-blast area is selected. Selecting `none` together with another area still counts that other area.
+
+`workflow_dispatch` runs the same scorer over open issues by that author. An issue whose fields do not parse gets `triage: escalate` and `triage: needs-fields`. A later open or edit that parses the fields removes `triage: needs-fields`. That dispatch is manual and is not part of pull-request CI.
+
+The arithmetic and the path are repeated in one workflow comment, updated in place, marked `<!-- flagoria-issue-triage -->`. An issue opened outside the form can use the same headings, or a single line per field (`Reach: 5`, `Risk area: none`):
+
+```
+### Reach
+
+5
+
+### Impact
+
+1
+
+### Confidence
+
+80
+
+### Effort
+
+1
+
+### Risk area
+
+- [x] none
+
+### Severity
+
+low
+```
 
 ## Other house rules
 
