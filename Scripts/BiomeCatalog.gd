@@ -46,11 +46,14 @@ const TERRAIN := {
 ## bushy_moist: added to bushy_tree_min_moist; a tree on wetter land than that
 ## is the bushy variant. Values of 2.0 and above mean none (moisture stays
 ## below 1), so TEMPERATE still matches biomes off.
+## swamp_bush_chance: added to swamp_bush_min_chance; swamp cells with a higher
+## chance grow a bush (swamp scrub). 2.0 means none, so TEMPERATE still
+## matches biomes off.
 const PLANTS := {
-	OCEANIC: {"tree_chance": 0.3, "bush_chance": 0.2, "pine_chance": 0.3, "bushy_moist": 0.0},
-	TEMPERATE: {"tree_chance": 0.0, "bush_chance": 0.0, "pine_chance": 2.0, "bushy_moist": 2.0},
-	CONTINENTAL: {"tree_chance": -0.25, "bush_chance": 0.0, "pine_chance": -0.25, "bushy_moist": 0.15},
-	ARCHIPELAGO_DENSE: {"tree_chance": 0.15, "bush_chance": -0.25, "pine_chance": 2.0, "bushy_moist": -0.2},
+	OCEANIC: {"tree_chance": 0.3, "bush_chance": 0.2, "pine_chance": 0.3, "bushy_moist": 0.0, "swamp_bush_chance": 2.0},
+	TEMPERATE: {"tree_chance": 0.0, "bush_chance": 0.0, "pine_chance": 2.0, "bushy_moist": 2.0, "swamp_bush_chance": 2.0},
+	CONTINENTAL: {"tree_chance": -0.25, "bush_chance": 0.0, "pine_chance": -0.25, "bushy_moist": 0.15, "swamp_bush_chance": 2.0},
+	ARCHIPELAGO_DENSE: {"tree_chance": 0.15, "bush_chance": -0.25, "pine_chance": 2.0, "bushy_moist": -0.2, "swamp_bush_chance": 0.0},
 }
 
 ## Per-biome structures: walkable stones on GROUND_DECOR_LAYER. A walkable land

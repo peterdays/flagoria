@@ -83,6 +83,10 @@ extends Resource
 # broadleaf variant where moisture is above bushy_tree_min_moist plus the
 # biome's bushy_moist (BiomeCatalog.PLANTS). Biomes on only.
 @export_range(0.0, 2.0, 0.05) var bushy_tree_min_moist: float = 0.3
+# Swamp scrub (TileCatalog.BUSH on swamp): a swamp cell grows a bush where its
+# chance is above swamp_bush_min_chance plus the biome's swamp_bush_chance
+# (BiomeCatalog.PLANTS). Biomes on only.
+@export_range(-1.0, 2.0, 0.05) var swamp_bush_min_chance: float = 0.3
 
 
 ## Playable ranges for Random specs (#335): narrower than @export_range where
@@ -120,6 +124,7 @@ const PLAYABLE_RANGES := {
 	"pine_min_moist": [-0.5, -0.1, 0.01],
 	"pine_min_chance": [0.1, 0.5, 0.05],
 	"bushy_tree_min_moist": [0.15, 0.5, 0.05],
+	"swamp_bush_min_chance": [0.15, 0.5, 0.05],
 	"foliage_band": [0.03, 0.08, 0.01],  ## height of flower then bush bands above sand
 }
 
@@ -207,6 +212,7 @@ func randomize_specs() -> void:
 	pine_min_moist = _rand_range("pine_min_moist")
 	pine_min_chance = _rand_range("pine_min_chance")
 	bushy_tree_min_moist = _rand_range("bushy_tree_min_moist")
+	swamp_bush_min_chance = _rand_range("swamp_bush_min_chance")
 
 
 func _rand_range(key: String) -> float:
