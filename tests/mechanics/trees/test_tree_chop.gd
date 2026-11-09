@@ -35,12 +35,9 @@ func _test_chop_tree_two_hits() -> int:
 	var vp: Viewport = scene.get_viewport()
 	var hits: Array = []
 	interaction.chop_hit.connect(func(cell: Vector2i, hit: int) -> void: hits.append([cell, hit]))
+	var button: Node = scene.get_node("CanvasLayer1/TouchScreenButton")
 	var tap := func(cell: Vector2) -> void:
-		for pressed in [true, false]:
-			var e := InputEventScreenTouch.new()
-			e.position = interaction.get_canvas_transform() * world.to_global(cell * 16.0)
-			e.pressed = pressed
-			vp.push_input(e, true)
+		_chop_toward(vp, interaction, player, button, world.to_global(cell * 16.0))
 	var tree := Vector2i(10, 8)
 	var pine := Vector2i(18, 10)
 	var run_to := func(t: float) -> void:  # step the chop clock up to t s
@@ -156,22 +153,14 @@ func _test_chop_sheet_on_single_cut() -> int:
 	var walk_sprite: Sprite2D = player.get_node("Sprite2D")
 	var at := func(cell: Vector2) -> Vector2:
 		return interaction.get_canvas_transform() * world.to_global(cell * 16.0)
+	var button: Node = scene.get_node("CanvasLayer1/TouchScreenButton")
 	var gesture := func(start: Vector2, end_pos: Vector2) -> void:
-		var press := InputEventScreenTouch.new()
-		press.position = start
-		press.pressed = true
-		vp.push_input(press, true)
-		if start.distance_to(end_pos) > 0.5:
-			var drag := InputEventScreenDrag.new()
-			drag.position = end_pos
-			vp.push_input(drag, true)
-		var lift := InputEventScreenTouch.new()
-		lift.position = end_pos
-		lift.pressed = false
-		vp.push_input(lift, true)
+		_chop_from_button(vp, button, end_pos - start)
 	var posed := func() -> bool:
 		return interaction.chopping() and chop_sprite.visible and not walk_sprite.visible
-	# 4 viewport px is still a tap: one chop, the other tree stands.
+	# 4 viewport px on the button is still a facing chop. The hero faces the
+	# northern trees, so the side tree stays up.
+	player.lastAnimDirection = "Up"
 	var origin: Vector2 = at.call(Vector2(10.5, 8.5))
 	gesture.call(origin, origin + Vector2(4, 0))
 	if not posed.call() or interaction.chop_cell != tree_a or not world.has_tree(tree_b):
@@ -264,15 +253,9 @@ func _test_chop_sweep_bounds_and_cancel() -> int:
 	var vp: Viewport = scene.get_viewport()
 	var at := func(cell: Vector2) -> Vector2:
 		return interaction.get_canvas_transform() * world.to_global(cell * 16.0)
+	var button: Node = scene.get_node("CanvasLayer1/TouchScreenButton")
 	var tap := func(pos: Vector2) -> void:
-		var press := InputEventScreenTouch.new()
-		press.position = pos
-		press.pressed = true
-		vp.push_input(press, true)
-		var lift := InputEventScreenTouch.new()
-		lift.position = pos
-		lift.pressed = false
-		vp.push_input(lift, true)
+		_chop_toward(vp, interaction, player, button, interaction.to_world(pos))
 	# Inside the boundary, outside it, and off to the side.
 	if not interaction.chop_in_reach(edge) or interaction.chop_in_reach(past) \
 			or player.global_position.distance_to(interaction.cell_center(edge)) > 240.0 \

@@ -16,6 +16,7 @@ func _test_dead_cut_alone() -> int:
 	var menu: Node = scene.get_node("CanvasLayer2/MainMenu")
 	menu.hide()
 	menu.set_process_unhandled_input(false)
+	scene.get_node("CanvasLayer1").show()
 	var world = scene.get_node("World/worldMap")
 	# Painted scenes: freeze chunk redraw and pin spawn so respawn's
 	# resolve_player_spawn does not generate_chunk over the paint (#359).
@@ -48,17 +49,16 @@ func _test_dead_cut_alone() -> int:
 		e.position = pos
 		e.pressed = pressed
 		vp.push_input(e, true)
-	var swipe := func() -> void:  # aim from the hero up through the tree
-		touch.call(at.call(Vector2(10.5, 10.5)), true)
-		var e := InputEventScreenDrag.new()
-		e.position = at.call(Vector2(10.5, 8.2))
-		vp.push_input(e, true)
-		touch.call(at.call(Vector2(10.5, 8.2)), false)
+	var button: Node = scene.get_node("CanvasLayer1/TouchScreenButton")
+	var swipe := func() -> void:  # attack button, from the hero up through the tree
+		var start: Vector2 = at.call(Vector2(10.5, 10.5))
+		var end_pos: Vector2 = at.call(Vector2(10.5, 8.2))
+		_chop_from_button(vp, button, end_pos - start)
 	var health: PlayerHealth = player.health
 	health.set_health_now(0)
 	swipe.call()
-	touch.call(at.call(Vector2(10.5, 8.5)), true)
-	touch.call(at.call(Vector2(10.5, 8.5)), false)
+	player.lastAnimDirection = "Up"
+	_chop_from_button(vp, button, Vector2(0, -4))
 	interaction.step_chop(1.0)
 	if not world.has_tree(tree) or inventory.count_of(Inventory.WOOD) != 0 or interaction.chopping():
 		printerr("FAIL dead_cut_alone: dead, the drag and tap left tree %s, wood %s, chopping %s"

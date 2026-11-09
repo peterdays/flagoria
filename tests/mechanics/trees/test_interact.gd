@@ -99,10 +99,11 @@ func _test_interact_cut_trees() -> int:
 			if world.has_tree(Vector2i(x, 8)):
 				out.append(x)
 		return out
-	var swipe := func() -> void:  # aim up from the hero, 50 world px (short of the far trees)
-		touch.call(0, at.call(Vector2(10.5, 10.5)), true)
-		drag.call(0, at.call(Vector2(10.5, 10.5 - 50.0 / 16.0)))
-		touch.call(0, at.call(Vector2(10.5, 10.5 - 50.0 / 16.0)), false)
+	var button: Node = scene.get_node("CanvasLayer1/TouchScreenButton")
+	var swipe := func() -> void:  # attack button, 50 world px up (short of the far trees)
+		var start: Vector2 = at.call(Vector2(10.5, 10.5))
+		var end_pos: Vector2 = at.call(Vector2(10.5, 10.5 - 50.0 / 16.0))
+		_chop_from_button(vp, button, end_pos - start)
 
 	# Combat mode: the same drag cuts nothing.
 	swipe.call()
@@ -110,12 +111,13 @@ func _test_interact_cut_trees() -> int:
 		printerr("FAIL interact_cut_trees: combat mode cut %s" % [row.call()])
 		fail += 1
 	interaction.set_mode(Interaction.Mode.INTERACT)
-	# A pinch is not a selection.
-	touch.call(0, at.call(Vector2(16.5, 8.4)), true)
-	touch.call(1, at.call(Vector2(6.5, 8.4)), true)
-	drag.call(0, at.call(Vector2(5.5, 8.6)))
-	touch.call(0, at.call(Vector2(5.5, 8.6)), false)
-	touch.call(1, at.call(Vector2(6.5, 8.4)), false)
+	# A second finger while the attack button is held is not a chop.
+	var origin: Vector2 = button.aim_center()
+	touch.call(0, origin, true)
+	touch.call(1, origin + Vector2(40, 0), true)
+	drag.call(0, origin + Vector2(0, -80))
+	touch.call(0, origin + Vector2(0, -80), false)
+	touch.call(1, origin + Vector2(40, 0), false)
 	if row.call().size() != 16:
 		printerr("FAIL interact_cut_trees: a pinch cut %s" % [row.call()])
 		fail += 1
@@ -169,8 +171,7 @@ func _test_interact_cut_trees() -> int:
 	var far_east := Vector2i(10 + 20, 10)
 	world.set_cell(0, far_east, TileCatalog.SOURCE_ID, TileCatalog.GRASS_A)
 	world.set_cell(1, far_east, TileCatalog.SOURCE_ID, TileCatalog.TREE)
-	touch.call(0, at.call(Vector2(10.5, 6.5)), true)
-	touch.call(0, at.call(Vector2(10.5, 6.5)), false)
+	_chop_toward(vp, interaction, player, button, interaction.to_world(at.call(Vector2(10.5, 6.5))))
 	var tapped: Array[Vector2i] = interaction.sweep_cells()
 	if tapped.is_empty() or not Vector2i(10, 6) in tapped or far_east in tapped:
 		printerr("FAIL interact_cut_trees: tap sweep %s" % [tapped])
@@ -255,8 +256,7 @@ func _test_interact_in_multiplayer() -> int:
 		printerr("FAIL interact_in_multiplayer offline: button visible %s, disabled %s" % [button.visible, button.disabled])
 		fail += 1
 	interaction.set_mode(Interaction.Mode.INTERACT)
-	touch.call(at.call(Vector2(10.5, 8.5)), true)
-	touch.call(at.call(Vector2(10.5, 8.5)), false)
+	_chop_toward(vp, interaction, player, scene.get_node("CanvasLayer1/TouchScreenButton"), world.to_global(world.map_to_local(Vector2i(10, 8))))
 	interaction.step_chop(1.0)
 	if world.has_tree(Vector2i(10, 8)) or inventory.count_of(Inventory.WOOD) != InteractableCatalog.by_id("tree").amount_of(Inventory.WOOD):
 		printerr("FAIL interact_in_multiplayer offline: the tap did not cut (10, 8)")

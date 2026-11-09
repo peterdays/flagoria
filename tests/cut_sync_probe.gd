@@ -181,12 +181,15 @@ func _run() -> void:
 					await process_frame
 				dead_cut += interaction.choppables_in_rect(Rect2(centre - Vector2(10, 10), Vector2(20, 20))).size()
 				var to_view := interaction.get_canvas_transform()
+				var button: Node = main.get_node("CanvasLayer1/TouchScreenButton")
+				var origin: Vector2 = button.aim_center()
+				var delta: Vector2 = (to_view * centre) - (to_view * me.global_position)
 				var press := InputEventScreenTouch.new()
-				press.position = to_view * (centre - Vector2(10, 10))
+				press.position = origin
 				press.pressed = true
 				root.push_input(press, true)
 				var drag := InputEventScreenDrag.new()
-				drag.position = to_view * (centre + Vector2(10, 10))
+				drag.position = origin + delta
 				root.push_input(drag, true)
 				var lift := InputEventScreenTouch.new()
 				lift.position = drag.position
