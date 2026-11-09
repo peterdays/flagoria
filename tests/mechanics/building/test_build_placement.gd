@@ -271,8 +271,7 @@ func _test_build_cut_mode_unchanged() -> int:
 		e.pressed = pressed
 		vp.push_input(e, true)
 	var want_wood := inventory.count_of(Inventory.WOOD)
-	touch.call(at.call(Vector2(11.3, 6.5)), true)
-	touch.call(at.call(Vector2(11.3, 6.5)), false)
+	_chop_toward(vp, interaction, player, scene.get_node("CanvasLayer1/TouchScreenButton"), world.to_global(world.map_to_local(Vector2i(10, 6))))
 	interaction.step_chop(1.0)
 	var tree_wood := InteractableCatalog.by_id("tree").amount_of(Inventory.WOOD)
 	if world.has_tree(Vector2i(10, 6)) or inventory.count_of(Inventory.WOOD) != want_wood + tree_wood:

@@ -1,18 +1,11 @@
 class_name Interaction
 extends Node2D
-## Combat or interact mode for the local player, switched with the HUD mode
-## button. Combat is the default and leaves the map to the attack controls.
-## In interact mode the Cut/Plank picker shows (#225). Cut: one gesture
-## starts one sweep. A tap aims the chop cone the way an attack tap aims,
-## from the hero toward the finger (or the hero's facing), out to CHOP_REACH.
-## A drag past 6 viewport pixels aims that same cone: direction and length
-## come from the drag, clamped to CHOP_REACH. Every plant in the cone is
-## queued and each plays its full chop before the next starts. Plank: a drag snaps to a
-## horizontal or vertical run; green/red preview and wood cost follow the
-## finger; lift places the longest valid prefix through ConstructionPlacer.
-## Mouse clicks and drags count as touches. Touches that start on a HUD
-## control, and two-finger pinches, select nothing. While the local player is
-## dead, taps and drags do nothing (#349).
+## Combat or interact mode. Combat leaves the map to AttackAim.
+## Interact Cut aims from the attack button (ChopStick): a drag past
+## DRAG_START sets the cone's direction and its reach, clamped to CHOP_REACH,
+## and a shorter press chops in the facing direction at full reach. Plants in
+## the cone queue and each finishes before the next. Plank, tower and wall
+## still drag on the map. A dead player cuts nothing (#349).
 ## While multiplayer is active (a client, or a host with a peer connected)
 ## the host decides every cut (#223): a client asks it with request_cut, the
 ## host drops the request when that peer is over its CutRateLimit (#355),
@@ -68,6 +61,7 @@ var _touch := -1  ## index of the touch being followed, or -1
 var _start := Vector2.ZERO  ## viewport position where it went down
 var _end := Vector2.ZERO
 var _dragging := false
+var _stick = preload("res://Scripts/mechanics/interact/chop_stick.gd").new()
 ## The chop, its effects and its sounds (Scripts/mechanics/trees/chop_action.gd).
 var _chop := ChopAction.new(self)
 ## Interact-mode build tool: Cut / Plank / Tower / Wall picker (#225 / #276).
@@ -167,6 +161,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _touch != -1:
 			_cancel()
 		return
+	if build.tool == BuildPlacement.Tool.CUT:
+		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			if _touch == -1 and not _on_hud(event.position):
@@ -208,17 +204,18 @@ func _on_hud(pos: Vector2) -> bool:
 func _cancel() -> void:
 	_touch = -1
 	_dragging = false
+	_stick.cancel()
 	build.clear_preview()
 	queue_redraw()
 
 
+func _input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		_stick.handle(self, event)
+
+
 func to_world(viewport_pos: Vector2) -> Vector2:
 	return get_canvas_transform().affine_inverse() * viewport_pos
-
-
-func selection_rect() -> Rect2:
-	## The dragged range in world coordinates.
-	return Rect2(to_world(_start), Vector2.ZERO).expand(to_world(_end))
 
 
 func in_reach(cell: Vector2i) -> bool:
@@ -230,10 +227,11 @@ func chop_in_reach(cell: Vector2i) -> bool:
 
 
 func chop_sweep() -> Dictionary:
-	## The drag as a chop cone: direction, and reach clamped to CHOP_REACH.
-	## Empty when the finger has not moved.
-	var delta := to_world(_end) - to_world(_start)
-	if delta.length() <= 0.001 or player == null:
+	## The attack-button drag as a chop cone. Empty until the finger has moved.
+	if not _stick.dragging or player == null:
+		return {}
+	var delta := to_world(_stick.end) - to_world(_stick.start)
+	if delta.length() <= 0.001:
 		return {}
 	return {"direction": delta.angle(), "reach": minf(delta.length(), CHOP_REACH)}
 
@@ -274,9 +272,9 @@ func _release_drag() -> void:
 
 
 func _release_tap() -> void:
-	var delta := to_world(_end) - player.global_position
-	var direction := delta.angle() if delta.length() > 1.0 else _facing_angle()
-	_chop.enqueue(_chop.plants_toward(direction, CHOP_REACH))
+	## A short press on the attack button. Facing and full reach. `_end` is
+	## not used: cut mode never writes it, and a build drag may have.
+	_chop.enqueue(_chop.plants_toward(_facing_angle(), CHOP_REACH))
 
 
 func _facing_angle() -> float:
@@ -487,10 +485,9 @@ func receive_yields(yields: Dictionary) -> void:
 func _draw() -> void:
 	if mode != Mode.INTERACT or player == null:
 		return
-	draw_arc(to_local(player.global_position), CHOP_REACH, 0.0, TAU, 48, FILL_COLOR, 1.0)
 	if build.tool in [BuildPlacement.Tool.PLANK, BuildPlacement.Tool.TOWER, BuildPlacement.Tool.WALL]:
 		build.draw_preview(self)
-	elif _dragging:
+	elif _stick.dragging:
 		var sweep := chop_sweep()
 		if not sweep.is_empty():
 			var origin := to_local(player.global_position)

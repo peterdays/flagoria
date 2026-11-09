@@ -511,6 +511,35 @@ func _tap_sequence(pos: Vector2, steps: Array) -> void:
 		root.push_input(ev, true)
 
 
+func _chop_from_button(vp: Viewport, button: Node, delta: Vector2) -> void:
+	## Press the attack button and drag by `delta` viewport pixels, then lift.
+	## Shorter than Interaction.DRAG_START chops in the facing direction.
+	var origin: Vector2 = button.aim_center()
+	var press := InputEventScreenTouch.new()
+	press.pressed = true
+	press.position = origin
+	vp.push_input(press, true)
+	var end := origin + delta
+	if delta.length() > 0.5:
+		var drag := InputEventScreenDrag.new()
+		drag.position = end
+		vp.push_input(drag, true)
+	var lift := InputEventScreenTouch.new()
+	lift.pressed = false
+	lift.position = end
+	vp.push_input(lift, true)
+
+
+func _chop_toward(vp: Viewport, interaction: Interaction, player: Node2D, button: Node, world_point: Vector2, reach: float = -1.0) -> void:
+	## Aim the attack button from the player toward `world_point`.
+	var delta_world: Vector2 = world_point - player.global_position
+	if delta_world.length() < 1.0:
+		delta_world = Vector2.UP
+	var length := Interaction.CHOP_REACH if reach < 0.0 else reach
+	var screen: Vector2 = interaction.get_canvas_transform().basis_xform(delta_world.normalized() * length)
+	_chop_from_button(vp, button, screen)
+
+
 func _free_udp_port() -> int:
 	## A random UDP port that ENet can bind right now, or 0. The range is
 	## 20000-59999, or FLAGORIA_TEST_PORTS ("LO-HI") when set, so runs in
