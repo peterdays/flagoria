@@ -1,30 +1,18 @@
 #!/usr/bin/env python3
-"""Deterministic issue triage labels from the task form. No model, no external service.
+"""Deterministic issue triage labels. No model and no external service.
 
 RICE = reach * impact * confidence / effort
-Reach is 1..10, impact is 0.25, 0.5, 1, 2 or 3, confidence is 50, 80 or 100,
-and effort is 0.25, 0.5, 1, 2 or 4 person-weeks.
+Reach is 1..10, impact is 0.25, 0.5, 1, 2 or 3, and effort is 0.25, 0.5, 1, 2
+or 4 person-weeks. Form confidence 50, 80 or 100 is used as 0.5, 0.8 or 1.
 
-  rice: under-100    score < 100
-  rice: 100-399      100 <= score < 400
-  rice: 400-999      400 <= score < 1000
-  rice: 1000-plus    score >= 1000
+  rice: low     score < 6
+  rice: med     6 <= score < 12
+  rice: high    score >= 12
 
-Escalate when a high-blast risk area (saves/world data, netcode/multiplayer
-sync, release/signing/CI, security/privacy) is selected and severity is med
-or high, when severity is high (decided first, including core input or none),
-or when a field is missing or not a form value. Otherwise triage: auto-merge.
-Low severity does not escalate on its own. core input and none are not
-high-blast.
-
+Severity high escalates first. A high-blast area with severity med or high
+also escalates, as does a missing or unparseable field. Otherwise auto-merge.
 Labels are a routing hint, not an approval record. Approvals are tracked
-outside this repository. workflow_dispatch backfill adds triage: needs-fields
-when the fields do not parse. A value that fails to parse is not copied into
-the workflow comment.
-
-  python3 tools/issue_triage.py --body-file BODY.md
-  python3 tools/issue_triage.py --event "$GITHUB_EVENT_PATH"
-  python3 tools/issue_triage.py --self-test
+outside this repository.
 """
 from __future__ import annotations
 
@@ -49,11 +37,10 @@ PATH_ESCALATE = "triage: escalate"
 NEEDS_FIELDS = "triage: needs-fields"
 PATH_LABELS = frozenset({PATH_AUTO, PATH_ESCALATE})
 
-RICE_UNDER_100 = "rice: under-100"
-RICE_100_399 = "rice: 100-399"
-RICE_400_999 = "rice: 400-999"
-RICE_1000_PLUS = "rice: 1000-plus"
-RICE_LABELS = frozenset({RICE_UNDER_100, RICE_100_399, RICE_400_999, RICE_1000_PLUS})
+RICE_LOW = "rice: low"
+RICE_MED = "rice: med"
+RICE_HIGH = "rice: high"
+RICE_LABELS = frozenset({RICE_LOW, RICE_MED, RICE_HIGH})
 
 HIGH_BLAST = frozenset({
     "saves/world data",
@@ -83,10 +70,9 @@ LABEL_SPECS = (
     (PATH_AUTO, "1D76DB", "Routing hint: auto-merge on green required checks. Not an approval."),
     (PATH_ESCALATE, "D93F0B", "Routing hint: owner decision before merge. Not an approval."),
     (NEEDS_FIELDS, "FBCA04", "Backfill: triage fields are missing or unparseable."),
-    (RICE_UNDER_100, "D4E5F7", "RICE score under 100. Routing hint only, not an approval."),
-    (RICE_100_399, "A9CBF0", "RICE score from 100 up to but not including 400."),
-    (RICE_400_999, "6FA0E0", "RICE score from 400 up to but not including 1000."),
-    (RICE_1000_PLUS, "2F6FBB", "RICE score 1000 or more. Routing hint only, not an approval."),
+    (RICE_LOW, "D4E5F7", "RICE score below 6. Routing hint only, not an approval."),
+    (RICE_MED, "A9CBF0", "RICE score from 6 up to but not including 12."),
+    (RICE_HIGH, "2F6FBB", "RICE score 12 or more. Routing hint only, not an approval."),
 )
 
 HEADINGS = {
@@ -138,7 +124,6 @@ def _unwrap(text: str) -> str:
 
 
 def _visible_body(text: str) -> str:
-    """Drop HTML comments and fenced blocks so quoted examples are not fields."""
     stripped = HTML_COMMENT_RE.sub("", text or "")
     kept: list[str] = []
     fenced = False
@@ -152,7 +137,6 @@ def _visible_body(text: str) -> str:
 
 
 def _sections(text: str) -> dict[str, str]:
-    """First ATX heading of each field name, through the next heading."""
     found: dict[str, list[str]] = {}
     current: str | None = None
     for line in text.splitlines():
@@ -244,14 +228,11 @@ def _format_score(score: Decimal) -> str:
 
 
 def bucket_for(score: Decimal) -> str:
-    """rice: under-100 / 100-399 / 400-999 / 1000-plus. See the module doc."""
-    if score < 100:
-        return RICE_UNDER_100
-    if score < 400:
-        return RICE_100_399
-    if score < 1000:
-        return RICE_400_999
-    return RICE_1000_PLUS
+    if score >= 12:
+        return RICE_HIGH
+    if score >= 6:
+        return RICE_MED
+    return RICE_LOW
 
 
 def _path_for(severity: str, risk: tuple[str, ...]) -> tuple[str, str]:
@@ -279,11 +260,6 @@ def _unparsed(reason: str) -> Decision:
 
 
 def score_body(body: str) -> Decision:
-    """Parse one issue body. Unparseable input escalates and has no bucket.
-
-    The first failing field wins, in the order reach, impact, confidence,
-    effort, risk area, severity. A heading is used before a `Field:` line.
-    """
     text = _visible_body(body or "")
     sections = _sections(text)
     colons = _colon_fields(text)
@@ -307,7 +283,8 @@ def score_body(body: str) -> Decision:
     if err or severity is None:
         return _unparsed(err or "missing severity")
 
-    score = Decimal(reach) * Decimal(impact) * Decimal(confidence) / Decimal(effort)
+    # Form confidence is 50, 80 or 100. The product uses 0.5, 0.8 or 1.
+    score = Decimal(reach) * Decimal(impact) * (Decimal(confidence) / Decimal(100)) / Decimal(effort)
     path, path_reason = _path_for(severity, risk)
     return Decision(
         parsed=True,
@@ -325,12 +302,6 @@ def score_body(body: str) -> Decision:
 
 
 def desired_labels(decision: Decision, mode: str, current: set[str]) -> set[str]:
-    """Labels this run should leave on the issue. Other labels are untouched.
-
-    mode "issue" is an opened or edited event. mode "backfill" is workflow_dispatch.
-    needs-fields is added only while backfilling an unparseable body, and kept
-    on a later unparseable edit until a parsed run removes it.
-    """
     if mode not in {"issue", "backfill"}:
         raise ValueError(f"unknown mode: {mode}")
     labels = {decision.path}
@@ -348,12 +319,12 @@ def label_delta(desired: set[str], current: set[str]) -> tuple[list[str], list[s
 
 
 def comment_body(decision: Decision) -> str:
-    """One bot comment. Built only from parsed tokens and fixed sentences."""
     if decision.parsed:
+        fraction = _format_score(Decimal(decision.confidence) / Decimal(100))
         score_line = (
             f"RICE score: {decision.score_text} "
             f"(reach {decision.reach} * impact {decision.impact} "
-            f"* confidence {decision.confidence} / effort {decision.effort})."
+            f"* confidence {fraction} / effort {decision.effort})."
         )
         bucket_line = f"Bucket: `{decision.bucket}`."
         risk_line = f"Risk: {', '.join(decision.risk)}. Severity: {decision.severity}."
@@ -382,7 +353,6 @@ def comment_body(decision: Decision) -> str:
 
 
 def select_comment(comments: list[dict]) -> dict | None:
-    """Oldest workflow comment that carries the marker. Human comments are left alone."""
     matches = []
     for comment in comments:
         user = comment.get("user") or {}
@@ -419,7 +389,6 @@ def sync_comment(client, number: int, body: str) -> str:
 
 
 def apply_issue(client, number: int, body: str, current: set[str], mode: str) -> Decision:
-    """Set the managed labels and the one bot comment. Returns the decision."""
     decision = score_body(body)
     add, remove = label_delta(desired_labels(decision, mode, current), current)
     if add or remove:
@@ -432,7 +401,6 @@ def apply_issue(client, number: int, body: str, current: set[str], mode: str) ->
 
 
 class Gh:
-    """Issue reads and writes through `gh`. The body is never a shell argument."""
 
     def __init__(self, repo: str):
         if not REPO_RE.fullmatch(repo or ""):

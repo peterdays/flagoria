@@ -53,12 +53,11 @@ The task form collects reach, impact, confidence, effort, risk area and severity
 
 The labels are a routing hint for bots that open pull requests. They are not an approval record. Approvals are tracked outside this repository.
 
-`RICE = reach * impact * confidence / effort`, with reach an integer 1 through 10, impact one of 0.25, 0.5, 1, 2 or 3, confidence one of 50, 80 or 100, and effort in person-weeks one of 0.25, 0.5, 1, 2 or 4. One bucket label is applied when the fields parse:
+`RICE = reach * impact * confidence / effort`. Reach is an integer 1 through 10, impact is one of 0.25, 0.5, 1, 2 or 3, and effort is person-weeks one of 0.25, 0.5, 1, 2 or 4. The form records confidence as 50, 80 or 100, and the scorer uses that as 0.5, 0.8 or 1. One bucket label is applied when the fields parse:
 
-- `rice: under-100` when the score is below 100
-- `rice: 100-399` when the score is at least 100 and below 400
-- `rice: 400-999` when the score is at least 400 and below 1000
-- `rice: 1000-plus` when the score is 1000 or more
+- `rice: low` when the score is below 6
+- `rice: med` when the score is at least 6 and below 12
+- `rice: high` when the score is 12 or more
 
 Exactly one path label is applied:
 
