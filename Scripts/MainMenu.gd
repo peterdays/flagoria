@@ -71,11 +71,25 @@ func _unhandled_input(_event):
 
 
 func _on_host_button_pressed():
-	get_node("/root/MapGen").save_to_disk()
-	emit_signal("new_server_created", get_node("/root/MapGen").params.duplicate_params())
+	## A new world: its own save name, and none of a previously loaded world.
+	var map_gen = get_node("/root/MapGen")
+	map_gen.clear_loaded_world()
+	var menu_script: GDScript = load("res://Scripts/ingame_menu.gd")
+	get_node("/root/Flagoria").save_name = menu_script.unused_save_name(
+			menu_script.auto_save_name(Time.get_datetime_dict_from_system()))
+	_begin_host()
+
+
+func _begin_host() -> void:
+	var map_gen = get_node("/root/MapGen")
+	map_gen.save_to_disk()
+	emit_signal("new_server_created", map_gen.params.duplicate_params())
 	main_menu.hide()
 	if admin_panel:
 		admin_panel.hide()
+	var worlds := get_parent().get_node_or_null("WorldsPanel")
+	if worlds:
+		worlds.hide()
 	ux_layer.show()
 	get_node("/root/MusicPlayer").play(get_node("/root/MusicPlayer").GAME_TRACK)
 	emit_signal("new_player_added", multiplayer.get_unique_id())
@@ -95,6 +109,143 @@ func _on_join_button_pressed():
 	ux_layer.show()
 	get_node("/root/MusicPlayer").play(get_node("/root/MusicPlayer").GAME_TRACK)
 	emit_signal("new_player_joined", int(parsed["port"]))
+
+
+func _on_worlds_pressed() -> void:
+	var panel := _worlds_panel()
+	main_menu.hide()
+	panel.show()
+	_refresh_worlds()
+
+
+func _worlds_panel() -> PanelContainer:
+	var existing := get_parent().get_node_or_null("WorldsPanel") as PanelContainer
+	if existing:
+		return existing
+	var panel := PanelContainer.new()
+	panel.name = "WorldsPanel"
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.theme = theme
+	panel.visible = false
+	var margin := MarginContainer.new()
+	margin.name = "Margin"
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.add_child(margin)
+	var box := VBoxContainer.new()
+	box.name = "VBox"
+	box.custom_minimum_size = Vector2(240, 0)
+	box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	margin.add_child(box)
+	var title := Label.new()
+	title.text = "Worlds"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(title)
+	var list := ItemList.new()
+	list.name = "List"
+	list.custom_minimum_size = Vector2(0, 96)
+	list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(list)
+	var buttons := HBoxContainer.new()
+	buttons.name = "Buttons"
+	box.add_child(buttons)
+	_world_button(buttons, "Load", _on_load_world_pressed)
+	_world_button(buttons, "Delete", _on_delete_world_pressed)
+	_world_button(buttons, "NewWorld", _on_host_button_pressed).text = "New world"
+	var confirm := HBoxContainer.new()
+	confirm.name = "Confirm"
+	confirm.visible = false
+	box.add_child(confirm)
+	var ask := Label.new()
+	ask.name = "Ask"
+	ask.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ask.text = "Delete this world?"
+	confirm.add_child(ask)
+	_world_button(confirm, "Yes", _on_delete_yes_pressed)
+	_world_button(confirm, "No", _on_delete_no_pressed)
+	var status := Label.new()
+	status.name = "Status"
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(status)
+	_world_button(box, "Back", _on_worlds_back_pressed)
+	get_parent().add_child(panel)
+	return panel
+
+
+func _world_button(parent: Node, node_name: String, handler: Callable) -> Button:
+	var button := Button.new()
+	button.name = node_name
+	button.text = node_name
+	button.pressed.connect(handler)
+	parent.add_child(button)
+	return button
+
+
+func _refresh_worlds() -> void:
+	var list := _worlds_panel().get_node("Margin/VBox/List") as ItemList
+	list.clear()
+	for row in MapSave.list_saves():
+		var when: Dictionary = Time.get_datetime_dict_from_unix_time(int(row["modified"]))
+		var stamp := "%04d-%02d-%02d %02d:%02d" % [when["year"], when["month"], when["day"], when["hour"], when["minute"]]
+		list.add_item("%s  %s" % [row["name"], stamp])
+		list.set_item_metadata(list.item_count - 1, row["name"])
+
+
+func _selected_world() -> String:
+	var list := _worlds_panel().get_node("Margin/VBox/List") as ItemList
+	var picked := list.get_selected_items()
+	if picked.is_empty():
+		return ""
+	return str(list.get_item_metadata(picked[0]))
+
+
+func _world_status(text: String) -> void:
+	var status := _worlds_panel().get_node("Margin/VBox/Status") as Label
+	status.text = text
+
+
+func _on_load_world_pressed() -> void:
+	var save_name := _selected_world()
+	if save_name == "":
+		_world_status("Select a world")
+		return
+	var err := str(get_node("/root/MapGen").load_map_inputs(MapSave.path_for(save_name)))
+	if err != "":
+		_world_status(err)
+		return
+	get_node("/root/Flagoria").save_name = save_name
+	_begin_host()
+
+
+func _on_delete_world_pressed() -> void:
+	if _selected_world() == "":
+		_world_status("Select a world")
+		return
+	var panel := _worlds_panel()
+	panel.get_node("Margin/VBox/Buttons").hide()
+	panel.get_node("Margin/VBox/Confirm").show()
+	_world_status("")
+
+
+func _on_delete_yes_pressed() -> void:
+	var save_name := _selected_world()
+	var err := str(MapSave.delete_save(save_name) if save_name != "" else "Select a world")
+	_on_delete_no_pressed()
+	_refresh_worlds()
+	_world_status("" if err == "" else err)
+
+
+func _on_delete_no_pressed() -> void:
+	var panel := _worlds_panel()
+	panel.get_node("Margin/VBox/Confirm").hide()
+	panel.get_node("Margin/VBox/Buttons").show()
+
+
+func _on_worlds_back_pressed() -> void:
+	_on_delete_no_pressed()
+	_worlds_panel().hide()
+	main_menu.show()
 
 
 func _on_map_settings_pressed() -> void:

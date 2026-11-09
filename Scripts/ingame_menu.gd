@@ -3,11 +3,11 @@ extends Control
 ## desktop) opens a small panel over the game. The game keeps running
 ## underneath; nothing is paused, locally or for other players.
 ##
-## Resume closes the panel. Save writes the current world as a world save
-## (docs/world-saves.md) named after the date and time, and says so on a line
-## kept under the buttons, so the panel never changes height; it stays open, so the player can resume or leave. Main menu
-## leaves the match: Flagoria closes the network session and reloads the main
-## scene, which frees the world and brings back the main menu and its music.
+## Resume closes the panel. Save writes the current world into its own save
+## (docs/world-saves.md). A new match is named after the date and time; later
+## saves of that match replace that file. The line under the buttons stays
+## one line high, and the panel stays open. Main menu leaves the match:
+## Flagoria closes the network session and reloads the main scene.
 
 ## The HUD menu button is an 18 px square (48 screen px at 1280x720): big
 ## enough to tap, small enough to keep the corner clear.
@@ -70,7 +70,11 @@ func save_world() -> Dictionary:
 	var params: MapGenParams = owner.world_params if owner else null
 	var result := {"path": "", "error": "the world has not loaded yet"}
 	if params != null:
-		var save_name := unused_save_name(auto_save_name(Time.get_datetime_dict_from_system()))
+		var save_name := str(owner.save_name) if owner != null and owner.save_name != "" else ""
+		if save_name == "":
+			save_name = unused_save_name(auto_save_name(Time.get_datetime_dict_from_system()))
+			if owner != null:
+				owner.save_name = save_name
 		var world := WorldSave.new(params)
 		var world_map := owner.get_node_or_null("World/worldMap")
 		if world_map:

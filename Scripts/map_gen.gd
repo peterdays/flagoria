@@ -72,6 +72,11 @@ func load_map_inputs(path: String) -> String:
 	return result["error"]
 
 
+func clear_loaded_world() -> void:
+	## Drop a world that was loaded but is not the one about to be hosted.
+	_loaded_world = null
+
+
 func take_loaded_world(world_params: MapGenParams) -> WorldSave:
 	## The world load_map_inputs read, when `world_params` (the params a
 	## host is starting with) are still its params; null otherwise, e.g.

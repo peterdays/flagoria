@@ -7,7 +7,7 @@ The in-game menu button (three bars, top right) or Esc opens a Pause panel with 
 ## Sub-features
 
 - `menu-panel` `InGameMenu` (`Scripts/ingame_menu.gd`): `MenuButton` opens `MenuPanel`; Resume (`ui_back` sound) or Esc again closes it; on the main menu Esc does nothing. An open panel covers the map, so pinch zoom does not reach it. While it is open, touch aim and swings do not start.
-- `menu-save` Save writes a world save (see [Map save files](./map-save.md)) and the status shows `Saved: MM-DD HH:MM`.
+- `menu-save` Save writes this match's world save (see [Map save files](./map-save.md)) and the status shows `Saved: MM-DD HH:MM`. Saving again replaces that file. A new match gets a new file.
 - `menu-leave` Main menu leaves the session and goes back to the main menu.
 - `quit-prompt` `Scripts/quit_prompt.gd`: back or close shows the confirm dialog; nothing is paused.
 
