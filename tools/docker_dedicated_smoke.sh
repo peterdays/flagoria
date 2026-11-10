@@ -172,13 +172,19 @@ func _run() -> void:
 		return
 	var src := ProjectSettings.globalize_path(str(saved["path"]))
 	var out := "/var/lib/flagoria/map.json"
-	var body := FileAccess.get_file_as_string(src)
+	# Version 3 saves are gzip. Reading them as text replaces bytes that are
+	# not UTF-8, and the server then reports that the file is not a map save.
+	var body := FileAccess.get_file_as_bytes(src)
+	if body.size() < 2 or body[0] != 0x1f or body[1] != 0x8b:
+		printerr("params file is not a gzip map save")
+		quit(1)
+		return
 	var handle := FileAccess.open(out, FileAccess.WRITE)
 	if handle == null:
 		printerr("cannot write %s" % out)
 		quit(1)
 		return
-	handle.store_string(body)
+	handle.store_buffer(body)
 	handle.close()
 	print("DOCKER_PARAMS_WRITTEN")
 	quit(0)
