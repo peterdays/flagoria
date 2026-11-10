@@ -147,7 +147,7 @@ Clicks and taps go to the centre of the node's rect or the cell, read at run tim
 
 ### Drives in CI
 
-`verify-drive.yml` runs on gameplay pull requests (gated by `tools/play_review_paths.py`). It reads `Drive: drives/<name>.gd` from each changed feature file, launches those top-level drives with `bin/launch.sh --display` under xvfb, uploads screenshot evidence as the `drive-screenshots` artifact, and fails when a drive prints `VERIFY_DONE fail` (hard assert via `done(ok)`). No pixel-diff goldens. Paired `drives/two_player/*` drives are skipped on the auto path. `workflow_dispatch` still runs named drives (default `smoke`).
+`verify-drive.yml` runs on gameplay pull requests (gated by `tools/play_review_paths.py`). `tools/verify_drive_picks.py` reads `Drive: drives/<name>.gd` from each changed feature file, launches those top-level drives with `bin/launch.sh --display` under xvfb, uploads screenshot evidence as the `drive-screenshots` artifact, and fails when a drive prints `VERIFY_DONE fail` (hard assert via `done(ok)`). No pixel-diff goldens. Paired `drives/two_player/*` drives and nested `drives/<folder>/*.gd` are skipped on the auto path. When a gameplay pull request changes no collectible `Drive:` line, CI runs exactly one default smoke drive (`drives/smoke.gd`, same as `workflow_dispatch` with empty inputs). `workflow_dispatch` still runs named drives (default `smoke`).
 
 ### Two-player Host/Join
 
