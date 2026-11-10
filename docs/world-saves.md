@@ -12,8 +12,8 @@ the container format (#196). Tree and bush cuts fill
 Placed plank bridges fill `world.tile_edits` (see
 [Placed plank bridges](#placed-plank-bridges)). Placed structures and
 free-form walls fill `world.structures` (see
-[Structures and walls](#structures-and-walls)). Player progress stays an
-empty object until #197.
+[Structures and walls](#structures-and-walls)). Player progress fills
+`player` (see [Player progress](#player-progress)).
 
 ## Encoding
 
@@ -73,7 +73,7 @@ The JSON inside the gzip, shown with line breaks:
 | `world.tile_edits` | Changed tiles (#41). |
 | `world.object_changes` | Changed world objects such as felled trees or picked items (#198). |
 | `world.structures` | Placed structures (#42). |
-| `player` | The player's own progress (#197). Empty until that slice. |
+| `player` | The player's own progress (#197). Empty means the default player. |
 
 Each `world` section is sparse and keyed by chunk, then by cell:
 `{"<cx>,<cy>": {"<x>,<y>": <entry>}}`. A chunk is a fixed 32 by 32 cells
@@ -185,16 +185,47 @@ save written before this section was filled) gets a starting castle as a new
 world does. The file meaning is unchanged (the section was reserved in
 version 2), so the version stays 2.
 
+## Player progress
+
+The host's own progress (#197) is the `player` object. `PlayerSave.capture`
+writes it when the in-game menu saves, and `PlayerSave.apply` puts it back
+when that host's body is placed (`add_player`). A joining peer is not this
+section: they start fresh, and the host's health and score still sync the
+way they do in a live match. Held items are not stored; there are none yet.
+
+```json
+"player": {
+  "position": [120.0, 340.5],
+  "health": 4,
+  "wood": 3,
+  "score": 2,
+  "charted": {"0,0": "<base64 of 128 bytes>"},
+  "discovered": {"0,0": 1}
+}
+```
+
+| Key | Meaning |
+| --- | --- |
+| `position` | World pixels `[x, y]`. Missing, or not a pair of numbers: the map's spawn. |
+| `health` | Half-hearts, from 0 up to the player's maximum. Missing, or not a whole number in that range: full health. |
+| `wood` | Wood in the inventory. Missing, or negative: 0. |
+| `score` | This peer's point total. Missing, or negative: 0. |
+| `charted` | Explored ground (#247). Chunk key -> base64 of that chunk's 128-byte bitset, the same 32-cell grid as the chart. A bad chunk is dropped. Missing: nothing charted. |
+| `discovered` | Chunks that already paid discovery points, `"cx,cy"` -> peer id. Kept so the saved score is not paid again for the same chunk. A bad entry is dropped. Missing: no chunk has paid. |
+
+An older save has no `player` object, or `{}`. Both load as the default player: spawn, full health, no wood, no score, nothing charted. The file meaning of an empty section is unchanged, so the version stays 3.
+
 ## Saving during play
 
 **Save** in the in-game menu writes the world being played, named after the
 date and time (`2026-10-27 22-15-03`; a second save in the same second gets
 ` 2`). The panel stays open and confirms it on one line ("Saved: 10-27 22:15"),
 so the player can resume or leave. The file is the version 3 gzip above. It
-holds the generation inputs and this peer's tree and bush cuts, plank bridges,
-placed structures and walls. A second save of that same file keeps `created`
-and refreshes `updated`. Player state (#197) and the rest of the object
-changes (#198) are not saved yet.
+holds the generation inputs, this peer's tree and bush cuts, plank bridges,
+placed structures and walls, and this peer's player state (position, health,
+wood, score, charted ground). A second save of that same file keeps `created`
+and refreshes `updated`. The rest of the object changes (#198: picked items,
+destroyed objects, cleared mobs) are not saved yet.
 
 The new bytes are not written into the existing file. They go to
 `<name>.json.tmp` beside it. That file is closed, then kept only when
@@ -210,7 +241,9 @@ sets the params and keeps the change sections. When the host then starts with
 those same params, `Flagoria.setup_server` restores the cuts, plank bridges, structures and
 walls after it applies the params and before any chunk is drawn or any player
 spawns, so cut cells are drawn as stumps and a saved bridge is walkable
-straight away. If the params were changed in between, no changes are applied.
+straight away. The host body is then placed from `player` (or at the spawn,
+when that section is empty). If the params were changed in between, no
+changes are applied and the player section is not used.
 A player who joins gets the restored bridges with the map, like any other
 bridge (#297). A dedicated
 server started with `--params` reads the params only.

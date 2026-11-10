@@ -51,6 +51,7 @@ GAMEPLAY = [
     "Scripts/game_settings.gd",  # mob spawn rate
     "Scripts/tile_catalog.gd", "Scripts/BiomeCatalog.gd",  # tiles and biome tables of the world map
     "Scripts/world_save.gd",  # what a saved world keeps
+    "Scripts/player_save.gd",  # player position, health, wood, score, charted ground
     "Scripts/explored_map.gd", "Scripts/minimap_panel.gd",  # explored map and its HUD panel
     "Scripts/parchment_map.gd", "Scripts/map_wood_button.gd",  # parchment full map and its wood controls
     "Scripts/resource_hud.gd", "Scripts/score_hud.gd",
@@ -152,6 +153,7 @@ def self_test() -> int:
         (["Scripts/aim_cone_style.gd"], None, None, True),
         (["Scripts/points.gd"], None, None, True),
         (["Scripts/world_save.gd"], None, None, True),
+        (["Scripts/player_save.gd"], None, None, True),
         (["Scripts/ingame_menu.gd"], None, None, True),
         (["data/interactables/tree.tres"], None, None, True),
         (["Scripts/attack_aim.gd.uid", "data/interactables/tree.tres.uid"], None, None, False),

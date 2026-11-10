@@ -86,5 +86,24 @@ func clear() -> void:
 	_chunks.clear()
 
 
+func replace_chunks(chunks: Dictionary) -> void:
+	## Replace the chart. `chunks` is chunk -> a CHUNK_BYTES bitset. A short
+	## or empty bitset is dropped, which is the same as not explored.
+	_chunks.clear()
+	for chunk in chunks:
+		if not chunk is Vector2i:
+			continue
+		var bits: PackedByteArray = chunks[chunk]
+		if bits.size() != CHUNK_BYTES:
+			continue
+		var any := false
+		for b in bits:
+			if b != 0:
+				any = true
+				break
+		if any:
+			_chunks[chunk] = bits.duplicate()
+
+
 static func _bit_index(cell: Vector2i) -> int:
 	return posmod(cell.y, CHUNK) * CHUNK + posmod(cell.x, CHUNK)

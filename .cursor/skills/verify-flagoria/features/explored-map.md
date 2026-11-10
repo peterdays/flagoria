@@ -26,7 +26,7 @@ Preconditions: `doctor.sh` exits `0`. Time cost: each test below is under 0.5 s 
 
 ## Gotchas
 
-- Explored state is not in world saves yet (`Scripts/map_save.gd` has no explored data).
+- Explored ground is the `player.charted` section of a world save (see [Player save](./player-save.md)). A new match still starts with nothing charted.
 - `explored_cells` is 0 until the first reveal after spawn, so take the start count after a few frames.
 - `hold()` moves the hero only until something blocks it. If the first pass was cut short, walking back can reach new ground and the count rises; compare hero cells, not frame counts, before claiming "same ground".
 - `snapshot()` PNGs show the whole window, not only the panel.

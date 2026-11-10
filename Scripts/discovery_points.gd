@@ -73,6 +73,35 @@ func discoverer_of(chunk: Vector2i) -> int:
 	return _discovered.get(chunk, 0)
 
 
+func save_found() -> Dictionary:
+	## Chunks that already paid, as "cx,cy" -> peer id, for a world save.
+	var out := {}
+	for chunk in _discovered:
+		out[WorldSave.cell_key(chunk)] = int(_discovered[chunk])
+	return out
+
+
+func restore_found(found: Dictionary) -> void:
+	## Server: replace the paid set from a save. A bad key or peer id is
+	## dropped. Empty clears the set, which is a new world's state.
+	if not multiplayer.is_server():
+		return
+	_discovered.clear()
+	_last_chunk.clear()
+	for key in found:
+		var chunk: Variant = WorldSave.parse_cell(str(key))
+		if chunk == null:
+			continue
+		var who = found[key]
+		if not _whole_peer(who):
+			continue
+		_discovered[chunk] = int(who)
+
+
+func _whole_peer(who) -> bool:
+	return (who is int or who is float) and float(who) == floorf(float(who)) and int(who) > 0
+
+
 static func chunk_of(cell: Vector2i, map: Node) -> Vector2i:
 	## The grid chunk holding cell, chunks being the map's chunk size.
 	var w: int = maxi(1, map.chunk_width)

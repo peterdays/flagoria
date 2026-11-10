@@ -63,10 +63,10 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func save_world() -> Dictionary:
 	## Saves the world being played: its generation inputs as this peer
-	## received or chose them (Flagoria.world_params) and this peer's tree
-	## and bush cuts (world.object_changes) and plank bridges
-	## (world.tile_edits, #226), and the placed structures and walls
-	## (world.structures, #42). {"path", "error"}.
+	## received or chose them (Flagoria.world_params), this peer's tree and
+	## bush cuts (world.object_changes), plank bridges (world.tile_edits,
+	## #226), placed structures and walls (world.structures, #42), and this
+	## peer's player state (world.player, #197). {"path", "error"}.
 	var params: MapGenParams = owner.world_params if owner else null
 	var result := {"path": "", "error": "the world has not loaded yet"}
 	if params != null:
@@ -81,6 +81,7 @@ func save_world() -> Dictionary:
 			world.object_changes = world_map.cut_changes()
 			world.tile_edits = BridgeBuilder.to_changes(world_map.bridges_for_sync())
 			world.structures = StructureSaves.to_changes(world_map)
+		world.player = PlayerSave.capture(owner)
 		result = get_node("/root/MapGen").save_world(world, save_name)
 	if result["error"] == "":
 		status_label.text = saved_text(result["path"].get_file().get_basename())

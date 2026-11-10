@@ -20,7 +20,7 @@ func _test_world_save_round_trip() -> int:
 	world.tile_edits["0,0"] = {"3,4": "SAND"}
 	world.object_changes["-1,2"] = {"-20,70": {"removed": true}}
 	world.structures["1,1"] = {"40,40": {"name": "guard_post"}}
-	world.player = {"position": [12.5, -3.25]}  # JSON numbers read back as floats; the object stays opaque (#197)
+	world.player = {"position": [12.5, -3.25]}  # container stores the object as given; PlayerSave reads the keys
 	var saved := MapSave.save_world(world, "test_world_round_trip")
 	var loaded := MapSave.load_world(saved["path"])
 	var bytes := FileAccess.get_file_as_bytes(saved["path"])
