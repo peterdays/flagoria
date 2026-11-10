@@ -196,6 +196,13 @@ placed structures and walls. A second save of that same file keeps `created`
 and refreshes `updated`. Player state (#197) and the rest of the object
 changes (#198) are not saved yet.
 
+The new bytes are not written into the existing file. They go to
+`<name>.json.tmp` beside it. That file is closed, then kept only when
+`MapSave.read_document` reads it as a save. `DirAccess.rename_absolute` then
+moves it onto `<name>.json`, replacing the previous save in one step. A crash
+while the temp file is being written leaves the previous save loadable. The
+next save removes a leftover `.tmp`. The worlds list skips `.tmp` files.
+
 ## Loading
 
 `MapGen.load_map_inputs(path)` makes a save the world the next host starts. It

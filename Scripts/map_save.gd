@@ -48,11 +48,34 @@ static func save_world(world: WorldSave, save_name: String) -> Dictionary:
 	var err := DirAccess.make_dir_recursive_absolute(SAVE_DIR)
 	if err != OK:
 		return {"path": "", "error": "cannot create %s (error %s)" % [SAVE_DIR, err]}
-	var file := FileAccess.open(path, FileAccess.WRITE)
-	if file == null:
-		return {"path": "", "error": "cannot write %s (error %s)" % [path, FileAccess.get_open_error()]}
-	file.store_buffer(compressed)
+	var replaced := _replace_save(path, compressed)
+	if replaced != "":
+		return {"path": "", "error": replaced}
 	return {"path": path, "error": ""}
+
+
+static func _replace_save(path: String, bytes: PackedByteArray) -> String:
+	## Writes `bytes` beside `path` as `path.tmp`, keeps them only when that
+	## file reads back as a save, then renames it over `path`. Returns "" or
+	## an error. A failure leaves `path` as it was. A leftover temp from an
+	## interrupted write is removed first, and again if this write fails.
+	var tmp := path + ".tmp"
+	if FileAccess.file_exists(tmp):
+		DirAccess.remove_absolute(tmp)
+	var file := FileAccess.open(tmp, FileAccess.WRITE)
+	if file == null:
+		return "cannot write %s (error %s)" % [tmp, FileAccess.get_open_error()]
+	file.store_buffer(bytes)
+	file.close()
+	var check := read_document(tmp)
+	if check["error"] != "":
+		DirAccess.remove_absolute(tmp)
+		return "save did not read back (%s)" % check["error"]
+	var renamed := DirAccess.rename_absolute(tmp, path)
+	if renamed != OK:
+		DirAccess.remove_absolute(tmp)
+		return "cannot replace %s (error %s)" % [path, renamed]
+	return ""
 
 
 static func _stamp(world: WorldSave, path: String) -> void:
@@ -222,11 +245,14 @@ static func _migrate(parsed: Dictionary, file_mtime: int) -> void:
 static func list_saves(dir: String = SAVE_DIR) -> Array[Dictionary]:
 	## The saved maps in dir, newest first: {"name", "path", "modified"}, where
 	## name is the file name without ".json" and modified is Unix seconds.
-	## Files are not parsed; load_map reports a broken one.
+	## Files are not parsed; load_map reports a broken one. A `name.json.tmp`
+	## left by an interrupted write is not a world.
 	var rows: Array[Dictionary] = []
 	if not DirAccess.dir_exists_absolute(dir):
 		return rows
 	for file_name in DirAccess.get_files_at(dir):
+		if file_name.ends_with(".tmp"):
+			continue
 		if file_name.get_extension() == "json":
 			var path := dir + file_name
 			rows.append({"name": file_name.get_basename(), "path": path, "modified": FileAccess.get_modified_time(path)})

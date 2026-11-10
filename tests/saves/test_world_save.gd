@@ -239,3 +239,68 @@ func _test_world_save_migrates_v1() -> int:
 	if fail == 0:
 		print("PASS test_world_save_migrates_v1 (fixtures v1 to v%d)" % MapSave.FORMAT_VERSION)
 	return fail
+
+
+func _test_world_save_keeps_previous_on_failed_write() -> int:
+	## A new save is written to path.tmp and renamed over the previous file
+	## only after it reads back. A partial temp file, and bytes that do not
+	## read back, leave the previous save loadable. The list skips .tmp files.
+	print("-- test_world_save_keeps_previous_on_failed_write")
+	var fail := 0
+	var params := MapGenParams.make_defaults()
+	params.ensure_seeds()
+	params.altitude_seed = 4242
+	var saved := MapSave.save_world(WorldSave.new(params), "test_ws_durable")
+	var path: String = saved["path"]
+	if saved["error"] != "" or path == "":
+		printerr("FAIL world_save_keeps_previous setup %s" % saved["error"])
+		return 1
+	var before := FileAccess.get_file_as_bytes(path)
+	var tmp := path + ".tmp"
+	var partial := FileAccess.open(tmp, FileAccess.WRITE)
+	if partial == null:
+		printerr("FAIL world_save_keeps_previous cannot write a partial temp")
+		DirAccess.remove_absolute(path)
+		return 1
+	partial.store_string("partial")
+	partial.close()
+	var still := MapSave.load_world(path)
+	var listed_tmp := false
+	var listed_save := false
+	for row in MapSave.list_saves():
+		var row_path := str(row["path"])
+		if row_path.ends_with(".tmp"):
+			listed_tmp = true
+		if row_path == path:
+			listed_save = true
+	if still["error"] != "" or still["world"].params.altitude_seed != 4242 \
+			or FileAccess.get_file_as_bytes(path) != before or listed_tmp or not listed_save \
+			or not FileAccess.file_exists(tmp):
+		printerr("FAIL world_save_keeps_previous interrupted load=%s listed_tmp=%s listed_save=%s"
+				% [still["error"], listed_tmp, listed_save])
+		fail += 1
+	var bad := MapSave._replace_save(path, PackedByteArray([0x00, 0x01, 0x02]))
+	var after_bad := MapSave.load_world(path)
+	if bad == "" or FileAccess.file_exists(tmp) or FileAccess.get_file_as_bytes(path) != before \
+			or after_bad["error"] != "" or after_bad["world"].params.altitude_seed != 4242:
+		printerr("FAIL world_save_keeps_previous failed write error=%s tmp_left=%s load=%s"
+				% [bad, FileAccess.file_exists(tmp), after_bad["error"]])
+		fail += 1
+	# The next save removes a leftover temp, then replaces the file.
+	var stale := FileAccess.open(tmp, FileAccess.WRITE)
+	stale.store_string("stale")
+	stale.close()
+	params.altitude_seed = 4343
+	var again := MapSave.save_world(WorldSave.new(params), "test_ws_durable")
+	var loaded := MapSave.load_world(path)
+	if again["error"] != "" or FileAccess.file_exists(tmp) or loaded["error"] != "" \
+			or loaded["world"].params.altitude_seed != 4343:
+		printerr("FAIL world_save_keeps_previous next save error=%s tmp_left=%s seed=%s"
+				% [again["error"], FileAccess.file_exists(tmp),
+				loaded["world"].params.altitude_seed if loaded["world"] else 0])
+		fail += 1
+	DirAccess.remove_absolute(path)
+	DirAccess.remove_absolute(tmp)
+	if fail == 0:
+		print("PASS test_world_save_keeps_previous_on_failed_write")
+	return fail
