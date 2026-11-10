@@ -222,6 +222,6 @@ Drives started with `launch.sh` live in `drives/` (`drives/wait.gd`: start a gam
 
 ## Feature map
 
-Every feature file under `features/` (except `README.md`) carries a `Drive:` line under its title: `Drive: drives/<name>.gd` when a drive covers it (that drive must call `snapshot("<screen>")`), or `Drive: not player-facing`. `bin/check-map.sh` enforces this; on gameplay pull requests it also fails when a changed or added feature file lacks the line.
+Every feature file under `features/` (except `README.md`) carries a `Drive:` line under its title: `Drive: drives/<name>.gd` when a drive covers it (that drive must call `snapshot("<screen>")`), or `Drive: not player-facing`. `bin/check-map.sh` enforces this. CI runs `check-map.sh --self-test` and the full `check-map.sh` inside the required `tools/verify.sh` job only. On gameplay pull requests, contributors can also run `check-map.sh --gameplay --changed-files` locally to fail fast when a changed or added feature file lacks the line.
 
 Index: [`features/README.md`](features/README.md).
