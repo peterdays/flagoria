@@ -74,4 +74,4 @@ func _fit() -> void:
 
 
 func _get_minimum_size() -> Vector2:
-	return Vector2(RoundHudStyle.SIZE, RoundHudStyle.SIZE)
+	return Vector2(RoundHudStyle.HIT, RoundHudStyle.HIT)

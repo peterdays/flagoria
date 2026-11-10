@@ -58,12 +58,27 @@ func _test_hud_round_buttons() -> int:
 		printerr("FAIL hud_round_buttons: row %s is not under the wood bottom %s"
 				% [plank.get_global_rect(), wood_bottom])
 		fail += 1
+	var seen: Array[Rect2] = []
+	var wood_rect := Rect2(wood.position, Vector2(
+			wood.size.x * minf(wood.scale.x, 2.0), wood.size.y * minf(wood.scale.y, 2.0)))
 	for button in row:
 		var rect := button.get_global_rect()
-		if rect.intersects(menu_rect) or rect.intersects(panel_rect):
-			printerr("FAIL hud_round_buttons: %s %s hits menu %s or panel %s"
-					% [button.name, rect, menu_rect, panel_rect])
+		if rect.intersects(menu_rect) or rect.intersects(panel_rect) or rect.intersects(wood_rect):
+			printerr("FAIL hud_round_buttons: %s %s hits menu %s, panel %s or wood %s"
+					% [button.name, rect, menu_rect, panel_rect, wood_rect])
 			fail += 1
+		for other in seen:
+			if rect.intersects(other):
+				printerr("FAIL hud_round_buttons: %s %s overlaps %s" % [button.name, rect, other])
+				fail += 1
+		seen.append(rect)
+	var map_img := map_button.icon.get_image()
+	if map_img.get_pixel(1, 1).a > 0.2:
+		printerr("FAIL hud_round_buttons: minimap icon still has a frame at %s" % map_img.get_pixel(1, 1))
+		fail += 1
+	if map_button.button_pressed or not _is_neutral(map_button):
+		printerr("FAIL hud_round_buttons: minimap looks pressed while the panel is closed")
+		fail += 1
 	if run.text != "Run" or absf(run.get_global_rect().position.y - mode.get_global_rect().position.y) > 0.5:
 		printerr("FAIL hud_round_buttons: Run '%s' is not in line with the mode button" % run.text)
 		fail += 1
@@ -71,8 +86,9 @@ func _test_hud_round_buttons() -> int:
 		printerr("FAIL hud_round_buttons: tool starts at %s" % interaction.build.tool)
 		fail += 1
 	plank.pressed.emit()
-	if interaction.build.tool != BuildPlacement.Tool.PLANK or not plank.button_pressed:
-		printerr("FAIL hud_round_buttons: plank did not select")
+	if interaction.build.tool != BuildPlacement.Tool.PLANK or not plank.button_pressed \
+			or not _is_selected(plank) or not _is_neutral(tower) or not _is_neutral(wall):
+		printerr("FAIL hud_round_buttons: plank did not select, or the ring is not distinct")
 		fail += 1
 	tower.pressed.emit()
 	if interaction.build.tool != BuildPlacement.Tool.TOWER or plank.button_pressed:
@@ -83,7 +99,7 @@ func _test_hud_round_buttons() -> int:
 		printerr("FAIL hud_round_buttons: wall did not select")
 		fail += 1
 	map_button.pressed.emit()
-	if not panel.visible:
+	if not panel.visible or not map_button.button_pressed or not _is_selected(map_button):
 		printerr("FAIL hud_round_buttons: minimap button left the panel closed")
 		fail += 1
 	for button in row:
@@ -116,8 +132,28 @@ func _test_hud_round_buttons() -> int:
 
 func _is_round(button: Button) -> bool:
 	var box := button.get_theme_stylebox("normal") as StyleBoxFlat
-	if box == null:
+	if box == null or not _is_neutral(button):
 		return false
-	var side := button.size.x
-	return absf(button.size.x - button.size.y) <= 1.0 and side >= 16.0 and side <= 28.0 \
-			and box.corner_radius_top_left >= int(side * 0.4)
+	var disc := _disc_size(button, box)
+	return absf(button.size.x - button.size.y) <= 1.0 and is_equal_approx(button.size.x, RoundHudStyle.HIT) \
+			and is_equal_approx(disc.x, RoundHudStyle.SIZE) and is_equal_approx(disc.y, RoundHudStyle.SIZE) \
+			and box.corner_radius_top_left >= int(RoundHudStyle.SIZE * 0.4)
+
+
+func _disc_size(button: Button, box: StyleBoxFlat) -> Vector2:
+	return button.size + Vector2(
+			box.expand_margin_left + box.expand_margin_right,
+			box.expand_margin_top + box.expand_margin_bottom)
+
+
+func _is_neutral(button: Button) -> bool:
+	var box := button.get_theme_stylebox("normal") as StyleBoxFlat
+	return box != null and box.border_width_left == 1 and box.border_color.is_equal_approx(RoundHudStyle.INK)
+
+
+func _is_selected(button: Button) -> bool:
+	var box := button.get_theme_stylebox("pressed") as StyleBoxFlat
+	if box == null or box.border_width_left < 2:
+		return false
+	return box.border_color.r > RoundHudStyle.INK.r + 0.4 \
+			and box.bg_color.get_luminance() > RoundHudStyle.FACE.get_luminance() + 0.15

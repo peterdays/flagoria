@@ -3,9 +3,10 @@ extends "res://tests/helpers/test_helpers.gd"
 
 
 func _test_interact_mode_toggle() -> int:
-	## The HUD mode button, the menu button's size and just left of it,
-	## switches between combat (the default) and interact mode and shows the
-	## current mode's icon.
+	## The HUD mode button's drawn disc matches the menu button. Its tap
+	## target is larger, and it stays just left of the menu. It switches
+	## between combat (the default) and interact mode and shows the current
+	## mode's icon.
 	print("-- test_interact_mode_toggle")
 	var fail := 0
 	var scene = load("res://flagoria_main.tscn").instantiate()
@@ -21,9 +22,16 @@ func _test_interact_mode_toggle() -> int:
 		printerr("FAIL interact_mode_toggle: does not start in combat mode with its icon")
 		fail += 1
 	var rect := button.get_global_rect()
-	if rect.size != menu_rect.size or rect.intersects(menu_rect) or rect.end.x > menu_rect.position.x \
+	var box := button.get_theme_stylebox("normal") as StyleBoxFlat
+	var disc := button.size
+	if box != null:
+		disc = button.size + Vector2(
+				box.expand_margin_left + box.expand_margin_right,
+				box.expand_margin_top + box.expand_margin_bottom)
+	if box == null or disc != menu_rect.size or rect.size.x <= menu_rect.size.x \
+			or rect.intersects(menu_rect) or rect.end.x > menu_rect.position.x \
 			or not interaction.player.get_node("Camera2D/MapZoom").starts_on_hud(rect.get_center()):
-		printerr("FAIL interact_mode_toggle: mode button at %s, menu button at %s" % [rect, menu_rect])
+		printerr("FAIL interact_mode_toggle: mode button at %s disc %s, menu button at %s" % [rect, disc, menu_rect])
 		fail += 1
 	button.pressed.emit()
 	if interaction.mode != Interaction.Mode.INTERACT or button.icon != Interaction.ICONS[Interaction.Mode.INTERACT] \

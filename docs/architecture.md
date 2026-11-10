@@ -105,7 +105,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 | `Scripts/discovery_points.gd` | First-visit discovery points | stays |
 | `Scripts/explored_map.gd` | Explored cells per chunk | stays |
 | `Scripts/minimap_panel.gd` | In-play explored map panel; starts closed (#450) | stays |
-| `Scripts/round_hud_style.gd` | Circle style for the HUD row | new (#450) |
+| `Scripts/round_hud_style.gd` | Circle style, selected ring and tap target for the HUD row | new (#450) |
 | `Scripts/hud_tool_row.gd` | Places that row under the wood counter | new (#450) |
 | `Scripts/map_wood_button.gd` | Wood header button shared by the panel and the parchment | stays |
 | `Scripts/parchment_map.gd` | Full-screen parchment of explored ground | stays |

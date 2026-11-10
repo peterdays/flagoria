@@ -25,7 +25,8 @@ func run() -> void:
 
 	step("plank")
 	await click(PLANK)
-	ok = ok and interaction.build.tool == BuildPlacement.Tool.PLANK
+	var plank := current_scene.get_node(PLANK) as Button
+	ok = ok and interaction.build.tool == BuildPlacement.Tool.PLANK and _selected(plank)
 	await snapshot("plank")
 	print("hud round: plank tool %s" % interaction.build.tool)
 
@@ -77,7 +78,17 @@ func _row_ok(panel: MinimapPanel) -> bool:
 
 func _round(button: Button) -> bool:
 	var box := button.get_theme_stylebox("normal") as StyleBoxFlat
-	if box == null:
+	if box == null or box.border_width_left != 1:
 		return false
-	return absf(button.size.x - button.size.y) <= 1.0 and button.size.x >= 16.0 and button.size.x <= 28.0 \
-			and box.corner_radius_top_left >= int(button.size.x * 0.4)
+	var disc := button.size + Vector2(
+			box.expand_margin_left + box.expand_margin_right,
+			box.expand_margin_top + box.expand_margin_bottom)
+	return absf(button.size.x - button.size.y) <= 1.0 and is_equal_approx(button.size.x, RoundHudStyle.HIT) \
+			and is_equal_approx(disc.x, RoundHudStyle.SIZE) \
+			and box.corner_radius_top_left >= int(RoundHudStyle.SIZE * 0.4)
+
+
+func _selected(button: Button) -> bool:
+	var box := button.get_theme_stylebox("pressed") as StyleBoxFlat
+	return button.button_pressed and box != null and box.border_width_left >= 2 \
+			and box.border_color.r > RoundHudStyle.INK.r + 0.4

@@ -2,7 +2,7 @@
 
 Drive: drives/hud_round_buttons.gd
 
-The match starts with the wood minimap closed. Under the wood counter, one row of round buttons replaces the old minimap chip: Run, then Plank, Tower, Wall, the minimap, and attack/interact. Plank, Tower and Wall select that build tool and do not change combat or interact by themselves. The minimap button opens and closes the wood panel. The mode button still switches attack and chop. Run keeps its hold, its tap latch and the Run / RUN label. Tower and Wall still hide while multiplayer is on. The wood panel and the parchment sheet stay as they are.
+The match starts with the wood minimap closed. Under the wood counter, one row of round buttons replaces the old minimap chip: Run, then Plank, Tower, Wall, the minimap, and attack/interact. Plank, Tower and Wall select that build tool and do not change combat or interact by themselves. The selected one has a bright ring and a lighter face; the others stay a neutral disc. The minimap icon has no dark frame, so that button looks pressed only while the panel is open. Each disc is 18 pixels, with a larger invisible tap target that does not overlap the next button or the wood counter. The mode button still switches attack and chop. Run keeps its hold, its tap latch and the Run / RUN label. Tower and Wall still hide while multiplayer is on. The wood panel and the parchment sheet stay as they are.
 
 ## Sub-features
 
@@ -27,3 +27,5 @@ Preconditions: `doctor.sh` exits `0`. Time cost: `test_hud_round_buttons` is abo
 - Cut has no button. It is the tool while none of Plank, Tower or Wall is selected, and again after leaving interact mode.
 - Collapse and maximize stay on the wood frame. Collapse hides the panel; the round minimap button opens it again.
 - The row shifts left of the wood panel when a centred row would sit under it, so the open panel does not cover the buttons.
+- The bright ring is the selected state. A darker face alone sits behind the icon and does not read as selected.
+- The tap target is larger than the disc. The extra pixels are not drawn, and they stay clear of the neighbouring target and the wood counter.
