@@ -87,16 +87,10 @@ jobs:
 
       - name: Install Godot and export templates
         if: steps.gate.outputs.build == 'true'
-        run: |
-          set -euo pipefail
-          base=https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable
-          curl -fsSL -o /tmp/godot.zip "$base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
-          unzip -q -o /tmp/godot.zip -d /tmp/godot
-          sudo install -m 755 "/tmp/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" /usr/local/bin/godot
-          curl -fsSL -o /tmp/templates.tpz "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
-          dest="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
-          mkdir -p "$dest"
-          unzip -q -j /tmp/templates.tpz 'templates/android_*' 'templates/version.txt' -d "$dest"
+        uses: ./.github/actions/install-godot
+        with:
+          godot-version: ${{ env.GODOT_VERSION }}
+          export-templates: "true"
 
       - name: Generate debug keystore and editor settings
         if: steps.gate.outputs.build == 'true'

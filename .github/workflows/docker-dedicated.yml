@@ -35,14 +35,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Godot 4.7.2
-        run: |
-          set -euo pipefail
-          curl -fsSL -o /tmp/Godot_v4.7.2-stable_linux.x86_64.zip \
-            https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
-          (cd /tmp && sha512sum -c "$GITHUB_WORKSPACE/docker/godot-4.7.2-linux.sha512")
-          unzip -q -o /tmp/Godot_v4.7.2-stable_linux.x86_64.zip -d /tmp/godot
-          sudo install -m 755 /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 /usr/local/bin/godot
-          godot --version
+        uses: ./.github/actions/install-godot
+        with:
+          verify-sha512: "true"
 
       - name: Build and smoke
         run: ./tools/docker_dedicated_smoke.sh

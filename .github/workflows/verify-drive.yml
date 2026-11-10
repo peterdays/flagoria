@@ -74,18 +74,17 @@ jobs:
             python3 tools/verify_drive_picks.py --files "$RUNNER_TEMP/paths.txt" --gameplay true
           fi
 
-      - name: Install xvfb and Godot 4.7.2
+      - name: Install xvfb
         if: steps.pick.outputs.gameplay == 'true' && steps.pick.outputs.drives != ''
         run: |
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq xvfb
-          curl -fsSL -o /tmp/godot.zip \
-            https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
-          unzip -q -o /tmp/godot.zip -d /tmp/godot
-          sudo install -m 755 /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 /usr/local/bin/godot
-          godot --version
           command -v xvfb-run
+
+      - name: Install Godot 4.7.2
+        if: steps.pick.outputs.gameplay == 'true' && steps.pick.outputs.drives != ''
+        uses: ./.github/actions/install-godot
 
       - name: Import the project
         if: steps.pick.outputs.gameplay == 'true' && steps.pick.outputs.drives != ''
