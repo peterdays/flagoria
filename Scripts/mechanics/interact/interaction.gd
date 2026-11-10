@@ -6,13 +6,9 @@ extends Node2D
 ## and a shorter press chops in the facing direction at full reach. Plants in
 ## the cone queue and each finishes before the next. Plank, tower and wall
 ## still drag on the map. A dead player cuts nothing (#349).
-## While multiplayer is active (a client, or a host with a peer connected)
-## the host decides every cut (#223): a client asks it with request_cut, the
-## host drops the request when that peer is over its CutRateLimit (#355),
-## checks the plant is there and the cutter is alive (#349) and in reach,
-## cuts it, sends apply_cut to every other peer and tells the cutter
-## its yields with receive_yields. A client's stump appears when the host's
-## apply_cut comes back. Peers that join later get the host's cuts, with
+## While multiplayer is active the host decides every cut (#223, #350). A
+## client asks with request_cut and plays the fall only when the host
+## accepts. Peers that join later get the host's cuts, with
 ## their ages, with the map params. Regrowth is the host's too (#298): a
 ## client never regrows a stump on its own, and when stumps regrow on the host
 ## (TileMap.regrow_due) the host sends every peer one apply_regrow_cells per
@@ -307,22 +303,22 @@ func step_chop(delta: float) -> void:
 func _cut(cell: Vector2i) -> bool:
 	## Cut the plant on `cell` for the local player. Alone it is cut here; a
 	## host decides it with host_cut; a client asks the host and returns
-	## true when it asked (the fall plays, the stump and wood come back).
+	## false (the fall plays when receive_yields arrives, #350).
 	if not multiplayer_on(multiplayer):
 		var type: InteractableType = world_map.cut_choppable(cell)
 		if type != null:
-			receive_yields(type.yields)
+			receive_yields(cell, type.yields)
 		return type != null
 	if multiplayer.is_server():
 		var cut := host_cut(cell)
 		if cut != null:
-			receive_yields(cut.yields)
+			receive_yields(cell, cut.yields)
 		return cut != null
 	if world_map.choppable(cell) == null \
 			or multiplayer.multiplayer_peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
 		return false
-	request_cut.rpc_id(1, cell)
-	return true
+	_chop.ask_host(cell)
+	return false
 
 
 func host_cut(cell: Vector2i) -> InteractableType:
@@ -337,21 +333,20 @@ func host_cut(cell: Vector2i) -> InteractableType:
 
 @rpc("any_peer", "reliable", "call_remote")
 func request_cut(cell: Vector2i) -> void:
-	## Host: a client asks to cut `cell`. Dropped when the client is over its
-	## CutRateLimit; cut when its player is alive and in reach of it, and
-	## send the client its yields.
+	## Host: alive and in reach cuts; otherwise refuse_cut (#350). A peer
+	## over its CutRateLimit is dropped with no reply (#355).
 	if not multiplayer.is_server():
 		return
 	var peer := multiplayer.get_remote_sender_id()
 	if not cut_limit.allow(peer):
 		return
 	var cutter := get_node_or_null("../" + str(peer)) as Node2D
-	if cutter == null or player_dead(cutter) \
-			or cutter.global_position.distance_to(cell_center(cell)) > CHOP_REACH + REACH_SLACK:
+	var near := cutter != null and not player_dead(cutter) and cutter.global_position.distance_to(cell_center(cell)) <= CHOP_REACH + REACH_SLACK
+	var type: InteractableType = host_cut(cell) if near else null
+	if type == null:
+		refuse_cut.rpc_id(peer, cell)
 		return
-	var type := host_cut(cell)
-	if type != null:
-		receive_yields.rpc_id(peer, type.yields)
+	receive_yields.rpc_id(peer, cell, type.yields)
 
 
 @rpc("authority", "reliable", "call_remote")
@@ -473,13 +468,20 @@ func receive_charge(wood: int) -> void:
 
 
 @rpc("authority", "reliable", "call_remote")
-func receive_yields(yields: Dictionary) -> void:
-	## Add what a cut earned to the local inventory (the host sends a
-	## client's; inventories stay local per peer).
+func refuse_cut(cell: Vector2i) -> void:
+	## The host refused this client's cut of `cell`: no fall and no wood.
+	_chop.refuse_cut(cell)
+
+
+@rpc("authority", "reliable", "call_remote")
+func receive_yields(cell: Vector2i, yields: Dictionary) -> void:
+	## Wood from a cut the host accepted. The fall plays on this reply (#350).
 	var inventory := get_node_or_null(INVENTORY_PATH) as Inventory
 	if inventory:
 		for resource in yields:
 			inventory.add(StringName(resource), int(yields[resource]))
+	if multiplayer.get_remote_sender_id() == 1:
+		_chop.confirm_cut(cell)
 
 
 func _draw() -> void:

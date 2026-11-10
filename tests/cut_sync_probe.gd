@@ -4,7 +4,7 @@ extends SceneTree
 ## test_cut_sync_two_players (tests/net/test_cut_sync.gd) and
 ## test_regrow_sync_two_players (tests/net/test_regrow_sync.gd) and
 ## test_structure_sync_join and test_castle_sync_join (tests/net/test_structure_sync.gd)
-## and test_dead_cut_client (tests/net/test_cut_sync.gd) and
+## and test_dead_cut_client and test_cut_refused_two_players (tests/net/test_cut_sync.gd) and
 ## test_sprout_sync_two_players (tests/net/test_sprout_sync.gd).
 ##   -- --port=N --out=PATH --host --save=SAVE  load SAVE and host it with a player
 ##   -- --port=N --out=PATH                     join localhost:N through the Join path
@@ -26,6 +26,11 @@ extends SceneTree
 ## selection over it with screen touch events in interact mode, then sends the
 ## host request_cut for it directly, as a peer that skips its own check would;
 ## "dead_cut" then counts the cells the drag covered in reach.
+## While PATH.swing exists (client), it chops two trees through start_chop:
+## one far from where the host still sees it (position sync paused), which the
+## host refuses, then one near its spawn after sync is on again, which the
+## host accepts. "refused_fells" / "refused_sounds" are the fall count and
+## sound names after the refused chop; "fells" and "sounds" are after both.
 ## Every 100 ms it writes PATH (JSON): its peer id, whether it has the map
 ## and its own player, its cut list, its wood and, for each cut or listed
 ## cell, what is drawn there and whether it blocks, and the cell each
@@ -35,6 +40,13 @@ extends SceneTree
 ## it logged are in "errors". Stops when PATH.stop exists, or after 90 s.
 
 var _errors := _ErrorLog.new()
+var _swing_started := false
+var _swing_done := false
+var _swing_error := ""
+var _far_cell := Vector2i(-999999, -999999)
+var _near_cell := Vector2i(-999999, -999999)
+var _refused_fells := 0
+var _refused_sounds: Array = []
 
 
 class _ErrorLog extends Logger:
@@ -195,6 +207,10 @@ func _run() -> void:
 				lift.position = drag.position
 				root.push_input(lift, true)
 				interaction.request_cut.rpc_id(1, cell)
+		if not host and not _swing_started and me and main.world_params != null \
+				and FileAccess.file_exists(out + ".swing"):
+			_swing_started = true
+			await _swing(me, world, interaction)
 		if not forged and not host and FileAccess.file_exists(out + ".forge"):
 			forged = true
 			interaction.apply_regrow_cells.rpc_id(1, listed)
@@ -220,6 +236,91 @@ func _run() -> void:
 	quit(0)
 
 
+func _swing(me: Node2D, world, interaction: Interaction) -> void:
+	## A far chop the host refuses, then a near one it accepts (#350).
+	interaction.bind(me)
+	interaction.set_mode(Interaction.Mode.INTERACT)
+	var picked := _pick_trees(world, interaction, me.global_position)
+	if picked["error"] != "":
+		_swing_error = picked["error"]
+		_swing_done = true
+		return
+	_far_cell = picked["far"]
+	_near_cell = picked["near"]
+	var sync: MultiplayerSynchronizer = me.get_node("MultiplayerSynchronizer")
+	# process_mode does not stop this node: the replicator polls it itself.
+	# A long interval keeps the host on the spawn position for the far chop.
+	sync.replication_interval = 30.0
+	var hold := Time.get_ticks_msec() + 200
+	while Time.get_ticks_msec() < hold:
+		await process_frame
+	var far_ok: bool = await _swing_at(me, world, interaction, _far_cell, false)
+	_refused_fells = interaction._chop.fell_count
+	_refused_sounds = _sound_names(interaction)
+	sync.replication_interval = 0.0
+	var near_ok: bool = await _swing_at(me, world, interaction, _near_cell, true)
+	if not far_ok or not near_ok:
+		_swing_error = "chop did not start (far %s, near %s, cells %s %s)" % [far_ok, near_ok, _far_cell, _near_cell]
+	_swing_done = true
+
+
+func _swing_at(me: Node2D, world, interaction: Interaction, cell: Vector2i, settle: bool) -> bool:
+	## Stand next to `cell`, draw its chunk, and play one chop. When `settle`,
+	## wait so the host's copy of this player arrives before the request.
+	me.global_position = interaction.cell_center(cell) + Vector2(12, 0)
+	world.generate_chunk(me.position)
+	if settle:
+		var until := Time.get_ticks_msec() + 800
+		while Time.get_ticks_msec() < until:
+			await process_frame
+	if world.choppable(cell) == null or not interaction.start_chop(cell):
+		return false
+	var until := Time.get_ticks_msec() + 3000
+	while Time.get_ticks_msec() < until and interaction.chopping():
+		await process_frame
+	until = Time.get_ticks_msec() + 1000  # the host's answer
+	while Time.get_ticks_msec() < until:
+		await process_frame
+	return true
+
+
+func _pick_trees(world, interaction: Interaction, origin: Vector2) -> Dictionary:
+	## A tree the host will call out of reach, and one inside its spawn chunk.
+	var far_min := Interaction.CHOP_REACH + Interaction.REACH_SLACK + 128.0
+	var near_max := 14.0 * 16.0
+	var origin_cell: Vector2i = world.local_to_map(world.to_local(origin))
+	var far := Vector2i(-999999, -999999)
+	var near := Vector2i(-999999, -999999)
+	var near_dist := INF
+	for r in 80:
+		for dy in range(-r, r + 1):
+			for dx in range(-r, r + 1):
+				if maxi(absi(dx), absi(dy)) != r:
+					continue
+				var cell := origin_cell + Vector2i(dx, dy)
+				var type := InteractableCatalog.type_at(world.predict_cell(cell)[1])
+				if type == null or type.id != "tree":
+					continue
+				var dist := origin.distance_to(interaction.cell_center(cell))
+				if far.x < -100000 and dist >= far_min:
+					far = cell
+				if dist <= near_max and dist < near_dist and cell != far:
+					near = cell
+					near_dist = dist
+		if far.x > -100000 and near.x > -100000:
+			break
+	if far.x < -100000 or near.x < -100000:
+		return {"error": "no far and near tree from %s (far %s, near %s)" % [origin, far, near]}
+	return {"error": "", "far": far, "near": near}
+
+
+static func _sound_names(interaction: Interaction) -> Array:
+	var names := []
+	for stream in interaction.sfx_log:
+		names.append(stream.resource_path.get_file().get_basename() if stream != null else "")
+	return names
+
+
 static func cell_state(world, cell: Vector2i) -> Dictionary:
 	## What a player meets on `cell`: the foliage tile, the decor under it
 	## (a stump), whether it is clear to walk, and whether a plank bridge is
@@ -239,6 +340,10 @@ func _write(out: String, main, world, listed: Array[Vector2i], me: Node2D, regro
 	if main.world_params != null:
 		for cell in listed:
 			cells[WorldSave.cell_key(cell)] = cell_state(world, cell)
+		if _far_cell.x > -100000:
+			cells[WorldSave.cell_key(_far_cell)] = cell_state(world, _far_cell)
+		if _near_cell.x > -100000:
+			cells[WorldSave.cell_key(_near_cell)] = cell_state(world, _near_cell)
 		for chunk in cuts:
 			for key in cuts[chunk]:
 				cells[key] = cell_state(world, WorldSave.parse_cell(key))
@@ -259,6 +364,8 @@ func _write(out: String, main, world, listed: Array[Vector2i], me: Node2D, regro
 			var at: Vector2i = world.local_to_map(world.to_local(node.global_position))
 			players[str(node.name)] = [at.x, at.y]
 	var inventory: Inventory = main.get_node("Inventory")
+	var interaction: Interaction = main.get_node("World/Interaction")
+	var sounds := _sound_names(interaction)
 	var bridges := []
 	for entry in world.bridges_for_sync():
 		bridges.append("%d,%d" % [entry[0], entry[1]])
@@ -278,6 +385,14 @@ func _write(out: String, main, world, listed: Array[Vector2i], me: Node2D, regro
 		"players": players,
 		"place_refused": refused,
 		"errors": _errors.snapshot(),
+		"sounds": sounds,
+		"fells": interaction._chop.fell_count,
+		"refused_fells": _refused_fells,
+		"refused_sounds": _refused_sounds,
+		"swing_done": _swing_done,
+		"swing_error": _swing_error,
+		"far": WorldSave.cell_key(_far_cell) if _far_cell.x > -100000 else "",
+		"near": WorldSave.cell_key(_near_cell) if _near_cell.x > -100000 else "",
 	}))
 	file.close()
 	DirAccess.rename_absolute(out + ".tmp", out)
