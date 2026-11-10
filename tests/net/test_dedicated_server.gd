@@ -63,7 +63,8 @@ func _test_dedicated_server_join() -> int:
 
 func _test_dedicated_server_params_file() -> int:
 	## `-- --server --params <file>` hosts the map in that save: a client that
-	## joins gets exactly its params. A missing file stops the server with
+	## joins gets exactly its params. The file is a byte copy of the save, the
+	## shape of a mounted params file. A missing file stops the server with
 	## exit 1 before it listens. Both server runs have a hard `timeout`.
 	print("-- test_dedicated_server_params_file")
 	var fail := 0
@@ -92,12 +93,24 @@ func _test_dedicated_server_params_file() -> int:
 	if saved["error"] != "":
 		printerr("FAIL dedicated_server_params_file save: %s" % saved["error"])
 		return fail + 1
+	# The docker params mount is this file copied somewhere else as bytes.
 	# `timeout` forwards the TERM below to the server and kills it after 90 s
 	# whatever happens to this run.
+	var mounted := OS.get_temp_dir().path_join("flagoria_ds_params_%d.json" % OS.get_process_id())
+	var raw := FileAccess.get_file_as_bytes(saved["path"])
+	var handle := FileAccess.open(mounted, FileAccess.WRITE)
+	if handle == null or raw.size() < 2 or raw[0] != 0x1f or raw[1] != 0x8b:
+		printerr("FAIL dedicated_server_params_file save is not a gzip file to mount")
+		DirAccess.remove_absolute(saved["path"])
+		return fail + 1
+	handle.store_buffer(raw)
+	handle.close()
 	var pid := OS.create_process("timeout", ["-k", "5", "90", exe, "--headless", "--path", project,
-		"--", "--server", "--port=%d" % port, "--params=" + ProjectSettings.globalize_path(saved["path"])])
+		"--", "--server", "--port=%d" % port, "--params=" + mounted])
 	if pid <= 0:
 		printerr("FAIL dedicated_server_params_file could not start the server process")
+		DirAccess.remove_absolute(saved["path"])
+		DirAccess.remove_absolute(mounted)
 		return fail + 1
 	var scene = load("res://flagoria_main.tscn").instantiate()
 	root.add_child(scene)
@@ -117,6 +130,7 @@ func _test_dedicated_server_params_file() -> int:
 	scene.multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	scene.queue_free()
 	DirAccess.remove_absolute(saved["path"])
+	DirAccess.remove_absolute(mounted)
 	if fail == 0:
 		print("PASS test_dedicated_server_params_file")
 	return fail

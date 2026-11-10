@@ -125,7 +125,7 @@ The server runs until it is stopped. `kill -TERM <pid>` closes ENet, prints one 
 
 Clients join with Main Menu Join. A blank address uses `localhost` on UDP `9786`. A hostname or an IPv4 address may include `:port` (`127.0.0.1:9799`, `localhost:9799`); a bare host keeps port `9786`. The typed text stays in the address field and in `Could not join …`. A missing host, a non-numeric port, or a port outside 1 to 65535 is rejected on the menu before any connection attempt. An address with more than one colon (such as `::1`) is rejected instead of being read as a host and a port.
 
-`test_dedicated_server_join` in `tests/net/test_dedicated_server.gd` starts a `-- --server` process, joins it through the main scene's Join path, and checks that the client gets map params and its own player and that the host has no node `1`. Waits are bounded at 30 seconds, and the server process is killed at the end. `test_dedicated_server_params_file` starts one with `--params` and checks that the joining client gets exactly the saved params, and that a missing file exits `1`.
+`test_dedicated_server_join` in `tests/net/test_dedicated_server.gd` starts a `-- --server` process, joins it through the main scene's Join path, and checks that the client gets map params and its own player and that the host has no node `1`. Waits are bounded at 30 seconds, and the server process is killed at the end. `test_dedicated_server_params_file` starts one with `--params` on a byte copy of the save and checks that the joining client gets exactly the saved params, and that a missing file exits `1`. `test_params_mount_copy` checks that byte copy, and that version 1 and 2 files still load, without starting a server.
 
 ## 5. CPU and memory (rough)
 

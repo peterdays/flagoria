@@ -25,7 +25,7 @@ FLAGORIA_SERVER_PORT=9799 FLAGORIA_PUBLISH=9799:9799 docker compose up
 
 Join `that-ipv4:9799`.
 
-Generation params are a read-only bind mount. The file is a map save used only for its generation parameters. Cuts, bridges, structures, and walls in it are not restored, and the server does not keep them (#15). There is no saves volume.
+Generation params are a read-only bind mount. The file is a map save used only for its generation parameters. Copy the save as bytes: version 3 saves are gzip, and a text copy is not a map save. Cuts, bridges, structures, and walls in it are not restored, and the server does not keep them (#15). There is no saves volume.
 
 ```bash
 FLAGORIA_PARAMS_FILE=./island.json docker compose up -d
