@@ -47,7 +47,7 @@ func _cell_vp(interaction: Interaction, world, cell: Vector2i) -> Vector2:
 
 
 func _test_build_picker_includes_tower() -> int:
-	## Interact mode shows Cut / Plank / Tower; Tower hides while multiplayer
+	## The row shows Plank / Tower / Wall; Tower hides while multiplayer
 	## is on (Plank stays, #297). Time cost: about 0.35 s in tools/verify.sh
 	## (~2.0 s alone with --only=build_picker_includes_tower).
 	print("-- test_build_picker_includes_tower")

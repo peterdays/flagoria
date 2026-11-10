@@ -3,9 +3,10 @@ extends "res://tests/helpers/test_helpers.gd"
 
 
 func _test_minimap_panel_in_scene() -> int:
-	## In the real main scene the wood panel shows in the top right once the
-	## local hero spawns, below the HUD buttons and clear of the attack
-	## button, counts as HUD for touches, reveals once two samples agree, draws
+	## In the real main scene the wood panel stays closed until its button is
+	## pressed, then shows in the top right, below the HUD buttons and clear of
+	## the attack button, counts as HUD for touches, reveals once two samples
+	## agree, draws
 	## the explored cells around the hero in the map colours, M hides it, and
 	## a new world clears what was explored.
 	print("-- test_minimap_panel_in_scene")
@@ -29,6 +30,11 @@ func _test_minimap_panel_in_scene() -> int:
 		printerr("FAIL minimap_panel revealed on a single sample")
 		fail += 1
 	panel.tick()
+	if panel.visible or scene.get_node_or_null("CanvasLayer1/MapReopen") != null:
+		printerr("FAIL minimap_panel open at match start (visible %s)" % panel.visible)
+		fail += 1
+	var map_button: Button = scene.get_node("CanvasLayer1/MinimapButton")
+	map_button.pressed.emit()
 	var rect: Rect2 = panel.get_global_rect()
 	var mode_rect: Rect2 = scene.get_node("CanvasLayer1/ModeButton").get_global_rect()
 	var attack: TouchScreenButton = scene.get_node("CanvasLayer1/TouchScreenButton")

@@ -2,7 +2,7 @@
 
 Drive: not player-facing
 
-`CanvasLayer1/ModeButton` switches the hero between combat and interact mode (`Interaction.Mode` in `Scripts/mechanics/interact/interaction.gd`). Chopping, building and their sync are in [Chop trees (live drive)](./chop-trees.md), [Chopping trees and bushes](./chop-trees-and-bushes.md) and [Build placement](./build-placement.md).
+`CanvasLayer1/ModeButton` is the round attack/interact button in the HUD row under the wood counter. It switches the hero between combat and interact mode (`Interaction.Mode` in `Scripts/mechanics/interact/interaction.gd`). Chopping, building and their sync are in [Chop trees (live drive)](./chop-trees.md), [Chopping trees and bushes](./chop-trees-and-bushes.md) and [Build placement](./build-placement.md).
 
 ## Sub-features
 

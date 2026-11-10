@@ -3,7 +3,8 @@ extends "res://tests/helpers/test_helpers.gd"
 
 
 func _test_parchment_map() -> int:
-	## Header buttons collapse and reopen the wood panel. Maximize opens the
+	## The panel starts closed. The round minimap button opens it; header
+	## buttons collapse it and the button opens it again. Maximize opens the
 	## parchment: a drag pans it, the hero does not move or attack, the wheel
 	## does not zoom, a hit or Esc or the close control returns to the panel.
 	print("-- test_parchment_map")
@@ -22,33 +23,37 @@ func _test_parchment_map() -> int:
 	panel.tick()
 	var collapse: Control = panel.get_node("CollapseButton")
 	var maximize: Control = panel.get_node("MaximizeButton")
-	var reopen: Control = scene.get_node("CanvasLayer1/MapReopen")
+	var map_button: Button = scene.get_node("CanvasLayer1/MinimapButton")
 	var parchment: ParchmentMap = scene.get_node("CanvasLayer1/ParchmentMap")
 	var player: Node2D = scene.get_node("World/%d" % scene.multiplayer.get_unique_id())
-	if not panel.visible or reopen.visible or parchment.is_open():
-		printerr("FAIL parchment_map start visible panel %s reopen %s map %s"
-				% [panel.visible, reopen.visible, parchment.is_open()])
+	if panel.visible or parchment.is_open() or scene.get_node_or_null("CanvasLayer1/MapReopen") != null:
+		printerr("FAIL parchment_map start panel %s map %s chip %s"
+				% [panel.visible, parchment.is_open(), scene.get_node_or_null("CanvasLayer1/MapReopen")])
 		fail += 1
 	var header := Rect2(Vector2.ZERO, Vector2(panel.size.x, 16))
 	if collapse.size.x < 16 or collapse.size.y < 12 or maximize.size.x < 16 \
 			or not header.encloses(Rect2(collapse.position, collapse.size)) \
 			or not header.encloses(Rect2(maximize.position, maximize.size)) \
-			or reopen.size.x < 44 or reopen.size.y < 20:
-		printerr("FAIL parchment_map controls collapse %s at %s, maximize %s at %s, reopen %s"
-				% [collapse.size, collapse.position, maximize.size, maximize.position, reopen.size])
+			or absf(map_button.size.x - map_button.size.y) > 1.0 or map_button.size.x < 16.0:
+		printerr("FAIL parchment_map controls collapse %s at %s, maximize %s at %s, map button %s"
+				% [collapse.size, collapse.position, maximize.size, maximize.position, map_button.size])
+		fail += 1
+	map_button.pressed.emit()
+	if not panel.visible:
+		printerr("FAIL parchment_map button left the panel closed")
 		fail += 1
 	_tap(collapse)
-	if panel.visible or not reopen.visible:
-		printerr("FAIL parchment_map collapse left panel %s reopen %s" % [panel.visible, reopen.visible])
+	if panel.visible:
+		printerr("FAIL parchment_map collapse left panel %s" % panel.visible)
 		fail += 1
-	_tap(reopen)
-	if not panel.visible or reopen.visible:
-		printerr("FAIL parchment_map reopen left panel %s reopen %s" % [panel.visible, reopen.visible])
+	map_button.pressed.emit()
+	if not panel.visible:
+		printerr("FAIL parchment_map reopen left panel %s" % panel.visible)
 		fail += 1
 	_tap(maximize)
-	if not parchment.is_open() or panel.visible or reopen.visible:
-		printerr("FAIL parchment_map maximize open %s panel %s reopen %s"
-				% [parchment.is_open(), panel.visible, reopen.visible])
+	if not parchment.is_open() or panel.visible:
+		printerr("FAIL parchment_map maximize open %s panel %s"
+				% [parchment.is_open(), panel.visible])
 		fail += 1
 	var before := parchment.pan
 	var press := InputEventMouseButton.new()

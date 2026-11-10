@@ -40,7 +40,6 @@ const SPROUTS_PER_MESSAGE := 500
 const DRAG_START := 6.0  ## viewport px a touch moves before it is a range, not a tap
 ## The invisible alternative tile a chop swaps in (kept in ChopAction).
 const HIDDEN_ALT := ChopAction.HIDDEN_ALT
-const InGameMenu := preload("res://Scripts/ingame_menu.gd")
 const BUTTON_PATH := "/root/Flagoria/CanvasLayer1/ModeButton"
 const INVENTORY_PATH := "/root/Flagoria/Inventory"
 const ICONS := {
@@ -99,7 +98,7 @@ func _ready() -> void:
 	world_map.trees_sprouted.connect(_on_trees_sprouted)
 	var button := get_node_or_null(BUTTON_PATH) as Button
 	if button:
-		InGameMenu.fit_icon_button(button)
+		RoundHudStyle.apply(button)
 		button.pressed.connect(toggle_mode)
 	_refresh_button()
 

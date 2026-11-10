@@ -65,17 +65,13 @@ func _on_up() -> void:
 
 
 func _fit() -> void:
-	## Narrow top-bar button: the menu theme's 16 px font and 10 px side
-	## margins would clip the word Run.
-	add_theme_font_size_override("font_size", 8)
+	## Same disc as the other HUD controls. The word still reads Run or RUN;
+	## font 6 fits that word inside the disc.
+	add_theme_font_size_override("font_size", 6)
 	add_theme_constant_override("outline_size", 1)
-	for state in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
-		var style := get_theme_stylebox(state)
-		if style == null:
-			continue
-		var copy := style.duplicate()
-		copy.content_margin_left = 2
-		copy.content_margin_right = 2
-		copy.content_margin_top = 0
-		copy.content_margin_bottom = 0
-		add_theme_stylebox_override(state, copy)
+	RoundHudStyle.apply(self)
+	reset_size()
+
+
+func _get_minimum_size() -> Vector2:
+	return Vector2(RoundHudStyle.HIT, RoundHudStyle.HIT)

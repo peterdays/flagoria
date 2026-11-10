@@ -1,7 +1,8 @@
 class_name BuildPlacement
 extends RefCounted
-## Interact-mode build tool (#225 / #273 / #276): Cut / Plank / Tower / Wall
-## picker, H/V-snapped plank and wall drag, single-anchor tower preview,
+## Build tool (#225 / #273 / #276, #450): round Plank / Tower / Wall buttons in
+## the HUD row. Cut is the tool when none of those is selected. H/V-snapped
+## plank and wall drag, single-anchor tower preview,
 ## green/red preview and wood cost. Placement goes only through
 ## ConstructionPlacer (planks through Interaction.place_planks so multiplayer
 ## asks the host, #297). Preview green cells and cost match exactly what
@@ -14,7 +15,6 @@ const INVALID_TINT := Color(0.92, 0.22, 0.18, 0.48)
 const COST_COLOR := Color(0.98, 0.95, 0.88, 1.0)
 const REASON_COLOR := Color(1.0, 0.75, 0.55, 1.0)
 const PICKER_PATH := "/root/Flagoria/CanvasLayer1/BuildPicker"
-const InGameMenuScript := preload("res://Scripts/ingame_menu.gd")
 
 const TOOL_ICONS := {
 	Tool.CUT: preload("res://art/ui/ui_tool_cut.png"),
@@ -24,6 +24,9 @@ const TOOL_ICONS := {
 }
 const TOOL_TIPS := {
 	Tool.CUT: "Cut", Tool.PLANK: "Plank", Tool.TOWER: "Tower", Tool.WALL: "Wall",
+}
+const BUTTON_NAMES := {
+	Tool.PLANK: "PlankButton", Tool.TOWER: "TowerButton", Tool.WALL: "WallButton",
 }
 ## Tools that stay host-alone until their own peer sync (#278). Plank is
 ## shown in multiplayer once bridges sync (#297).
@@ -293,39 +296,31 @@ func _ensure_picker() -> void:
 		_picker = HBoxContainer.new()
 		_picker.name = "BuildPicker"
 		_picker.add_theme_constant_override("separation", 2)
+		_picker.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		hud.add_child(_picker)
-	_picker.anchor_left = 1.0
-	_picker.anchor_right = 1.0
-	_picker.offset_left = -130.0
-	_picker.offset_top = 4.0
-	_picker.offset_right = -48.0
-	_picker.offset_bottom = 22.0
-	_picker.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_picker.mouse_filter = Control.MOUSE_FILTER_STOP
 	for child in _picker.get_children():
 		child.queue_free()
 	_buttons.clear()
 	var theme: Theme = load("res://art/ui/main_menu_theme.tres")
-	for t in [Tool.CUT, Tool.PLANK, Tool.TOWER, Tool.WALL]:
+	for t in [Tool.PLANK, Tool.TOWER, Tool.WALL]:
 		var button := Button.new()
+		button.name = BUTTON_NAMES[t]
 		button.toggle_mode = true
-		button.focus_mode = Control.FOCUS_NONE
+		button.theme = theme
 		button.icon = TOOL_ICONS[t] as Texture2D
 		button.tooltip_text = TOOL_TIPS[t] as String
-		button.theme = theme
-		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		button.custom_minimum_size = Vector2(18, 18)
-		InGameMenuScript.fit_icon_button(button)
+		RoundHudStyle.apply(button)
 		var captured: Tool = t
 		button.pressed.connect(func() -> void: set_tool(captured))
 		_picker.add_child(button)
 		_buttons[t] = button
+	_picker.reset_size()
 
 
 func _refresh_picker_visible() -> void:
 	if _picker == null or _interaction == null:
 		return
-	_picker.visible = _interaction.mode == Interaction.Mode.INTERACT
+	_picker.visible = true
 	var mp := Interaction.multiplayer_on(_interaction.multiplayer)
 	for t in MP_HIDDEN:
 		if _buttons.has(t):

@@ -2,9 +2,11 @@
 
 Drive: not player-facing
 
-Interact-mode build picker (#225 / #273 / #276). Entering interact mode shows a
-small Cut / Plank / Tower / Wall icon row next to the mode button. Cut keeps the
-existing tap, drag and chop behaviour. Plank snaps a drag to a horizontal or
+Interact-mode build tools (#225 / #273 / #276). Round Plank, Tower and Wall
+buttons sit in the HUD row under the wood counter from the start of the match
+(see [Round HUD buttons](./hud-round-buttons.md)). Cut keeps the
+existing tap, drag and chop behaviour and is the tool when none of those is
+selected. Plank snaps a drag to a horizontal or
 vertical cell run. Tower previews the 3×3 `tower_wood` footprint under the
 finger (see [Build tower](./build-tower.md)). Wall keeps a tip and places a
 connected palisade chain (see [Free-form walls](./free-form-walls.md)). The
@@ -28,9 +30,10 @@ run-length cap was added (#380 item 1 left open).
 
 ## Sub-features
 
-- `build-picker` Cut, Plank, Tower and Wall icons appear in interact mode, hide in
-  combat, and switch `BuildPlacement.tool`. Tower and Wall are hidden while
-  multiplayer is on; Plank stays (#297).
+- `build-picker` Plank, Tower and Wall buttons are visible from the start of the
+  match, including in combat, and switch `BuildPlacement.tool`. Tower and Wall
+  are hidden while multiplayer is on; Plank stays (#297). Leaving interact
+  resets the tool to Cut.
 - `build-plank-snap` a diagonal drag becomes a straight H or V cell run.
 - `build-plank-preview` green cells and cost match what commit places and
   charges; red for the rest of the drag; refusal only when nothing places.
@@ -40,8 +43,8 @@ run-length cap was added (#380 item 1 left open).
 ## How to get to it (user POV)
 
 1. Start a local game (Host alone, offline, or two-player — Plank works in all).
-2. Tap the mode button to enter interact mode; the Cut / Plank / Tower / Wall
-   picker appears.
+2. The Plank, Tower and Wall buttons are under the wood count. Tap the mode
+   button to enter interact mode.
 3. Tap Plank, drag across water next to land; green cells and the wood cost
    follow the finger (green = what will place). Lift to place. Tower: see
    [Build tower](./build-tower.md). Wall: see [Free-form walls](./free-form-walls.md).
