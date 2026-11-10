@@ -61,7 +61,8 @@ func _test_bridge_save_round_trip() -> int:
 	var map_gen = root.get_node("MapGen")
 	var before: MapGenParams = map_gen.params
 	var result: Dictionary = scene.get_node("CanvasLayer1/InGameMenu").save_world()
-	var file = JSON.parse_string(FileAccess.get_file_as_string(result["path"])) if result["error"] == "" else null
+	var doc := MapSave.read_document(result["path"]) if result["error"] == "" else {"data": null}
+	var file = doc["data"]
 	var edits: Dictionary = file["world"]["tile_edits"] if file is Dictionary else {}
 	var written := 0
 	for chunk in edits:
