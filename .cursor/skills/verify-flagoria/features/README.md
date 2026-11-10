@@ -24,7 +24,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - Keep verify logs and screenshots in `artifacts/`; cleanup must not delete them.
 - UI proof for Map Settings includes a PNG with the panel title visible.
 - Two-peer flows (dedicated server, mobs, health sync, cuts, points) are scripted headless; menu Host/Join has a two-launch drive; the two-GUI play checklist is still manual. See placeholders below.
-- After adding or renaming a test or feature file, run `./.cursor/skills/verify-flagoria/bin/check-map.sh` (no Godot, under 1 s). It fails when a feature file is not indexed here, a cited `test_<name>` does not exist, a test is cited by no feature file, or a feature file lacks a `Drive:` line (`Drive: drives/<name>.gd` pointing at an existing drive that calls `snapshot("…")`, or `Drive: not player-facing`). On a gameplay pull request, `check-map.sh --gameplay --changed-files <paths>` also fails when a changed or added feature file lacks that line. Time cost: under 1 s.
+- After adding or renaming a test or feature file, run `./.cursor/skills/verify-flagoria/bin/check-map.sh` (no Godot, under 1 s). It fails when a feature file is not indexed here, a cited `test_<name>` does not exist, a test is cited by no feature file, or a feature file lacks a `Drive:` line (`Drive: drives/<name>.gd` pointing at an existing drive that calls `snapshot("…")`, or `Drive: not player-facing`). CI enforces the full map check in the required `tools/verify.sh` job only. On a gameplay pull request, `check-map.sh --gameplay --changed-files <paths>` locally also fails when a changed or added feature file lacks that line. Time cost: under 1 s.
 
 ## Features
 

@@ -54,14 +54,6 @@ jobs:
             --event "$EVENT" "${labeled[@]}" \
             --base-project "$RUNNER_TEMP/base.godot" --head-project "$RUNNER_TEMP/head.godot"
 
-      - name: Feature map Drive lines (gameplay PRs)
-        if: steps.gate.outputs.gameplay == 'true' && github.event_name == 'pull_request'
-        run: |
-          set -euo pipefail
-          .cursor/skills/verify-flagoria/bin/check-map.sh --self-test
-          .cursor/skills/verify-flagoria/bin/check-map.sh \
-            --gameplay --changed-files "$RUNNER_TEMP/paths.txt"
-
       - name: Install Godot 4.7.2
         if: steps.gate.outputs.gameplay == 'true'
         run: |
