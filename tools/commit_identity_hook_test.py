@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Synthetic-repo tests for tools/commit_identity_hook.py.
 
+Also run ``python3 tools/staged_import_hook_test.py`` for the pre-commit
+``.import`` guard. Hook tests are not wired into ``tools/verify.sh``.
+
 Run: python3 tools/commit_identity_hook_test.py
 
 Addresses and names are assembled at run time. Failure output redacts them.
