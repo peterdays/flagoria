@@ -1,17 +1,6 @@
 class_name MinimapPanel
 extends Control
-## The in-play explored map: a wood panel in the top right corner that shows
-## the ground the local hero has explored, centred on the hero, at 2 screen
-## pixels per world cell. Cells the hero has not been near show as mist.
-## Exploration is local to this client for now (no network traffic); a new
-## world clears it. M or the header hides it; maximize opens the parchment.
-##
-## Each explored 32 x 32 cell chunk has a 64 x 64 image and texture. A
-## reveal paints only the newly explored cells and the 1-cell ring around
-## them (whose coast line may change) into the images, then updates those
-## textures in place, so a frame just draws the few chunk textures under the
-## map window. Terrain is looked up once per cell and kept per chunk.
-
+## Explored ground in the top-right wood panel. A save restores the chart.
 const FRAME := preload("res://art/ui/map/ui_map_panel_open.png")
 const HERO := {
 	"Up": preload("res://art/ui/map/ui_map_marker_hero_up.png"),
@@ -250,6 +239,20 @@ func reveal_around(cell: Vector2i) -> void:
 	_view.queue_redraw()
 
 
+func restore_chart(chunks: Dictionary) -> void:
+	## Replace explored cells (`chunks` is chunk -> a 128-byte bitset). Empty clears.
+	explored.replace_chunks(chunks)
+	for bucket in [_textures, _images, _terrain]:
+		bucket.clear()
+	_last_sample = Vector2i.MAX
+	for chunk in explored.chunks():
+		var img := render_chunk(chunk)
+		_images[chunk] = img
+		_textures[chunk] = ImageTexture.create_from_image(img)
+	if _view:
+		_view.queue_redraw()
+
+
 func local_player() -> Node2D:
 	var world := get_node_or_null(WORLD_PATH)
 	if world == null:
@@ -418,7 +421,6 @@ func paint_city_walls(target: CanvasItem, top_left: Vector2i, window_size: Vecto
 func _on_ground_changed(cells: Rect2i) -> void:
 	if cells.size != Vector2i.ZERO:
 		return
-	# A new world: what was explored belongs to the old one.
 	explored.clear()
 	_textures.clear()
 	_images.clear()
@@ -431,9 +433,7 @@ func _on_ground_changed(cells: Rect2i) -> void:
 
 
 func _fit_pixel_scale() -> void:
-	## Whole screen pixels per art pixel, like the hearts, kept MARGIN art
-	## pixels from the right edge. Rounds down, never up, so the panel stays
-	## clear of the attack button at fractional window stretches.
+	## Whole art pixels from the right edge, rounded down so the attack button stays clear.
 	var stretch := get_viewport().get_final_transform().get_scale().x
 	if stretch <= 0.0:
 		return

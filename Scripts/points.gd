@@ -46,6 +46,14 @@ func award(peer_id: int, amount: int, reason: String) -> bool:
 	return true
 
 
+func restore_total(peer_id: int, total: int) -> void:
+	## Server only: set `peer_id`'s total to `total`, as a loaded save does.
+	## Not an award: the amount on the signal is 0 and the reason is "load".
+	if not multiplayer.is_server() or peer_id <= 0 or total < 0 or total_of(peer_id) == total:
+		return
+	_apply_award.rpc(peer_id, total, 0, "load")
+
+
 func _on_peer_connected(peer_id: int) -> void:
 	if multiplayer.is_server():
 		_receive_totals.rpc_id(peer_id, _totals)

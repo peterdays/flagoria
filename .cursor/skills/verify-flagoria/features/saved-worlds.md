@@ -27,4 +27,4 @@ Preconditions: `doctor.sh` exits `0`. Time cost: the three headless tests add ab
 ## Gotchas
 
 - Files live under `user://`. A verify run uses its own user dir. Do not assert on a real saves folder.
-- Player position, health and inventory are not in the save (#197). Two worlds of the same seed look different only where the world itself changed.
+- A save also keeps that peer's position, health, wood, score and charted ground (see [Player save](./player-save.md)). Two worlds of the same seed still differ where the world itself changed.

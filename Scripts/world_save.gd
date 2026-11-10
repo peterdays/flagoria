@@ -24,7 +24,9 @@ var tile_edits: Dictionary[String, Dictionary] = {}
 var object_changes: Dictionary[String, Dictionary] = {}
 ## Placed structures (#42): chunk -> {cell: structure}.
 var structures: Dictionary[String, Dictionary] = {}
-## The player's own progress (#197). Opaque until that slice fills it.
+## The player's own progress (#197). PlayerSave reads it. Empty, or absent
+## in an older file, means the default player (spawn, full health, no wood,
+## no score, nothing charted).
 var player: Dictionary = {}
 ## Game version string of the build that last wrote the file. Empty when the
 ## file was migrated from an older version and has not been saved again.
