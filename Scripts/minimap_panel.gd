@@ -1,6 +1,7 @@
 class_name MinimapPanel
 extends Control
 ## Explored ground in the top-right wood panel. A save restores the chart.
+## The panel starts closed; the round minimap button or M opens it (#450).
 const FRAME := preload("res://art/ui/map/ui_map_panel_open.png")
 const HERO := {
 	"Up": preload("res://art/ui/map/ui_map_marker_hero_up.png"),
@@ -47,9 +48,9 @@ const _NEIGHBOURS := [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1), Vector
 var explored := ExploredMap.new()
 var hero_cell := Vector2i.ZERO
 var facing := "Down"
-var shown := true  ## false after collapse or M hides the panel
+var shown := false  ## closed until the minimap button or M
 var parchment: ParchmentMap
-var _reopen: MapWoodButton
+var _map_button: Button
 
 var _textures := {}  ## chunk (Vector2i) -> ImageTexture
 var _images := {}  ## chunk (Vector2i) -> Image behind its texture
@@ -124,25 +125,37 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 
 func _add_header_buttons() -> void:
-	## Collapse and maximize sit in the wood header. The reopen chip is a
-	## sibling, so it stays on screen after the panel hides.
+	## Collapse and maximize sit in the wood header. The round minimap button
+	## is a sibling in the HUD row, so it stays up when this panel hides.
 	var collapse := _header_button("CollapseButton", MapWoodButton.Glyph.MINUS, Vector2(184, 1))
 	collapse.activated.connect(collapse_panel)
 	var maximize_button := _header_button("MaximizeButton", MapWoodButton.Glyph.SQUARE, Vector2(204, 1))
 	maximize_button.activated.connect(maximize)
-	_reopen = MapWoodButton.new()
-	_reopen.name = "MapReopen"
-	_reopen.glyph = MapWoodButton.Glyph.PANEL
-	_reopen.size = Vector2(56, 24)
-	_reopen.visible = false
-	_reopen.texture_filter = TEXTURE_FILTER_NEAREST
-	_reopen.activated.connect(reopen_panel)
+	_map_button = Button.new()
+	_map_button.name = "MinimapButton"
+	_map_button.toggle_mode = true
+	_map_button.theme = load("res://art/ui/main_menu_theme.tres")
+	_map_button.icon = RoundHudStyle.map_icon()
+	_map_button.tooltip_text = "Minimap"
+	RoundHudStyle.apply(_map_button)
+	_map_button.pressed.connect(_on_map_button)
 	parchment = ParchmentMap.new()
 	parchment.panel = self
 	# The canvas layer is still entering the tree when the panel's _ready runs.
 	var layer := get_parent()
-	layer.add_child.call_deferred(_reopen)
+	layer.add_child.call_deferred(_map_button)
 	layer.add_child.call_deferred(parchment)
+
+
+func _on_map_button() -> void:
+	## Opens the wood panel, or closes it. A press while the parchment is up
+	## puts the parchment away and leaves the panel closed.
+	if parchment != null and parchment.is_open():
+		parchment.hide_map()
+		shown = false
+	else:
+		shown = not shown
+	apply_chrome()
 
 
 func _header_button(node_name: String, glyph: int, at: Vector2) -> MapWoodButton:
@@ -173,13 +186,13 @@ func maximize() -> void:
 
 
 func apply_chrome() -> void:
-	## The wood window, the reopen chip, or neither while the parchment is up.
+	## The wood window, or neither while it is closed or the parchment is up.
+	## The round minimap button stays in the HUD row either way.
 	var playing := local_player() != null
 	var map_open := parchment != null and parchment.is_open()
 	visible = shown and playing and not map_open
-	if _reopen:
-		_reopen.visible = not shown and playing and not map_open
-	_place_reopen()
+	if _map_button:
+		_map_button.set_pressed_no_signal(visible)
 
 
 func tick() -> void:
@@ -440,20 +453,6 @@ func _fit_pixel_scale() -> void:
 	var k := floorf(stretch) / stretch if stretch >= 1.0 else 1.0
 	scale = Vector2(k, k)
 	position = Vector2(get_viewport_rect().size.x - (size.x + MARGIN) * k, maxf(TOP * k, 23.0))
-	_place_reopen()
-
-
-func _place_reopen() -> void:
-	if _reopen == null:
-		return
-	var stretch := get_viewport().get_final_transform().get_scale().x
-	if stretch <= 0.0:
-		return
-	var k := floorf(stretch) / stretch if stretch >= 1.0 else 1.0
-	_reopen.scale = Vector2(k, k)
-	var view_w := get_viewport_rect().size.x
-	# Below the header, so a click that collapses the panel does not land on the chip.
-	_reopen.position = Vector2(view_w - (_reopen.size.x + MARGIN) * k, maxf(TOP * k, 23.0) + 22.0 * k)
 
 
 func _map() -> Node:

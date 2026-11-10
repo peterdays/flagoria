@@ -65,7 +65,7 @@ func _cell_vp(interaction: Interaction, world, cell: Vector2i) -> Vector2:
 
 
 func _test_build_picker_includes_wall() -> int:
-	## Interact mode shows Cut / Plank / Tower / Wall; Wall hides while
+	## The row shows Plank / Tower / Wall; Wall hides while
 	## multiplayer is on (Plank stays, #297). Time cost: about 0.35 s in
 	## tools/verify.sh (~2.0 s alone with --only=build_picker_includes_wall).
 	print("-- test_build_picker_includes_wall")
@@ -76,7 +76,7 @@ func _test_build_picker_includes_wall() -> int:
 	var picker: HBoxContainer = scene.get_node_or_null("CanvasLayer1/BuildPicker")
 	interaction.set_mode(Interaction.Mode.INTERACT)
 	await process_frame
-	if picker == null or picker.get_child_count() < 4:
+	if picker == null or picker.get_child_count() < 3:
 		printerr("FAIL build_picker_includes_wall: picker child count %s"
 				% [picker.get_child_count() if picker else null])
 		fail += 1

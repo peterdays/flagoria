@@ -32,9 +32,9 @@ func _test_build_placement_snap_run() -> int:
 
 
 func _test_build_picker_switches_tool() -> int:
-	## Entering interact mode shows the Cut/Plank picker; picking Plank
-	## switches the tool; leaving interact hides the picker and resets to
-	## Cut. Time cost: about 0.3 s in tools/verify.sh (~2.0 s alone with
+	## The round Plank/Tower/Wall row is up from the start. Picking Plank
+	## switches the tool. Leaving interact keeps the row and resets to Cut.
+	## Time cost: about 0.3 s in tools/verify.sh (~2.0 s alone with
 	## --only=build_picker_switches_tool).
 	print("-- test_build_picker_switches_tool")
 	var fail := 0
@@ -47,11 +47,9 @@ func _test_build_picker_switches_tool() -> int:
 	await process_frame
 	var interaction: Interaction = scene.get_node("World/Interaction")
 	var picker: HBoxContainer = scene.get_node_or_null("CanvasLayer1/BuildPicker")
-	if picker == null or picker.get_child_count() < 2:
-		printerr("FAIL build_picker_switches_tool: picker missing or short")
-		fail += 1
-	elif picker.visible:
-		printerr("FAIL build_picker_switches_tool: picker visible in combat")
+	if picker == null or picker.get_child_count() != 3 or not picker.visible:
+		printerr("FAIL build_picker_switches_tool: picker %s children %s"
+				% [picker, picker.get_child_count() if picker else null])
 		fail += 1
 	interaction.set_mode(Interaction.Mode.INTERACT)
 	await process_frame
@@ -67,8 +65,8 @@ func _test_build_picker_switches_tool() -> int:
 		fail += 1
 	interaction.set_mode(Interaction.Mode.COMBAT)
 	await process_frame
-	if picker != null and picker.visible:
-		printerr("FAIL build_picker_switches_tool: picker still visible in combat")
+	if picker == null or not picker.visible:
+		printerr("FAIL build_picker_switches_tool: picker hidden after leaving interact")
 		fail += 1
 	if interaction.build.tool != BuildPlacement.Tool.CUT:
 		printerr("FAIL build_picker_switches_tool: combat did not reset to Cut")

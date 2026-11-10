@@ -60,9 +60,9 @@ func run() -> void:
 		printerr("player save: the loaded world did not start")
 		done(false)
 		return
-	var panel: Control = current_scene.get_node(MINIMAP)
-	if not await wait_until(func() -> bool: return panel.visible, 5.0):
-		printerr("player save: the chart did not show")
+	var panel: MinimapPanel = current_scene.get_node(MINIMAP)
+	if not await wait_until(func() -> bool: return panel.explored.explored_count() > 0, 5.0):
+		printerr("player save: the chart did not restore")
 		done(false)
 		return
 	await snapshot("loaded")
