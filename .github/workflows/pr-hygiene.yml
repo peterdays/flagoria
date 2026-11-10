@@ -30,6 +30,8 @@ jobs:
         run: |
           python3 tools/pr_hygiene_test.py
           python3 tools/agent_budget.py --self-test
+          python3 tools/required_checks_test.py
+          python3 tools/required_checks.py
 
       - name: Check this pull request
         run: python3 tools/pr_hygiene.py --event "$GITHUB_EVENT_PATH"

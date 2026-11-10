@@ -88,6 +88,16 @@ if ! python3 "$ROOT/tools/issue_triage_test.py"; then
   exit 1
 fi
 
+echo "== Required CI check names (tools/required_checks.py) =="
+if ! python3 "$ROOT/tools/required_checks_test.py"; then
+  echo "error: required checks self-test failed (see above)" >&2
+  exit 1
+fi
+if ! python3 "$ROOT/tools/required_checks.py"; then
+  echo "error: required check names do not match workflows (see above)" >&2
+  exit 1
+fi
+
 echo "== Feature map (check-map.sh) =="
 # Fast and needs no Godot. Every feature file must carry a Drive: line; see
 # .cursor/skills/verify-flagoria/bin/check-map.sh.
