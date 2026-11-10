@@ -42,27 +42,27 @@ jobs:
       # tools/play_review_paths.py (or the needs-play-review label), shipped
       # assets and scripts, the export preset, or this workflow itself.
       # Docs, tests, tools and other CI changes do not build.
+      - name: Classify change
+        id: classify
+        uses: ./.github/actions/classify-change
+        with:
+          run_self_test: "false"
+          base_sha: ${{ github.event.pull_request.base.sha }}
+          head_sha: ${{ github.event.pull_request.head.sha }}
+          with_diff: "false"
+          labeled: ${{ contains(github.event.pull_request.labels.*.name, 'needs-play-review') }}
+
       - name: Change reaches the APK?
         id: gate
         env:
-          LABELED: ${{ contains(github.event.pull_request.labels.*.name, 'needs-play-review') }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PATHS_FILE: ${{ steps.classify.outputs.paths_file }}
+          GAMEPLAY: ${{ steps.classify.outputs.gameplay }}
         run: |
           set -euo pipefail
-          mb="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
-          git diff --name-only "$mb" "$HEAD_SHA" > "$RUNNER_TEMP/paths.txt"
-          git show "$mb:project.godot" > "$RUNNER_TEMP/base.godot" || rm -f "$RUNNER_TEMP/base.godot"
-          git show "$HEAD_SHA:project.godot" > "$RUNNER_TEMP/head.godot" || rm -f "$RUNNER_TEMP/head.godot"
-          labeled=()
-          if [ "$LABELED" = "true" ]; then labeled=(--labeled); fi
-          GITHUB_OUTPUT="$RUNNER_TEMP/classify.txt" python3 tools/play_review_paths.py \
-            --files "$RUNNER_TEMP/paths.txt" "${labeled[@]}" \
-            --base-project "$RUNNER_TEMP/base.godot" --head-project "$RUNNER_TEMP/head.godot"
           shipped='^(art|Scripts|addons|structures|Player|Mobs)/|^[^/]+\.(gd|tscn|tres)$|^(project\.godot|export_presets\.cfg|\.github/workflows/pr-debug-apk\.yml)$'
-          if grep -qx 'gameplay=true' "$RUNNER_TEMP/classify.txt"; then
+          if [ "$GAMEPLAY" = "true" ]; then
             build=true
-          elif grep -E "$shipped" "$RUNNER_TEMP/paths.txt" | sed 's/^/shipped: /' | grep .; then
+          elif grep -E "$shipped" "$PATHS_FILE" | sed 's/^/shipped: /' | grep .; then
             build=true
           else
             build=false
