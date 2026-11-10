@@ -4,6 +4,8 @@ Drive: not player-facing
 
 The required check **Netcode stress** (`.github/workflows/play-review.yml`) runs `tools/stress_netcode.py` only for gameplay changes. How many times each multiplayer scenario runs is chosen in `tools/play_review_paths.py` (`FULL_RUNS`, `LIGHT_RUNS`, `stress_tier()`). Do not change default run counts in the workflow; set `STRESS_RUNS` from that script's output only.
 
+Pull-request workflows classify changes once per job through `.github/actions/classify-change`, which runs `play_review_paths.py` and exposes `gameplay` and `stress_runs` outputs. `play-review-label.yml` uses the same composite with paths read via the API (no checkout of PR code).
+
 ## When the job is skipped
 
 The change is not gameplay: no changed path matches `GAMEPLAY` in `play_review_paths.py`, and the pull request does not carry `needs-play-review` (the label workflow adds it when paths match). The workflow still checks out the repo, runs `python3 tools/play_review_paths.py --self-test`, and classifies paths; install Godot and stress are skipped. Wall time is on the order of tens of seconds.

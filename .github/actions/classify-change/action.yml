@@ -1,0 +1,119 @@
+name: Classify change (gameplay / stress tier)
+description: >
+  Run tools/play_review_paths.py once per job: optional self-test, git or
+  prebuilt path lists, merge-base diff and project.godot copies when requested.
+  Writes gameplay and stress_runs to job outputs (GITHUB_OUTPUT).
+inputs:
+  run_self_test:
+    description: Run python3 tools/play_review_paths.py --self-test first
+    required: false
+    default: "true"
+  base_sha:
+    description: Merge-base left side for git mode (empty when using paths_file)
+    required: false
+    default: ""
+  head_sha:
+    description: Merge-base right side for git mode
+    required: false
+    default: ""
+  paths_file:
+    description: Changed paths, one per line (git mode writes RUNNER_TEMP/paths.txt)
+    required: false
+    default: ""
+  diff_file:
+    description: Prebuilt git diff -U0 (optional; git mode can write RUNNER_TEMP/change.diff)
+    required: false
+    default: ""
+  base_project:
+    description: project.godot before the change (optional path)
+    required: false
+    default: ""
+  head_project:
+    description: project.godot after the change (optional path)
+    required: false
+    default: ""
+  with_diff:
+    description: In git mode, run git diff -U0 and pass --diff to the classifier
+    required: false
+    default: "false"
+  with_project_godot:
+    description: In git mode, git show both sides of project.godot when it changed
+    required: false
+    default: "true"
+  event:
+    description: pull_request or push (stress tier)
+    required: false
+    default: pull_request
+  labeled:
+    description: Treat needs-play-review as gameplay=true (--labeled)
+    required: false
+    default: "false"
+outputs:
+  gameplay:
+    description: "true when the change is gameplay (or labeled)"
+    value: ${{ steps.classify.outputs.gameplay }}
+  stress_runs:
+    description: Netcode stress runs per scenario (5, 20; unused when gameplay is false)
+    value: ${{ steps.classify.outputs.stress_runs }}
+  paths_file:
+    description: Path list used for classification
+    value: ${{ steps.classify.outputs.paths_file }}
+runs:
+  using: composite
+  steps:
+    - name: Classify paths
+      id: classify
+      shell: bash
+      env:
+        RUN_SELF_TEST: ${{ inputs.run_self_test }}
+        BASE_SHA: ${{ inputs.base_sha }}
+        HEAD_SHA: ${{ inputs.head_sha }}
+        PATHS_IN: ${{ inputs.paths_file }}
+        DIFF_IN: ${{ inputs.diff_file }}
+        BASE_PROJ_IN: ${{ inputs.base_project }}
+        HEAD_PROJ_IN: ${{ inputs.head_project }}
+        WITH_DIFF: ${{ inputs.with_diff }}
+        WITH_PROJECT: ${{ inputs.with_project_godot }}
+        EVENT: ${{ inputs.event }}
+        LABELED: ${{ inputs.labeled }}
+      run: |
+        set -euo pipefail
+        if [ "$RUN_SELF_TEST" = "true" ]; then
+          python3 tools/play_review_paths.py --self-test
+        fi
+        paths="$PATHS_IN"
+        diff=""
+        base_proj=""
+        head_proj=""
+        if [ -z "$paths" ]; then
+          if [ -z "$BASE_SHA" ] || [ -z "$HEAD_SHA" ]; then
+            echo "::error::classify-change: set base_sha and head_sha or paths_file"
+            exit 1
+          fi
+          mb="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          paths="$RUNNER_TEMP/play-review-paths.txt"
+          git diff --name-only "$mb" "$HEAD_SHA" > "$paths"
+          if [ "$WITH_DIFF" = "true" ]; then
+            diff="$RUNNER_TEMP/play-review-change.diff"
+            git diff -U0 "$mb" "$HEAD_SHA" > "$diff"
+          fi
+          if [ "$WITH_PROJECT" = "true" ]; then
+            if grep -qx 'project.godot' "$paths"; then
+              base_proj="$RUNNER_TEMP/play-review-base.godot"
+              head_proj="$RUNNER_TEMP/play-review-head.godot"
+              git show "$mb:project.godot" > "$base_proj" || rm -f "$base_proj"
+              git show "$HEAD_SHA:project.godot" > "$head_proj" || rm -f "$head_proj"
+            fi
+          fi
+        else
+          if [ -n "$DIFF_IN" ]; then diff="$DIFF_IN"; fi
+          if [ -n "$BASE_PROJ_IN" ]; then base_proj="$BASE_PROJ_IN"; fi
+          if [ -n "$HEAD_PROJ_IN" ]; then head_proj="$HEAD_PROJ_IN"; fi
+        fi
+        echo "paths_file=$paths" >> "$GITHUB_OUTPUT"
+        args=(--files "$paths" --event "$EVENT")
+        if [ -n "$diff" ]; then args+=(--diff "$diff"); fi
+        if [ -n "$base_proj" ]; then args+=(--base-project "$base_proj"); fi
+        if [ -n "$head_proj" ]; then args+=(--head-project "$head_proj"); fi
+        if [ "$LABELED" = "true" ]; then args+=(--labeled); fi
+        python3 tools/play_review_paths.py "${args[@]}"

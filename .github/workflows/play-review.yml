@@ -34,24 +34,13 @@ jobs:
 
       - name: Needs play review?
         id: gate
-        env:
-          LABELED: ${{ contains(github.event.pull_request.labels.*.name, 'needs-play-review') }}
-          EVENT: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          set -euo pipefail
-          python3 tools/play_review_paths.py --self-test
-          mb="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
-          git diff --name-only "$mb" "$HEAD_SHA" > "$RUNNER_TEMP/paths.txt"
-          git diff -U0 "$mb" "$HEAD_SHA" > "$RUNNER_TEMP/change.diff"
-          git show "$mb:project.godot" > "$RUNNER_TEMP/base.godot" || rm -f "$RUNNER_TEMP/base.godot"
-          git show "$HEAD_SHA:project.godot" > "$RUNNER_TEMP/head.godot" || rm -f "$RUNNER_TEMP/head.godot"
-          labeled=()
-          if [ "$LABELED" = "true" ]; then labeled=(--labeled); fi
-          python3 tools/play_review_paths.py --files "$RUNNER_TEMP/paths.txt" --diff "$RUNNER_TEMP/change.diff" \
-            --event "$EVENT" "${labeled[@]}" \
-            --base-project "$RUNNER_TEMP/base.godot" --head-project "$RUNNER_TEMP/head.godot"
+        uses: ./.github/actions/classify-change
+        with:
+          base_sha: ${{ github.event.pull_request.base.sha || github.event.before }}
+          head_sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          with_diff: "true"
+          event: ${{ github.event_name }}
+          labeled: ${{ contains(github.event.pull_request.labels.*.name, 'needs-play-review') }}
 
       - name: Install Godot 4.7.2
         if: steps.gate.outputs.gameplay == 'true'
