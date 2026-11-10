@@ -10,7 +10,7 @@ The main menu Worlds screen lists every world save by name and the time the file
 - `worlds-load` Load calls `MapGen.load_map_inputs` for the selected file and hosts it. Later saves of that match replace the same file.
 - `worlds-new` Host and New world clear any loaded world and pick a new file name. The file is written on the first Save.
 - `worlds-delete` Delete asks "Delete this world?" and Yes calls `MapSave.delete_save`.
-- `worlds-legacy` a version 1 file already in `user://saves/` is listed and loads. Opening the list does not rewrite it.
+- `worlds-legacy` a version 1 file already in `user://saves/` is listed and loads. Opening the list does not rewrite it. A file this build writes is format version 3 (gzip). The list still shows the file's modified time and does not open the file.
 
 ## How to get to it (user POV)
 

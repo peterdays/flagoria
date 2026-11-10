@@ -8,7 +8,7 @@ func _test_structure_save_round_trip() -> int:
 	## palisade saved from the in-game menu come back from the load before
 	## any chunk is drawn: same placements in the same order, the tower's
 	## mob flag, the walls, and the castle's gate front as the spawn, so no
-	## second castle is placed. Bad entries are dropped; the version 1 and 2
+	## second castle is placed. Bad entries are dropped; the version 1, 2 and 3
 	## fixtures (no structures) load with none and still get a castle.
 	print("-- test_structure_save_round_trip")
 	var fail := 0
@@ -45,7 +45,8 @@ func _test_structure_save_round_trip() -> int:
 	var map_gen = root.get_node("MapGen")
 	var before: MapGenParams = map_gen.params
 	var result: Dictionary = scene.get_node("CanvasLayer1/InGameMenu").save_world()
-	var file = JSON.parse_string(FileAccess.get_file_as_string(result["path"])) if result["error"] == "" else null
+	var doc := MapSave.read_document(result["path"]) if result["error"] == "" else {"data": null}
+	var file = doc["data"]
 	var section: Dictionary = file["world"]["structures"] if file is Dictionary else {}
 	var entries := 0
 	for chunk in section:
@@ -88,7 +89,7 @@ func _test_structure_save_round_trip() -> int:
 		fail += 1
 
 	# Older saves (no structures) load with none, so the host places a castle.
-	for fixture in ["res://tests/fixtures/world_save_v1.json", "res://tests/fixtures/world_save_v2.json"]:
+	for fixture in ["res://tests/fixtures/world_save_v1.json", "res://tests/fixtures/world_save_v2.json", "res://tests/fixtures/world_save_v3.json"]:
 		var err: String = map_gen.load_map_inputs(fixture)
 		scene.world_params = map_gen.params.duplicate_params()
 		scene._apply_params_to_world(scene.world_params)

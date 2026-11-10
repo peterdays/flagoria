@@ -1,25 +1,58 @@
 # World saves
 
-A world save is one JSON file in `user://saves/<name>.json`. It records how the
+A world save is one file in `user://saves/<name>.json`. It records how the
 world was generated and what changed in it since. Terrain is never stored: the
 generator rebuilds it from the generation inputs, and the change sections are
-applied on top. An unchanged world is about 1 KB.
+applied on top.
 
 `Scripts/map_save.gd` (`MapSave`) reads and writes the file.
 `Scripts/world_save.gd` (`WorldSave`) is the save in memory. This page covers
-the container format, which is slice 1 of #196. Tree and bush cuts fill
+the container format (#196). Tree and bush cuts fill
 `world.object_changes` (see [Cut trees and bushes](#cut-trees-and-bushes)).
 Placed plank bridges fill `world.tile_edits` (see
 [Placed plank bridges](#placed-plank-bridges)). Placed structures and
 free-form walls fill `world.structures` (see
-[Structures and walls](#structures-and-walls)).
+[Structures and walls](#structures-and-walls)). Player progress stays an
+empty object until #197.
 
-## File layout (version 2)
+## Encoding
+
+The writer stores **gzip of one compact JSON document** (Godot
+`PackedByteArray.compress` with `FileAccess.COMPRESSION_GZIP`). Gzip is the
+compact encoding because the JSON repeats chunk keys, cell keys and tile
+names, and the engine already decompresses it. The document is one line, with
+`format` and `format_version` first, so it is readable after `gunzip`.
+
+A file whose first bytes are not the gzip magic `1f 8b` is the JSON itself.
+Version 1 and version 2 were written that way, and a hand-written file still
+loads. The writer always gzips. A gzip that will not decompress, or whose JSON
+would expand past 1 MiB (`MapSave.MAX_SAVE_BYTES`), is refused.
+
+`_test_world_save_size_budget` prints the measured sizes against two budgets:
+
+| Save | Budget |
+| --- | --- |
+| Fresh world (header and generation inputs, no edits) | 1024 bytes |
+| 300 plank-cell edits, keyed by 32-cell chunk | 8192 bytes |
+
+With the current params and that edit shape, a fresh world is about 520 bytes
+of gzip (about 1.2 KB of JSON) and 300 edits are about 1.4 KB of gzip (about
+15 KB of JSON). The timestamps move the size by a few bytes. The test prints
+the sizes it measured and fails when one goes over the budget. Uncompressed
+JSON of those two saves is already over the budget, so dropping the gzip
+fails the test.
+
+## File layout (version 3)
+
+The JSON inside the gzip, shown with line breaks:
 
 ```json
 {
 	"format": "flagoria-world",
-	"format_version": 2,
+	"format_version": 3,
+	"game_version": "0",
+	"created": 1760000000,
+	"updated": 1760000000,
 	"params": {
 		"altitude_seed": 4242,
 		"...": "every MapGenParams value"
@@ -33,11 +66,14 @@ free-form walls fill `world.structures` (see
 | --- | --- |
 | `format` | Always `flagoria-world`. Any other value is refused, so a stray JSON file is never read as a world. |
 | `format_version` | An integer. Bump it whenever the meaning of the file changes. |
+| `game_version` | The game version string of the build that last wrote the file (`MapSave.GAME_VERSION`, currently `"0"`; there is no separate release number). The loader does not branch on it. An older file migrates with `""` until it is saved again. |
+| `created` | Unix seconds when the file was first written. A later save of the same file keeps it. An older file uses the file's modified time. |
+| `updated` | Unix seconds of the last write. |
 | `params` | The generation inputs: every `MapGenParams` value, seeds included. Floats are written with enough digits to read back the same value. |
 | `world.tile_edits` | Changed tiles (#41). |
 | `world.object_changes` | Changed world objects such as felled trees or picked items (#198). |
 | `world.structures` | Placed structures (#42). |
-| `player` | The player's own progress (#197). |
+| `player` | The player's own progress (#197). Empty until that slice. |
 
 Each `world` section is sparse and keyed by chunk, then by cell:
 `{"<cx>,<cy>": {"<x>,<y>": <entry>}}`. A chunk is a fixed 32 by 32 cells
@@ -48,9 +84,10 @@ loader can apply a chunk's changes when it builds that chunk. The feature that
 owns a section decides the shape of its entries. JSON numbers read back as
 floats, so each entry's reader converts its own integers.
 
-`format` and `format_version` come first so the file is easy to identify by eye.
-There are no timestamps in the file: the saved maps list uses the file's
-modified time.
+`format` and `format_version` come first so the document is easy to identify
+after it is uncompressed. The saved maps list does not read the header: it
+uses the file's modified time, which a save updates, and opening the list
+does not rewrite the file.
 
 The main menu's Worlds screen lists every file in that folder, by name and
 modified time. Load hosts that file. Host, and New world, start a match whose
@@ -153,10 +190,18 @@ version 2), so the version stays 2.
 **Save** in the in-game menu writes the world being played, named after the
 date and time (`2026-10-27 22-15-03`; a second save in the same second gets
 ` 2`). The panel stays open and confirms it on one line ("Saved: 10-27 22:15"),
-so the player can resume or leave. The file holds the generation inputs and
-this peer's tree and bush cuts, plank bridges, placed structures and walls.
-Player state (#197) and the rest of the object changes (#198) are not saved
-yet.
+so the player can resume or leave. The file is the version 3 gzip above. It
+holds the generation inputs and this peer's tree and bush cuts, plank bridges,
+placed structures and walls. A second save of that same file keeps `created`
+and refreshes `updated`. Player state (#197) and the rest of the object
+changes (#198) are not saved yet.
+
+The new bytes are not written into the existing file. They go to
+`<name>.json.tmp` beside it. That file is closed, then kept only when
+`MapSave.read_document` reads it as a save. `DirAccess.rename_absolute` then
+moves it onto `<name>.json`, replacing the previous save in one step. A crash
+while the temp file is being written leaves the previous save loadable. The
+next save removes a leftover `.tmp`. The worlds list skips `.tmp` files.
 
 ## Loading
 
@@ -191,11 +236,13 @@ two-player play.
   The file itself is only rewritten, at the current version, when the world is
   next saved.
 - Newer versions are refused with an error naming both versions: "map save
-  version 3, from a newer build; this build reads versions 1 to 2". A build
+  version 4, from a newer build; this build reads versions 1 to 3". A build
   never guesses at a format it does not know.
 - Refused with an error, never a partial world: a version that is not a whole
   number of at least 1, a wrong or missing `format` from version 2 on, missing
-  `params`, or a section that is not an object.
+  `params`, a section that is not an object, a `game_version` that is not a
+  string, a `created` or `updated` that is not a whole number of seconds, or
+  a gzip payload that will not decompress.
 
 `MapSave.load_map` and `MapSave.save_map` still work on the generation inputs
 only. Existing callers are unchanged, and saving through them writes the
@@ -205,8 +252,9 @@ current version with empty sections.
 
 | Version | Change |
 | --- | --- |
-| 1 | `format_version` and `params` only. Written by the first map saves. |
-| 2 | Adds `format`, `world` and `player`. Version 1 files migrate with empty sections, because version 1 saved no changes. |
+| 1 | `format_version` and `params` only. Written by the first map saves. Plain JSON. |
+| 2 | Adds `format`, `world` and `player`. Version 1 files migrate with empty sections, because version 1 saved no changes. Plain JSON. |
+| 3 | Adds `game_version`, `created` and `updated`, and the file is gzip of the compact JSON. Version 2 migrates with `game_version` `""` and both times set from the file's modified time. The sections are unchanged. |
 
 ### Bumping the version
 
@@ -223,7 +271,9 @@ have.
 
 ## Why existing saves are not rewritten on disk
 
-Version 1 files load through the migration, so nothing needs rewriting.
-Rewriting every file in `user://saves/` at startup would touch player data
-without a reason. An interrupted write could also lose a save that loads fine
-as it is. A version 1 file becomes version 2 the next time that world is saved.
+Version 1 and version 2 files load through the migration, so nothing needs
+rewriting. Rewriting every file in `user://saves/` at startup would touch
+player data without a reason. An interrupted write could also lose a save
+that loads fine as it is. An older file becomes version 3 the next time that
+world is saved. `created` is then the time the older file was last modified,
+and `updated` is the time of the new save.
