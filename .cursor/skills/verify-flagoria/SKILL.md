@@ -13,6 +13,8 @@ Project-local verification for Flagoria. Read this cold mid-task. Prefer the fea
 
 **Feature map first (context budget):** fill `brief.template.md` (or `python3 tools/agent_budget.py emit-brief`) and pass `check-brief` before exploring. Open only the Feature/Drive/Pinned paths the brief names. Before Ready: doctor, one matching drive under xvfb when player-facing, one `./tools/verify.sh` (or `bin/drive-verify.sh`), then `check-receipt`. Re-run a check only after it failed.
 
+**Netcode stress tiers (CI):** the required **Netcode stress** job is skipped for non-gameplay changes, uses 5 runs per scenario for gameplay pull requests without netcode edits, and 20 for main pushes or netcode edits. Authoritative rules live in `tools/play_review_paths.py` (`FULL_RUNS`, `LIGHT_RUNS`); read [`ci-netcode-stress.md`](ci-netcode-stress.md) before changing tiers or explaining CI time to reviewers.
+
 **Repo root:** every command below assumes the current working directory is the Flagoria checkout root (the directory that contains `project.godot` and `tools/verify.sh`).
 
 **Scratch / evidence:**

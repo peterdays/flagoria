@@ -8,9 +8,10 @@ Audio scripts are not gameplay. A
 project.godot change counts only when its [input] section differs; with no
 before/after copies given, any project.godot change counts.
 
-Also picks the netcode stress tier (runs per scenario): 20 on a push to main
-or when netcode changes (see NETCODE and NETCODE_MIXED), 5 for other gameplay
-changes. Without --diff, any NETCODE_MIXED file counts as netcode.
+Also picks the netcode stress tier (runs per scenario): skipped when not
+gameplay; otherwise see FULL_RUNS, LIGHT_RUNS and stress_tier() below and
+.cursor/skills/verify-flagoria/ci-netcode-stress.md. Without --diff, any
+NETCODE_MIXED file counts as netcode.
 
 Reads changed paths, one per line, from --files (or stdin). Prints the
 matching paths and the tier, and writes `gameplay=true|false` and
@@ -73,6 +74,23 @@ NETCODE_MIXED = [
     "Scripts/player.gd", "Scripts/player_health.gd", "Scripts/mob.gd", "Scripts/TileMap.gd",
 ]
 NET_LINE = re.compile(r"rpc|multiplayer|peer|authority|replicat|synchroniz|spawner|is_server|enet", re.I)
+
+# Netcode stress tier (runs per scenario in CI and on main pushes). Authoritative
+# rules for agents and workflows: change tiers here only; see the table in
+# .cursor/skills/verify-flagoria/ci-netcode-stress.md (do not duplicate those
+# rules in workflow YAML comments except a pointer to this file).
+#
+# Skipped (~seconds): not a gameplay change (no paths in GAMEPLAY, and no
+# needs-play-review label on a pull request). play-review.yml still runs
+# --self-test and classification; it skips Godot and stress_netcode.py.
+#
+# LIGHT_RUNS (5): pull_request + gameplay paths, but stress_tier() picks the
+# light tier — no NETCODE file changed, and no netcode-tagged line in a changed
+# NETCODE_MIXED file (git diff -U0). Roughly 3–10 minutes for the job.
+#
+# FULL_RUNS (20): event push (gameplay on main), or any NETCODE path changed, or
+# any NETCODE_MIXED path whose changed lines match NET_LINE, or (when --diff is
+# omitted) any NETCODE_MIXED path in the path list. Up to ~25 minutes.
 FULL_RUNS, LIGHT_RUNS = 20, 5
 
 

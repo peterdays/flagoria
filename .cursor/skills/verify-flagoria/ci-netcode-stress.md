@@ -1,0 +1,37 @@
+# Netcode stress tiers (CI)
+
+Drive: not player-facing
+
+The required check **Netcode stress** (`.github/workflows/play-review.yml`) runs `tools/stress_netcode.py` only for gameplay changes. How many times each multiplayer scenario runs is chosen in `tools/play_review_paths.py` (`FULL_RUNS`, `LIGHT_RUNS`, `stress_tier()`). Do not change default run counts in the workflow; set `STRESS_RUNS` from that script's output only.
+
+## When the job is skipped
+
+The change is not gameplay: no changed path matches `GAMEPLAY` in `play_review_paths.py`, and the pull request does not carry `needs-play-review` (the label workflow adds it when paths match). The workflow still checks out the repo, runs `python3 tools/play_review_paths.py --self-test`, and classifies paths; install Godot and stress are skipped. Wall time is on the order of tens of seconds.
+
+## 5 runs per scenario (`LIGHT_RUNS`)
+
+- GitHub `event` is `pull_request` (not a push to `main`).
+- At least one gameplay path changed (or `needs-play-review` is present).
+- No file in `NETCODE` changed.
+- For each changed `NETCODE_MIXED` file, no added/removed line in the PR diff matches `NET_LINE` (RPCs, peers, authority, synchronizers, and the other tokens in `play_review_paths.py`).
+
+Typical job time is a few to about ten minutes, depending on scenario count.
+
+## 20 runs per scenario (`FULL_RUNS`)
+
+Any of:
+
+- GitHub `event` is `push` to `main` and the push includes gameplay paths (main always gets the full tier when stress runs).
+- Any changed path is listed in `NETCODE` (spawners, score sync probes, `tools/stress_netcode.py`, and the other entries there).
+- A changed `NETCODE_MIXED` file has at least one changed line matching `NET_LINE` in the PR diff.
+
+If `stress_tier()` is called without `--diff`, any changed `NETCODE_MIXED` path counts as netcode (used in self-tests and anywhere diff is not passed). CI on pull requests always passes `--diff`.
+
+## Local runs
+
+`python3 tools/stress_netcode.py` defaults to 20 runs (`STRESS_RUNS` or `-n`). That default is for local stress, not the CI tier rules above.
+
+## Proof
+
+- `python3 tools/play_review_paths.py --self-test` includes tier cases for both `FULL_RUNS` and `LIGHT_RUNS`.
+- Required check name stays **Netcode stress**.
