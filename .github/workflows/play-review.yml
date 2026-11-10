@@ -1,13 +1,12 @@
 name: play-review
 
-# Netcode stress (tools/stress_netcode.py) for pull requests that carry the
-# needs-play-review label. Runs on pull_request with read-only contents and no
-# secrets, so pull request code, also from a fork, never gets a write token.
-# A label added by play-review-label.yml starts no new run (GitHub does not
-# trigger workflows from GITHUB_TOKEN events), so this job also applies the
-# same path check itself rather than waiting for the "labeled" event.
-# It also runs on gameplay pushes to main. The runs per scenario come from
-# tools/play_review_paths.py: 20 on main or when netcode changes, else 5.
+# Netcode stress (tools/stress_netcode.py) for gameplay pull requests and
+# gameplay pushes to main. Skipped vs 5 vs 20 runs per scenario: see
+# tools/play_review_paths.py (FULL_RUNS, LIGHT_RUNS, stress_tier) and
+# .cursor/skills/verify-flagoria/ci-netcode-stress.md — do not restate tier
+# rules here. pull_request uses read-only contents and no secrets (fork-safe).
+# play-review-label.yml does not re-trigger this workflow on label add, so the
+# gate step also honours needs-play-review via --labeled.
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]

@@ -29,16 +29,16 @@ Run `godot --headless --path . --import` once first on a fresh checkout. To avoi
 
 ## Netcode stress and the `needs-play-review` label
 
-`tools/stress_netcode.py` runs every multiplayer scenario (a test, in any test file, that opens an ENet peer or starts another Godot process) 20 times, each in a fresh headless process with its own XDG dirs, 4 runs at a time (`-j`; each parallel slot picks UDP ports from its own block, passed to `_free_udp_port()` as `FLAGORIA_TEST_PORTS`), and prints pass rate and worst wall time per scenario. Logs of failed runs go to `artifacts/out/stress/`. A scenario listed in `KNOWN_FLAKY` (with the issue that tracks it) gets one retry after a failed run and counts as failed only if the retry fails too; the `retried` column shows how often its first attempt failed. Remove the entry when its issue is fixed.
+`tools/stress_netcode.py` runs every multiplayer scenario (a test, in any test file, that opens an ENet peer or starts another Godot process) N times (default 20 locally), each in a fresh headless process with its own XDG dirs, 4 runs at a time (`-j`; each parallel slot picks UDP ports from its own block, passed to `_free_udp_port()` as `FLAGORIA_TEST_PORTS`), and prints pass rate and worst wall time per scenario. Logs of failed runs go to `artifacts/out/stress/`. A scenario listed in `KNOWN_FLAKY` (with the issue that tracks it) gets one retry after a failed run and counts as failed only if the retry fails too; the `retried` column shows how often its first attempt failed. Remove the entry when its issue is fixed.
 
 ```bash
-GODOT=/path/to/godot python3 tools/stress_netcode.py          # 20 runs each
+GODOT=/path/to/godot python3 tools/stress_netcode.py          # 20 runs each (local default)
 python3 tools/stress_netcode.py -n 3 --only=mob_chase_two_players
 python3 tools/stress_netcode.py -j 1                           # one run at a time
 python3 tools/stress_netcode.py --list
 ```
 
-CI runs it (`.github/workflows/play-review.yml`) only for pull requests that carry `needs-play-review`. `.github/workflows/play-review-label.yml` adds that label when a pull request touches gameplay: player, mobs, scenes, HUD and menus, touch input, netcode, map generation parameters and saved worlds (`Scripts/map_gen.gd`, `Scripts/MapGenParams.gd`, `Scripts/map_save.gd`), or the `[input]` section of `project.godot`. The path list is in `tools/play_review_paths.py` (`--self-test` checks it).
+CI sets N from `tools/play_review_paths.py` (skipped when not gameplay; 5 or 20 runs per scenario — see `.cursor/skills/verify-flagoria/ci-netcode-stress.md`). `.github/workflows/play-review.yml` runs stress for gameplay pull requests and gameplay pushes to main. `.github/workflows/play-review-label.yml` adds `needs-play-review` when a pull request touches gameplay: player, mobs, scenes, HUD and menus, touch input, netcode, map generation parameters and saved worlds (`Scripts/map_gen.gd`, `Scripts/MapGenParams.gd`, `Scripts/map_save.gd`), or the `[input]` section of `project.godot`. The path list is in `tools/play_review_paths.py` (`--self-test` checks it).
 
 ## Gameplay drives and the `needs-drive` label
 
