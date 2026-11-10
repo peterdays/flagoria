@@ -232,3 +232,111 @@ func _test_dead_cut_client() -> int:
 	if fail == 0:
 		print("PASS test_dead_cut_client (tree %s)" % tree)
 	return fail
+
+
+func _test_cut_refused_two_players() -> int:
+	## A host and a client on seed 7 (#350). The client chops a tree while the
+	## host still sees it at spawn, out of reach: the plant stays, wood stays
+	## 0 and no fall or pickup plays. It then chops a tree the host can see:
+	## that one falls, pays its wood and leaves a stump on the client.
+	print("-- test_cut_refused_two_players")
+	var params := _spawn_params(7, 0.0)
+	params.ensure_seeds()
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL cut_refused_two_players found no free UDP port")
+		return 1
+	var saved := MapSave.save_world(WorldSave.new(params), "test_cut_refused_%d_%d" % [OS.get_process_id(), port])
+	var dir := OS.get_user_data_dir().path_join("cut_refused_%d_%d" % [OS.get_process_id(), port])
+	_remove_dir(dir)
+	DirAccess.make_dir_recursive_absolute(dir)
+	var outs: Array[String] = []
+	var pids: Array[int] = []
+	var launch := func(extra: Array) -> void:
+		outs.append(dir.path_join("p%d.json" % outs.size()))
+		var args := ["--headless", "--path", ProjectSettings.globalize_path("res://"), "--script", PROBE,
+				"--", "--port=%d" % port, "--out=" + outs[-1]]
+		args.append_array(extra)
+		pids.append(OS.create_process(OS.get_executable_path(), args))
+	var read := func(i: int) -> Dictionary:
+		var text := FileAccess.get_file_as_string(outs[i]) if FileAccess.file_exists(outs[i]) else ""
+		var data = JSON.parse_string(text) if text != "" else null
+		return data if data is Dictionary else {}
+	var wait_for := func(cond: Callable, ms: int) -> bool:
+		var until := Time.get_ticks_msec() + ms
+		while Time.get_ticks_msec() < until and not cond.call():
+			await process_frame
+		return cond.call()
+	var names := func(sounds: Variant, prefix: String) -> int:
+		var n := 0
+		if sounds is Array:
+			for item in sounds:
+				if str(item).begins_with(prefix):
+					n += 1
+		return n
+	var cut_keys := func(peer: Dictionary) -> Array:
+		var keys := []
+		var cuts: Dictionary = peer.get("cuts", {})
+		for chunk in cuts:
+			for key in cuts[chunk]:
+				keys.append(str(key))
+		keys.sort()
+		return keys
+
+	var fail := 0
+	launch.call(["--host", "--save=" + ProjectSettings.globalize_path(saved["path"])])
+	launch.call([])
+	if saved["error"] != "" or not await wait_for.call(func() -> bool:
+			return read.call(0).get("ready", false) and read.call(1).get("ready", false), 30000):
+		printerr("FAIL cut_refused_two_players: the session did not start: save %s, host %s, client %s"
+				% [saved["error"], read.call(0), read.call(1)])
+		fail += 1
+	else:
+		FileAccess.open(outs[1] + ".swing", FileAccess.WRITE).close()
+		if not await wait_for.call(func() -> bool: return read.call(1).get("swing_done", false), 30000):
+			printerr("FAIL cut_refused_two_players: the client did not finish: %s" % read.call(1))
+			fail += 1
+		else:
+			var host: Dictionary = read.call(0)
+			var client: Dictionary = read.call(1)
+			var wood := InteractableCatalog.by_id("tree").amount_of(Inventory.WOOD)
+			var far := str(client.get("far", ""))
+			var near := str(client.get("near", ""))
+			var far_cell: Dictionary = client.get("cells", {}).get(far, {})
+			var near_cell: Dictionary = client.get("cells", {}).get(near, {})
+			var refused: Array = client.get("refused_sounds", [])
+			var sounds: Array = client.get("sounds", [])
+			var keys: Array = cut_keys.call(client)
+			var host_keys: Array = cut_keys.call(host)
+			if client.get("swing_error", "") != "" or client.get("refused_fells", -1) != 0 \
+					or names.call(refused, "tree_fall") != 0 or names.call(refused, "wood_pickup") != 0 \
+					or far_cell.get("clear", true) or far_cell.get("plant", [-1, -1]) == [-1, -1] \
+					or keys.has(far) or host_keys.has(far) or host.get("wood", -1) != 0:
+				printerr("FAIL cut_refused_two_players: refused cut changed the world: %s" % client)
+				fail += 1
+			if client.get("fells", 0) != 1 or names.call(sounds, "tree_fall") != 1 \
+					or names.call(sounds, "wood_pickup") != 1 or client.get("wood", -1) != wood \
+					or not near_cell.get("clear", false) or not keys.has(near) or not host_keys.has(near) \
+					or keys.has(far):
+				printerr("FAIL cut_refused_two_players: accepted cut far %s near %s host %s client %s" % [far, near, host, client])
+				fail += 1
+		for i in outs.size():
+			if not read.call(i).get("errors", []).is_empty():
+				printerr("FAIL cut_refused_two_players: peer %d logged errors: %s" % [i, read.call(i)["errors"]])
+				fail += 1
+
+	for out in outs:
+		FileAccess.open(out + ".stop", FileAccess.WRITE).close()
+	await wait_for.call(func() -> bool:
+		for pid in pids:
+			if OS.is_process_running(pid):
+				return false
+		return true, 10000)
+	for pid in pids:
+		if OS.is_process_running(pid):
+			OS.kill(pid)
+	_remove_dir(dir)
+	DirAccess.remove_absolute(saved["path"])
+	if fail == 0:
+		print("PASS test_cut_refused_two_players")
+	return fail
