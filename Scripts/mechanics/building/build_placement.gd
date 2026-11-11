@@ -1,7 +1,7 @@
 class_name BuildPlacement
 extends RefCounted
-## Build tool (#225 / #273 / #276, #450): round Plank / Tower / Wall buttons in
-## the HUD row. Cut is the tool when none of those is selected. H/V-snapped
+## Build tool (#225 / #273 / #276, #480): Buildings opens a column of round
+## Plank / Tower / Wall buttons. Cut is the tool when none is selected. H/V-snapped
 ## plank and wall drag, single-anchor tower preview,
 ## green/red preview and wood cost. Placement goes only through
 ## ConstructionPlacer (planks through Interaction.place_planks so multiplayer
@@ -28,6 +28,9 @@ const TOOL_TIPS := {
 const BUTTON_NAMES := {
 	Tool.PLANK: "PlankButton", Tool.TOWER: "TowerButton", Tool.WALL: "WallButton",
 }
+const BUILDINGS_ICON := preload("res://assets/ui/hud/icon_buildings.png")
+## Opaque tool art. Narrower than the disc so the circle and the gold ring show.
+const COLUMN_ICON := 12
 ## Tools that stay host-alone until their own peer sync (#278). Plank is
 ## shown in multiplayer once bridges sync (#297).
 const MP_HIDDEN := [Tool.TOWER, Tool.WALL]
@@ -41,7 +44,9 @@ var cost_viewport := Vector2.ZERO  ## where the cost label sits (finger)
 
 var _interaction: Interaction
 var _placer: ConstructionPlacer
-var _picker: HBoxContainer
+var _picker: Control
+var _buildings: Button
+var _list_open := false
 var _buttons: Dictionary = {}  ## Tool -> Button
 var _snap_from := Vector2i.ZERO
 var _snap_to := Vector2i.ZERO
@@ -78,6 +83,11 @@ func set_tool(value: Tool) -> void:
 	for t in _buttons:
 		var button: Button = _buttons[t]
 		button.set_pressed_no_signal(t == tool)
+	if value != Tool.CUT:
+		_list_open = false
+		if _buildings != null:
+			_buildings.set_pressed_no_signal(false)
+	_refresh_picker_visible()
 
 
 func clear_preview() -> void:
@@ -287,21 +297,36 @@ func _commit_tower(inventory: Inventory) -> bool:
 	return _placer.place(BuildCosts.TOWER, one, inventory)
 
 
+func _on_buildings_toggled(on: bool) -> void:
+	_list_open = on
+	_refresh_picker_visible()
+
+
 func _ensure_picker() -> void:
 	var hud := _interaction.get_node_or_null("/root/Flagoria/CanvasLayer1") as CanvasLayer
 	if hud == null:
 		return
-	_picker = hud.get_node_or_null("BuildPicker") as HBoxContainer
+	var theme: Theme = load("res://art/ui/main_menu_theme.tres")
+	_buildings = hud.get_node_or_null("BuildingsButton") as Button
+	if _buildings == null:
+		_buildings = Button.new()
+		_buildings.name = "BuildingsButton"
+		_buildings.toggle_mode = true
+		_buildings.theme = theme
+		_buildings.tooltip_text = "Buildings"
+		_buildings.icon = BUILDINGS_ICON
+		RoundHudStyle.apply(_buildings)
+		_buildings.toggled.connect(_on_buildings_toggled)
+		hud.add_child(_buildings)
+	_picker = hud.get_node_or_null("BuildPicker") as Control
 	if _picker == null:
-		_picker = HBoxContainer.new()
+		_picker = Control.new()
 		_picker.name = "BuildPicker"
-		_picker.add_theme_constant_override("separation", 2)
 		_picker.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		hud.add_child(_picker)
 	for child in _picker.get_children():
 		child.queue_free()
 	_buttons.clear()
-	var theme: Theme = load("res://art/ui/main_menu_theme.tres")
 	for t in [Tool.PLANK, Tool.TOWER, Tool.WALL]:
 		var button := Button.new()
 		button.name = BUTTON_NAMES[t]
@@ -309,7 +334,7 @@ func _ensure_picker() -> void:
 		button.theme = theme
 		button.icon = TOOL_ICONS[t] as Texture2D
 		button.tooltip_text = TOOL_TIPS[t] as String
-		RoundHudStyle.apply(button)
+		RoundHudStyle.apply(button, RoundHudStyle.HIT, RoundHudStyle.SIZE, COLUMN_ICON)
 		var captured: Tool = t
 		button.pressed.connect(func() -> void: set_tool(captured))
 		_picker.add_child(button)
@@ -318,15 +343,17 @@ func _ensure_picker() -> void:
 
 
 func _refresh_picker_visible() -> void:
+	## Column stays hidden until Buildings is open. Tower and Wall also hide
+	## in multiplayer; Plank stays once the list is open.
 	if _picker == null or _interaction == null:
 		return
-	_picker.visible = true
 	var mp := Interaction.multiplayer_on(_interaction.multiplayer)
-	for t in MP_HIDDEN:
-		if _buttons.has(t):
-			(_buttons[t] as Button).visible = not mp
 	if mp and tool in MP_HIDDEN:
 		set_tool(Tool.CUT)
+		return
+	_picker.visible = true
+	for t in _buttons:
+		(_buttons[t] as Button).visible = _list_open and not (mp and t in MP_HIDDEN)
 
 
 

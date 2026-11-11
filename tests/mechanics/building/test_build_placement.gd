@@ -46,7 +46,7 @@ func _test_build_picker_switches_tool() -> int:
 	scene.get_node("CanvasLayer1").show()
 	await process_frame
 	var interaction: Interaction = scene.get_node("World/Interaction")
-	var picker: HBoxContainer = scene.get_node_or_null("CanvasLayer1/BuildPicker")
+	var picker: Control = scene.get_node_or_null("CanvasLayer1/BuildPicker")
 	if picker == null or picker.get_child_count() != 3 or not picker.visible:
 		printerr("FAIL build_picker_switches_tool: picker %s children %s"
 				% [picker, picker.get_child_count() if picker else null])
@@ -566,6 +566,7 @@ func _test_build_picker_hides_on_multiplayer_start() -> int:
 	var interaction: Interaction = ctx["interaction"]
 	interaction.set_mode(Interaction.Mode.INTERACT)
 	interaction.build.set_tool(BuildPlacement.Tool.PLANK)
+	_open_buildings(scene)
 	await process_frame
 	var plank_btn: Button = interaction.build._buttons.get(BuildPlacement.Tool.PLANK)
 	if plank_btn == null or not plank_btn.visible or interaction.build.tool != BuildPlacement.Tool.PLANK:
@@ -603,3 +604,9 @@ func _test_build_picker_hides_on_multiplayer_start() -> int:
 	if fail == 0:
 		print("PASS test_build_picker_hides_on_multiplayer_start")
 	return fail
+
+
+func _open_buildings(scene: Node) -> void:
+	var buildings := scene.get_node_or_null("CanvasLayer1/BuildingsButton") as Button
+	if buildings != null and not buildings.button_pressed:
+		buildings.set_pressed(true)
