@@ -1,6 +1,7 @@
 extends PanelContainer
 
 const JoinAddress = preload("res://Scripts/join_address.gd")
+const WorldsSaveList = preload("res://Scripts/worlds_save_list.gd")
 
 @onready var main_menu = $"."
 @onready var address_entry = $MarginContainer/VBoxContainer/AddressEntry
@@ -125,6 +126,13 @@ func _on_worlds_pressed() -> void:
 	main_menu.hide()
 	panel.show()
 	_refresh_worlds()
+	var scroll := panel.get_node_or_null("Margin/VBox/Scroll") as ScrollContainer
+	if scroll:
+		scroll.scroll_vertical = 0
+
+
+func _worlds_list() -> ItemList:
+	return _worlds_panel().get_node("Margin/VBox/Scroll/List") as ItemList
 
 
 func _worlds_panel() -> PanelContainer:
@@ -139,22 +147,30 @@ func _worlds_panel() -> PanelContainer:
 	var margin := MarginContainer.new()
 	margin.name = "Margin"
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	panel.add_child(margin)
 	var box := VBoxContainer.new()
 	box.name = "VBox"
 	box.custom_minimum_size = Vector2(240, 0)
-	box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	margin.add_child(box)
 	var title := Label.new()
 	title.text = "Worlds"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
-	var list := ItemList.new()
+	var scroll := ScrollContainer.new()
+	scroll.name = "Scroll"
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.custom_minimum_size = Vector2(0, 96)
+	box.add_child(scroll)
+	var list := WorldsSaveList.new()
 	list.name = "List"
-	list.custom_minimum_size = Vector2(0, 96)
-	list.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	box.add_child(list)
+	list.auto_height = true
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(list)
 	var buttons := HBoxContainer.new()
 	buttons.name = "Buttons"
 	box.add_child(buttons)
@@ -192,7 +208,7 @@ func _world_button(parent: Node, node_name: String, handler: Callable) -> Button
 
 
 func _refresh_worlds() -> void:
-	var list := _worlds_panel().get_node("Margin/VBox/List") as ItemList
+	var list := _worlds_list()
 	list.clear()
 	for row in MapSave.list_saves():
 		var when: Dictionary = Time.get_datetime_dict_from_unix_time(int(row["modified"]))
@@ -202,7 +218,7 @@ func _refresh_worlds() -> void:
 
 
 func _selected_world() -> String:
-	var list := _worlds_panel().get_node("Margin/VBox/List") as ItemList
+	var list := _worlds_list()
 	var picked := list.get_selected_items()
 	if picked.is_empty():
 		return ""
