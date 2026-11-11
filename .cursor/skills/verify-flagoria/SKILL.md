@@ -13,6 +13,8 @@ Project-local verification for Flagoria. Read this cold mid-task. Prefer the fea
 
 **Feature map first (context budget):** fill `brief.template.md` (or `python3 tools/agent_budget.py emit-brief`) and pass `check-brief` before exploring. Open only the Feature/Drive/Pinned paths the brief names. Before Ready: doctor, one matching drive under xvfb when player-facing, one `./tools/verify.sh` (or `bin/drive-verify.sh`), then `check-receipt`. Re-run a check only after it failed.
 
+**Netcode stress tiers (CI):** the required **Netcode stress** job is skipped for non-gameplay changes, uses 5 runs per scenario for gameplay pull requests without netcode edits, and 20 for main pushes or netcode edits. Authoritative rules live in `tools/play_review_paths.py` (`FULL_RUNS`, `LIGHT_RUNS`); read [`ci-netcode-stress.md`](ci-netcode-stress.md) before changing tiers or explaining CI time to reviewers.
+
 **Repo root:** every command below assumes the current working directory is the Flagoria checkout root (the directory that contains `project.godot` and `tools/verify.sh`).
 
 **Scratch / evidence:**
@@ -147,7 +149,7 @@ Clicks and taps go to the centre of the node's rect or the cell, read at run tim
 
 ### Drives in CI
 
-`verify-drive.yml` runs on gameplay pull requests (gated by `tools/play_review_paths.py`). It reads `Drive: drives/<name>.gd` from each changed feature file, launches those top-level drives with `bin/launch.sh --display` under xvfb, uploads screenshot evidence as the `drive-screenshots` artifact, and fails when a drive prints `VERIFY_DONE fail` (hard assert via `done(ok)`). No pixel-diff goldens. Paired `drives/two_player/*` drives are skipped on the auto path. `workflow_dispatch` still runs named drives (default `smoke`).
+`verify-drive.yml` runs on gameplay pull requests (gated by `tools/play_review_paths.py`). `tools/verify_drive_picks.py` reads `Drive: drives/<name>.gd` from each changed feature file, launches those top-level drives with `bin/launch.sh --display` under xvfb, uploads screenshot evidence as the `drive-screenshots` artifact, and fails when a drive prints `VERIFY_DONE fail` (hard assert via `done(ok)`). No pixel-diff goldens. Paired `drives/two_player/*` drives and nested `drives/<folder>/*.gd` are skipped on the auto path. When a gameplay pull request changes no collectible `Drive:` line, CI runs exactly one default smoke drive (`drives/smoke.gd`, same as `workflow_dispatch` with empty inputs). `workflow_dispatch` still runs named drives (default `smoke`).
 
 ### Two-player Host/Join
 
@@ -222,6 +224,6 @@ Drives started with `launch.sh` live in `drives/` (`drives/wait.gd`: start a gam
 
 ## Feature map
 
-Every feature file under `features/` (except `README.md`) carries a `Drive:` line under its title: `Drive: drives/<name>.gd` when a drive covers it (that drive must call `snapshot("<screen>")`), or `Drive: not player-facing`. `bin/check-map.sh` enforces this; on gameplay pull requests it also fails when a changed or added feature file lacks the line.
+Every feature file under `features/` (except `README.md`) carries a `Drive:` line under its title: `Drive: drives/<name>.gd` when a drive covers it (that drive must call `snapshot("<screen>")`), or `Drive: not player-facing`. `bin/check-map.sh` enforces this. CI runs `check-map.sh --self-test` and the full `check-map.sh` inside the required `tools/verify.sh` job only. On gameplay pull requests, contributors can also run `check-map.sh --gameplay --changed-files` locally to fail fast when a changed or added feature file lacks the line.
 
 Index: [`features/README.md`](features/README.md).

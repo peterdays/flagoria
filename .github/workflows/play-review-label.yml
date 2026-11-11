@@ -29,7 +29,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          sparse-checkout: tools/play_review_paths.py
+          sparse-checkout: |
+            tools/play_review_paths.py
+            .github/actions/classify-change
           sparse-checkout-cone-mode: false
 
       - name: Read changed paths and project.godot through the API
@@ -53,9 +55,12 @@ jobs:
 
       - name: Classify
         id: classify
-        run: |
-          python3 tools/play_review_paths.py --files "$RUNNER_TEMP/paths.txt" \
-            --base-project "$RUNNER_TEMP/base.godot" --head-project "$RUNNER_TEMP/head.godot"
+        uses: ./.github/actions/classify-change
+        with:
+          run_self_test: "false"
+          paths_file: ${{ runner.temp }}/paths.txt
+          base_project: ${{ runner.temp }}/base.godot
+          head_project: ${{ runner.temp }}/head.godot
 
       - name: Add needs-play-review
         if: steps.classify.outputs.gameplay == 'true'

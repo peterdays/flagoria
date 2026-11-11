@@ -47,7 +47,7 @@ func _cell_vp(interaction: Interaction, world, cell: Vector2i) -> Vector2:
 
 
 func _test_build_picker_includes_tower() -> int:
-	## Interact mode shows Cut / Plank / Tower; Tower hides while multiplayer
+	## The row shows Plank / Tower / Wall; Tower hides while multiplayer
 	## is on (Plank stays, #297). Time cost: about 0.35 s in tools/verify.sh
 	## (~2.0 s alone with --only=build_picker_includes_tower).
 	print("-- test_build_picker_includes_tower")
@@ -55,7 +55,7 @@ func _test_build_picker_includes_tower() -> int:
 	var ctx := await _boot_tower_scene()
 	var scene = ctx["scene"]
 	var interaction: Interaction = ctx["interaction"]
-	var picker: HBoxContainer = scene.get_node_or_null("CanvasLayer1/BuildPicker")
+	var picker: Control = scene.get_node_or_null("CanvasLayer1/BuildPicker")
 	interaction.set_mode(Interaction.Mode.INTERACT)
 	await process_frame
 	if picker == null or picker.get_child_count() < 3:
@@ -78,6 +78,7 @@ func _test_build_picker_includes_tower() -> int:
 		api.multiplayer_peer = peer
 		set_multiplayer(api, scene.get_path())
 		interaction.build._refresh_picker_visible()
+		_open_buildings(scene)
 		await process_frame
 		var tower_btn: Button = interaction.build._buttons.get(BuildPlacement.Tool.TOWER)
 		var plank_btn: Button = interaction.build._buttons.get(BuildPlacement.Tool.PLANK)
@@ -298,3 +299,9 @@ func _test_construction_tower_cached() -> int:
 	if fail == 0:
 		print("PASS test_construction_tower_cached")
 	return fail
+
+
+func _open_buildings(scene: Node) -> void:
+	var buildings := scene.get_node_or_null("CanvasLayer1/BuildingsButton") as Button
+	if buildings != null and not buildings.button_pressed:
+		buildings.set_pressed(true)

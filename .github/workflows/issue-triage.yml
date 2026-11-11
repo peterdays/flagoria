@@ -1,0 +1,42 @@
+name: issue-triage
+
+# Score the task form into routing labels (tools/issue_triage.py).
+#
+# The job runs only for workflow_dispatch, or when the issue author login
+# equals SCORED_AUTHOR in that script. Every other author is skipped and
+# this job does not start. workflow_dispatch is the manual backfill over
+# open issues by that login. Dispatch it on the default branch after merge.
+#
+# The token can read this repository, to check out the scorer, and write
+# issues (labels and one comment). It has no other permissions. The built-in
+# token is not a repository secret. Issue text is read as data in Python
+# and is never interpolated into the shell.
+on:
+  issues:
+    types: [opened, edited]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: issue-triage-${{ github.event.issue.number || 'backfill' }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    name: Score issue
+    if: github.event_name == 'workflow_dispatch' || github.event.issue.user.login == 'peterdays'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the scorer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Score
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/issue_triage.py --event "$GITHUB_EVENT_PATH"

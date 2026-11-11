@@ -1,5 +1,5 @@
 name: Task
-description: Define one focused change and its observable completion criteria.
+description: Define one focused change, its completion checks, and routing scores.
 body:
   - type: input
     id: what-it-does
@@ -32,5 +32,96 @@ body:
       placeholder: |
         - [ ] An automated test places two adjoining bridge segments and confirms no internal end caps.
         - [ ] A contributor checks the rendered bridge and confirms end details appear only at actual land contacts.
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        Triage scores are a routing hint for bots. They are not an approval.
+
+  - type: dropdown
+    id: reach
+    attributes:
+      label: Reach
+      description: Players affected, from 1 (few) to 10 (most).
+      options:
+        - "1"
+        - "2"
+        - "3"
+        - "4"
+        - "5"
+        - "6"
+        - "7"
+        - "8"
+        - "9"
+        - "10"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact
+      description: Effect on those players.
+      options:
+        - "0.25"
+        - "0.5"
+        - "1"
+        - "2"
+        - "3"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: confidence
+    attributes:
+      label: Confidence
+      description: How sure the reach and impact are.
+      options:
+        - "50"
+        - "80"
+        - "100"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: effort
+    attributes:
+      label: Effort
+      description: Person-weeks to do the change.
+      options:
+        - "0.25"
+        - "0.5"
+        - "1"
+        - "2"
+        - "4"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: risk-area
+    attributes:
+      label: Risk area
+      description: Select every area the change touches.
+      options:
+        - label: "saves/world data"
+        - label: "netcode/multiplayer sync"
+        - label: "release/signing/CI"
+        - label: "security/privacy"
+        - label: "core input"
+        - label: "none"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How bad a failure in those areas would be.
+      options:
+        - "low"
+        - "med"
+        - "high"
     validations:
       required: true

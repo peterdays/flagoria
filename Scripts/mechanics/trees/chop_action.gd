@@ -4,7 +4,8 @@ extends RefCounted
 ## plant and swings its type's `hits` chops, each impact plays the type's hit
 ## sounds, hit sheet and fx, and FLASH_TIME after the last impact the plant
 ## becomes its stump through Interaction._cut, with its fall and pickup
-## sounds, puff or fx. Sounds are local, on the SFX bus.
+## sounds, puff or fx. On a client the fall waits for the host (#350).
+## Sounds are local, on the SFX bus.
 ## Moved from Scripts/interaction.gd (#262); Interaction keeps wrappers with
 ## the same names.
 
@@ -57,6 +58,10 @@ var _last_hit_sound: AudioStream  ## for InteractableType.hit_no_repeat
 ## Streams started by the chop, in order (tests read this; playback is not
 ## observable headless).
 var sfx_log: Array[AudioStream] = []
+## Times the fall and pickup actually played (a client counts only a host yes).
+var fell_count := 0
+## cell -> type a client asked the host to cut and has not heard back about.
+var _awaiting := {}
 var _i: Interaction
 
 
@@ -266,8 +271,35 @@ func _player_dead() -> bool:
 	return Interaction.player_dead(_i.player)
 
 
+func ask_host(cell: Vector2i) -> void:
+	## Client: remember the plant and ask the host. The fall waits (#350).
+	var type: InteractableType = _i.world_map.choppable(cell)
+	if type == null:
+		return
+	_awaiting[cell] = type
+	_i.request_cut.rpc_id(1, cell)
+
+
+func confirm_cut(cell: Vector2i) -> void:
+	## The host accepted `cell`: play the fall and pickup now.
+	if not _awaiting.has(cell):
+		return
+	var type: InteractableType = _awaiting[cell]
+	_awaiting.erase(cell)
+	_play_fell(cell, type)
+
+
+func refuse_cut(cell: Vector2i) -> void:
+	## The host refused `cell`: the plant stays and no fall plays.
+	_awaiting.erase(cell)
+
+
 func _play(streams: Array[AudioStream], player: AudioStreamPlayer2D = null, avoid: AudioStream = null) -> void:
 	## One of `streams` at random on `player` (default _sfx), not `avoid`.
+	_play_at(chop_cell, streams, player, avoid)
+
+
+func _play_at(cell: Vector2i, streams: Array[AudioStream], player: AudioStreamPlayer2D = null, avoid: AudioStream = null) -> void:
 	if streams.is_empty():
 		return
 	if player == null:
@@ -276,7 +308,7 @@ func _play(streams: Array[AudioStream], player: AudioStreamPlayer2D = null, avoi
 	if avoid != null and streams.size() > 1 and streams[pick] == avoid:
 		pick = (pick + 1 + randi() % (streams.size() - 1)) % streams.size()
 	player.stream = streams[pick]
-	player.position = _i.to_local(_i.cell_center(chop_cell))
+	player.position = _i.to_local(_i.cell_center(cell))
 	player.pitch_scale = randf_range(0.93, 1.07)
 	player.play()
 	sfx_log.append(player.stream)
@@ -316,17 +348,31 @@ func _on_hit() -> void:
 func _on_fell() -> void:
 	## chop_cell just became its stump and gave its yields: fall and pickup
 	## sounds, puff or fx falling frames.
-	_play(chop_type.fell_sounds, _sfx_fell if chop_type.fell_own_player else _sfx)
-	if not chop_type.yields.is_empty():
-		_play(chop_type.pickup_sounds, _sfx_pickup)
-	_end_hit()
-	if chop_type.fell_puff:
-		_puff.position = _i.to_local(_i.cell_center(chop_cell))
+	_play_fell(chop_cell, chop_type)
+
+
+func _play_fell(cell: Vector2i, type: InteractableType) -> void:
+	## Fall and pickup for `cell`, plus the puff and falling frames when this
+	## chop still owns the effect sprites (a later plant in the queue does).
+	fell_count += 1
+	_play_at(cell, type.fell_sounds, _sfx_fell if type.fell_own_player else _sfx)
+	if not type.yields.is_empty():
+		_play_at(cell, type.pickup_sounds, _sfx_pickup)
+	if chopping() and chop_cell != cell:
+		return
+	if _hidden_cell == cell:
+		_end_hit()
+	var corner := _i.to_local(_i.cell_center(cell)) - Vector2(_i.world_map.tile_set.tile_size) / 2.0
+	if type.fell_puff:
+		_puff.position = _i.to_local(_i.cell_center(cell))
 		_puff.frame = 0
 		_puff.visible = true
 		_puff_time = 0.0
-	if chop_type.fx_sheet:
+	if type.fx_sheet:
+		_fx.texture = type.fx_sheet
+		_fx.hframes = 4
 		_fx.frame = FX_FELL_FRAMES[0][0]
+		_fx.position = corner
 		_fx.visible = true
 		_fx_time = 0.0
 		_fx_fell = true

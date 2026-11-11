@@ -8,13 +8,20 @@ Audio scripts are not gameplay. A
 project.godot change counts only when its [input] section differs; with no
 before/after copies given, any project.godot change counts.
 
-Also picks the netcode stress tier (runs per scenario): 20 on a push to main
-or when netcode changes (see NETCODE and NETCODE_MIXED), 5 for other gameplay
-changes. Without --diff, any NETCODE_MIXED file counts as netcode.
+Also picks the netcode stress tier (runs per scenario): skipped when not
+gameplay; otherwise see FULL_RUNS, LIGHT_RUNS and stress_tier() below and
+.cursor/skills/verify-flagoria/ci-netcode-stress.md. Without --diff, any
+NETCODE_MIXED file counts as netcode.
 
 Reads changed paths, one per line, from --files (or stdin). Prints the
 matching paths and the tier, and writes `gameplay=true|false` and
 `stress_runs=N` to $GITHUB_OUTPUT when set.
+
+CI runs this at most once per job via the composite
+`.github/actions/classify-change` (play-review.yml, verify-drive.yml,
+pr-debug-apk.yml, play-review-label.yml). Job outputs: `gameplay`, `stress_runs`,
+and `paths_file` (the path list file used). Rules stay in this file only.
+
 It only reads its inputs and never runs project code, so the label workflow
 can run it from the base branch on any pull request.
 
@@ -51,6 +58,7 @@ GAMEPLAY = [
     "Scripts/game_settings.gd",  # mob spawn rate
     "Scripts/tile_catalog.gd", "Scripts/BiomeCatalog.gd",  # tiles and biome tables of the world map
     "Scripts/world_save.gd",  # what a saved world keeps
+    "Scripts/player_save.gd",  # player position, health, wood, score, charted ground
     "Scripts/explored_map.gd", "Scripts/minimap_panel.gd",  # explored map and its HUD panel
     "Scripts/parchment_map.gd", "Scripts/map_wood_button.gd",  # parchment full map and its wood controls
     "Scripts/resource_hud.gd", "Scripts/score_hud.gd",
@@ -73,6 +81,23 @@ NETCODE_MIXED = [
     "Scripts/player.gd", "Scripts/player_health.gd", "Scripts/mob.gd", "Scripts/TileMap.gd",
 ]
 NET_LINE = re.compile(r"rpc|multiplayer|peer|authority|replicat|synchroniz|spawner|is_server|enet", re.I)
+
+# Netcode stress tier (runs per scenario in CI and on main pushes). Authoritative
+# rules for agents and workflows: change tiers here only; see the table in
+# .cursor/skills/verify-flagoria/ci-netcode-stress.md (do not duplicate those
+# rules in workflow YAML comments except a pointer to this file).
+#
+# Skipped (~seconds): not a gameplay change (no paths in GAMEPLAY, and no
+# needs-play-review label on a pull request). play-review.yml still runs
+# --self-test and classification; it skips Godot and stress_netcode.py.
+#
+# LIGHT_RUNS (5): pull_request + gameplay paths, but stress_tier() picks the
+# light tier — no NETCODE file changed, and no netcode-tagged line in a changed
+# NETCODE_MIXED file (git diff -U0). Roughly 3–10 minutes for the job.
+#
+# FULL_RUNS (20): event push (gameplay on main), or any NETCODE path changed, or
+# any NETCODE_MIXED path whose changed lines match NET_LINE, or (when --diff is
+# omitted) any NETCODE_MIXED path in the path list. Up to ~25 minutes.
 FULL_RUNS, LIGHT_RUNS = 20, 5
 
 
@@ -152,6 +177,7 @@ def self_test() -> int:
         (["Scripts/aim_cone_style.gd"], None, None, True),
         (["Scripts/points.gd"], None, None, True),
         (["Scripts/world_save.gd"], None, None, True),
+        (["Scripts/player_save.gd"], None, None, True),
         (["Scripts/ingame_menu.gd"], None, None, True),
         (["data/interactables/tree.tres"], None, None, True),
         (["Scripts/attack_aim.gd.uid", "data/interactables/tree.tres.uid"], None, None, False),
@@ -188,9 +214,56 @@ def self_test() -> int:
         if got != want:
             print("FAIL tier %s %s: got %d, want %d" % (event, paths, got, want), file=sys.stderr)
             fail += 1
-    total = len(cases) + len(tiers)
+    # Workflows that pass --diff (play-review, verify-drive) vs those that omit it
+    # (pr-debug-apk, play-review-label) must agree on gameplay for the same paths.
+    parity = [
+        (["docs/ci-required-checks.md", "tools/required_checks.py"], "", False, LIGHT_RUNS),
+        (["docs/ci-required-checks.md", "tools/required_checks.py"], None, False, LIGHT_RUNS),
+        (["Scripts/hearts_hud.gd"], play, True, LIGHT_RUNS),
+        (["Scripts/hearts_hud.gd"], None, True, LIGHT_RUNS),
+        (["Scripts/player.gd"], play, True, LIGHT_RUNS),
+        (["Scripts/player.gd"], None, True, FULL_RUNS),
+    ]
+    for paths, diff, want_play, want_runs in parity:
+        got_play, got_runs = classify(paths, diff=diff)
+        if got_play != want_play or got_runs != want_runs:
+            print(
+                "FAIL workflow parity %s diff=%s: got play=%s runs=%d, want %s %d"
+                % (paths, diff is not None, got_play, got_runs, want_play, want_runs),
+                file=sys.stderr,
+            )
+            fail += 1
+    docs = ["docs/architecture.md", "README.md"]
+    hud = ["Scripts/hearts_hud.gd"]
+    for paths in (docs, hud):
+        with_diff = classify(paths, diff="")
+        without = classify(paths, diff=None)
+        if with_diff != without:
+            print(
+                "FAIL workflow parity mismatch for %s: with_diff=%s without=%s"
+                % (paths, with_diff, without),
+                file=sys.stderr,
+            )
+            fail += 1
+    total = len(cases) + len(tiers) + len(parity) + 2
     print("play_review_paths self-test: %d/%d ok" % (total - fail, total))
     return 1 if fail else 0
+
+
+def classify(
+    paths: list[str],
+    *,
+    base_project: str | None = None,
+    head_project: str | None = None,
+    diff: str | None = None,
+    event: str = "pull_request",
+    labeled: bool = False,
+) -> tuple[bool, int]:
+    """(gameplay, stress_runs) — same outputs CI workflows read from GITHUB_OUTPUT."""
+    hits = gameplay_paths(paths, base_project, head_project)
+    gameplay = bool(hits) or labeled
+    runs, _reason = stress_tier(event, paths, diff)
+    return gameplay, runs
 
 
 def read_opt(path: str | None) -> str | None:

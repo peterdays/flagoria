@@ -1,25 +1,14 @@
 class_name Interaction
 extends Node2D
-## Combat or interact mode for the local player, switched with the HUD mode
-## button. Combat is the default and leaves the map to the attack controls.
-## In interact mode the Cut/Plank picker shows (#225). Cut: one gesture
-## starts one sweep. A tap aims the chop cone the way an attack tap aims,
-## from the hero toward the finger (or the hero's facing), out to CHOP_REACH.
-## A drag past 6 viewport pixels aims that same cone: direction and length
-## come from the drag, clamped to CHOP_REACH. Every plant in the cone is
-## queued and each plays its full chop before the next starts. Plank: a drag snaps to a
-## horizontal or vertical run; green/red preview and wood cost follow the
-## finger; lift places the longest valid prefix through ConstructionPlacer.
-## Mouse clicks and drags count as touches. Touches that start on a HUD
-## control, and two-finger pinches, select nothing. While the local player is
-## dead, taps and drags do nothing (#349).
-## While multiplayer is active (a client, or a host with a peer connected)
-## the host decides every cut (#223): a client asks it with request_cut, the
-## host drops the request when that peer is over its CutRateLimit (#355),
-## checks the plant is there and the cutter is alive (#349) and in reach,
-## cuts it, sends apply_cut to every other peer and tells the cutter
-## its yields with receive_yields. A client's stump appears when the host's
-## apply_cut comes back. Peers that join later get the host's cuts, with
+## Combat or interact mode. Combat leaves the map to AttackAim.
+## Interact Cut aims from the attack button (ChopStick): a drag past
+## DRAG_START sets the cone's direction and its reach, clamped to CHOP_REACH,
+## and a shorter press chops in the facing direction at full reach. Plants in
+## the cone queue and each finishes before the next. Plank, tower and wall
+## still drag on the map. A dead player cuts nothing (#349).
+## While multiplayer is active the host decides every cut (#223, #350). A
+## client asks with request_cut and plays the fall only when the host
+## accepts. Peers that join later get the host's cuts, with
 ## their ages, with the map params. Regrowth is the host's too (#298): a
 ## client never regrows a stump on its own, and when stumps regrow on the host
 ## (TileMap.regrow_due) the host sends every peer one apply_regrow_cells per
@@ -51,12 +40,11 @@ const SPROUTS_PER_MESSAGE := 500
 const DRAG_START := 6.0  ## viewport px a touch moves before it is a range, not a tap
 ## The invisible alternative tile a chop swaps in (kept in ChopAction).
 const HIDDEN_ALT := ChopAction.HIDDEN_ALT
-const InGameMenu := preload("res://Scripts/ingame_menu.gd")
 const BUTTON_PATH := "/root/Flagoria/CanvasLayer1/ModeButton"
 const INVENTORY_PATH := "/root/Flagoria/Inventory"
 const ICONS := {
-	Mode.COMBAT: preload("res://art/ui/ui_mode_combat.png"),
-	Mode.INTERACT: preload("res://art/ui/ui_mode_interact.png"),
+	Mode.COMBAT: preload("res://assets/ui/hud/icon_mode_attack.png"),
+	Mode.INTERACT: preload("res://assets/ui/hud/icon_mode_interact.png"),
 }
 const TOOLTIPS := {Mode.COMBAT: "Combat mode", Mode.INTERACT: "Interact mode"}
 const LINE_COLOR := Color(0.949, 0.918, 0.945, 0.9)
@@ -68,6 +56,7 @@ var _touch := -1  ## index of the touch being followed, or -1
 var _start := Vector2.ZERO  ## viewport position where it went down
 var _end := Vector2.ZERO
 var _dragging := false
+var _stick = preload("res://Scripts/mechanics/interact/chop_stick.gd").new()
 ## The chop, its effects and its sounds (Scripts/mechanics/trees/chop_action.gd).
 var _chop := ChopAction.new(self)
 ## Interact-mode build tool: Cut / Plank / Tower / Wall picker (#225 / #276).
@@ -109,7 +98,7 @@ func _ready() -> void:
 	world_map.trees_sprouted.connect(_on_trees_sprouted)
 	var button := get_node_or_null(BUTTON_PATH) as Button
 	if button:
-		InGameMenu.fit_icon_button(button)
+		RoundHudStyle.apply(button)
 		button.pressed.connect(toggle_mode)
 	_refresh_button()
 
@@ -167,6 +156,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _touch != -1:
 			_cancel()
 		return
+	if build.tool == BuildPlacement.Tool.CUT:
+		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			if _touch == -1 and not _on_hud(event.position):
@@ -208,17 +199,18 @@ func _on_hud(pos: Vector2) -> bool:
 func _cancel() -> void:
 	_touch = -1
 	_dragging = false
+	_stick.cancel()
 	build.clear_preview()
 	queue_redraw()
 
 
+func _input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		_stick.handle(self, event)
+
+
 func to_world(viewport_pos: Vector2) -> Vector2:
 	return get_canvas_transform().affine_inverse() * viewport_pos
-
-
-func selection_rect() -> Rect2:
-	## The dragged range in world coordinates.
-	return Rect2(to_world(_start), Vector2.ZERO).expand(to_world(_end))
 
 
 func in_reach(cell: Vector2i) -> bool:
@@ -230,10 +222,11 @@ func chop_in_reach(cell: Vector2i) -> bool:
 
 
 func chop_sweep() -> Dictionary:
-	## The drag as a chop cone: direction, and reach clamped to CHOP_REACH.
-	## Empty when the finger has not moved.
-	var delta := to_world(_end) - to_world(_start)
-	if delta.length() <= 0.001 or player == null:
+	## The attack-button drag as a chop cone. Empty until the finger has moved.
+	if not _stick.dragging or player == null:
+		return {}
+	var delta := to_world(_stick.end) - to_world(_stick.start)
+	if delta.length() <= 0.001:
 		return {}
 	return {"direction": delta.angle(), "reach": minf(delta.length(), CHOP_REACH)}
 
@@ -274,9 +267,9 @@ func _release_drag() -> void:
 
 
 func _release_tap() -> void:
-	var delta := to_world(_end) - player.global_position
-	var direction := delta.angle() if delta.length() > 1.0 else _facing_angle()
-	_chop.enqueue(_chop.plants_toward(direction, CHOP_REACH))
+	## A short press on the attack button. Facing and full reach. `_end` is
+	## not used: cut mode never writes it, and a build drag may have.
+	_chop.enqueue(_chop.plants_toward(_facing_angle(), CHOP_REACH))
 
 
 func _facing_angle() -> float:
@@ -309,22 +302,22 @@ func step_chop(delta: float) -> void:
 func _cut(cell: Vector2i) -> bool:
 	## Cut the plant on `cell` for the local player. Alone it is cut here; a
 	## host decides it with host_cut; a client asks the host and returns
-	## true when it asked (the fall plays, the stump and wood come back).
+	## false (the fall plays when receive_yields arrives, #350).
 	if not multiplayer_on(multiplayer):
 		var type: InteractableType = world_map.cut_choppable(cell)
 		if type != null:
-			receive_yields(type.yields)
+			receive_yields(cell, type.yields)
 		return type != null
 	if multiplayer.is_server():
 		var cut := host_cut(cell)
 		if cut != null:
-			receive_yields(cut.yields)
+			receive_yields(cell, cut.yields)
 		return cut != null
 	if world_map.choppable(cell) == null \
 			or multiplayer.multiplayer_peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
 		return false
-	request_cut.rpc_id(1, cell)
-	return true
+	_chop.ask_host(cell)
+	return false
 
 
 func host_cut(cell: Vector2i) -> InteractableType:
@@ -339,21 +332,20 @@ func host_cut(cell: Vector2i) -> InteractableType:
 
 @rpc("any_peer", "reliable", "call_remote")
 func request_cut(cell: Vector2i) -> void:
-	## Host: a client asks to cut `cell`. Dropped when the client is over its
-	## CutRateLimit; cut when its player is alive and in reach of it, and
-	## send the client its yields.
+	## Host: alive and in reach cuts; otherwise refuse_cut (#350). A peer
+	## over its CutRateLimit is dropped with no reply (#355).
 	if not multiplayer.is_server():
 		return
 	var peer := multiplayer.get_remote_sender_id()
 	if not cut_limit.allow(peer):
 		return
 	var cutter := get_node_or_null("../" + str(peer)) as Node2D
-	if cutter == null or player_dead(cutter) \
-			or cutter.global_position.distance_to(cell_center(cell)) > CHOP_REACH + REACH_SLACK:
+	var near := cutter != null and not player_dead(cutter) and cutter.global_position.distance_to(cell_center(cell)) <= CHOP_REACH + REACH_SLACK
+	var type: InteractableType = host_cut(cell) if near else null
+	if type == null:
+		refuse_cut.rpc_id(peer, cell)
 		return
-	var type := host_cut(cell)
-	if type != null:
-		receive_yields.rpc_id(peer, type.yields)
+	receive_yields.rpc_id(peer, cell, type.yields)
 
 
 @rpc("authority", "reliable", "call_remote")
@@ -475,22 +467,28 @@ func receive_charge(wood: int) -> void:
 
 
 @rpc("authority", "reliable", "call_remote")
-func receive_yields(yields: Dictionary) -> void:
-	## Add what a cut earned to the local inventory (the host sends a
-	## client's; inventories stay local per peer).
+func refuse_cut(cell: Vector2i) -> void:
+	## The host refused this client's cut of `cell`: no fall and no wood.
+	_chop.refuse_cut(cell)
+
+
+@rpc("authority", "reliable", "call_remote")
+func receive_yields(cell: Vector2i, yields: Dictionary) -> void:
+	## Wood from a cut the host accepted. The fall plays on this reply (#350).
 	var inventory := get_node_or_null(INVENTORY_PATH) as Inventory
 	if inventory:
 		for resource in yields:
 			inventory.add(StringName(resource), int(yields[resource]))
+	if multiplayer.get_remote_sender_id() == 1:
+		_chop.confirm_cut(cell)
 
 
 func _draw() -> void:
 	if mode != Mode.INTERACT or player == null:
 		return
-	draw_arc(to_local(player.global_position), CHOP_REACH, 0.0, TAU, 48, FILL_COLOR, 1.0)
 	if build.tool in [BuildPlacement.Tool.PLANK, BuildPlacement.Tool.TOWER, BuildPlacement.Tool.WALL]:
 		build.draw_preview(self)
-	elif _dragging:
+	elif _stick.dragging:
 		var sweep := chop_sweep()
 		if not sweep.is_empty():
 			var origin := to_local(player.global_position)

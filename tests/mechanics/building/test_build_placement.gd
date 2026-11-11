@@ -32,9 +32,9 @@ func _test_build_placement_snap_run() -> int:
 
 
 func _test_build_picker_switches_tool() -> int:
-	## Entering interact mode shows the Cut/Plank picker; picking Plank
-	## switches the tool; leaving interact hides the picker and resets to
-	## Cut. Time cost: about 0.3 s in tools/verify.sh (~2.0 s alone with
+	## The round Plank/Tower/Wall row is up from the start. Picking Plank
+	## switches the tool. Leaving interact keeps the row and resets to Cut.
+	## Time cost: about 0.3 s in tools/verify.sh (~2.0 s alone with
 	## --only=build_picker_switches_tool).
 	print("-- test_build_picker_switches_tool")
 	var fail := 0
@@ -46,12 +46,10 @@ func _test_build_picker_switches_tool() -> int:
 	scene.get_node("CanvasLayer1").show()
 	await process_frame
 	var interaction: Interaction = scene.get_node("World/Interaction")
-	var picker: HBoxContainer = scene.get_node_or_null("CanvasLayer1/BuildPicker")
-	if picker == null or picker.get_child_count() < 2:
-		printerr("FAIL build_picker_switches_tool: picker missing or short")
-		fail += 1
-	elif picker.visible:
-		printerr("FAIL build_picker_switches_tool: picker visible in combat")
+	var picker: Control = scene.get_node_or_null("CanvasLayer1/BuildPicker")
+	if picker == null or picker.get_child_count() != 3 or not picker.visible:
+		printerr("FAIL build_picker_switches_tool: picker %s children %s"
+				% [picker, picker.get_child_count() if picker else null])
 		fail += 1
 	interaction.set_mode(Interaction.Mode.INTERACT)
 	await process_frame
@@ -67,8 +65,8 @@ func _test_build_picker_switches_tool() -> int:
 		fail += 1
 	interaction.set_mode(Interaction.Mode.COMBAT)
 	await process_frame
-	if picker != null and picker.visible:
-		printerr("FAIL build_picker_switches_tool: picker still visible in combat")
+	if picker == null or not picker.visible:
+		printerr("FAIL build_picker_switches_tool: picker hidden after leaving interact")
 		fail += 1
 	if interaction.build.tool != BuildPlacement.Tool.CUT:
 		printerr("FAIL build_picker_switches_tool: combat did not reset to Cut")
@@ -271,8 +269,7 @@ func _test_build_cut_mode_unchanged() -> int:
 		e.pressed = pressed
 		vp.push_input(e, true)
 	var want_wood := inventory.count_of(Inventory.WOOD)
-	touch.call(at.call(Vector2(11.3, 6.5)), true)
-	touch.call(at.call(Vector2(11.3, 6.5)), false)
+	_chop_toward(vp, interaction, player, scene.get_node("CanvasLayer1/TouchScreenButton"), world.to_global(world.map_to_local(Vector2i(10, 6))))
 	interaction.step_chop(1.0)
 	var tree_wood := InteractableCatalog.by_id("tree").amount_of(Inventory.WOOD)
 	if world.has_tree(Vector2i(10, 6)) or inventory.count_of(Inventory.WOOD) != want_wood + tree_wood:
@@ -569,6 +566,7 @@ func _test_build_picker_hides_on_multiplayer_start() -> int:
 	var interaction: Interaction = ctx["interaction"]
 	interaction.set_mode(Interaction.Mode.INTERACT)
 	interaction.build.set_tool(BuildPlacement.Tool.PLANK)
+	_open_buildings(scene)
 	await process_frame
 	var plank_btn: Button = interaction.build._buttons.get(BuildPlacement.Tool.PLANK)
 	if plank_btn == null or not plank_btn.visible or interaction.build.tool != BuildPlacement.Tool.PLANK:
@@ -606,3 +604,9 @@ func _test_build_picker_hides_on_multiplayer_start() -> int:
 	if fail == 0:
 		print("PASS test_build_picker_hides_on_multiplayer_start")
 	return fail
+
+
+func _open_buildings(scene: Node) -> void:
+	var buildings := scene.get_node_or_null("CanvasLayer1/BuildingsButton") as Button
+	if buildings != null and not buildings.button_pressed:
+		buildings.set_pressed(true)

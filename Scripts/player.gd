@@ -283,6 +283,15 @@ func get_joystick_axis() -> Vector2:
 		return Vector2.ZERO
 	return joystick.get_button_pos().normalized()
 
+func _speed_scale() -> float:
+	## Run button on this hero's HUD. Missing when a hero is built on its own,
+	## which keeps the walk cap. Joystick direction is not part of this scale.
+	var button := get_node_or_null(^"../../CanvasLayer1/RunButton")
+	if button != null and button.has_method("speed_scale"):
+		return float(button.speed_scale())
+	return 1.0
+
+
 func player_movement(delta):
 	input = get_input_axis()
 	var max_speed := MAX_SPEED
@@ -290,6 +299,8 @@ func player_movement(delta):
 		input = get_joystick_axis()
 		if input != Vector2.ZERO:
 			max_speed = JOYSTICK_MAX_SPEED
+	var scale := _speed_scale()
+	max_speed *= scale
 
 	if input == Vector2.ZERO:  # no input
 		if velocity.length() > (FRICTION * delta):
@@ -298,9 +309,9 @@ func player_movement(delta):
 		else:
 			velocity = Vector2.ZERO
 	else:  # moving the player
-		velocity += (input * ACCEL * delta)
+		velocity += (input * ACCEL * scale * delta)
 		velocity = velocity.limit_length(max_speed)
-		
+
 	move_and_slide()
 
 func walk_direction() -> String:

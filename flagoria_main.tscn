@@ -1,4 +1,4 @@
-[gd_scene load_steps=29 format=3 uid="uid://cxtnu53ko1bon"]
+[gd_scene load_steps=31 format=3 uid="uid://cxtnu53ko1bon"]
 
 [ext_resource type="Script" path="res://flagoria_main.gd" id="1_p55uv"]
 [ext_resource type="Script" path="res://addons/virtual_joystick/scripts/virtual_joystick.gd" id="2_54anv"]
@@ -27,6 +27,8 @@
 [ext_resource type="Script" path="res://Scripts/mechanics/conquest/cities.gd" id="17_cities"]
 [ext_resource type="Script" path="res://Scripts/mechanics/conquest/flags_held_points.gd" id="18_flags_held"]
 [ext_resource type="Script" path="res://Scripts/minimap_panel.gd" id="16_minimap"]
+[ext_resource type="Script" path="res://Scripts/mechanics/run/run_control.gd" id="19_run"]
+[ext_resource type="Script" path="res://Scripts/hud_tool_row.gd" id="20_hud_row"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_bm55c"]
 radius = 24.0
@@ -100,19 +102,25 @@ offset_right = 476.0
 offset_bottom = 172.0
 script = ExtResource("16_minimap")
 
+[node name="RunButton" type="Button" parent="CanvasLayer1"]
+offset_right = 24.0
+offset_bottom = 24.0
+focus_mode = 0
+mouse_filter = 0
+theme = ExtResource("6_menu")
+text = "Run"
+script = ExtResource("19_run")
+
 [node name="ModeButton" type="Button" parent="CanvasLayer1"]
-anchors_preset = 1
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -44.0
-offset_top = 4.0
-offset_right = -26.0
-offset_bottom = 22.0
-grow_horizontal = 0
+offset_right = 24.0
+offset_bottom = 24.0
 focus_mode = 0
 theme = ExtResource("6_menu")
 toggle_mode = true
 icon_alignment = 1
+
+[node name="HudToolRow" type="Node" parent="CanvasLayer1"]
+script = ExtResource("20_hud_row")
 
 [node name="InGameMenu" parent="CanvasLayer1" instance=ExtResource("9_ingame_menu")]
 
@@ -234,6 +242,10 @@ text = "Map Settings"
 layout_mode = 2
 text = "Host"
 
+[node name="WorldsButton" type="Button" parent="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Worlds"
+
 [node name="JoinButton" type="Button" parent="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer"]
 layout_mode = 2
 text = "Join"
@@ -322,4 +334,5 @@ layer = 10
 
 [connection signal="pressed" from="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/MapSettingsButton" to="CanvasLayer2/MainMenu" method="_on_map_settings_pressed"]
 [connection signal="pressed" from="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/HostButton" to="CanvasLayer2/MainMenu" method="_on_host_button_pressed"]
+[connection signal="pressed" from="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/WorldsButton" to="CanvasLayer2/MainMenu" method="_on_worlds_pressed"]
 [connection signal="pressed" from="CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/JoinButton" to="CanvasLayer2/MainMenu" method="_on_join_button_pressed"]

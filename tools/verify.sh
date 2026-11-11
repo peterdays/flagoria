@@ -69,12 +69,32 @@ export XDG_DATA_HOME="${XDG_DATA_HOME:-${verify_tmp}/data}"
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-${verify_tmp}/cache}"
 echo "Godot user dirs: XDG_CONFIG_HOME=${XDG_CONFIG_HOME} XDG_DATA_HOME=${XDG_DATA_HOME} XDG_CACHE_HOME=${XDG_CACHE_HOME}"
 
+echo "== Drive picks (tools/verify_drive_picks.py) =="
+python3 "$ROOT/tools/verify_drive_picks.py" --self-test
+
 echo "== File size budget (tools/file_budget.py) =="
 # Fast and needs no Godot, so it runs first. Budgets and the allowlist are in
 # tools/file_budget.py and tools/file_budget_allow.txt.
 python3 "$ROOT/tools/file_budget.py" --self-test
 if ! python3 "$ROOT/tools/file_budget.py"; then
   echo "error: a file is over its size budget (see above)" >&2
+  exit 1
+fi
+
+echo "== Issue triage scorer (tools/issue_triage_test.py) =="
+# Fast and needs no Godot. Parser and path rule for the issue triage labels.
+if ! python3 "$ROOT/tools/issue_triage_test.py"; then
+  echo "error: issue triage scorer tests failed (see above)" >&2
+  exit 1
+fi
+
+echo "== Required CI check names (tools/required_checks.py) =="
+if ! python3 "$ROOT/tools/required_checks_test.py"; then
+  echo "error: required checks self-test failed (see above)" >&2
+  exit 1
+fi
+if ! python3 "$ROOT/tools/required_checks.py"; then
+  echo "error: required check names do not match workflows (see above)" >&2
   exit 1
 fi
 

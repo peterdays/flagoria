@@ -26,4 +26,4 @@ Preconditions: `doctor.sh` exits `0`. Time cost: the six tests add about 3 s to 
 
 ## Gotchas
 
-- Points are not saved in world saves; a new game starts at 0.
+- The local total is `player.score` in a world save (see [Player save](./player-save.md)). A new match starts at 0. Chunks that already paid are stored with it, so a load does not pay them again.

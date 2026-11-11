@@ -5,6 +5,9 @@ on:
   pull_request:
     paths:
       - .github/workflows/android-apk.yml
+      - .github/actions/android-apk-prelude/**
+      - tools/ci_export_android_apk.sh
+      - tools/ci_godot_android_editor_settings.sh
       - tools/next_test_tag.sh
       - tools/check_apk_audio.sh
       - export_presets.cfg
@@ -28,31 +31,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      - uses: ./.github/actions/android-apk-prelude
         with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Install Android SDK packages
-        run: |
-          set -euo pipefail
-          (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            "platform-tools" "build-tools;${ANDROID_BUILD_TOOLS}" "platforms;${ANDROID_PLATFORM}"
-
-      - name: Install Godot and export templates
-        run: |
-          set -euo pipefail
-          base=https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable
-          curl -fsSL -o /tmp/godot.zip "$base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
-          unzip -q -o /tmp/godot.zip -d /tmp/godot
-          sudo install -m 755 "/tmp/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" /usr/local/bin/godot
-          curl -fsSL -o /tmp/templates.tpz "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
-          dest="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
-          mkdir -p "$dest"
-          unzip -q -j /tmp/templates.tpz 'templates/android_*' 'templates/version.txt' -d "$dest"
-          ls "$dest"
+          godot-version: ${{ env.GODOT_VERSION }}
+          android-build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
+          android-platform: ${{ env.ANDROID_PLATFORM }}
 
       - name: Set up signing keystore and editor settings
         env:
@@ -83,14 +66,7 @@ jobs:
             echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=$alias"
             echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=$pass"
           } >> "$GITHUB_ENV"
-          mkdir -p "$HOME/.config/godot"
-          cat > "$HOME/.config/godot/editor_settings-${GODOT_VERSION%.*}.tres" <<TRES
-          [gd_resource type="EditorSettings" format=3]
-
-          [resource]
-          export/android/android_sdk_path = "$ANDROID_HOME"
-          export/android/java_sdk_path = "$JAVA_HOME"
-          TRES
+          ./tools/ci_godot_android_editor_settings.sh
 
       - name: Set version code
         run: |
@@ -102,13 +78,7 @@ jobs:
           grep -n '^version/code=' export_presets.cfg
 
       - name: Export APK
-        run: |
-          set -euo pipefail
-          mkdir -p Builds/android
-          godot --headless --editor --quit-after 200 --path . || true
-          godot --headless --path . --export-debug "Android" Builds/android/flagoria-debug.apk
-          test -s Builds/android/flagoria-debug.apk
-          ls -l Builds/android
+        run: ./tools/ci_export_android_apk.sh Builds/android/flagoria-debug.apk
 
       - name: Print APK signing certificate
         run: |

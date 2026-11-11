@@ -10,12 +10,17 @@ var host_port := PORT
 const Player = preload("res://Player/character_body_2d.tscn")
 @onready var address_entry = $CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/AddressEntry
 var world_params: MapGenParams
+## The world save this match writes. Empty until Host or Load chooses one.
+var save_name := ""
 ## Client: the spot the server picked for its own player, until it is placed.
 var _own_spot := Vector2.INF
 ## Server spots for players not yet spawned here (#352). Applied in
 ## _apply_player_spots / _on_world_child_entered so a late joiner never draws
 ## another player at (0, 0) while waiting for that owner's sync.
 var _pending_spots: Dictionary = {}
+## Player section of the save this host is starting, until that body is placed.
+var _saved_player: Dictionary = {}
+var _saved_player_ready := false
 ## Called instead of SceneTree.quit() when set (tests).
 var quit_hook := Callable()
 ## Address last passed to create_client; used by the join-failed message (#348).
@@ -171,13 +176,18 @@ func spawn_mobs() -> int:
 func _restore_loaded_world() -> int:
 	## After the params are applied and before any chunk is drawn or any
 	## player spawns: put back the cuts, the plank bridges (#226) and the
-	## structures and walls (#42) of the
-	## save MapGen.load_map_inputs read, when this host is starting that
-	## world. Returns how many cuts, bridge cells, placements and walls came back.
+	## structures and walls (#42) of the save MapGen.load_map_inputs read,
+	## when this host is starting that world. The player section is kept
+	## for the host body (add_player). Returns how many cuts, bridge cells,
+	## placements and walls came back.
 	var loaded: WorldSave = get_node("/root/MapGen").take_loaded_world(world_params)
 	var world = get_node("World/worldMap")
 	if loaded == null or world == null:
+		_saved_player_ready = false
+		_saved_player = {}
 		return 0
+	_saved_player = loaded.player.duplicate(true)
+	_saved_player_ready = true
 	var bridges: int = world.replace_bridges(BridgeBuilder.from_changes(loaded.tile_edits, world))
 	var cuts: int = world.restore_cuts(loaded.object_changes)
 	return cuts + bridges + StructureSaves.restore(loaded.structures, world)  # after cuts: a structure clears its cells
@@ -330,7 +340,15 @@ func add_player(peer_id):
 	player.name = str(peer_id)
 	print("player added", player.name)
 	player.position = _land_spawn_position(player)
+	if _saved_player_ready and player.name == "1":
+		var saved_at: Variant = PlayerSave.position_of(_saved_player)
+		if saved_at is Vector2:
+			player.position = saved_at
 	get_node("/root/Flagoria/World").add_child(player)
+	if _saved_player_ready and player.name == "1":
+		PlayerSave.apply(self, player, _saved_player)
+		_saved_player_ready = false
+		_saved_player = {}
 	# Remotes' MultiplayerSpawner copies start at (0, 0) until the owner's
 	# sync; send the server's spot so every peer draws them in place (#352).
 	rpc("receive_player_spots", {str(peer_id): player.position})

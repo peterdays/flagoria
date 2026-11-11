@@ -1,10 +1,9 @@
 extends "res://.cursor/skills/verify-flagoria/bin/drive_base.gd"
 ## launch: --seed 49
-## Chop one tree with a tap in interact mode (features/chop-trees.md). With
-## seed 49 (the line above, read by verify-drive.yml) the spawn has trees in
-## reach. Proof, read from the 01-before and 02-after snapshots: the target
-## cell's tree is a stump and wood went up by the tree's yield once, and
-## the chop's sounds (Interaction.sfx_log) came in the order of #265.
+## Chop from the attack button in interact mode (features/chop-trees.md).
+## With seed 49 the drive paints trees, then drags the attack button north
+## at full chop reach and east at a short reach and a longer one. The aim
+## snapshots are taken while the finger is still down, so the cone is drawn.
 
 const SETTLE_FRAMES := 10  ## physics frames the hero must keep still
 const TAPS := 3  ## taps tried before the drive fails
@@ -42,14 +41,20 @@ func run() -> void:
 			Interaction.CHOP_REACH, AimConeStyle.SWORD_REACH])
 	await snapshot("before")
 
-	step("tap-sweep")
-	var tap_at: Vector2 = to_window(map, map.map_to_local(layout["tap"][0]))
-	if not await _play_tap(it, map, inventory, tap_at, layout["tap"], layout["spared"], "tap"):
+	step("north-long")
+	if not await _play_aim(it, map, inventory, Vector2.UP, Interaction.CHOP_REACH, layout["tap"], layout["spared"] + layout["drag"], "north"):
 		done(false)
 		return
 
-	step("drag-sweep")
-	if not await _play_drag(it, map, inventory, layout["drag"], layout["spared"], "drag"):
+	step("east-short")
+	var near_only: Array[Vector2i] = [layout["drag"][0]]
+	var east_rest: Array[Vector2i] = [layout["drag"][1]]
+	if not await _play_aim(it, map, inventory, Vector2.RIGHT, 80.0, near_only, east_rest, "east-short"):
+		done(false)
+		return
+
+	step("east-long")
+	if not await _play_aim(it, map, inventory, Vector2.RIGHT, 160.0, east_rest, layout["recover"], "east-long"):
 		done(false)
 		return
 
@@ -91,42 +96,13 @@ func _paint_fixed(map: TileMap) -> Dictionary:
 	return {"tap": tap, "spared": spared, "drag": drag, "recover": recover}
 
 
-func _play_tap(it: Node, map: TileMap, inventory: Node, at: Vector2, expected: Array, spared: Array, label: String) -> bool:
+func _play_aim(it: Node, map: TileMap, inventory: Node, direction: Vector2, reach: float, expected: Array, spared: Array, label: String) -> bool:
 	var wood_before: int = inventory.count_of(&"wood")
-	var press := InputEventScreenTouch.new()
-	press.index = 0
-	press.pressed = true
-	press.position = at
-	Input.parse_input_event(press)
-	await process_frame
-	var lift := InputEventScreenTouch.new()
-	lift.index = 0
-	lift.pressed = false
-	lift.position = at
-	Input.parse_input_event(lift)
-	await process_frame
+	await _drag_button(direction.normalized() * reach, label + "-aim")
 	var got: Array = it.sweep_cells()
-	print("chop: tap sweep %s" % [got])
+	print("chop: %s sweep %s reach %.0f" % [label, got, reach])
 	if got != expected:
-		printerr("chop: tap selected %s, want %s" % [got, expected])
-		return false
-	await snapshot(label + "-first")
-	return await _wait_sweep(it, map, inventory, expected, spared, wood_before, label)
-
-
-func _play_drag(it: Node, map: TileMap, inventory: Node, expected: Array, spared: Array, label: String) -> bool:
-	var origin := hero().global_position
-	var far: Vector2i = expected[expected.size() - 1]
-	var to_far: Vector2 = it.cell_center(far) - origin
-	var end_world: Vector2 = origin + to_far.normalized() * minf(to_far.length() + 12.0, Interaction.CHOP_REACH)
-	var start: Vector2 = to_window(hero(), Vector2.ZERO)
-	var end_pos: Vector2 = to_window(map, map.to_local(end_world))
-	var wood_before: int = inventory.count_of(&"wood")
-	await _drag_window(start, end_pos)
-	var got: Array = it.sweep_cells()
-	print("chop: drag sweep %s reach %.1f" % [got, to_far.length() + 12.0])
-	if got != expected:
-		printerr("chop: drag selected %s, want %s" % [got, expected])
+		printerr("chop: %s selected %s, want %s" % [label, got, expected])
 		return false
 	await snapshot(label + "-first")
 	return await _wait_sweep(it, map, inventory, expected, spared, wood_before, label)
@@ -162,11 +138,7 @@ func _wait_sweep(it: Node, map: TileMap, inventory: Node, expected: Array, spare
 
 
 func _recover_cancel(it: Node, map: TileMap, pair: Array) -> bool:
-	var origin := hero().global_position
-	var far: Vector2i = pair[1]
-	var to_far: Vector2 = it.cell_center(far) - origin
-	var end_world: Vector2 = origin + to_far.normalized() * (to_far.length() + 12.0)
-	await _drag_window(to_window(hero(), Vector2.ZERO), to_window(map, map.to_local(end_world)))
+	await _drag_button(Vector2.DOWN * 80.0, "")
 	if it.sweep_cells() != pair:
 		printerr("chop: recover drag selected %s, want %s" % [it.sweep_cells(), pair])
 		return false
@@ -345,11 +317,11 @@ func _one_plan(it: Node, map: TileMap) -> Dictionary:
 			continue
 		if zoom != null and (bool(zoom.call("starts_on_hud", start_canvas)) or bool(zoom.call("starts_on_hud", end_canvas))):
 			continue
-		it._start = start_canvas
-		it._end = end_canvas
+		it._stick.start = start_canvas
+		it._stick.end = end_canvas
+		it._stick.dragging = true
 		var cells: Array = it.choppables_in_sweep()
-		it._start = Vector2.ZERO
-		it._end = Vector2.ZERO
+		it._stick.dragging = false
 		if cells.size() == 1 and cells[0] == cell:
 			return {
 				"cell": cell,
@@ -421,11 +393,11 @@ func _range_plan(it: Node, map: TileMap) -> Dictionary:
 			continue
 		var end_world: Vector2 = origin + to_far.normalized() * (to_far.length() + 12.0)
 		var end_canvas: Vector2 = map.get_global_transform_with_canvas() * map.to_local(end_world)
-		it._start = start_canvas
-		it._end = end_canvas
+		it._stick.start = start_canvas
+		it._stick.end = end_canvas
+		it._stick.dragging = true
 		var selected: Array = it.choppables_in_sweep()
-		it._start = Vector2.ZERO
-		it._end = Vector2.ZERO
+		it._stick.dragging = false
 		if selected.size() >= 2:
 			return {
 				"cells": selected,
@@ -435,21 +407,44 @@ func _range_plan(it: Node, map: TileMap) -> Dictionary:
 	return {}
 
 
+func _button_window() -> Vector2:
+	var button: CanvasItem = current_scene.get_node("CanvasLayer1/TouchScreenButton")
+	return to_window(button, button._shape_center())
+
+
+func _window_delta(world_delta: Vector2) -> Vector2:
+	var here := to_window(hero(), Vector2.ZERO)
+	var there := to_window(hero(), hero().to_local(hero().global_position + world_delta))
+	return there - here
+
+
+func _drag_button(world_delta: Vector2, aim_shot: String) -> void:
+	await _drag_from_button(_window_delta(world_delta), aim_shot)
+
+
 func _drag_window(start: Vector2, end_pos: Vector2) -> void:
+	await _drag_from_button(end_pos - start, "")
+
+
+func _drag_from_button(window_delta: Vector2, aim_shot: String) -> void:
+	var origin := _button_window()
+	var end_pos := origin + window_delta
 	var press := InputEventScreenTouch.new()
 	press.index = 0
 	press.pressed = true
-	press.position = start
+	press.position = origin
 	Input.parse_input_event(press)
 	await process_frame
 	await process_frame
 	var drag := InputEventScreenDrag.new()
 	drag.index = 0
 	drag.position = end_pos
-	drag.relative = end_pos - start
+	drag.relative = window_delta
 	Input.parse_input_event(drag)
 	await process_frame
 	await process_frame
+	if aim_shot != "":
+		await snapshot(aim_shot)
 	var lift := InputEventScreenTouch.new()
 	lift.index = 0
 	lift.pressed = false

@@ -1,17 +1,7 @@
 class_name MinimapPanel
 extends Control
-## The in-play explored map: a wood panel in the top right corner that shows
-## the ground the local hero has explored, centred on the hero, at 2 screen
-## pixels per world cell. Cells the hero has not been near show as mist.
-## Exploration is local to this client for now (no network traffic); a new
-## world clears it. M or the header hides it; maximize opens the parchment.
-##
-## Each explored 32 x 32 cell chunk has a 64 x 64 image and texture. A
-## reveal paints only the newly explored cells and the 1-cell ring around
-## them (whose coast line may change) into the images, then updates those
-## textures in place, so a frame just draws the few chunk textures under the
-## map window. Terrain is looked up once per cell and kept per chunk.
-
+## Explored ground in the top-right wood panel. A save restores the chart.
+## The panel starts closed; the round minimap button or M opens it (#450).
 const FRAME := preload("res://art/ui/map/ui_map_panel_open.png")
 const HERO := {
 	"Up": preload("res://art/ui/map/ui_map_marker_hero_up.png"),
@@ -19,8 +9,9 @@ const HERO := {
 	"Down": preload("res://art/ui/map/ui_map_marker_hero_down.png"),
 	"Left": preload("res://art/ui/map/ui_map_marker_hero_left.png"),
 }
+const MAP_ICON := preload("res://assets/ui/hud/icon_map.png")
 const MARGIN := 4.0  ## art pixels from the right edge
-const TOP := 28.0  ## art pixels from the top, below the HUD buttons
+const TOP := 28.0  ## art pixels from the top; the arc slides the panel to its left
 const WINDOW := Rect2i(4, 16, 216, 124)  ## map window inside the frame
 const CELL_PX := 2
 const CHECK_FRAMES := 15  ## physics frames between reveals
@@ -58,9 +49,9 @@ const _NEIGHBOURS := [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1), Vector
 var explored := ExploredMap.new()
 var hero_cell := Vector2i.ZERO
 var facing := "Down"
-var shown := true  ## false after collapse or M hides the panel
+var shown := false  ## closed until the minimap button or M
 var parchment: ParchmentMap
-var _reopen: MapWoodButton
+var _map_button: Button
 
 var _textures := {}  ## chunk (Vector2i) -> ImageTexture
 var _images := {}  ## chunk (Vector2i) -> Image behind its texture
@@ -135,25 +126,37 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 
 func _add_header_buttons() -> void:
-	## Collapse and maximize sit in the wood header. The reopen chip is a
-	## sibling, so it stays on screen after the panel hides.
+	## Collapse and maximize sit in the wood header. The round minimap button
+	## is a sibling in the top-right arc, so it stays up when this panel hides.
 	var collapse := _header_button("CollapseButton", MapWoodButton.Glyph.MINUS, Vector2(184, 1))
 	collapse.activated.connect(collapse_panel)
 	var maximize_button := _header_button("MaximizeButton", MapWoodButton.Glyph.SQUARE, Vector2(204, 1))
 	maximize_button.activated.connect(maximize)
-	_reopen = MapWoodButton.new()
-	_reopen.name = "MapReopen"
-	_reopen.glyph = MapWoodButton.Glyph.PANEL
-	_reopen.size = Vector2(56, 24)
-	_reopen.visible = false
-	_reopen.texture_filter = TEXTURE_FILTER_NEAREST
-	_reopen.activated.connect(reopen_panel)
+	_map_button = Button.new()
+	_map_button.name = "MinimapButton"
+	_map_button.toggle_mode = true
+	_map_button.theme = load("res://art/ui/main_menu_theme.tres")
+	_map_button.icon = MAP_ICON
+	_map_button.tooltip_text = "Minimap"
+	RoundHudStyle.apply(_map_button)
+	_map_button.pressed.connect(_on_map_button)
 	parchment = ParchmentMap.new()
 	parchment.panel = self
 	# The canvas layer is still entering the tree when the panel's _ready runs.
 	var layer := get_parent()
-	layer.add_child.call_deferred(_reopen)
+	layer.add_child.call_deferred(_map_button)
 	layer.add_child.call_deferred(parchment)
+
+
+func _on_map_button() -> void:
+	## Opens the wood panel, or closes it. A press while the parchment is up
+	## puts the parchment away and leaves the panel closed.
+	if parchment != null and parchment.is_open():
+		parchment.hide_map()
+		shown = false
+	else:
+		shown = not shown
+	apply_chrome()
 
 
 func _header_button(node_name: String, glyph: int, at: Vector2) -> MapWoodButton:
@@ -184,13 +187,13 @@ func maximize() -> void:
 
 
 func apply_chrome() -> void:
-	## The wood window, the reopen chip, or neither while the parchment is up.
+	## The wood window, or neither while it is closed or the parchment is up.
+	## The round minimap button stays in the top-right arc either way.
 	var playing := local_player() != null
 	var map_open := parchment != null and parchment.is_open()
 	visible = shown and playing and not map_open
-	if _reopen:
-		_reopen.visible = not shown and playing and not map_open
-	_place_reopen()
+	if _map_button:
+		_map_button.set_pressed_no_signal(visible)
 
 
 func tick() -> void:
@@ -248,6 +251,20 @@ func reveal_around(cell: Vector2i) -> void:
 		else:
 			_textures[chunk] = ImageTexture.create_from_image(_images[chunk])
 	_view.queue_redraw()
+
+
+func restore_chart(chunks: Dictionary) -> void:
+	## Replace explored cells (`chunks` is chunk -> a 128-byte bitset). Empty clears.
+	explored.replace_chunks(chunks)
+	for bucket in [_textures, _images, _terrain]:
+		bucket.clear()
+	_last_sample = Vector2i.MAX
+	for chunk in explored.chunks():
+		var img := render_chunk(chunk)
+		_images[chunk] = img
+		_textures[chunk] = ImageTexture.create_from_image(img)
+	if _view:
+		_view.queue_redraw()
 
 
 func local_player() -> Node2D:
@@ -418,7 +435,6 @@ func paint_city_walls(target: CanvasItem, top_left: Vector2i, window_size: Vecto
 func _on_ground_changed(cells: Rect2i) -> void:
 	if cells.size != Vector2i.ZERO:
 		return
-	# A new world: what was explored belongs to the old one.
 	explored.clear()
 	_textures.clear()
 	_images.clear()
@@ -431,29 +447,13 @@ func _on_ground_changed(cells: Rect2i) -> void:
 
 
 func _fit_pixel_scale() -> void:
-	## Whole screen pixels per art pixel, like the hearts, kept MARGIN art
-	## pixels from the right edge. Rounds down, never up, so the panel stays
-	## clear of the attack button at fractional window stretches.
+	## Whole art pixels from the right edge, rounded down so the attack button stays clear.
 	var stretch := get_viewport().get_final_transform().get_scale().x
 	if stretch <= 0.0:
 		return
 	var k := floorf(stretch) / stretch if stretch >= 1.0 else 1.0
 	scale = Vector2(k, k)
 	position = Vector2(get_viewport_rect().size.x - (size.x + MARGIN) * k, maxf(TOP * k, 23.0))
-	_place_reopen()
-
-
-func _place_reopen() -> void:
-	if _reopen == null:
-		return
-	var stretch := get_viewport().get_final_transform().get_scale().x
-	if stretch <= 0.0:
-		return
-	var k := floorf(stretch) / stretch if stretch >= 1.0 else 1.0
-	_reopen.scale = Vector2(k, k)
-	var view_w := get_viewport_rect().size.x
-	# Below the header, so a click that collapses the panel does not land on the chip.
-	_reopen.position = Vector2(view_w - (_reopen.size.x + MARGIN) * k, maxf(TOP * k, 23.0) + 22.0 * k)
 
 
 func _map() -> Node:

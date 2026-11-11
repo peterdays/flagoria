@@ -1,0 +1,40 @@
+name: Install Godot
+description: Restore or download Godot 4.7.2 for CI with a shared Actions cache
+inputs:
+  godot-version:
+    description: Godot stable version
+    required: false
+    default: "4.7.2"
+  export-templates:
+    description: "true to install Android export templates"
+    required: false
+    default: "false"
+  verify-sha512:
+    description: "true to verify the linux zip against docker/godot-*-linux.sha512"
+    required: false
+    default: "false"
+outputs:
+  cache-hit:
+    description: Whether the shared Godot cache was restored
+    value: ${{ steps.godot-cache.outputs.cache-hit }}
+runs:
+  using: composite
+  steps:
+    - name: Restore Godot cache
+      id: godot-cache
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ~/.cache/flagoria-godot/${{ inputs.godot-version }}
+        key: godot-${{ inputs.godot-version }}-linux-x86_64${{ inputs.export-templates == 'true' && format('-export-templates-{0}', inputs.godot-version) || '' }}
+    - name: Install Godot 4.7.2
+      shell: bash
+      env:
+        GODOT_VERSION: ${{ inputs.godot-version }}
+        FLAGORIA_CI_GODOT_TEMPLATES: ${{ inputs.export-templates == 'true' && '1' || '0' }}
+        FLAGORIA_CI_GODOT_VERIFY_SHA512: ${{ inputs.verify-sha512 == 'true' && '1' || '0' }}
+        FLAGORIA_GODOT_CACHE_DIR: ~/.cache/flagoria-godot/${{ inputs.godot-version }}
+      run: |
+        set -euo pipefail
+        export FLAGORIA_GODOT_CACHE_DIR="${HOME}/.cache/flagoria-godot/${GODOT_VERSION}"
+        echo "godot actions cache hit: ${{ steps.godot-cache.outputs.cache-hit }}"
+        "${GITHUB_WORKSPACE}/tools/ci_install_godot.sh"

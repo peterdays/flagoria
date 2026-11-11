@@ -1,0 +1,39 @@
+name: Android APK install prelude
+description: >
+  JDK 17, Android SDK packages, and Godot with Android export templates.
+  Shared by android-apk.yml and pr-debug-apk.yml before keystore-specific setup.
+inputs:
+  godot-version:
+    description: Godot stable version (matches workflow env GODOT_VERSION)
+    required: true
+  android-build-tools:
+    description: Android SDK build-tools version (matches ANDROID_BUILD_TOOLS)
+    required: true
+  android-platform:
+    description: Android SDK platform id (matches ANDROID_PLATFORM)
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Set up JDK 17
+      uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      with:
+        distribution: temurin
+        java-version: "17"
+
+    - name: Install Android SDK packages
+      shell: bash
+      env:
+        ANDROID_BUILD_TOOLS: ${{ inputs.android-build-tools }}
+        ANDROID_PLATFORM: ${{ inputs.android-platform }}
+      run: |
+        set -euo pipefail
+        (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+        "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+          "platform-tools" "build-tools;${ANDROID_BUILD_TOOLS}" "platforms;${ANDROID_PLATFORM}"
+
+    - name: Install Godot and export templates
+      uses: ./.github/actions/install-godot
+      with:
+        godot-version: ${{ inputs.godot-version }}
+        export-templates: "true"

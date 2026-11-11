@@ -240,7 +240,7 @@ func _on_touch(event: InputEventScreenTouch) -> void:
 			_drop_touch()  # a second touch cancels the aim
 			return
 		var button = attack_button()
-		if _touch_index == -1 and button != null and button.is_visible_in_tree() \
+		if _touch_index == -1 and can_aim() and button != null and button.is_visible_in_tree() \
 				and button.hits(event.position):
 			_touch_index = event.index
 			_touch_offset = event.position - button.aim_center()
