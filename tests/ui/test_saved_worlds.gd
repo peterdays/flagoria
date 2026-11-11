@@ -113,6 +113,74 @@ func _test_two_worlds_stay_separate() -> int:
 	return fail
 
 
+func _test_saved_world_rename_panel() -> int:
+	## Rename from the Worlds panel refreshes the list, keeps selection, and
+	## refuses a duplicate name; cancel leaves the file as it was.
+	print("-- test_saved_world_rename_panel")
+	var fail := 0
+	var map_gen = root.get_node("/root/MapGen")
+	var saved_params: MapGenParams = map_gen.params.duplicate_params()
+	for name in ["rename-a", "rename-b"]:
+		var params := _params_with_seed(100 if name == "rename-a" else 200)
+		if MapSave.save_world(WorldSave.new(params), name)["error"] != "":
+			printerr("FAIL saved_world_rename_panel: could not create %s" % name)
+			return 1
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	await process_frame
+	var menu = scene.get_node("CanvasLayer2/MainMenu")
+	menu._on_worlds_pressed()
+	var list: ItemList = scene.get_node("CanvasLayer2/WorldsPanel/Margin/VBox/Scroll/List")
+	var panel: PanelContainer = scene.get_node("CanvasLayer2/WorldsPanel")
+	var status: Label = panel.get_node("Margin/VBox/Status")
+
+	list.select(_row_named(list, "rename-a"))
+	menu._on_rename_world_pressed()
+	var field: LineEdit = panel.get_node("Margin/VBox/Rename/Name")
+	field.text = "rename-ok"
+	menu._on_rename_yes_pressed()
+	await process_frame
+	var ok_row := _row_named(list, "rename-ok")
+	if ok_row < 0 or FileAccess.file_exists(MapSave.path_for("rename-a")) \
+			or not list.get_selected_items().has(ok_row):
+		printerr("FAIL saved_world_rename_panel: success list=%s selected=%s" % [
+				_list_text(list), list.get_selected_items()])
+		fail += 1
+
+	list.select(ok_row)
+	menu._on_rename_world_pressed()
+	field.text = "rename-b"
+	menu._on_rename_yes_pressed()
+	await process_frame
+	if status.text == "" or not "already exists" in status.text \
+			or not FileAccess.file_exists(MapSave.path_for("rename-ok")) \
+			or _row_named(list, "rename-b") < 0:
+		printerr("FAIL saved_world_rename_panel: duplicate status=%s list=%s" % [status.text, _list_text(list)])
+		fail += 1
+	menu._on_rename_no_pressed()
+
+	list.select(ok_row)
+	menu._on_rename_world_pressed()
+	field.text = "rename-cancelled"
+	menu._on_rename_no_pressed()
+	await process_frame
+	if FileAccess.file_exists(MapSave.path_for("rename-cancelled")) \
+			or _row_named(list, "rename-cancelled") >= 0:
+		printerr("FAIL saved_world_rename_panel: cancel renamed anyway")
+		fail += 1
+
+	for name in ["rename-ok", "rename-b"]:
+		DirAccess.remove_absolute(MapSave.path_for(name))
+	map_gen.params = saved_params
+	map_gen.clear_loaded_world()
+	map_gen.save_to_disk()
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_saved_world_rename_panel")
+	return fail
+
+
 func _test_legacy_save_stays_in_the_list() -> int:
 	## A save written before this menu (version 1) is listed and still loads.
 	## Opening the list does not rewrite the file.

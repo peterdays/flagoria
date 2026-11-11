@@ -93,7 +93,9 @@ The main menu's Worlds screen lists every file in that folder, by name and
 modified time. Load hosts that file. Host, and New world, start a match whose
 saves go in a new file, so an existing save is not replaced. Save writes that
 match's file again. A file already in the folder is listed as it is; opening
-the list does not rewrite it. Rename and a terrain preview are still #40.
+the list does not rewrite it. Rename changes the file name through the same
+inline confirm pattern as delete (`MapSave.rename_save`). A terrain preview is
+still #40.
 
 ## Cut trees and bushes
 
