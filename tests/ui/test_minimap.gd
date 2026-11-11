@@ -3,9 +3,10 @@ extends "res://tests/helpers/test_helpers.gd"
 
 
 func _test_minimap_panel_in_scene() -> int:
-	## In the real main scene the wood panel shows in the top right once the
-	## local hero spawns, below the HUD buttons and clear of the attack
-	## button, counts as HUD for touches, reveals once two samples agree, draws
+	## In the real main scene the wood panel stays closed until its button is
+	## pressed, then shows left of the arc, clear of every arc button and of
+	## the attack button, counts as HUD for touches, reveals once two samples
+	## agree, draws
 	## the explored cells around the hero in the map colours, M hides it, and
 	## a new world clears what was explored.
 	print("-- test_minimap_panel_in_scene")
@@ -29,16 +30,26 @@ func _test_minimap_panel_in_scene() -> int:
 		printerr("FAIL minimap_panel revealed on a single sample")
 		fail += 1
 	panel.tick()
+	if panel.visible or scene.get_node_or_null("CanvasLayer1/MapReopen") != null:
+		printerr("FAIL minimap_panel open at match start (visible %s)" % panel.visible)
+		fail += 1
+	var map_button: Button = scene.get_node("CanvasLayer1/MinimapButton")
+	map_button.pressed.emit()
 	var rect: Rect2 = panel.get_global_rect()
 	var mode_rect: Rect2 = scene.get_node("CanvasLayer1/ModeButton").get_global_rect()
+	var map_rect: Rect2 = map_button.get_global_rect()
+	var buildings_rect: Rect2 = scene.get_node("CanvasLayer1/BuildingsButton").get_global_rect()
 	var attack: TouchScreenButton = scene.get_node("CanvasLayer1/TouchScreenButton")
 	var attack_rect := Rect2(attack.position, attack.texture_normal.get_size() * attack.scale)
 	var view_w: float = scene.get_viewport().get_visible_rect().size.x
-	if not panel.visible or absf(rect.end.x - (view_w - MinimapPanel.MARGIN * panel.scale.x)) > 1.0 \
-			or rect.size.round() != (Vector2(224, 144) * panel.scale).round() or rect.intersects(mode_rect) \
-			or rect.intersects(attack_rect):
-		printerr("FAIL minimap_panel visible %s at %s (mode button %s, attack button %s)"
-				% [panel.visible, rect, mode_rect, attack_rect])
+	var arc_left := minf(mode_rect.position.x, minf(map_rect.position.x, buildings_rect.position.x))
+	var covers := rect.intersects(mode_rect) or rect.intersects(map_rect) \
+			or rect.intersects(buildings_rect) or rect.intersects(attack_rect)
+	var beside := rect.end.x <= arc_left + 1.0 and rect.end.x >= arc_left - 4.0
+	if not panel.visible or covers or not beside or rect.position.x < 0.0 or rect.end.x > view_w + 1.0 \
+			or rect.size.round() != (Vector2(224, 144) * panel.scale).round():
+		printerr("FAIL minimap_panel visible %s at %s (arc left %s, attack %s)"
+				% [panel.visible, rect, arc_left, attack_rect])
 		fail += 1
 	scene.get_node("CanvasLayer1").show()  # as Host and Join do
 	var zoom = scene.get_node("World/%d/Camera2D/MapZoom" % scene.multiplayer.get_unique_id())

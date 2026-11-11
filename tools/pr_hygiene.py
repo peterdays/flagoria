@@ -16,7 +16,9 @@ Hard failures (exit 1), kept to cases that are almost never false positives:
     (agent context budget; see tools/agent_budget.py);
   * on a gameplay PR (paths match tools/play_review_paths.py), a missing or
     empty "## Evidence" section that lacks a github user-attachments image or
-    video URL and also lacks the text "CI drive artifact".
+    video URL and also lacks the text "CI drive artifact";
+  * when docs/private-server.md exists, a dotted address, a hostname, or a
+    key in that file, or a failed tools/private_server_doc.py self-test.
 
 Warnings only (shown as annotations and in the job summary, never blocking):
   * attribution phrases such as "<someone> says" or "the owner <verb>";
@@ -209,6 +211,19 @@ def _login_hits(text: str, login: str, repo: str):
     return re.search(r"(?<![\w-])@?" + re.escape(login) + r"(?![\w-])", text, re.I) is not None
 
 
+def _private_server_doc(out: list) -> None:
+    """Scan the VPN runbook when this checkout has it. Other branches skip it."""
+    import private_server_doc as doc
+
+    if not doc.DOC.is_file():
+        return
+    if doc.self_test(quiet=True) != 0:
+        out.append(Finding(
+            "error", "private-server doc",
+            "docs/private-server.md has a real address, hostname, or key, or the self-test failed",
+        ))
+
+
 def check(pr: PR, allow: Allow, cap: int = CAP) -> list:
     out: list = []
     texts = [("PR title", pr.title, "", 0), ("PR body", pr.body, "", 0)]
@@ -226,6 +241,8 @@ def check(pr: PR, allow: Allow, cap: int = CAP) -> list:
                     out.append(Finding("warning", where, f"possible attribution '{m.group(0)}'", path, line))
         if _login_hits(text, pr.author, pr.repo):
             out.append(Finding("warning", where, "mentions the PR author's login", path, line))
+
+    _private_server_doc(out)
 
     size, counted = counted_size(pr.numstat, allow)
     if size > cap:

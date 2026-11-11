@@ -4,6 +4,8 @@ name: verify-drive
 # changes (tools/play_review_paths.py): run the drives named by changed
 # feature files' Drive: lines with launch.sh --display, upload screenshot
 # evidence, and fail when a drive prints VERIFY_DONE fail (hard assert).
+# When gameplay is true but no Drive: line was collected, run the default
+# smoke drive (drives/smoke.gd; same default as workflow_dispatch, #453).
 # No pixel-diff goldens. Also runnable from the Actions tab (workflow_dispatch).
 # Fork safety: pull_request (not pull_request_target), read-only token, no
 # secrets; skip pull requests from forks.
@@ -37,85 +39,49 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Classify pull request
+        id: classify
+        if: github.event_name == 'pull_request'
+        uses: ./.github/actions/classify-change
+        with:
+          base_sha: ${{ github.event.pull_request.base.sha }}
+          head_sha: ${{ github.event.pull_request.head.sha }}
+          with_diff: "true"
+          event: pull_request
+
       - name: Pick drives
         id: pick
         env:
           EVENT: ${{ github.event_name }}
           INPUT_DRIVES: ${{ github.event.inputs.drives }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CLASSIFY_GAMEPLAY: ${{ steps.classify.outputs.gameplay }}
+          PATHS_FILE: ${{ steps.classify.outputs.paths_file }}
         run: |
           set -euo pipefail
-          skill=.cursor/skills/verify-flagoria
-          drives=""
+          python3 tools/verify_drive_picks.py --self-test
           if [[ "${EVENT}" == "workflow_dispatch" ]]; then
-            drives="${INPUT_DRIVES:-smoke}"
+            python3 tools/verify_drive_picks.py --dispatch-drives "${INPUT_DRIVES:-smoke}"
             echo "gameplay=true" >> "$GITHUB_OUTPUT"
-            echo "reason=workflow_dispatch" >> "$GITHUB_OUTPUT"
+          elif [[ "${CLASSIFY_GAMEPLAY}" != "true" ]]; then
+            python3 tools/verify_drive_picks.py --files "${PATHS_FILE}" --gameplay false
+            echo "No gameplay paths; skipping drives."
+            echo "gameplay=false" >> "$GITHUB_OUTPUT"
           else
-            python3 tools/play_review_paths.py --self-test
-            mb="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
-            git diff --name-only "$mb" "$HEAD_SHA" > "$RUNNER_TEMP/paths.txt"
-            git diff -U0 "$mb" "$HEAD_SHA" > "$RUNNER_TEMP/change.diff"
-            git show "$mb:project.godot" > "$RUNNER_TEMP/base.godot" || rm -f "$RUNNER_TEMP/base.godot"
-            git show "$HEAD_SHA:project.godot" > "$RUNNER_TEMP/head.godot" || rm -f "$RUNNER_TEMP/head.godot"
-            python3 tools/play_review_paths.py --files "$RUNNER_TEMP/paths.txt" \
-              --diff "$RUNNER_TEMP/change.diff" --event "$EVENT" \
-              --base-project "$RUNNER_TEMP/base.godot" --head-project "$RUNNER_TEMP/head.godot"
-            # play_review_paths writes gameplay= to GITHUB_OUTPUT; re-read it.
-            gameplay="$(grep -E '^gameplay=' "$GITHUB_OUTPUT" | tail -n1 | cut -d= -f2-)"
-            if [[ "${gameplay}" != "true" ]]; then
-              echo "reason=not gameplay" >> "$GITHUB_OUTPUT"
-              echo "drives=" >> "$GITHUB_OUTPUT"
-              echo "No gameplay paths; skipping drives."
-              exit 0
-            fi
-            # Collect Drive: drives/<path>.gd from changed feature files.
-            # Skip two_player/* (needs a paired launch; not run alone here).
-            while read -r path; do
-              case "${path}" in
-                .cursor/skills/verify-flagoria/features/*.md) ;;
-                *) continue ;;
-              esac
-              [[ "$(basename "${path}")" == README.md ]] && continue
-              [[ -f "${path}" ]] || continue
-              value="$(grep -E '^Drive:[[:space:]]+' "${path}" | head -n1 | sed -E 's/^Drive:[[:space:]]+//; s/[[:space:]]+$//')" || true
-              case "${value}" in
-                drives/two_player/*)
-                  echo "skip paired drive ${value} (from ${path})"
-                  ;;
-                drives/*.gd)
-                  # Strip drives/ prefix and .gd for the launch loop name, keep relative path.
-                  rel="${value#drives/}"
-                  rel="${rel%.gd}"
-                  # Only top-level drives/*.gd in the auto path.
-                  if [[ "${rel}" == */* ]]; then
-                    echo "skip nested drive ${value}"
-                    continue
-                  fi
-                  drives+="${rel} "
-                  ;;
-              esac
-            done < "$RUNNER_TEMP/paths.txt"
-            echo "reason=gameplay PR" >> "$GITHUB_OUTPUT"
+            python3 tools/verify_drive_picks.py --files "${PATHS_FILE}" --gameplay true
+            echo "gameplay=true" >> "$GITHUB_OUTPUT"
           fi
-          # Dedup
-          drives="$(echo ${drives:-} | tr ' ' '\n' | awk 'NF && !seen[$0]++' | tr '\n' ' ')"
-          echo "drives=${drives}" >> "$GITHUB_OUTPUT"
-          echo "Selected drives: '${drives}'"
 
-      - name: Install xvfb and Godot 4.7.2
+      - name: Install xvfb
         if: steps.pick.outputs.gameplay == 'true' && steps.pick.outputs.drives != ''
         run: |
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq xvfb
-          curl -fsSL -o /tmp/godot.zip \
-            https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
-          unzip -q -o /tmp/godot.zip -d /tmp/godot
-          sudo install -m 755 /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 /usr/local/bin/godot
-          godot --version
           command -v xvfb-run
+
+      - name: Install Godot 4.7.2
+        if: steps.pick.outputs.gameplay == 'true' && steps.pick.outputs.drives != ''
+        uses: ./.github/actions/install-godot
 
       - name: Import the project
         if: steps.pick.outputs.gameplay == 'true' && steps.pick.outputs.drives != ''

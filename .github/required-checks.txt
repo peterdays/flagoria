@@ -1,0 +1,8 @@
+# Required branch-protection check display names.
+# Format: <workflow-file> <job-id> <display name>
+# After an intentional job rename: update this file, then update branch
+# protection on GitHub to use the new display name (outside this script).
+verify.yml godot Load project and parse scripts
+pr-hygiene.yml hygiene Privacy and size check
+play-review.yml stress Netcode stress
+verify-drive.yml drive Gameplay drives

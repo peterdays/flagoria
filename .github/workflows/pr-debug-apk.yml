@@ -8,7 +8,7 @@ name: pr-debug-apk
 # no repository secrets are read, so pull requests from forks build the same
 # way. The APK is only uploaded as a workflow artifact (7 days); no release
 # is created. android-apk.yml and its tag-based release path are unchanged;
-# the setup steps below are a minimal copy of its steps.
+# install/export prelude is shared via .github/actions/android-apk-prelude.
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
@@ -42,27 +42,27 @@ jobs:
       # tools/play_review_paths.py (or the needs-play-review label), shipped
       # assets and scripts, the export preset, or this workflow itself.
       # Docs, tests, tools and other CI changes do not build.
+      - name: Classify change
+        id: classify
+        uses: ./.github/actions/classify-change
+        with:
+          run_self_test: "false"
+          base_sha: ${{ github.event.pull_request.base.sha }}
+          head_sha: ${{ github.event.pull_request.head.sha }}
+          with_diff: "false"
+          labeled: ${{ contains(github.event.pull_request.labels.*.name, 'needs-play-review') }}
+
       - name: Change reaches the APK?
         id: gate
         env:
-          LABELED: ${{ contains(github.event.pull_request.labels.*.name, 'needs-play-review') }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PATHS_FILE: ${{ steps.classify.outputs.paths_file }}
+          GAMEPLAY: ${{ steps.classify.outputs.gameplay }}
         run: |
           set -euo pipefail
-          mb="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
-          git diff --name-only "$mb" "$HEAD_SHA" > "$RUNNER_TEMP/paths.txt"
-          git show "$mb:project.godot" > "$RUNNER_TEMP/base.godot" || rm -f "$RUNNER_TEMP/base.godot"
-          git show "$HEAD_SHA:project.godot" > "$RUNNER_TEMP/head.godot" || rm -f "$RUNNER_TEMP/head.godot"
-          labeled=()
-          if [ "$LABELED" = "true" ]; then labeled=(--labeled); fi
-          GITHUB_OUTPUT="$RUNNER_TEMP/classify.txt" python3 tools/play_review_paths.py \
-            --files "$RUNNER_TEMP/paths.txt" "${labeled[@]}" \
-            --base-project "$RUNNER_TEMP/base.godot" --head-project "$RUNNER_TEMP/head.godot"
-          shipped='^(art|Scripts|addons|structures|Player|Mobs)/|^[^/]+\.(gd|tscn|tres)$|^(project\.godot|export_presets\.cfg|\.github/workflows/pr-debug-apk\.yml)$'
-          if grep -qx 'gameplay=true' "$RUNNER_TEMP/classify.txt"; then
+          shipped='^(art|Scripts|addons|structures|Player|Mobs)/|^[^/]+\.(gd|tscn|tres)$|^project\.godot$|^export_presets\.cfg$|^\.github/workflows/(android-apk|pr-debug-apk)\.yml$|^\.github/actions/android-apk-prelude/|^tools/ci_(export_android_apk|godot_android_editor_settings)\.sh$'
+          if [ "$GAMEPLAY" = "true" ]; then
             build=true
-          elif grep -E "$shipped" "$RUNNER_TEMP/paths.txt" | sed 's/^/shipped: /' | grep .; then
+          elif grep -E "$shipped" "$PATHS_FILE" | sed 's/^/shipped: /' | grep .; then
             build=true
           else
             build=false
@@ -70,33 +70,12 @@ jobs:
           echo "build=$build"
           echo "build=$build" >> "$GITHUB_OUTPUT"
 
-      - name: Set up JDK 17
+      - uses: ./.github/actions/android-apk-prelude
         if: steps.gate.outputs.build == 'true'
-        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Install Android SDK packages
-        if: steps.gate.outputs.build == 'true'
-        run: |
-          set -euo pipefail
-          (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            "platform-tools" "build-tools;${ANDROID_BUILD_TOOLS}" "platforms;${ANDROID_PLATFORM}"
-
-      - name: Install Godot and export templates
-        if: steps.gate.outputs.build == 'true'
-        run: |
-          set -euo pipefail
-          base=https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable
-          curl -fsSL -o /tmp/godot.zip "$base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
-          unzip -q -o /tmp/godot.zip -d /tmp/godot
-          sudo install -m 755 "/tmp/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" /usr/local/bin/godot
-          curl -fsSL -o /tmp/templates.tpz "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
-          dest="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
-          mkdir -p "$dest"
-          unzip -q -j /tmp/templates.tpz 'templates/android_*' 'templates/version.txt' -d "$dest"
+          godot-version: ${{ env.GODOT_VERSION }}
+          android-build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
+          android-platform: ${{ env.ANDROID_PLATFORM }}
 
       - name: Generate debug keystore and editor settings
         if: steps.gate.outputs.build == 'true'
@@ -114,14 +93,7 @@ jobs:
             echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey"
             echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android"
           } >> "$GITHUB_ENV"
-          mkdir -p "$HOME/.config/godot"
-          cat > "$HOME/.config/godot/editor_settings-${GODOT_VERSION%.*}.tres" <<TRES
-          [gd_resource type="EditorSettings" format=3]
-
-          [resource]
-          export/android/android_sdk_path = "$ANDROID_HOME"
-          export/android/java_sdk_path = "$JAVA_HOME"
-          TRES
+          ./tools/ci_godot_android_editor_settings.sh
 
       # Only the checkout's copy of the preset is edited; nothing is committed.
       - name: Point the preset at the debug package
@@ -143,13 +115,7 @@ jobs:
 
       - name: Export APK
         if: steps.gate.outputs.build == 'true'
-        run: |
-          set -euo pipefail
-          mkdir -p "$(dirname "$APK")"
-          godot --headless --editor --quit-after 200 --path . || true
-          godot --headless --path . --export-debug "Android" "$APK"
-          test -s "$APK"
-          ls -l "$APK"
+        run: ./tools/ci_export_android_apk.sh "$APK"
 
       - name: Check package, version and signature
         if: steps.gate.outputs.build == 'true'

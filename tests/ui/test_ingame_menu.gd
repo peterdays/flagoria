@@ -107,8 +107,9 @@ func _test_ingame_menu_leave() -> int:
 func _test_ingame_menu_save() -> int:
 	## Save in the in-game menu writes the world being played as a world save
 	## that load_world reads back with the same generation inputs, says so
-	## under the buttons and keeps the menu open. A second save never
-	## replaces the first; before the world has loaded nothing is written.
+	## under the buttons and keeps the menu open. A second save of the same
+	## match replaces that file. A new match gets its own file. Before the
+	## world has loaded nothing is written.
 	print("-- test_ingame_menu_save")
 	var fail := 0
 	var ui = root.get_node("UiSfx")
@@ -161,11 +162,19 @@ func _test_ingame_menu_save() -> int:
 		printerr("FAIL ingame_menu_save: menu open=%s, sounds %s" % [menu.is_open(), _ui_plays_since(ui, before_sfx)])
 		fail += 1
 
-	# A second save in the same second gets its own name.
+	# A second save of this match replaces the same file.
 	var again: Dictionary = menu.save_world()
-	paths.append(again["path"])
-	if again["error"] != "" or MapSave.list_saves().size() != before_saves + 2:
-		printerr("FAIL ingame_menu_save: second save error=%s, %d files" % [again["error"], MapSave.list_saves().size() - before_saves])
+	if again["error"] != "" or again["path"] != paths[0] or MapSave.list_saves().size() != before_saves + 1:
+		printerr("FAIL ingame_menu_save: second save error=%s path=%s, %d files"
+				% [again["error"], again["path"], MapSave.list_saves().size() - before_saves])
+		fail += 1
+	# A new match gets its own file and does not replace the first.
+	scene.save_name = ""
+	var fresh: Dictionary = menu.save_world()
+	paths.append(fresh["path"])
+	if fresh["error"] != "" or fresh["path"] == paths[0] or MapSave.list_saves().size() != before_saves + 2:
+		printerr("FAIL ingame_menu_save: new match error=%s path=%s, %d files"
+				% [fresh["error"], fresh["path"], MapSave.list_saves().size() - before_saves])
 		fail += 1
 	var stamp: String = menu.auto_save_name({"year": 2026, "month": 3, "day": 4, "hour": 5, "minute": 6, "second": 7})
 	if stamp != "2026-03-04 05-06-07" or stamp.validate_filename() != stamp:

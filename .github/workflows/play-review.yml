@@ -1,13 +1,12 @@
 name: play-review
 
-# Netcode stress (tools/stress_netcode.py) for pull requests that carry the
-# needs-play-review label. Runs on pull_request with read-only contents and no
-# secrets, so pull request code, also from a fork, never gets a write token.
-# A label added by play-review-label.yml starts no new run (GitHub does not
-# trigger workflows from GITHUB_TOKEN events), so this job also applies the
-# same path check itself rather than waiting for the "labeled" event.
-# It also runs on gameplay pushes to main. The runs per scenario come from
-# tools/play_review_paths.py: 20 on main or when netcode changes, else 5.
+# Netcode stress (tools/stress_netcode.py) for gameplay pull requests and
+# gameplay pushes to main. Skipped vs 5 vs 20 runs per scenario: see
+# tools/play_review_paths.py (FULL_RUNS, LIGHT_RUNS, stress_tier) and
+# .cursor/skills/verify-flagoria/ci-netcode-stress.md — do not restate tier
+# rules here. pull_request uses read-only contents and no secrets (fork-safe).
+# play-review-label.yml does not re-trigger this workflow on label add, so the
+# gate step also honours needs-play-review via --labeled.
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
@@ -35,42 +34,17 @@ jobs:
 
       - name: Needs play review?
         id: gate
-        env:
-          LABELED: ${{ contains(github.event.pull_request.labels.*.name, 'needs-play-review') }}
-          EVENT: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          set -euo pipefail
-          python3 tools/play_review_paths.py --self-test
-          mb="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
-          git diff --name-only "$mb" "$HEAD_SHA" > "$RUNNER_TEMP/paths.txt"
-          git diff -U0 "$mb" "$HEAD_SHA" > "$RUNNER_TEMP/change.diff"
-          git show "$mb:project.godot" > "$RUNNER_TEMP/base.godot" || rm -f "$RUNNER_TEMP/base.godot"
-          git show "$HEAD_SHA:project.godot" > "$RUNNER_TEMP/head.godot" || rm -f "$RUNNER_TEMP/head.godot"
-          labeled=()
-          if [ "$LABELED" = "true" ]; then labeled=(--labeled); fi
-          python3 tools/play_review_paths.py --files "$RUNNER_TEMP/paths.txt" --diff "$RUNNER_TEMP/change.diff" \
-            --event "$EVENT" "${labeled[@]}" \
-            --base-project "$RUNNER_TEMP/base.godot" --head-project "$RUNNER_TEMP/head.godot"
-
-      - name: Feature map Drive lines (gameplay PRs)
-        if: steps.gate.outputs.gameplay == 'true' && github.event_name == 'pull_request'
-        run: |
-          set -euo pipefail
-          .cursor/skills/verify-flagoria/bin/check-map.sh --self-test
-          .cursor/skills/verify-flagoria/bin/check-map.sh \
-            --gameplay --changed-files "$RUNNER_TEMP/paths.txt"
+        uses: ./.github/actions/classify-change
+        with:
+          base_sha: ${{ github.event.pull_request.base.sha || github.event.before }}
+          head_sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          with_diff: "true"
+          event: ${{ github.event_name }}
+          labeled: ${{ contains(github.event.pull_request.labels.*.name, 'needs-play-review') }}
 
       - name: Install Godot 4.7.2
         if: steps.gate.outputs.gameplay == 'true'
-        run: |
-          set -euo pipefail
-          curl -fsSL -o /tmp/godot.zip \
-            https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
-          unzip -q -o /tmp/godot.zip -d /tmp/godot
-          sudo install -m 755 /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 /usr/local/bin/godot
-          godot --version
+        uses: ./.github/actions/install-godot
 
       - name: Stress multiplayer scenarios (${{ steps.gate.outputs.stress_runs }} runs each, 4 at a time)
         if: steps.gate.outputs.gameplay == 'true'

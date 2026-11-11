@@ -24,7 +24,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - Keep verify logs and screenshots in `artifacts/`; cleanup must not delete them.
 - UI proof for Map Settings includes a PNG with the panel title visible.
 - Two-peer flows (dedicated server, mobs, health sync, cuts, points) are scripted headless; menu Host/Join has a two-launch drive; the two-GUI play checklist is still manual. See placeholders below.
-- After adding or renaming a test or feature file, run `./.cursor/skills/verify-flagoria/bin/check-map.sh` (no Godot, under 1 s). It fails when a feature file is not indexed here, a cited `test_<name>` does not exist, a test is cited by no feature file, or a feature file lacks a `Drive:` line (`Drive: drives/<name>.gd` pointing at an existing drive that calls `snapshot("…")`, or `Drive: not player-facing`). On a gameplay pull request, `check-map.sh --gameplay --changed-files <paths>` also fails when a changed or added feature file lacks that line. Time cost: under 1 s.
+- After adding or renaming a test or feature file, run `./.cursor/skills/verify-flagoria/bin/check-map.sh` (no Godot, under 1 s). It fails when a feature file is not indexed here, a cited `test_<name>` does not exist, a test is cited by no feature file, or a feature file lacks a `Drive:` line (`Drive: drives/<name>.gd` pointing at an existing drive that calls `snapshot("…")`, or `Drive: not player-facing`). CI enforces the full map check in the required `tools/verify.sh` job only. On a gameplay pull request, `check-map.sh --gameplay --changed-files <paths>` locally also fails when a changed or added feature file lacks that line. Time cost: under 1 s.
 
 ## Features
 
@@ -34,7 +34,8 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Two-player Host/Join](./two-player-host-join.md) — multiplayer boot (headless peers scripted; two-launch menu drive; GUI checklist manual).
 - [Join failure returns to the main menu](./join-fail.md) — failed Join shows `Could not join …` on the main menu; host quit reloads to the menu (#348).
 - [Join an address with an optional port](./join-port.md) — hostname or IPv4, optional `:port`, default UDP 9786; bad addresses rejected on the menu (#434).
-- [Dedicated server](./dedicated-server.md) — `-- --server` headless host, `--params` save file, a client joining it, and `test_two_player_smoke` (two headless clients, input walk, server and the other client see the move).
+- [Dedicated server](./dedicated-server.md) — `-- --server` headless host, `--params` generation params only, SIGTERM quit, a client joining it, `test_two_player_smoke` (two headless clients, input walk, server and the other client see the move), optional Docker image.
+- [Dedicated cut-and-hit round](./dedicated-play-round.md) — two Join clients on a dedicated host with no player `1`: one plant cut, one mob killed (#436). Not the listen Host/Join pair.
 - [Player health](./player-health.md) — hearts, HUD, regen, death, respawn hold, rejoin, health sync.
 - [Combat and aiming](./combat-and-aiming.md) — swing, 30 px reach, mid-swing hitbox, mouse and touch aim, exact-angle swing, cone, cancel, wall line-of-sight; live `combat_hud` drive.
 - [Mobs](./mobs.md) — seeded placement, spawn rate, wander, chase, contact damage, sword hits, hidden on ungenerated ground, sounds, sync.
@@ -43,6 +44,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Tileset and collision](./tileset-and-collision.md) — tile catalog, water and forest walls.
 - [Biomes](./biomes.md) — biome terrain, plants, stones, island and archipelago shaping, biomes on by default, `render_biomes` coverage gate.
 - [Map save files](./map-save.md) — versioned world saves (inputs plus cuts and plank bridges), v1 migration, Save from the in-game menu, saved-maps API.
+- [Player save](./player-save.md) — save and load position, health, wood, score and charted ground (#197).
 - [Map zoom](./map-zoom.md) — local pinch, wheel and Ctrl +/- zoom.
 - [Chopping trees and bushes](./chop-trees-and-bushes.md) — interact-mode chop, tree, pine and bush types, their hit and fall frames, per-type wood and regrow delay, stumps, regrowth (held while a player or mob stands on the stump, one mob-cell set per pass), wood HUD, type checklist.
 - [Chop trees (live drive)](./chop-trees.md) — mode button, tap a tree in reach, two hits, tree hit frames and sounds, stump and wood once.
@@ -63,9 +65,13 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Bridge joins](./bridge-joins.md) — adjoining plank placements share plain interior planks; rope and tips stay on shores and open ends (#416).
 - [Audio](./audio.md) — buses, music, combat, UI and mob SFX, footsteps, `audio_check` gate.
 - [Main menu](./main-menu.md) — menu theme, Host/Join, volume and mob spawn sliders, letter keyboard.
+- [Saved worlds](./saved-worlds.md) — main-menu list of every save, load, a new world in its own file, delete with a confirm.
 - [In-game menu and quit prompt](./ingame-menu.md) — menu button, Pause panel (Resume, Save, Main menu), quit confirm.
+- [Interact mode](./interact-mode.md) — mode button; Space still swings the sword in interact (chop) mode; aimed attacks stay combat-only (#351).
 - [Points](./points.md) — discovery and mob-kill points, host-owned totals, score HUD.
 - [Touch controls](./touch-controls.md) — joystick hold, Castle Stone attack button and stick, number pad and letter keyboard (`-` key; `Del` and `-` edit a selected value).
+- [Run control](./run-control.md) — hold or tap Run (or hold Shift) to walk faster; chop reach, the sword and the joystick direction stay put (#449).
+- [Round HUD buttons](./hud-round-buttons.md) — minimap closed at match start; Buildings, Map and Mode on a top-right arc, build tools on discs in a column, map panel clear of the arc, Run beside attack (#480).
 - [Structures (data format)](./structures.md) — `flagoria-structure 1` text files.
 - [Structure placement](./structure-placement.md) — place a structure file at an anchor cell, refusal reasons, kept on redraw, a placed stump does not regrow; placed by a host still alone, sent to joining peers.
 - [Starting castle](./start-castle.md) — each player's castle next to the spawn, player starts outside the gate; placed by the host while alone, sent to joining peers.

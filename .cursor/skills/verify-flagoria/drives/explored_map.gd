@@ -5,7 +5,7 @@ extends "res://.cursor/skills/verify-flagoria/bin/drive_base.gd"
 
 const COLLAPSE := "CanvasLayer1/MinimapPanel/CollapseButton"
 const MAXIMIZE := "CanvasLayer1/MinimapPanel/MaximizeButton"
-const REOPEN := "CanvasLayer1/MapReopen"
+const MAP_BUTTON := "CanvasLayer1/MinimapButton"
 const PARCHMENT := "CanvasLayer1/ParchmentMap"
 const CLOSE := "CanvasLayer1/ParchmentMap/CloseButton"
 const WALK := ["ui_right", "ui_left", "ui_up", "ui_down"]
@@ -15,22 +15,28 @@ func run() -> void:
 	if not await start_game():
 		return
 	var panel: MinimapPanel = current_scene.get_node(MINIMAP)
-	var reopen: Control = current_scene.get_node(REOPEN)
 	var parchment: ParchmentMap = current_scene.get_node(PARCHMENT)
-	var ok := await wait_until(func() -> bool: return panel.visible, 5.0)
+	var ok := await wait_until(func() -> bool:
+		var button := current_scene.get_node_or_null(MAP_BUTTON) as Control
+		return button != null and button.visible and not panel.visible
+	, 5.0)
 	step("open")
+	await click(MAP_BUTTON)
+	ok = ok and await wait_until(func() -> bool: return panel.visible, 2.0)
 	await snapshot("open-landscape")
-	print("explored_map: panel %s reopen %s" % [panel.visible, reopen.visible])
+	print("explored_map: panel %s" % panel.visible)
 
 	step("collapse")
 	await click(COLLAPSE)
-	ok = ok and await wait_until(func() -> bool: return not panel.visible and reopen.visible, 2.0)
+	ok = ok and await wait_until(func() -> bool:
+		return not panel.visible and current_scene.get_node_or_null("CanvasLayer1/MapReopen") == null
+	, 2.0)
 	await snapshot("collapsed-landscape")
-	print("explored_map: collapsed panel %s reopen %s" % [panel.visible, reopen.visible])
+	print("explored_map: collapsed panel %s" % panel.visible)
 
 	step("reopen")
-	await click(REOPEN)
-	ok = ok and await wait_until(func() -> bool: return panel.visible and not reopen.visible, 2.0)
+	await click(MAP_BUTTON)
+	ok = ok and await wait_until(func() -> bool: return panel.visible, 2.0)
 	await snapshot("reopened-landscape")
 
 	step("parchment")
@@ -78,9 +84,9 @@ func run() -> void:
 	step("phone-landscape")
 	ok = ok and await _resize(854, 480)
 	await click(COLLAPSE)
-	ok = ok and await wait_until(func() -> bool: return not panel.visible and reopen.visible, 2.0)
+	ok = ok and await wait_until(func() -> bool: return not panel.visible, 2.0)
 	await snapshot("collapsed-phone-landscape")
-	await click(REOPEN)
+	await click(MAP_BUTTON)
 	await click(MAXIMIZE)
 	ok = ok and await wait_until(func() -> bool: return parchment.is_open(), 2.0)
 	await _drag(PARCHMENT, Vector2(48, 24))
@@ -94,10 +100,11 @@ func run() -> void:
 	ok = ok and _inside(panel) and _inside(panel.get_node("CollapseButton")) and _inside(panel.get_node("MaximizeButton"))
 	await snapshot("open-phone-portrait")
 	await click(COLLAPSE)
-	ok = ok and await wait_until(func() -> bool: return reopen.visible, 2.0)
-	ok = ok and _inside(reopen)
+	var map_button: Control = current_scene.get_node(MAP_BUTTON)
+	ok = ok and await wait_until(func() -> bool: return not panel.visible, 2.0)
+	ok = ok and _inside(map_button)
 	await snapshot("collapsed-phone-portrait")
-	await click(REOPEN)
+	await click(MAP_BUTTON)
 	await click(MAXIMIZE)
 	ok = ok and await wait_until(func() -> bool: return parchment.is_open(), 2.0)
 	ok = ok and _inside(parchment.get_node("CloseButton"))

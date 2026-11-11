@@ -119,7 +119,9 @@ What the boot does (`start_dedicated_server` in `flagoria_main.gd`):
 
 A port outside 1 to 65535, a port that cannot be bound, or a `--params` file that is missing or not a map save logs an error and exits `1`. A launch without `--server` behaves as before.
 
-The server runs until it is stopped. SIGTERM ends the process without a graceful shutdown (exit `143`). There is no quit command yet.
+The server runs until it is stopped. `kill -TERM <pid>` closes ENet, prints one line `Dedicated server stopped.`, and exits 0. A joined client returns to the main menu. The dedicated path does not call UPnP. A laptop LAN runbook is [Laptop dedicated server](laptop-dedicated-server.md): default UDP `9786`, optional `--port`, and the machine's LAN IPv4. That LAN join is manual, not a CI gate. Friends off that LAN use [Private VPN access](private-server.md). The process still has no bind flag; the VPN address and the host firewall are a manual step.
+
+`--params <file>` loads generation parameters only. Cuts, bridges, structures, and walls are not restored, and the server does not autosave (#15).
 
 Current limits of this boot, not open bugs to fix in this note:
 
@@ -131,7 +133,7 @@ Clients join with Main Menu Join. A blank address uses `localhost` on UDP `9786`
 
 `drives/join_port.gd` clicks that Join button. For a blank address it waits until `world_params` are the dedicated server's seeds (not the client's local map fixture) and 81 of 81 nearby layer-0 cells are drawn (`ground=81/81`). It then returns to the menu and does the same for `127.0.0.1:9799` against a server on 9799. That drive is one client. It does not press Host, and it does not show a second human, a synced cut, or a synced sword hit.
 
-`test_dedicated_server_join` in `tests/net/test_dedicated_server.gd` starts a `-- --server` process, joins it through the main scene's Join path, and checks that the client gets map params and its own player and that the host has no node `1`. Waits are bounded at 30 seconds, and the server process is killed at the end. `test_dedicated_server_params_file` starts one with `--params` and checks that the joining client gets exactly the saved params, and that a missing file exits `1`.
+`test_dedicated_server_join` in `tests/net/test_dedicated_server.gd` starts a `-- --server` process, joins it through the main scene's Join path, and checks that the client gets map params and its own player and that the host has no node `1`. Waits are bounded at 30 seconds, and the server process is killed at the end. `test_dedicated_server_params_file` starts one with `--params` on a byte copy of the save and checks that the joining client gets exactly the saved params, and that a missing file exits `1`. `test_params_mount_copy` checks that byte copy, and that version 1 and 2 files still load, without starting a server.
 
 ## 5. CPU and memory (rough)
 
@@ -146,10 +148,7 @@ Idle dedicated hosting should be close to headless editor plus project. Two real
 
 ## 6. Docker
 
-`docker` was not available (`docker: command not found`). Feasibility note only:
-
-- Likely image layout: Linux Godot 4.7 headless or editor binary, or a dedicated-server export plus `.pck`, run `--headless --path` or the exported binary, publish UDP `9786`.
-- Blocked here by: no dedicated-server export preset, and no Docker CLI to prove a build.
+[Docker dedicated server](docker-dedicated-server.md) is the container path: the official Godot 4.7.2 Linux editor, `--headless -- --server`, UDP `9786`, a read-only generation-params mount, and at most three restarts after a crash. It is not an export preset and it does not keep world changes. The bare `godot -- --server` command in [Laptop dedicated server](laptop-dedicated-server.md) is still the path without Docker. `tools/docker_dedicated_smoke.sh` is the loopback build, join, params, and SIGTERM check.
 
 ## 7. Engine upgrade blockers
 
@@ -170,7 +169,7 @@ The listen-server-only flow and the missing server-mode flag were blockers at sp
 ## Suggested next steps
 
 1. Prove two GUI clients moving and fighting on a `-- --server` host. The headless input smoke does not do that.
-2. Add a clean quit for the server (signal or command). Join already accepts `host:port`.
+2. SIGTERM quit is in place (`kill -TERM`, one `Dedicated server stopped.` line, exit 0). Join already accepts `host:port`.
 3. Add a Linux dedicated-server export preset; document UDP `9786`.
 
 ## Acceptance vs this doc
