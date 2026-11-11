@@ -9,8 +9,9 @@ const HERO := {
 	"Down": preload("res://art/ui/map/ui_map_marker_hero_down.png"),
 	"Left": preload("res://art/ui/map/ui_map_marker_hero_left.png"),
 }
+const MAP_ICON := preload("res://assets/ui/hud/icon_map.png")
 const MARGIN := 4.0  ## art pixels from the right edge
-const TOP := 28.0  ## art pixels from the top, below the HUD buttons
+const TOP := 28.0  ## art pixels from the top; the arc nudges the panel below Mode
 const WINDOW := Rect2i(4, 16, 216, 124)  ## map window inside the frame
 const CELL_PX := 2
 const CHECK_FRAMES := 15  ## physics frames between reveals
@@ -126,7 +127,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 func _add_header_buttons() -> void:
 	## Collapse and maximize sit in the wood header. The round minimap button
-	## is a sibling in the HUD row, so it stays up when this panel hides.
+	## is a sibling in the top-right arc, so it stays up when this panel hides.
 	var collapse := _header_button("CollapseButton", MapWoodButton.Glyph.MINUS, Vector2(184, 1))
 	collapse.activated.connect(collapse_panel)
 	var maximize_button := _header_button("MaximizeButton", MapWoodButton.Glyph.SQUARE, Vector2(204, 1))
@@ -135,7 +136,7 @@ func _add_header_buttons() -> void:
 	_map_button.name = "MinimapButton"
 	_map_button.toggle_mode = true
 	_map_button.theme = load("res://art/ui/main_menu_theme.tres")
-	_map_button.icon = RoundHudStyle.map_icon()
+	_map_button.icon = MAP_ICON
 	_map_button.tooltip_text = "Minimap"
 	RoundHudStyle.apply(_map_button)
 	_map_button.pressed.connect(_on_map_button)
@@ -187,7 +188,7 @@ func maximize() -> void:
 
 func apply_chrome() -> void:
 	## The wood window, or neither while it is closed or the parchment is up.
-	## The round minimap button stays in the HUD row either way.
+	## The round minimap button stays in the top-right arc either way.
 	var playing := local_player() != null
 	var map_open := parchment != null and parchment.is_open()
 	visible = shown and playing and not map_open

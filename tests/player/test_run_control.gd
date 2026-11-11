@@ -3,7 +3,8 @@ extends "res://tests/helpers/test_helpers.gd"
 
 
 func _test_run_control() -> int:
-	## The Run button sits left of the mode button. A long press runs only
+	## The Run button sits beside the attack button and is smaller than it.
+	## A long press runs only
 	## while it is down; a short press latches. Shift holds run without
 	## latching. Run speed is faster than the walk, and releasing the control
 	## returns to the walk cap. The joystick axis, chop reach and sword do
@@ -24,15 +25,15 @@ func _test_run_control() -> int:
 	await process_frame
 	await process_frame
 	var run_button = scene.get_node("CanvasLayer1/RunButton")
-	var mode: Button = scene.get_node("CanvasLayer1/ModeButton")
 	var menu_rect: Rect2 = scene.get_node("CanvasLayer1/InGameMenu").menu_button.get_global_rect()
 	var run_rect: Rect2 = run_button.get_global_rect()
-	var mode_rect: Rect2 = mode.get_global_rect()
+	var attack: TouchScreenButton = scene.get_node("CanvasLayer1/TouchScreenButton")
+	var attack_rect := Rect2(attack.position, attack.texture_normal.get_size() * attack.scale)
 	var zoom = body.get_node("Camera2D/MapZoom")
-	if run_button.text != "Run" or run_rect.intersects(mode_rect) or run_rect.intersects(menu_rect) \
-			or run_rect.end.x > mode_rect.position.x or absf(run_rect.position.y - mode_rect.position.y) > 0.5 \
+	if run_button.text != "Run" or run_rect.intersects(attack_rect) or run_rect.intersects(menu_rect) \
+			or _gap(run_rect, attack_rect) > 3.0 or run_rect.size.x >= attack_rect.size.x \
 			or not zoom.starts_on_hud(run_rect.get_center()):
-		printerr("FAIL run_control button '%s' at %s, mode %s, menu %s" % [run_button.text, run_rect, mode_rect, menu_rect])
+		printerr("FAIL run_control button '%s' at %s, attack %s, menu %s" % [run_button.text, run_rect, attack_rect, menu_rect])
 		fail += 1
 	if not body.is_multiplayer_authority():
 		printerr("FAIL run_control hero is not the local one")
@@ -264,6 +265,21 @@ func _run_world(peer: Node) -> Node2D:
 	button.name = "RunButton"
 	layer.add_child(button)
 	return world
+
+
+func _gap(a: Rect2, b: Rect2) -> float:
+	## Separation between two rects. Zero when they overlap or touch.
+	var dx := 0.0
+	if a.end.x < b.position.x:
+		dx = b.position.x - a.end.x
+	elif b.end.x < a.position.x:
+		dx = a.position.x - b.end.x
+	var dy := 0.0
+	if a.end.y < b.position.y:
+		dy = b.position.y - a.end.y
+	elif b.end.y < a.position.y:
+		dy = a.position.y - b.end.y
+	return maxf(dx, dy)
 
 
 func _run_body(world: Node, id: String, at: Vector2) -> CharacterBody2D:

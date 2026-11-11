@@ -65,13 +65,13 @@ func _on_up() -> void:
 
 
 func _fit() -> void:
-	## Same disc as the other HUD controls. The word still reads Run or RUN;
+	## Smaller than the attack button. The word still reads Run or RUN;
 	## font 6 fits that word inside the disc.
 	add_theme_font_size_override("font_size", 6)
 	add_theme_constant_override("outline_size", 1)
-	RoundHudStyle.apply(self)
+	RoundHudStyle.apply(self, RoundHudStyle.RUN_HIT, RoundHudStyle.RUN_SIZE)
 	reset_size()
 
 
 func _get_minimum_size() -> Vector2:
-	return Vector2(RoundHudStyle.HIT, RoundHudStyle.HIT)
+	return Vector2(RoundHudStyle.RUN_HIT, RoundHudStyle.RUN_HIT)

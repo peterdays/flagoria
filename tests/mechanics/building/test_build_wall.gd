@@ -73,7 +73,7 @@ func _test_build_picker_includes_wall() -> int:
 	var ctx := await _boot_wall_scene()
 	var scene = ctx["scene"]
 	var interaction: Interaction = ctx["interaction"]
-	var picker: HBoxContainer = scene.get_node_or_null("CanvasLayer1/BuildPicker")
+	var picker: Control = scene.get_node_or_null("CanvasLayer1/BuildPicker")
 	interaction.set_mode(Interaction.Mode.INTERACT)
 	await process_frame
 	if picker == null or picker.get_child_count() < 3:
@@ -96,6 +96,7 @@ func _test_build_picker_includes_wall() -> int:
 		api.multiplayer_peer = peer
 		set_multiplayer(api, scene.get_path())
 		interaction.build._refresh_picker_visible()
+		_open_buildings(scene)
 		await process_frame
 		var wall_btn: Button = interaction.build._buttons.get(BuildPlacement.Tool.WALL)
 		var plank_btn: Button = interaction.build._buttons.get(BuildPlacement.Tool.PLANK)
@@ -333,3 +334,9 @@ func _test_build_wall_first_must_touch_structure() -> int:
 	if fail == 0:
 		print("PASS test_build_wall_first_must_touch_structure")
 	return fail
+
+
+func _open_buildings(scene: Node) -> void:
+	var buildings := scene.get_node_or_null("CanvasLayer1/BuildingsButton") as Button
+	if buildings != null and not buildings.button_pressed:
+		buildings.set_pressed(true)

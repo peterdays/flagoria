@@ -43,8 +43,8 @@ const HIDDEN_ALT := ChopAction.HIDDEN_ALT
 const BUTTON_PATH := "/root/Flagoria/CanvasLayer1/ModeButton"
 const INVENTORY_PATH := "/root/Flagoria/Inventory"
 const ICONS := {
-	Mode.COMBAT: preload("res://art/ui/ui_mode_combat.png"),
-	Mode.INTERACT: preload("res://art/ui/ui_mode_interact.png"),
+	Mode.COMBAT: preload("res://assets/ui/hud/icon_mode_attack.png"),
+	Mode.INTERACT: preload("res://assets/ui/hud/icon_mode_interact.png"),
 }
 const TOOLTIPS := {Mode.COMBAT: "Combat mode", Mode.INTERACT: "Interact mode"}
 const LINE_COLOR := Color(0.949, 0.918, 0.945, 0.9)
