@@ -75,8 +75,8 @@ func _test_hud_round_buttons() -> int:
 	if not panel.visible or not map_button.button_pressed or not _is_selected(map_button):
 		printerr("FAIL hud_round_buttons: minimap button left the panel closed")
 		fail += 1
-	if mode.get_global_rect().intersects(Rect2(panel.position, panel.size * panel.scale)):
-		printerr("FAIL hud_round_buttons: open panel covers Mode")
+	if not _panel_clear(scene):
+		printerr("FAIL hud_round_buttons: open panel covers an arc button")
 		fail += 1
 	map_button.pressed.emit()
 	if panel.visible:
@@ -172,6 +172,9 @@ func _check_cluster(scene: Node, label: String) -> int:
 		printerr("FAIL hud_round_buttons %s: Run %s is not a smaller neighbour of %s"
 				% [label, run_rect, attack_rect])
 		fail += 1
+	if not _panel_clear(scene):
+		printerr("FAIL hud_round_buttons %s: minimap overlaps the arc" % label)
+		fail += 1
 	return fail
 
 
@@ -186,10 +189,10 @@ func _check_column(buildings: Button, buttons: Array[Button]) -> int:
 	var left := buildings.get_global_rect().position.x
 	for button in buttons:
 		var rect := button.get_global_rect()
-		if not _is_round(button) or rect.position.y < previous \
+		if not _is_round(button) or not _icon_inside_disc(button) or rect.position.y < previous \
 				or absf(rect.position.x - left) > 1.0:
-			printerr("FAIL hud_round_buttons: %s column %s under %s"
-					% [button.name, rect, buildings.get_global_rect()])
+			printerr("FAIL hud_round_buttons: %s column %s under %s icon %s"
+					% [button.name, rect, buildings.get_global_rect(), button.get_theme_constant("icon_max_width")])
 			fail += 1
 		for other in buttons:
 			if other != button and rect.intersects(other.get_global_rect()):
@@ -218,6 +221,22 @@ func _gap(a: Rect2, b: Rect2) -> float:
 	elif b.end.y < a.position.y:
 		dy = a.position.y - b.end.y
 	return maxf(dx, dy)
+
+
+func _panel_clear(scene: Node) -> bool:
+	var panel := scene.get_node("CanvasLayer1/MinimapPanel") as Control
+	var panel_rect := panel.get_global_rect()
+	for node_name in ["BuildingsButton", "MinimapButton", "ModeButton"]:
+		var button := scene.get_node("CanvasLayer1/" + node_name) as Control
+		if button.get_global_rect().intersects(panel_rect):
+			printerr("FAIL hud_round_buttons: %s %s hits panel %s"
+					% [node_name, button.get_global_rect(), panel_rect])
+			return false
+	return true
+
+
+func _icon_inside_disc(button: Button) -> bool:
+	return button.get_theme_constant("icon_max_width") < int(RoundHudStyle.SIZE)
 
 
 func _is_round(button: Button) -> bool:

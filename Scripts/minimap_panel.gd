@@ -11,7 +11,7 @@ const HERO := {
 }
 const MAP_ICON := preload("res://assets/ui/hud/icon_map.png")
 const MARGIN := 4.0  ## art pixels from the right edge
-const TOP := 28.0  ## art pixels from the top; the arc nudges the panel below Mode
+const TOP := 28.0  ## art pixels from the top; the arc slides the panel to its left
 const WINDOW := Rect2i(4, 16, 216, 124)  ## map window inside the frame
 const CELL_PX := 2
 const CHECK_FRAMES := 15  ## physics frames between reveals

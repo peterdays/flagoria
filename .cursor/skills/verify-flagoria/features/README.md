@@ -71,7 +71,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Points](./points.md) — discovery and mob-kill points, host-owned totals, score HUD.
 - [Touch controls](./touch-controls.md) — joystick hold, Castle Stone attack button and stick, number pad and letter keyboard (`-` key; `Del` and `-` edit a selected value).
 - [Run control](./run-control.md) — hold or tap Run (or hold Shift) to walk faster; chop reach, the sword and the joystick direction stay put (#449).
-- [Round HUD buttons](./hud-round-buttons.md) — minimap closed at match start; Buildings, Map and Mode on a top-right arc, build tools in a column, Run beside attack (#480).
+- [Round HUD buttons](./hud-round-buttons.md) — minimap closed at match start; Buildings, Map and Mode on a top-right arc, build tools on discs in a column, map panel clear of the arc, Run beside attack (#480).
 - [Structures (data format)](./structures.md) — `flagoria-structure 1` text files.
 - [Structure placement](./structure-placement.md) — place a structure file at an anchor cell, refusal reasons, kept on redraw, a placed stump does not regrow; placed by a host still alone, sent to joining peers.
 - [Starting castle](./start-castle.md) — each player's castle next to the spawn, player starts outside the gate; placed by the host while alone, sent to joining peers.

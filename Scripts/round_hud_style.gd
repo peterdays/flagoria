@@ -19,14 +19,14 @@ const RING := Color(1.0, 0.86, 0.28, 1)
 const FACE_OFF := Color(0.306, 0.282, 0.29, 1)
 
 
-static func apply(button: Button, hit: float = HIT, disc: float = SIZE) -> void:
+static func apply(button: Button, hit: float = HIT, disc: float = SIZE, icon_px: int = ICON) -> void:
 	button.focus_mode = Control.FOCUS_NONE
 	button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	button.clip_text = true
 	button.expand_icon = true
 	button.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	button.add_theme_constant_override("icon_max_width", ICON)
+	button.add_theme_constant_override("icon_max_width", icon_px)
 	for state in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
 		button.add_theme_stylebox_override(state, _circle(state, hit, disc))
 	# Style first: assigning size before the circle is in place is clamped to

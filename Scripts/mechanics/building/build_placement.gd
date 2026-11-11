@@ -29,6 +29,8 @@ const BUTTON_NAMES := {
 	Tool.PLANK: "PlankButton", Tool.TOWER: "TowerButton", Tool.WALL: "WallButton",
 }
 const BUILDINGS_ICON := preload("res://assets/ui/hud/icon_buildings.png")
+## Opaque tool art. Narrower than the disc so the circle and the gold ring show.
+const COLUMN_ICON := 12
 ## Tools that stay host-alone until their own peer sync (#278). Plank is
 ## shown in multiplayer once bridges sync (#297).
 const MP_HIDDEN := [Tool.TOWER, Tool.WALL]
@@ -332,7 +334,7 @@ func _ensure_picker() -> void:
 		button.theme = theme
 		button.icon = TOOL_ICONS[t] as Texture2D
 		button.tooltip_text = TOOL_TIPS[t] as String
-		RoundHudStyle.apply(button)
+		RoundHudStyle.apply(button, RoundHudStyle.HIT, RoundHudStyle.SIZE, COLUMN_ICON)
 		var captured: Tool = t
 		button.pressed.connect(func() -> void: set_tool(captured))
 		_picker.add_child(button)

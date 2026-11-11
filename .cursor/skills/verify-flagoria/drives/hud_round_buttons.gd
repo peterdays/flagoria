@@ -51,8 +51,9 @@ func run() -> void:
 	step("minimap")
 	await click(MAP_BUTTON)
 	ok = ok and await wait_until(func() -> bool: return panel.visible, 2.0)
+	ok = ok and _arc_outside(panel)
 	await snapshot("minimap")
-	print("hud round: minimap panel %s" % panel.visible)
+	print("hud round: minimap panel %s clear %s" % [panel.visible, _arc_outside(panel)])
 
 	step("interact")
 	var before := interaction.mode
@@ -60,6 +61,7 @@ func run() -> void:
 	var switched: bool = interaction.mode != before and interaction.mode == Interaction.Mode.INTERACT \
 			and _icon_is(current_scene.get_node(MODE_BUTTON), "icon_mode_interact.png") \
 			and interaction.build.tool == BuildPlacement.Tool.PLANK
+	ok = ok and _arc_outside(panel)
 	await snapshot("interact")
 	await click(MODE_BUTTON)
 	var back: bool = interaction.mode == before and interaction.build.tool == BuildPlacement.Tool.CUT \
@@ -119,8 +121,22 @@ func _column_ok() -> bool:
 		if rect.position.y < previous or absf(rect.position.x - left) > 1.0:
 			printerr("hud round: %s not stacked at %s" % [button.name, rect])
 			return false
+		if not _round(button) or button.get_theme_constant("icon_max_width") >= int(RoundHudStyle.SIZE):
+			printerr("hud round: %s icon covers the disc (width %s)"
+					% [button.name, button.get_theme_constant("icon_max_width")])
+			return false
 		previous = rect.end.y + 1.0
 	return any
+
+
+func _arc_outside(panel: Control) -> bool:
+	var panel_rect := panel.get_global_rect()
+	for path in [BUILDINGS, MAP_BUTTON, MODE_BUTTON]:
+		var button := current_scene.get_node(path) as Control
+		if button.get_global_rect().intersects(panel_rect):
+			printerr("hud round: %s %s hits the minimap %s" % [path, button.get_global_rect(), panel_rect])
+			return false
+	return true
 
 
 func _icon_is(button: Button, file_name: String) -> bool:

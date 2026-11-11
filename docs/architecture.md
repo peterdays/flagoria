@@ -105,9 +105,9 @@ Where each part of the game lives today, how data moves between the parts, and w
 | `Scripts/points.gd` | Point totals (server owned) | stays |
 | `Scripts/discovery_points.gd` | First-visit discovery points | stays |
 | `Scripts/explored_map.gd` | Explored cells per chunk | stays |
-| `Scripts/minimap_panel.gd` | In-play explored map panel; starts closed (#450) | stays |
+| `Scripts/minimap_panel.gd` | In-play explored map panel; starts closed and sits left of the arc (#450, #480) | stays |
 | `Scripts/round_hud_style.gd` | Circle style, selected ring and tap target for the HUD buttons | stays (#450, #480) |
-| `Scripts/hud_tool_row.gd` | Places the top-right arc and the run button beside attack | stays (#450, #480) |
+| `Scripts/hud_tool_row.gd` | Places the top-right arc, keeps the minimap left of it, and puts Run beside attack | stays (#450, #480) |
 | `Scripts/map_wood_button.gd` | Wood header button shared by the panel and the parchment | stays |
 | `Scripts/parchment_map.gd` | Full-screen parchment of explored ground | stays |
 | `Scripts/hearts_hud.gd` | Hearts row | stays |

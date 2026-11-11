@@ -3,7 +3,8 @@ extends Node
 ## Places the top-right half-moon and the Run button (#480).
 ##
 ## Buildings, Map and Mode sit on a quarter arc in the top-right corner,
-## clear of the menu button. The build tools stack in a column under
+## clear of the menu button. The wood panel sits left of that arc so an open
+## map never covers a button. The build tools stack in a column under
 ## Buildings while that list is open. Run sits beside the attack button.
 
 const GAP := 2.0
@@ -46,8 +47,8 @@ func _layout() -> void:
 			control.position = Vector2(
 					roundf(center.x - size.x * 0.5), roundf(center.y - size.y * 0.5))
 			control.z_index = 2
-		_keep_panel_below(layer, mode, view)
 	_place_buildings(layer, buildings)
+	_place_panel(layer, view)
 	_place_run(layer)
 
 
@@ -86,21 +87,49 @@ func _place_buildings(layer: Node, buildings: Control) -> void:
 		y += size.y + GAP
 
 
-func _keep_panel_below(layer: Node, mode: Control, view: Vector2) -> void:
-	## The wood panel stays under Mode so the corner button is not covered.
-	## Map and Buildings draw above the panel while it is open.
+func _place_panel(layer: Node, view: Vector2) -> void:
+	## Left of every arc button, and of the open column. High enough to stay
+	## off the attack button, and below the wood counter when they would meet.
 	var panel := layer.get_node_or_null("MinimapPanel") as Control
-	if panel == null or mode.size.y <= 0.0:
+	if panel == null or panel.size.x <= 0.0:
 		return
+	var width := panel.size.x * panel.scale.x
+	var height := panel.size.y * panel.scale.y
+	var arc_left := view.x
+	for node_name in ["ModeButton", "MinimapButton", "BuildingsButton"]:
+		arc_left = minf(arc_left, _left_of(layer.get_node_or_null(node_name) as Control))
+	var picker := layer.get_node_or_null("BuildPicker") as Control
+	if picker != null:
+		for child in picker.get_children():
+			var column := child as Control
+			if column != null and column.visible and not column.is_queued_for_deletion():
+				arc_left = minf(arc_left, _left_of(column))
+	var right := minf(view.x - MinimapPanel.MARGIN * panel.scale.x, arc_left - GAP)
+	var y := maxf(MinimapPanel.TOP * panel.scale.y, 23.0)
 	var limit := view.y - SIDE
 	var attack := layer.get_node_or_null("TouchScreenButton") as TouchScreenButton
 	if attack != null and attack.texture_normal != null:
 		limit = attack.position.y - GAP
-	var top := mode.position.y + mode.size.y
-	var room := limit - panel.size.y * panel.scale.y
-	var dest := minf(top, room)
-	if dest > panel.position.y:
-		panel.position.y = dest
+	if y + height > limit:
+		y = limit - height
+	var x := right - width
+	if x < SIDE:
+		x = SIDE
+	panel.position = Vector2(roundf(x), roundf(y))
+	var wood := layer.get_node_or_null("ResourceHud") as Control
+	if wood != null and wood.visible and panel.get_global_rect().intersects(wood.get_global_rect()):
+		var dropped := wood.get_global_rect().end.y + GAP
+		if dropped + height <= limit:
+			panel.position.y = roundf(dropped)
+
+
+func _left_of(control: Control) -> float:
+	if control == null:
+		return INF
+	var rect := control.get_global_rect()
+	if rect.size.x <= 0.0:
+		return INF
+	return rect.position.x
 
 
 func _place_run(layer: Node) -> void:
