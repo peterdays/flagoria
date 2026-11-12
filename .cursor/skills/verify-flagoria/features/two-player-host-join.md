@@ -22,7 +22,7 @@ Preconditions:
 - Two display-capable game processes for the GUI checklist; none for the headless peer tests or the two-launch drive.
 - `doctor.sh` exits `0`.
 
-- **Automated today.** Tests start a second headless Godot as a dedicated server and join it (`test_dedicated_server_join` and `test_two_player_smoke`, a server and two clients that see each other move, in `tests/net/`, `test_mob_*_two_players` and `test_mobs_sync_to_peer` in `tests/mobs/`), which proves ENet join, param sync and player spawn on both peers. It does **not** click the menu Host/Join buttons; do not mark the GUI path of `mp-host` / `mp-join` verified from verify.sh alone. See [Dedicated server](./dedicated-server.md).
+- **Automated today.** `test_two_player_smoke` (`tests/net/test_two_player_smoke.gd`) starts one headless dedicated server and two headless clients. Client A holds an input action (`ui_right`, `ui_left`, `ui_down`, or `ui_up`) until it has moved at least 4 px. The server and client B see A within 1 px of where A has itself. `test_dedicated_server_join` is one client and map params. `test_mob_*_two_players` and `test_mobs_sync_to_peer` are headless mob sync. None of these click Main Menu Host or Join. Do not mark the GUI path of `mp-host` / `mp-join` verified from `./tools/verify.sh` alone. The Join-port drive in [Join an address with an optional port](./join-port.md) does click Join, for one client, and checks that server's seeds and nearby ground. It is not this pair and it does not prove two humans, a synced cut, or a synced sword hit. See [Dedicated server](./dedicated-server.md).
 - **Drive (two launches, #283).** `drives/two_player/two_player_host.gd` and `drives/two_player/two_player_client.gd`. Start the host in the background, then the client about 4 s later, each with its own scratch XDG dirs and its own PID from its `launch:` line:
   ```bash
   bin/launch.sh drives/two_player/two_player_host.gd & sleep 4; bin/launch.sh drives/two_player/two_player_client.gd; wait
@@ -32,7 +32,7 @@ Preconditions:
   - Time cost: ~10 s for the pair, most of it the stagger and the host's 5 s linger.
 - **Proof (two launches).** Both `game.log` files have a `two_player: host players=... seeds=...` (or `client`) line listing the same two player nodes under `World` (`1` and the client's peer id) and the same map seeds (`altitude_seed`, `moisture_seed`, `temperature_seed`, `items_seed`), and both launches exit `0`.
 - **Manual.** Run two instances; complete the README checklist (host, join, move, attack, regen, death).
-- **Placeholder #45.** The two-launch drive clicks the menu buttons but is not run in CI; the full CI smoke stays with #45.
+- **Placeholder #45.** The headless move smoke is `test_two_player_smoke` inside `./tools/verify.sh`. The two-launch drive clicks the menu buttons but is not run in CI. Two GUI humans cutting or landing a sword hit are still not proven.
 - **Proof.** For manual runs: short note in `artifacts/out/e2e-summary.txt` that checklist steps passed. For #45: attach the smoke log path.
 
 ## Gotchas

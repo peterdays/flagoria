@@ -34,7 +34,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Two-player Host/Join](./two-player-host-join.md) — multiplayer boot (headless peers scripted; two-launch menu drive; GUI checklist manual).
 - [Join failure returns to the main menu](./join-fail.md) — failed Join shows `Could not join …` on the main menu; host quit reloads to the menu (#348).
 - [Join an address with an optional port](./join-port.md) — hostname or IPv4, optional `:port`, default UDP 9786; bad addresses rejected on the menu (#434).
-- [Dedicated server](./dedicated-server.md) — `-- --server` headless host, `--params` generation params only, SIGTERM quit, a client joining it, optional Docker image.
+- [Dedicated server](./dedicated-server.md) — `-- --server` headless host, `--params` generation params only, SIGTERM quit, a client joining it, `test_two_player_smoke` (two headless clients, input walk, server and the other client see the move), optional Docker image.
 - [Dedicated cut-and-hit round](./dedicated-play-round.md) — two Join clients on a dedicated host with no player `1`: one plant cut, one mob killed (#436). Not the listen Host/Join pair.
 - [Player health](./player-health.md) — hearts, HUD, regen, death, respawn hold, rejoin, health sync.
 - [Combat and aiming](./combat-and-aiming.md) — swing, 30 px reach, mid-swing hitbox, mouse and touch aim, exact-angle swing, cone, cancel, wall line-of-sight; live `combat_hud` drive.
@@ -83,5 +83,5 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 
 ## Placeholders (not verified here yet)
 
-- **#45 automated two-player smoke** — partly covered: `test_dedicated_server_join`, `test_two_player_smoke` and the `*_two_players` mob tests start a second headless Godot as a server and join it. The two-launch drives `drives/two_player/two_player_host.gd` and `drives/two_player/two_player_client.gd` click Host and Join (see [Two-player Host/Join](./two-player-host-join.md)). Still missing: running them as a smoke in CI.
+- **#45 automated two-player smoke** — headless movement is `test_two_player_smoke`: a dedicated server and two headless clients, one walking with an input action, the server and the other client seeing the move (see [Dedicated server](./dedicated-server.md) and [Two-player Host/Join](./two-player-host-join.md)). `./tools/verify.sh` runs that test. It does not click Host or Join. The two-launch drives `drives/two_player/two_player_host.gd` and `drives/two_player/two_player_client.gd` do click those buttons and are not in CI. Still missing: two GUI humans, a cut the other client sees, and a sword hit the other client sees. The Join-port drive is a separate one-client Join click (see [Join an address with an optional port](./join-port.md)).
 - **#48 CLI map renders** — partly covered: `tools/render_biomes.gd` renders a wide biome map (see [Biomes](./biomes.md)), and verify compares the `tools/cli.gd map render --seed 42` text map to `tests/golden/map_render_seed42.txt` (see [Headless verify](./headless-verify.md)). Still missing: golden image (PNG) diffs.
