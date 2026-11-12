@@ -3,6 +3,7 @@ extends "res://tests/helpers/test_helpers.gd"
 
 
 const N_SPECS := 8  ## stated for Done-when; keep verify time modest
+const BASE_SEED := 487_000  ## fixed RNG seed base so each spec reproduces in verify (#487)
 const BIOME_SAMPLE := 1024  ## half-width; step 16 ≈ light BIOME_COVERAGE pass
 const BIOME_STEP := 16
 const LAND_SAMPLE := 14  ## within a default 32-wide chunk
@@ -75,6 +76,54 @@ func _biomes_present(world) -> Array:
 	return seen.keys()
 
 
+func _shape_mode_label(p: MapGenParams) -> String:
+	if p.island_radius > 0:
+		return "island"
+	if p.archipelago_spacing > 0:
+		return "archipelago"
+	return "open"
+
+
+func _noise_type_label(t: int) -> String:
+	match t:
+		FastNoiseLite.TYPE_VALUE:
+			return "VALUE"
+		FastNoiseLite.TYPE_VALUE_CUBIC:
+			return "VALUE_CUBIC"
+		FastNoiseLite.TYPE_SIMPLEX:
+			return "SIMPLEX"
+		FastNoiseLite.TYPE_SIMPLEX_SMOOTH:
+			return "SIMPLEX_SMOOTH"
+		_:
+			return str(t)
+
+
+func _print_spec_failure(p: MapGenParams, rng_seed: int, label: String) -> void:
+	printerr(
+		"FAIL %s reproducibility: rng_seed=%s (repro: seed(%s) then randomize_specs); "
+		+ "shape=%s noise_type=%s water_max_alt=%s sand_max_alt=%s "
+		+ "island_radius=%s island_falloff=%s archipelago_spacing=%s "
+		+ "archipelago_island_radius=%s archipelago_jitter=%s "
+		+ "archipelago_world_extent=%s archipelago_island_count=%s"
+		% [
+			label,
+			rng_seed,
+			rng_seed,
+			_shape_mode_label(p),
+			_noise_type_label(p.noise_type),
+			p.water_max_alt,
+			p.sand_max_alt,
+			p.island_radius,
+			p.island_falloff,
+			p.archipelago_spacing,
+			p.archipelago_island_radius,
+			p.archipelago_jitter,
+			p.archipelago_world_extent,
+			p.archipelago_island_count,
+		]
+	)
+
+
 func _test_random_specs_playable() -> int:
 	## N_SPECS random specs: each property in PLAYABLE_RANGES, land > 0, a
 	## SpawnFinder spawn, archipelago maps have land on an island centre,
@@ -89,17 +138,20 @@ func _test_random_specs_playable() -> int:
 	var chunk_h0 := 0
 	var chunk_f0 := 0
 	for i in N_SPECS:
+		var rng_seed := BASE_SEED + i
+		seed(rng_seed)
 		var p := MapGenParams.make_defaults()
 		chunk_w0 = p.chunk_width
 		chunk_h0 = p.chunk_height
 		chunk_f0 = p.chunk_refresh_frames
 		p.randomize_specs()
 		var label := "spec %s" % i
-		fail += _assert_ranges(p, label)
+		var spec_fail := 0
+		spec_fail += _assert_ranges(p, label)
 		if p.chunk_width != chunk_w0 or p.chunk_height != chunk_h0 or p.chunk_refresh_frames != chunk_f0:
 			printerr("FAIL %s changed chunk_* to %s %s %s"
 					% [label, p.chunk_width, p.chunk_height, p.chunk_refresh_frames])
-			fail += 1
+			spec_fail += 1
 		world.apply_map_params(p)
 		if p.biome_frequency > 0.0:
 			var present: Array = _biomes_present(world)
@@ -107,7 +159,7 @@ func _test_random_specs_playable() -> int:
 					BiomeCatalog.CONTINENTAL, BiomeCatalog.ARCHIPELAGO_DENSE]:
 				if not present.has(b):
 					printerr("FAIL %s missing biome %s (have %s)" % [label, b, present])
-					fail += 1
+					spec_fail += 1
 		var gen_at := Vector2.ZERO
 		if p.archipelago_spacing > 0:
 			# Jittered island centre of the spawn square, not the geometric mid-cell.
@@ -118,12 +170,15 @@ func _test_random_specs_playable() -> int:
 		var land := _count_land(world, gen_at)
 		if land <= 0:
 			printerr("FAIL %s land=%s" % [label, land])
-			fail += 1
-			continue
-		var spawn: Vector2i = SpawnFinder.resolve_player_spawn(world)
-		if not world.is_clear_ground(spawn) and not world.is_walkable_land(spawn):
-			printerr("FAIL %s spawn %s not walkable/clear" % [label, spawn])
-			fail += 1
+			spec_fail += 1
+		else:
+			var spawn: Vector2i = SpawnFinder.resolve_player_spawn(world)
+			if not world.is_clear_ground(spawn) and not world.is_walkable_land(spawn):
+				printerr("FAIL %s spawn %s not walkable/clear" % [label, spawn])
+				spec_fail += 1
+		if spec_fail > 0:
+			_print_spec_failure(p, rng_seed, label)
+		fail += spec_fail
 	scene.queue_free()
 	await process_frame
 	if fail == 0:
