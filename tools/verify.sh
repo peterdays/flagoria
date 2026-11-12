@@ -204,6 +204,14 @@ echo "Script parse: ok"
 # Tests (headless GDScript)
 # Separate step so later verify.sh additions merge cleanly.
 # ---------------------------------------------------------------------------
+echo "== Test registry lint (tools/test_lint.py) =="
+python3 "$ROOT/tools/test_lint.py" --self-test
+if ! python3 "$ROOT/tools/test_lint.py"; then
+  echo "error: test registry lint failed (see above)" >&2
+  exit 1
+fi
+echo "Test registry lint: ok"
+
 echo "== Tests (godot --headless --script res://tests/run_tests.gd) =="
 test_log="$(mktemp -p "${verify_tmp}")"
 set +e
