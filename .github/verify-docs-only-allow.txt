@@ -1,0 +1,19 @@
+# Docs-only allowlist for verify.yml (tools/verify_fast_path.py).
+#
+# Policy: full verify (Godot install + tools/verify.sh) is the default. The fast
+# path is an explicit exception when every changed path matches a line below.
+#
+# List only paths that cannot affect runtime, exports, netcode, gameplay drives,
+# or CI gating scripts. Do not add tools/, workflows, game scripts, scenes,
+# assets, tests, or .github/required-checks.txt.
+#
+# Edits to this file, tools/verify_fast_path.py, or .github/workflows/verify.yml
+# never take the fast path (enforced in the classifier, not by listing here).
+
+docs/*
+README.md
+AGENTS.md
+.github/pull_request_template.md
+.github/ISSUE_TEMPLATE/*
+.cursor/skills/verify-flagoria/*.md
+.cursor/skills/verify-flagoria/features/*
