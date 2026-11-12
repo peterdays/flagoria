@@ -176,6 +176,7 @@ func _worlds_panel() -> PanelContainer:
 	box.add_child(buttons)
 	_world_button(buttons, "Load", _on_load_world_pressed)
 	_world_button(buttons, "Delete", _on_delete_world_pressed)
+	_world_button(buttons, "Rename", _on_rename_world_pressed)
 	_world_button(buttons, "NewWorld", _on_new_world_pressed).text = "New world"
 	var confirm := HBoxContainer.new()
 	confirm.name = "Confirm"
@@ -188,6 +189,20 @@ func _worlds_panel() -> PanelContainer:
 	confirm.add_child(ask)
 	_world_button(confirm, "Yes", _on_delete_yes_pressed)
 	_world_button(confirm, "No", _on_delete_no_pressed)
+	var rename := HBoxContainer.new()
+	rename.name = "Rename"
+	rename.visible = false
+	box.add_child(rename)
+	var rename_field := LineEdit.new()
+	rename_field.name = "Name"
+	rename_field.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rename_field.text_submitted.connect(_on_rename_yes_pressed)
+	rename.add_child(rename_field)
+	var keyboard := get_node_or_null("LetterKeyboard")
+	if keyboard:
+		keyboard.attach_text(rename_field)
+	_world_button(rename, "Confirm", _on_rename_yes_pressed)
+	_world_button(rename, "Cancel", _on_rename_no_pressed)
 	var status := Label.new()
 	status.name = "Status"
 	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -247,10 +262,62 @@ func _on_delete_world_pressed() -> void:
 	if _selected_world() == "":
 		_world_status("Select a world")
 		return
+	_on_rename_no_pressed()
 	var panel := _worlds_panel()
 	panel.get_node("Margin/VBox/Buttons").hide()
 	panel.get_node("Margin/VBox/Confirm").show()
 	_world_status("")
+
+
+func _on_rename_world_pressed() -> void:
+	var save_name := _selected_world()
+	if save_name == "":
+		_world_status("Select a world")
+		return
+	_on_delete_no_pressed()
+	var panel := _worlds_panel()
+	panel.get_node("Margin/VBox/Buttons").hide()
+	var rename := panel.get_node("Margin/VBox/Rename")
+	rename.show()
+	var field := rename.get_node("Name") as LineEdit
+	field.text = save_name
+	field.grab_focus()
+	_world_status("")
+
+
+func _on_rename_yes_pressed(_new_text: String = "") -> void:
+	var save_name := _selected_world()
+	var rename := _worlds_panel().get_node("Margin/VBox/Rename")
+	var field := rename.get_node("Name") as LineEdit
+	var new_name := field.text
+	var err := str(MapSave.rename_save(save_name, new_name) if save_name != "" else "Select a world")
+	if err != "":
+		_world_status(err)
+		return
+	var clean := new_name.strip_edges().validate_filename()
+	_on_rename_no_pressed()
+	_refresh_worlds()
+	_select_world_named(clean)
+	_world_status("")
+
+
+func _on_rename_no_pressed() -> void:
+	var panel := _worlds_panel()
+	var rename := panel.get_node_or_null("Margin/VBox/Rename")
+	if rename:
+		rename.hide()
+	panel.get_node("Margin/VBox/Buttons").show()
+
+
+func _select_world_named(save_name: String) -> void:
+	if save_name == "":
+		return
+	var list := _worlds_list()
+	for i in list.item_count:
+		if str(list.get_item_metadata(i)) == save_name:
+			list.select(i)
+			list.ensure_current_is_visible()
+			return
 
 
 func _on_delete_yes_pressed() -> void:
@@ -269,6 +336,7 @@ func _on_delete_no_pressed() -> void:
 
 func _on_worlds_back_pressed() -> void:
 	_on_delete_no_pressed()
+	_on_rename_no_pressed()
 	_worlds_panel().hide()
 	main_menu.show()
 
