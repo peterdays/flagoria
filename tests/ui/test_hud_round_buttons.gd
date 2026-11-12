@@ -204,7 +204,7 @@ func _check_column(buildings: Button, buttons: Array[Button]) -> int:
 
 func _run_icon_ok(button: Button) -> bool:
 	return _icon_ok(button, "icon_run.png") and is_equal_approx(button.size.x, RoundHudStyle.RUN_HIT) \
-			and button.get_theme_constant("icon_max_width") < int(RoundHudStyle.RUN_SIZE)
+			and button.get_theme_constant("icon_max_width") == RoundHudStyle.RUN_ICON
 
 
 func _icon_ok(button: Button, file_name: String) -> bool:

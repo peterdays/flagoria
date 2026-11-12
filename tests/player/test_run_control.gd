@@ -274,7 +274,7 @@ func _run_icon_ok(button: Button) -> bool:
 	return tex != null and tex.get_width() == 32 and tex.get_height() == 32 \
 			and str(tex.resource_path).ends_with("icon_run.png") \
 			and button.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST \
-			and button.get_theme_constant("icon_max_width") < int(RoundHudStyle.RUN_SIZE)
+			and button.get_theme_constant("icon_max_width") == RoundHudStyle.RUN_ICON
 
 
 func _run_on(button: Button) -> bool:
