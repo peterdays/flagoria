@@ -88,6 +88,12 @@ if ! python3 "$ROOT/tools/issue_triage_test.py"; then
   exit 1
 fi
 
+echo "== Verify fast path classifier (tools/verify_fast_path.py) =="
+if ! python3 "$ROOT/tools/verify_fast_path.py" --self-test; then
+  echo "error: verify fast path self-test failed (see above)" >&2
+  exit 1
+fi
+
 echo "== Required CI check names (tools/required_checks.py) =="
 if ! python3 "$ROOT/tools/required_checks_test.py"; then
   echo "error: required checks self-test failed (see above)" >&2
