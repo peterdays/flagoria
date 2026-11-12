@@ -164,8 +164,8 @@ func _check_cluster(scene: Node, label: String) -> int:
 	var attack: TouchScreenButton = scene.get_node("CanvasLayer1/TouchScreenButton")
 	var attack_rect := Rect2(attack.position, attack.texture_normal.get_size() * attack.scale)
 	var run_rect := run.get_global_rect()
-	if run.text != "Run" and run.text != "RUN":
-		printerr("FAIL hud_round_buttons %s: Run label '%s'" % [label, run.text])
+	if not _run_icon_ok(run) or (run.button_pressed and not _is_selected(run)):
+		printerr("FAIL hud_round_buttons %s: Run icon %s pressed %s" % [label, run.icon, run.button_pressed])
 		fail += 1
 	if run_rect.intersects(attack_rect) or _gap(run_rect, attack_rect) > 3.0 \
 			or run_rect.size.x >= attack_rect.size.x:
@@ -200,6 +200,11 @@ func _check_column(buildings: Button, buttons: Array[Button]) -> int:
 				fail += 1
 		previous = rect.end.y + 1.0
 	return fail
+
+
+func _run_icon_ok(button: Button) -> bool:
+	return _icon_ok(button, "icon_run.png") and is_equal_approx(button.size.x, RoundHudStyle.RUN_HIT) \
+			and button.get_theme_constant("icon_max_width") == RoundHudStyle.RUN_ICON
 
 
 func _icon_ok(button: Button, file_name: String) -> bool:

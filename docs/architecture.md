@@ -33,7 +33,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 | `Player/`, `Mobs/` | Player, sword and mob scenes. |
 | `data/` | Resource files a mechanic loads (`data/interactables/tree.tres`, `pine.tres`, `bush.tres`). |
 | `art/` | Tiles, sprites, sounds, theme and their credits. |
-| `assets/ui/hud/` | HUD button icons for Buildings, Map and the two mode states. Imported without mipmaps; the buttons draw them nearest-neighbour. |
+| `assets/ui/hud/` | HUD button icons for Buildings, Map, Run and the two mode states. Imported without mipmaps; the buttons draw them nearest-neighbour. |
 | `structures/` | Hand-drawn structure text files (`structures/guard_post.txt`, `structures/castle.txt`) in the format `Scripts/mechanics/structures/structure.gd` parses. |
 | `addons/virtual_joystick/` | Vendored touch joystick. |
 | `addons/server_shutdown/` | Linux SIGTERM helper for `-- --server` only. |

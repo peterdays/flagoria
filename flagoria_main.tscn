@@ -108,7 +108,7 @@ offset_bottom = 24.0
 focus_mode = 0
 mouse_filter = 0
 theme = ExtResource("6_menu")
-text = "Run"
+text = ""
 script = ExtResource("19_run")
 
 [node name="ModeButton" type="Button" parent="CanvasLayer1"]
