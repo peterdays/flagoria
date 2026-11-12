@@ -17,7 +17,8 @@ extends Node2D
 ## last hit plays the hurt row, then the death puff (DYING), then the server
 ## frees the mob and the MultiplayerSpawner removes it everywhere.
 ## Kill points: the player whose hit kills the mob gets
-## Points.MOB_KILL_POINTS for its type, once (no share for earlier hits).
+## Points.MOB_KILL_POINTS for its type, once per mob id (no share for earlier
+## hits). A second award message for that id adds nothing.
 ## Sounds: MobSfx (the Sfx child), driven by `state` and `attacks` changes.
 ## Uncharted: on each peer, a mob standing on ground this peer has not generated
 ## yet is hidden (visuals only; behaviour, collision and sync are untouched).
@@ -223,9 +224,10 @@ func take_hit(by_peer: int = 0) -> bool:
 
 func _award_kill(by_peer: int) -> void:
 	# Points sits at the main scene root, next to World (World/Mobs/<mob>).
+	# The mob's name is its id for the life of this spawn (mob_0, ...).
 	var points := get_node_or_null("../../../Points") as Points
 	if points and by_peer > 0:
-		points.award(by_peer, Points.MOB_KILL_POINTS.get(mob_type, 0), "mob_kill")
+		points.award_kill(by_peer, str(name), int(Points.MOB_KILL_POINTS.get(mob_type, 0)))
 
 
 static func swinging(attacker: Object) -> bool:

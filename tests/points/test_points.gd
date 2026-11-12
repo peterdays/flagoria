@@ -169,6 +169,7 @@ func _test_points_mob_kill() -> int:
 	var want_paid: Array = []
 	for t in MobCatalog.names():
 		var mob: Mob = load("res://Mobs/mob.tscn").instantiate()
+		mob.name = "mob_%s" % t
 		mob.setup(t, Vector2(4000, 4000), 7)
 		mobs_root.add_child(mob)
 		mob.set_physics_process(false)  # hits by hand below
@@ -182,6 +183,7 @@ func _test_points_mob_kill() -> int:
 		want_paid.append([1, want_values[t], "mob_kill"])
 		mob.free()
 	var unknown: Mob = load("res://Mobs/mob.tscn").instantiate()
+	unknown.name = "mob_unknown"
 	unknown.setup(MobCatalog.SLIME, Vector2(4000, 4000), 7)
 	mobs_root.add_child(unknown)
 	unknown.set_physics_process(false)
@@ -199,4 +201,116 @@ func _test_points_mob_kill() -> int:
 	await process_frame
 	if fail == 0:
 		print("PASS test_points_mob_kill")
+	return fail
+
+
+func _test_points_mob_kill_once() -> int:
+	## The same mob id pays once on the host and on a client. award_kill sends
+	## the award message each time it is called; the second delivery leaves
+	## both totals and the total_changed signal unchanged. Another mob id
+	## still pays, and after the server clears kill credits the first id can
+	## pay once more.
+	print("-- test_points_mob_kill_once")
+	var fail := 0
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL points_mob_kill_once found no free UDP port")
+		return 1
+	var server_root := Node.new()
+	server_root.name = "KillOnceServer"
+	var client_root := Node.new()
+	client_root.name = "KillOnceClient"
+	root.add_child(server_root)
+	root.add_child(client_root)
+	var smp := SceneMultiplayer.new()
+	var cmp := SceneMultiplayer.new()
+	set_multiplayer(smp, server_root.get_path())
+	set_multiplayer(cmp, client_root.get_path())
+	var s_points := Points.new()
+	s_points.name = "Points"
+	server_root.add_child(s_points)
+	var c_points := Points.new()
+	c_points.name = "Points"
+	client_root.add_child(c_points)
+	var speer := ENetMultiplayerPeer.new()
+	speer.create_server(port)
+	smp.multiplayer_peer = speer
+	var cpeer := ENetMultiplayerPeer.new()
+	cpeer.create_client("127.0.0.1", port)
+	cmp.multiplayer_peer = cpeer
+	var me := cpeer.get_unique_id()
+	var s_seen: Array = []
+	var c_seen: Array = []
+	s_points.total_changed.connect(func(peer_id: int, total: int, amount: int, reason: String) -> void:
+		s_seen.append([peer_id, total, amount, reason]))
+	c_points.total_changed.connect(func(peer_id: int, total: int, amount: int, reason: String) -> void:
+		c_seen.append([peer_id, total, amount, reason]))
+	var wait := func(cond: Callable) -> bool:
+		var until := Time.get_ticks_msec() + 5000
+		while Time.get_ticks_msec() < until and not cond.call():
+			await process_frame
+		return cond.call()
+	if not await _client_connected(smp, cpeer):
+		printerr("FAIL points_mob_kill_once client did not connect")
+		fail += 1
+	else:
+		if c_points.award_kill(me, "mob_0", 8):
+			printerr("FAIL points_mob_kill_once client awarded a kill itself")
+			fail += 1
+		if not s_points.award_kill(me, "mob_0", 8):
+			printerr("FAIL points_mob_kill_once host refused the first mob_0 award")
+			fail += 1
+		if s_points.award_kill(me, "mob_0", 8):
+			printerr("FAIL points_mob_kill_once host accepted a second mob_0 award")
+			fail += 1
+		if s_points.total_of(me) != 8 or s_seen != [[me, 8, 8, "mob_kill"]]:
+			printerr("FAIL points_mob_kill_once host total %s, signals %s"
+					% [s_points.total_of(me), s_seen])
+			fail += 1
+		if not await wait.call(func() -> bool: return c_points.total_of(me) == 8):
+			printerr("FAIL points_mob_kill_once client total %s after two mob_0 messages, want 8"
+					% c_points.total_of(me))
+			fail += 1
+		for i in 30:  # a second delivery would land in these frames
+			await process_frame
+		if c_points.total_of(me) != 8 or c_seen != [[me, 8, 8, "mob_kill"]]:
+			printerr("FAIL points_mob_kill_once client total %s, signals %s after the repeat"
+					% [c_points.total_of(me), c_seen])
+			fail += 1
+		if not s_points.award_kill(me, "mob_1", 5) or s_points.total_of(me) != 13:
+			printerr("FAIL points_mob_kill_once a second mob paid %s, want 13" % s_points.total_of(me))
+			fail += 1
+		if not await wait.call(func() -> bool: return c_points.total_of(me) == 13 and c_seen.size() == 2):
+			printerr("FAIL points_mob_kill_once client after mob_1: total %s, signals %s"
+					% [c_points.total_of(me), c_seen])
+			fail += 1
+		s_points.clear_kill_credits()
+		if not s_points.award_kill(me, "mob_0", 8) or s_points.award_kill(me, "mob_0", 8):
+			printerr("FAIL points_mob_kill_once after a clear, mob_0 did not pay exactly once (total %s)"
+					% s_points.total_of(me))
+			fail += 1
+		if s_points.total_of(me) != 21:
+			printerr("FAIL points_mob_kill_once host total %s after the cleared mob_0, want 21"
+					% s_points.total_of(me))
+			fail += 1
+		if not await wait.call(func() -> bool: return c_points.total_of(me) == 21):
+			printerr("FAIL points_mob_kill_once client total %s after the cleared mob_0, want 21"
+					% c_points.total_of(me))
+			fail += 1
+		for i in 30:
+			await process_frame
+		if c_points.total_of(me) != 21 or c_seen != [[me, 8, 8, "mob_kill"], [me, 13, 5, "mob_kill"], [me, 21, 8, "mob_kill"]]:
+			printerr("FAIL points_mob_kill_once client ended at %s, signals %s"
+					% [c_points.total_of(me), c_seen])
+			fail += 1
+
+	cpeer.close()
+	speer.close()
+	set_multiplayer(null, client_root.get_path())
+	set_multiplayer(null, server_root.get_path())
+	server_root.queue_free()
+	client_root.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_points_mob_kill_once")
 	return fail
