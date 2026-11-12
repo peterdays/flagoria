@@ -5,7 +5,7 @@ extends "res://.cursor/skills/verify-flagoria/bin/drive_base.gd"
 
 const WORLDS := "CanvasLayer2/MainMenu/MarginContainer/VBoxContainer/WorldsButton"
 const MAIN_MENU_BUTTON := "CanvasLayer1/InGameMenu/Pause/Panel/Margin/VBox/MainMenu"
-const LIST := "CanvasLayer2/WorldsPanel/Margin/VBox/List"
+const LIST := "CanvasLayer2/WorldsPanel/Margin/VBox/Scroll/List"
 const NEW_WORLD := "CanvasLayer2/WorldsPanel/Margin/VBox/Buttons/NewWorld"
 const LOAD := "CanvasLayer2/WorldsPanel/Margin/VBox/Buttons/Load"
 
