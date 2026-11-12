@@ -89,8 +89,8 @@ func _cluster_ok(panel: MinimapPanel) -> bool:
 	if panel.visible or not _round(mode) or not _round(map_button) or not _round(buildings):
 		printerr("hud round: start buttons mode %s" % mode.size)
 		return false
-	if run.text != "Run":
-		printerr("hud round: Run label '%s'" % run.text)
+	if run.icon == null or not str(run.icon.resource_path).ends_with("icon_run.png"):
+		printerr("hud round: Run icon %s" % run.icon)
 		return false
 	var attack_rect := Rect2(attack.position, attack.texture_normal.get_size() * attack.scale)
 	var run_rect := run.get_global_rect()

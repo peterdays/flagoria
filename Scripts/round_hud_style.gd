@@ -11,6 +11,7 @@ const RUN_HIT := 20.0
 ## The HUD icons are 32px files with about 18px of art. This width keeps that
 ## art inside the disc and leaves the ring visible. Buttons draw it nearest.
 const ICON := 24
+const RUN_ICON := 10  ## scaled like COLUMN_ICON on the smaller Run disc
 const INK := Color(0.078, 0.106, 0.106, 1)
 const FACE := Color(0.373, 0.443, 0.376, 1)
 const FACE_HOVER := Color(0.553, 0.592, 0.498, 1)

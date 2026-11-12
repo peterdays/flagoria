@@ -14,6 +14,7 @@ const TRY_ORDER := ["ui_left", "ui_right", "ui_up", "ui_down"]
 func run() -> void:
 	if not await start_game():
 		return
+	_phone_portrait()
 	await snapshot("before-run")
 	var button: Node = current_scene.get_node(RUN_BUTTON)
 	for action in TRY_ORDER:
@@ -39,6 +40,14 @@ func run() -> void:
 			return
 	printerr("run control: no direction was faster while running")
 	done(false)
+
+
+func _phone_portrait() -> void:
+	var win := current_scene.get_window()
+	win.size = Vector2i(360, 640)
+	win.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
+	await process_frame
+	await process_frame
 
 
 func _burst(action: String, frames: int) -> float:

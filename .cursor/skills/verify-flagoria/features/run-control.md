@@ -2,7 +2,7 @@
 
 Drive: drives/run_control.gd
 
-A Run button on the HUD, beside the attack button and smaller than it, makes the hero walk faster while it is held or latched on. Shift does the same hold without latching. Chop reach, the sword and the joystick direction stay as they are. Each player moves at the speed that player chose; position sync carries that speed to the other player.
+A Run button on the HUD, beside the attack button and smaller than it, shows `icon_run.png` and makes the hero walk faster while it is held or latched on. The brighter on face shows run is active. Shift does the same hold without latching. Chop reach, the sword and the joystick direction stay as they are. Each player moves at the speed that player chose; position sync carries that speed to the other player.
 
 ## Sub-features
 

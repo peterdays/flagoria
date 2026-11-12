@@ -30,10 +30,12 @@ func _test_run_control() -> int:
 	var attack: TouchScreenButton = scene.get_node("CanvasLayer1/TouchScreenButton")
 	var attack_rect := Rect2(attack.position, attack.texture_normal.get_size() * attack.scale)
 	var zoom = body.get_node("Camera2D/MapZoom")
-	if run_button.text != "Run" or run_rect.intersects(attack_rect) or run_rect.intersects(menu_rect) \
+	if not _run_icon_ok(run_button) or run_button.button_pressed \
+			or run_rect.intersects(attack_rect) or run_rect.intersects(menu_rect) \
 			or _gap(run_rect, attack_rect) > 3.0 or run_rect.size.x >= attack_rect.size.x \
 			or not zoom.starts_on_hud(run_rect.get_center()):
-		printerr("FAIL run_control button '%s' at %s, attack %s, menu %s" % [run_button.text, run_rect, attack_rect, menu_rect])
+		printerr("FAIL run_control button icon %s pressed %s at %s, attack %s, menu %s"
+				% [run_button.icon, run_button.button_pressed, run_rect, attack_rect, menu_rect])
 		fail += 1
 	if not body.is_multiplayer_authority():
 		printerr("FAIL run_control hero is not the local one")
@@ -51,8 +53,8 @@ func _test_run_control() -> int:
 		fail += 1
 	for _i in RunControl.TAP_FRAMES + 4:
 		await process_frame
-	if run_button.text != "RUN":
-		printerr("FAIL run_control hold label is '%s'" % run_button.text)
+	if not run_button.button_pressed or not _run_on(run_button):
+		printerr("FAIL run_control hold did not show the on face (pressed %s)" % run_button.button_pressed)
 		fail += 1
 	if not run_button.running() or run_button.latched:
 		printerr("FAIL run_control long press latched")
@@ -265,6 +267,22 @@ func _run_world(peer: Node) -> Node2D:
 	button.name = "RunButton"
 	layer.add_child(button)
 	return world
+
+
+func _run_icon_ok(button: Button) -> bool:
+	var tex := button.icon
+	return tex != null and tex.get_width() == 32 and tex.get_height() == 32 \
+			and str(tex.resource_path).ends_with("icon_run.png") \
+			and button.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST \
+			and button.get_theme_constant("icon_max_width") < int(RoundHudStyle.RUN_SIZE)
+
+
+func _run_on(button: Button) -> bool:
+	var box := button.get_theme_stylebox("pressed") as StyleBoxFlat
+	if box == null or box.border_width_left < 2:
+		return false
+	return box.border_color.r > RoundHudStyle.INK.r + 0.4 \
+			and box.bg_color.get_luminance() > RoundHudStyle.FACE.get_luminance() + 0.15
 
 
 func _gap(a: Rect2, b: Rect2) -> float:
