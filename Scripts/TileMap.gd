@@ -70,6 +70,7 @@ var pine_min_alt: float = 0.5
 var pine_min_moist: float = -0.25
 var pine_min_chance: float = 0.3
 var bushy_tree_min_moist: float = 0.3
+var swamp_bush_min_chance: float = 0.3
 var biome_frequency: float = 0.0
 var biome_seed: int = 0
 var biome_edge: float = 0.2
@@ -124,18 +125,8 @@ func apply_map_params(p: MapGenParams) -> void:
 	ground_chance_a = working.ground_chance_a
 	ground_chance_b = working.ground_chance_b
 	ground_chance_c = working.ground_chance_c
-	bush_min_alt = working.bush_min_alt
-	bush_max_alt = working.bush_max_alt
-	bush_min_chance = working.bush_min_chance
-	tree_min_alt = working.tree_min_alt
-	tree_min_chance = working.tree_min_chance
-	flower_min_alt = working.flower_min_alt
-	flower_max_alt = working.flower_max_alt
-	flower_min_chance = working.flower_min_chance
-	pine_min_alt = working.pine_min_alt
-	pine_min_moist = working.pine_min_moist
-	pine_min_chance = working.pine_min_chance
-	bushy_tree_min_moist = working.bushy_tree_min_moist
+	for key in PlantPicker.PARAMS:
+		set(key, working.get(key))
 
 	clear()
 	_predict_cache.clear()

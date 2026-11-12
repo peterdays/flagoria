@@ -198,6 +198,9 @@ static func load_world(path: String) -> Dictionary:
 	# Saves written before bushy trees have no bushy_tree_min_moist; they load
 	# with bushy trees off (a threshold no moisture reaches).
 	params.bushy_tree_min_moist = 2.0
+	# Saves written before swamp scrub have no swamp_bush_min_chance; they load
+	# with no bushes on swamp (a chance threshold no cell reaches).
+	params.swamp_bush_min_chance = 2.0
 	params.from_dict(parsed["params"])
 	var world := WorldSave.new(params)
 	var section_error := world.world_from_dict(parsed["world"])

@@ -169,6 +169,27 @@ TEMPERATE with biomes on still matches the map with biomes off. Saves from
 before bushy trees load with `bushy_tree_min_moist = 2.0` (none), so they
 regenerate unchanged.
 
+### Swamp scrub
+
+With biomes on, swamp land (moisture below the biome's `swamp_moisture`) can
+grow bushes (`TileCatalog.BUSH`, chopped like any bush) at any altitude. A
+swamp cell gets a bush when its plant chance is above `swamp_bush_min_chance`
+(Map Settings, default 0.3) plus the biome's `swamp_bush_chance`. Trees,
+bushy trees, pines and the normal bush band win where they apply. Only
+ARCHIPELAGO_DENSE has any, so its swampy islands read as scrubland instead of
+bare mud:
+
+| Biome             | `swamp_bush_chance` | Bush share of land (seeds 11, 42, 99) |
+|-------------------|---------------------|---------------------------------------|
+| OCEANIC           | 2.0 (none)          | about 0.6-0.7 % (unchanged)           |
+| TEMPERATE         | 2.0 (none)          | about 1.6-2.0 % (unchanged)           |
+| CONTINENTAL       | 2.0 (none)          | about 1.6-1.8 % (unchanged)           |
+| ARCHIPELAGO_DENSE | 0.0                 | about 9.2-9.4 % (was 3.1-3.2 %)       |
+
+TEMPERATE with biomes on still matches the map with biomes off. Saves from
+before swamp scrub load with `swamp_bush_min_chance = 2.0` (none), so they
+regenerate unchanged.
+
 ## Per-biome structures
 
 With biomes on, `BiomeCatalog.STRUCTURES` scatters walkable stones

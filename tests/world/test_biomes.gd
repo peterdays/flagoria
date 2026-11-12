@@ -252,7 +252,7 @@ func _test_biome_plants() -> int:
 				if world.plant_tile(alt, 0.5, chance, b) != want:
 					printerr("FAIL biome_plants: frequency 0 biome %s changed plant at alt=%s chance=%s" % [b, alt, chance])
 					fail += 1
-		# No pines with biomes off, even on dry high ground.
+		# No pines or swamp scrub with biomes off, even on dry high ground.
 		if world.plant_tile(0.8, -0.1, 0.9, b) != NONE:
 			printerr("FAIL biome_plants: frequency 0 biome %s grew a pine" % b)
 			fail += 1
@@ -297,7 +297,7 @@ func _test_biome_plants() -> int:
 		["oceanic_sparse_pines", 0.6, -0.1, 0.4, ocean, NONE],
 		["oceanic_pine", 0.6, -0.1, 0.7, ocean, TileCatalog.PINE],
 		["temperate_no_pine", 0.6, -0.1, 0.9, T, NONE],
-		["dense_no_pine", 0.6, -0.1, 0.9, dense, NONE],
+		["dense_no_pine_swamp_scrub", 0.6, -0.1, 0.9, dense, TileCatalog.BUSH],
 	]
 	for c in pine_cases:
 		var got: Vector2i = world.plant_tile(c[1], c[2], c[3], c[4])
@@ -317,6 +317,24 @@ func _test_biome_plants() -> int:
 		["bushy_needs_tree_chance", 0.6, 0.6, 0.2, ocean, NONE],
 	]
 	for c in bushy_cases:
+		var got: Vector2i = world.plant_tile(c[1], c[2], c[3], c[4])
+		if got != c[5]:
+			printerr("FAIL biome_plants case=%s got %s want %s" % [c[0], got, c[5]])
+			fail += 1
+	# Swamp scrub: bushes on swamp (moisture below the biome's swamp_moisture)
+	# where chance is above swamp_bush_min_chance plus the biome's
+	# swamp_bush_chance; only ARCHIPELAGO_DENSE has any.
+	# [name, alt, moist, chance, biome, expected plant]
+	var scrub_cases := [
+		["dense_swamp_scrub", 0.6, -0.1, 0.5, dense, TileCatalog.BUSH],
+		["dense_swamp_scrub_low", 0.35, -0.5, 0.5, dense, TileCatalog.BUSH],
+		["dense_swamp_rare_chance", 0.6, -0.1, 0.2, dense, NONE],
+		["dense_wet_swamp_tree_first", 0.6, 0.05, 0.9, dense, TileCatalog.TREE],
+		["temperate_swamp_bare", 0.6, -0.1, 0.9, T, NONE],
+		["continental_swamp_bare", 0.6, -0.4, 0.9, cont, NONE],
+		["oceanic_swamp_bare", 0.6, -0.4, 0.9, ocean, NONE],
+	]
+	for c in scrub_cases:
 		var got: Vector2i = world.plant_tile(c[1], c[2], c[3], c[4])
 		if got != c[5]:
 			printerr("FAIL biome_plants case=%s got %s want %s" % [c[0], got, c[5]])
@@ -401,14 +419,15 @@ func _test_biome_plants() -> int:
 		printerr("FAIL biome_plants: bushy trees continental=%s temperate=%s" % [bushy[cont], bushy[T]])
 		fail += 1
 
-	# A save from before pines and bushy trees (no pine_min_chance or
-	# bushy_tree_min_moist) loads with both off, so
-	# its world regenerates unchanged; a current save keeps both values.
+	# A save from before pines, bushy trees and swamp scrub (no pine_min_chance,
+	# bushy_tree_min_moist or swamp_bush_min_chance) loads with all three off, so
+	# its world regenerates unchanged; a current save keeps the values.
 	var older := on.duplicate_params()
 	older.ensure_seeds()
 	var data: Dictionary = older.to_dict()
 	data.erase("pine_min_chance")
 	data.erase("bushy_tree_min_moist")
+	data.erase("swamp_bush_min_chance")
 	var path := MapSave.path_for("test_pre_pine_save")
 	DirAccess.make_dir_recursive_absolute(MapSave.SAVE_DIR)
 	var file := FileAccess.open(path, FileAccess.WRITE)
@@ -427,11 +446,15 @@ func _test_biome_plants() -> int:
 		if world.plant_tile(0.6, 0.95, 0.9, cont) != TileCatalog.TREE:
 			printerr("FAIL biome_plants: pre-bushy save grew bushy trees")
 			fail += 1
+		if world.plant_tile(0.6, -0.1, 0.9, dense) != NONE:
+			printerr("FAIL biome_plants: pre-scrub save grew swamp scrub")
+			fail += 1
 	var saved = MapSave.save_map(older, "test_pine_save")
 	var reloaded = MapSave.load_map(saved["path"])
 	DirAccess.remove_absolute(saved["path"])
 	if reloaded["error"] != "" or reloaded["params"].pine_min_chance != older.pine_min_chance \
-			or reloaded["params"].bushy_tree_min_moist != older.bushy_tree_min_moist:
+			or reloaded["params"].bushy_tree_min_moist != older.bushy_tree_min_moist \
+			or reloaded["params"].swamp_bush_min_chance != older.swamp_bush_min_chance:
 		printerr("FAIL biome_plants: pine save reloaded error=%s" % reloaded["error"])
 		fail += 1
 
