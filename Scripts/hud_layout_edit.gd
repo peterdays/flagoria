@@ -3,6 +3,9 @@ extends Control
 ## Solo play pauses the tree; in multiplayer only this peer's view changes.
 
 const LAYER_PATH := "/root/Flagoria/CanvasLayer1"
+const SCALE_MIN := 1.0
+const SCALE_MAX := 1.75
+const CONTROL_IDS := ["joystick", "attack", "run", "buildings", "map", "mode"]
 
 @onready var _save: Button = $Panel/Margin/VBox/Save
 @onready var _reset: Button = $Panel/Margin/VBox/Reset
@@ -27,10 +30,14 @@ func _ready() -> void:
 	_save.pressed.connect(_on_save)
 	_reset.pressed.connect(_on_reset)
 	_done.pressed.connect(_on_done)
-	_size_slider.min_value = HudLayout.SCALE_MIN
-	_size_slider.max_value = HudLayout.SCALE_MAX
+	_size_slider.min_value = SCALE_MIN
+	_size_slider.max_value = SCALE_MAX
 	_size_slider.step = 0.05
 	_size_slider.value_changed.connect(_on_slider)
+
+
+func _hl() -> Node:
+	return get_node("/root/HudLayout")
 
 
 func open() -> void:
@@ -40,8 +47,8 @@ func open() -> void:
 	show()
 	_selected = ""
 	_size_row.hide()
-	HudLayout.edit_begin(layer)
-	HudLayout.apply(layer)
+	_hl().edit_begin(layer)
+	_hl().apply(layer)
 	_set_pause(_solo_match())
 	var menu := get_parent()
 	menu.get_node("Pause").hide()
@@ -50,7 +57,7 @@ func open() -> void:
 
 
 func close_editor() -> void:
-	HudLayout.edit_end()
+	_hl().edit_end()
 	_set_pause(false)
 	hide()
 	var menu := get_parent()
@@ -95,8 +102,8 @@ func _input(event: InputEvent) -> void:
 		if _touches.size() == 2 and _selected != "":
 			var pts: Array = _touches.values()
 			_pinch_distance = (pts[0] as Vector2).distance_to(pts[1] as Vector2)
-			var entry := HudLayout.get_entry(_selected)
-			_pinch_base_scale = float(entry.get("s", 1.0)) if not entry.is_empty() else HudLayout.scale_of(_selected, layer)
+			var entry: Dictionary = _hl().get_entry(_selected)
+			_pinch_base_scale = float(entry.get("s", 1.0)) if not entry.is_empty() else _hl().scale_of(_selected, layer)
 	elif event is InputEventScreenDrag:
 		var drag := event as InputEventScreenDrag
 		if _touches.has(drag.index):
@@ -106,7 +113,7 @@ func _input(event: InputEvent) -> void:
 		elif _touches.size() == 2 and _selected != "" and _pinch_distance > 0.0:
 			var pts: Array = _touches.values()
 			var dist := (pts[0] as Vector2).distance_to(pts[1] as Vector2)
-			var s := clampf(_pinch_base_scale * dist / _pinch_distance, HudLayout.SCALE_MIN, HudLayout.SCALE_MAX)
+			var s := clampf(_pinch_base_scale * dist / _pinch_distance, SCALE_MIN, SCALE_MAX)
 			_size_slider.set_value_no_signal(s)
 			_apply_scale(_selected, s, layer)
 
@@ -117,20 +124,20 @@ func _begin_drag(pos: Vector2, layer: CanvasLayer) -> void:
 		return
 	_selected = id
 	_drag_id = id
-	var rect := HudLayout.control_hit_rect(id, layer)
+	var rect: Rect2 = _hl().control_hit_rect(id, layer)
 	_drag_offset = pos - rect.position
-	var entry := HudLayout.get_entry(id)
-	var s: float = float(entry.get("s", 1.0)) if not entry.is_empty() else HudLayout.scale_of(id, layer)
+	var entry: Dictionary = _hl().get_entry(id)
+	var s: float = float(entry.get("s", 1.0)) if not entry.is_empty() else _hl().scale_of(id, layer)
 	_size_slider.set_value_no_signal(s)
 	_size_row.show()
 
 
 func _move_drag(pos: Vector2, layer: CanvasLayer) -> void:
 	var view := layer.get_viewport().get_visible_rect().size
-	var entry := HudLayout.get_entry(_drag_id)
+	var entry: Dictionary = _hl().get_entry(_drag_id)
 	var s: float = float(entry.get("s", 1.0))
 	var top := (pos - _drag_offset) / view
-	HudLayout.try_place(_drag_id, top.x, top.y, s, layer)
+	_hl().try_place(_drag_id, top.x, top.y, s, layer)
 
 
 func _on_slider(value: float) -> void:
@@ -141,31 +148,31 @@ func _on_slider(value: float) -> void:
 
 
 func _apply_scale(id: String, s: float, layer: CanvasLayer) -> void:
-	var entry := HudLayout.get_entry(id)
+	var entry: Dictionary = _hl().get_entry(id)
 	var x: float = float(entry.get("x", 0.0))
 	var y: float = float(entry.get("y", 0.0))
 	if entry.is_empty():
-		var rect := HudLayout.control_hit_rect(id, layer)
+		var rect: Rect2 = _hl().control_hit_rect(id, layer)
 		var view := layer.get_viewport().get_visible_rect().size
 		x = rect.position.x / view.x
 		y = rect.position.y / view.y
-	HudLayout.try_place(id, x, y, s, layer)
+	_hl().try_place(id, x, y, s, layer)
 
 
 func _on_save() -> void:
-	HudLayout.save_to_disk()
+	_hl().save_to_disk()
 	_hint.text = "Layout saved on this device."
 
 
 func _on_reset() -> void:
-	HudLayout.reset_to_defaults()
+	_hl().reset_to_defaults()
 	var layer := _layer()
 	if layer == null:
 		return
 	await get_tree().process_frame
 	await get_tree().process_frame
-	HudLayout.capture_into_draft(layer)
-	HudLayout.apply(layer)
+	_hl().capture_into_draft(layer)
+	_hl().apply(layer)
 	_hint.text = "Default layout restored."
 
 
@@ -177,8 +184,8 @@ func _on_done() -> void:
 func _pick_control(pos: Vector2, layer: CanvasLayer) -> String:
 	var best := ""
 	var best_area := INF
-	for id in HudLayout.IDS:
-		var rect := HudLayout.control_hit_rect(id, layer)
+	for id in CONTROL_IDS:
+		var rect: Rect2 = _hl().control_hit_rect(id, layer)
 		if rect.size == Vector2.ZERO:
 			continue
 		if not rect.has_point(pos):
