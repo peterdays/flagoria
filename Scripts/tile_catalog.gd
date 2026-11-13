@@ -273,6 +273,60 @@ const PALISADE_H_JOIN_E := Vector2i(3, 18)
 const PALISADE_H_JOIN_W := Vector2i(4, 18)
 const PALISADE_V_JOIN_N := Vector2i(5, 18)
 const PALISADE_V_JOIN_S := Vector2i(6, 18)
+const ARCHER_POST_STONE_H := Vector2i(0, 3)
+const ARCHER_POST_STONE_V := Vector2i(1, 3)
+const ARCHER_POST_PALISADE_H := Vector2i(2, 3)
+const ARCHER_POST_PALISADE_V := Vector2i(3, 3)
+const WALL_MOSS_CORNER_OUT_NW := Vector2i(4, 3)
+const WALL_MOSS_CORNER_OUT_NE := Vector2i(5, 3)
+const WALL_MOSS_CORNER_OUT_SW := Vector2i(6, 3)
+const WALL_MOSS_CORNER_OUT_SE := Vector2i(10, 3)
+const WALL_MOSS_H := Vector2i(11, 3)
+const WALL_MOSS_V := Vector2i(15, 3)
+const WALL_MOSS_GATE_H := Vector2i(25, 3)
+const WALL_MOSS_GATE_H_OPEN := Vector2i(26, 3)
+const WALL_MOSS_V_DMG_CRACK := Vector2i(27, 3)
+const WALL_MOSS_H_BREACH := Vector2i(0, 4)
+const PROP_FLAG_GREY := Vector2i(1, 4)
+const BARRACKS_0_0 := Vector2i(12, 3)
+const BARRACKS_1_0_BLUE := Vector2i(13, 3)
+const BARRACKS_1_0_RED := Vector2i(2, 4)
+const BARRACKS_2_0 := Vector2i(14, 3)
+const BARRACKS_0_1 := Vector2i(12, 4)
+const BARRACKS_1_1_BLUE := Vector2i(13, 4)
+const BARRACKS_1_1_RED := Vector2i(3, 4)
+const BARRACKS_2_1 := Vector2i(14, 4)
+const RESPAWN_CAMP_0_0_BLUE := Vector2i(21, 3)
+const RESPAWN_CAMP_0_0_RED := Vector2i(4, 4)
+const RESPAWN_CAMP_1_0_BLUE := Vector2i(22, 3)
+const RESPAWN_CAMP_1_0_RED := Vector2i(6, 4)
+const RESPAWN_CAMP_0_1_BLUE := Vector2i(21, 4)
+const RESPAWN_CAMP_0_1_RED := Vector2i(7, 4)
+const RESPAWN_CAMP_1_1_BLUE := Vector2i(22, 4)
+const RESPAWN_CAMP_1_1_RED := Vector2i(15, 4)
+const TRADING_POST_0_0 := Vector2i(23, 3)
+const TRADING_POST_1_0 := Vector2i(24, 3)
+const TRADING_POST_0_1 := Vector2i(23, 4)
+const TRADING_POST_1_1 := Vector2i(24, 4)
+const LUMBER_MILL_0_0 := Vector2i(18, 3)
+const LUMBER_MILL_1_0 := Vector2i(19, 3)
+const LUMBER_MILL_2_0 := Vector2i(20, 3)
+const LUMBER_MILL_0_1 := Vector2i(18, 4)
+const LUMBER_MILL_1_1 := Vector2i(19, 4)
+const LUMBER_MILL_2_1 := Vector2i(20, 4)
+const WATCHTOWER_TOP_BLUE := Vector2i(16, 4)
+const WATCHTOWER_TOP_RED := Vector2i(17, 4)
+const WATCHTOWER_BASE := Vector2i(25, 4)
+const SKY_DOCK_N_ROOT := Vector2i(26, 4)
+const SKY_DOCK_N_END := Vector2i(27, 4)
+const SKY_DOCK_E_ROOT := Vector2i(0, 6)
+const SKY_DOCK_E_END := Vector2i(1, 6)
+const SKY_DOCK_S_ROOT := Vector2i(2, 6)
+const SKY_DOCK_S_END := Vector2i(3, 6)
+const SKY_DOCK_W_ROOT := Vector2i(4, 6)
+const SKY_DOCK_W_END := Vector2i(6, 6)
+const SKY_SKIFF_BLUE := Vector2i(7, 6)
+const SKY_SKIFF_RED := Vector2i(8, 6)
 ## Name -> {source_id, atlas}. Caps and tower rings are added in _with_junctions.
 const _CORE := {
 	"WATER": {"source_id": SOURCE_ID, "atlas": WATER},
@@ -521,6 +575,60 @@ const _CORE := {
 	"PALISADE_H_JOIN_W": {"source_id": SOURCE_ID, "atlas": PALISADE_H_JOIN_W},
 	"PALISADE_V_JOIN_N": {"source_id": SOURCE_ID, "atlas": PALISADE_V_JOIN_N},
 	"PALISADE_V_JOIN_S": {"source_id": SOURCE_ID, "atlas": PALISADE_V_JOIN_S},
+	"ARCHER_POST_STONE_H": {"source_id": SOURCE_ID, "atlas": ARCHER_POST_STONE_H},
+	"ARCHER_POST_STONE_V": {"source_id": SOURCE_ID, "atlas": ARCHER_POST_STONE_V},
+	"ARCHER_POST_PALISADE_H": {"source_id": SOURCE_ID, "atlas": ARCHER_POST_PALISADE_H},
+	"ARCHER_POST_PALISADE_V": {"source_id": SOURCE_ID, "atlas": ARCHER_POST_PALISADE_V},
+	"WALL_MOSS_CORNER_OUT_NW": {"source_id": SOURCE_ID, "atlas": WALL_MOSS_CORNER_OUT_NW},
+	"WALL_MOSS_CORNER_OUT_NE": {"source_id": SOURCE_ID, "atlas": WALL_MOSS_CORNER_OUT_NE},
+	"WALL_MOSS_CORNER_OUT_SW": {"source_id": SOURCE_ID, "atlas": WALL_MOSS_CORNER_OUT_SW},
+	"WALL_MOSS_CORNER_OUT_SE": {"source_id": SOURCE_ID, "atlas": WALL_MOSS_CORNER_OUT_SE},
+	"WALL_MOSS_H": {"source_id": SOURCE_ID, "atlas": WALL_MOSS_H},
+	"WALL_MOSS_V": {"source_id": SOURCE_ID, "atlas": WALL_MOSS_V},
+	"WALL_MOSS_GATE_H": {"source_id": SOURCE_ID, "atlas": WALL_MOSS_GATE_H},
+	"WALL_MOSS_GATE_H_OPEN": {"source_id": SOURCE_ID, "atlas": WALL_MOSS_GATE_H_OPEN},
+	"WALL_MOSS_V_DMG_CRACK": {"source_id": SOURCE_ID, "atlas": WALL_MOSS_V_DMG_CRACK},
+	"WALL_MOSS_H_BREACH": {"source_id": SOURCE_ID, "atlas": WALL_MOSS_H_BREACH},
+	"PROP_FLAG_GREY": {"source_id": SOURCE_ID, "atlas": PROP_FLAG_GREY},
+	"BARRACKS_0_0": {"source_id": SOURCE_ID, "atlas": BARRACKS_0_0},
+	"BARRACKS_1_0_BLUE": {"source_id": SOURCE_ID, "atlas": BARRACKS_1_0_BLUE},
+	"BARRACKS_1_0_RED": {"source_id": SOURCE_ID, "atlas": BARRACKS_1_0_RED},
+	"BARRACKS_2_0": {"source_id": SOURCE_ID, "atlas": BARRACKS_2_0},
+	"BARRACKS_0_1": {"source_id": SOURCE_ID, "atlas": BARRACKS_0_1},
+	"BARRACKS_1_1_BLUE": {"source_id": SOURCE_ID, "atlas": BARRACKS_1_1_BLUE},
+	"BARRACKS_1_1_RED": {"source_id": SOURCE_ID, "atlas": BARRACKS_1_1_RED},
+	"BARRACKS_2_1": {"source_id": SOURCE_ID, "atlas": BARRACKS_2_1},
+	"RESPAWN_CAMP_0_0_BLUE": {"source_id": SOURCE_ID, "atlas": RESPAWN_CAMP_0_0_BLUE},
+	"RESPAWN_CAMP_0_0_RED": {"source_id": SOURCE_ID, "atlas": RESPAWN_CAMP_0_0_RED},
+	"RESPAWN_CAMP_1_0_BLUE": {"source_id": SOURCE_ID, "atlas": RESPAWN_CAMP_1_0_BLUE},
+	"RESPAWN_CAMP_1_0_RED": {"source_id": SOURCE_ID, "atlas": RESPAWN_CAMP_1_0_RED},
+	"RESPAWN_CAMP_0_1_BLUE": {"source_id": SOURCE_ID, "atlas": RESPAWN_CAMP_0_1_BLUE},
+	"RESPAWN_CAMP_0_1_RED": {"source_id": SOURCE_ID, "atlas": RESPAWN_CAMP_0_1_RED},
+	"RESPAWN_CAMP_1_1_BLUE": {"source_id": SOURCE_ID, "atlas": RESPAWN_CAMP_1_1_BLUE},
+	"RESPAWN_CAMP_1_1_RED": {"source_id": SOURCE_ID, "atlas": RESPAWN_CAMP_1_1_RED},
+	"TRADING_POST_0_0": {"source_id": SOURCE_ID, "atlas": TRADING_POST_0_0},
+	"TRADING_POST_1_0": {"source_id": SOURCE_ID, "atlas": TRADING_POST_1_0},
+	"TRADING_POST_0_1": {"source_id": SOURCE_ID, "atlas": TRADING_POST_0_1},
+	"TRADING_POST_1_1": {"source_id": SOURCE_ID, "atlas": TRADING_POST_1_1},
+	"LUMBER_MILL_0_0": {"source_id": SOURCE_ID, "atlas": LUMBER_MILL_0_0},
+	"LUMBER_MILL_1_0": {"source_id": SOURCE_ID, "atlas": LUMBER_MILL_1_0},
+	"LUMBER_MILL_2_0": {"source_id": SOURCE_ID, "atlas": LUMBER_MILL_2_0},
+	"LUMBER_MILL_0_1": {"source_id": SOURCE_ID, "atlas": LUMBER_MILL_0_1},
+	"LUMBER_MILL_1_1": {"source_id": SOURCE_ID, "atlas": LUMBER_MILL_1_1},
+	"LUMBER_MILL_2_1": {"source_id": SOURCE_ID, "atlas": LUMBER_MILL_2_1},
+	"WATCHTOWER_TOP_BLUE": {"source_id": SOURCE_ID, "atlas": WATCHTOWER_TOP_BLUE},
+	"WATCHTOWER_TOP_RED": {"source_id": SOURCE_ID, "atlas": WATCHTOWER_TOP_RED},
+	"WATCHTOWER_BASE": {"source_id": SOURCE_ID, "atlas": WATCHTOWER_BASE},
+	"SKY_DOCK_N_ROOT": {"source_id": SOURCE_ID, "atlas": SKY_DOCK_N_ROOT},
+	"SKY_DOCK_N_END": {"source_id": SOURCE_ID, "atlas": SKY_DOCK_N_END},
+	"SKY_DOCK_E_ROOT": {"source_id": SOURCE_ID, "atlas": SKY_DOCK_E_ROOT},
+	"SKY_DOCK_E_END": {"source_id": SOURCE_ID, "atlas": SKY_DOCK_E_END},
+	"SKY_DOCK_S_ROOT": {"source_id": SOURCE_ID, "atlas": SKY_DOCK_S_ROOT},
+	"SKY_DOCK_S_END": {"source_id": SOURCE_ID, "atlas": SKY_DOCK_S_END},
+	"SKY_DOCK_W_ROOT": {"source_id": SOURCE_ID, "atlas": SKY_DOCK_W_ROOT},
+	"SKY_DOCK_W_END": {"source_id": SOURCE_ID, "atlas": SKY_DOCK_W_END},
+	"SKY_SKIFF_BLUE": {"source_id": SOURCE_ID, "atlas": SKY_SKIFF_BLUE},
+	"SKY_SKIFF_RED": {"source_id": SOURCE_ID, "atlas": SKY_SKIFF_RED},
 }
 static var TILES := _with_junctions(_CORE)
 

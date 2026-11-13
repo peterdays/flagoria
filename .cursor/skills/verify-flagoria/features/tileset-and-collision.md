@@ -21,7 +21,7 @@ The world map uses tileset v3.1 through named tiles. Water, and rows of trees or
 Preconditions: `doctor.sh` exits `0`.
 
 - **Run.** Run `./.cursor/skills/verify-flagoria/bin/drive-verify.sh` (or `./tools/verify.sh`) and read `artifacts/verify.log`.
-- **Proof.** Each header `-- test_tile_catalog`, `-- test_water_blocks_player`, `-- test_forest_walls`, `-- test_no_decorations_on_water`, `-- test_flowers`, `-- test_chunk_refresh_frames` appears in the log, no `FAIL` line follows it, and the run ends with `All tests passed.` and `Verification passed.`
+- **Proof.** Each header `-- test_tile_catalog`, `-- test_structure_final_tiles`, `-- test_water_blocks_player`, `-- test_forest_walls`, `-- test_no_decorations_on_water`, `-- test_flowers`, `-- test_chunk_refresh_frames` appears in the log, no `FAIL` line follows it, and the run ends with `All tests passed.` and `Verification passed.`
 
 ## Gotchas
 

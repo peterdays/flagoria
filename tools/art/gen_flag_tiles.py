@@ -12,7 +12,7 @@ python3 tools/art/gen_flag_tiles.py (needs Pillow).
 """
 from PIL import Image
 
-ATLAS = "art/flagoria/flagoria_tiles_v3.png"
+ATLAS = "art/flagoria/flagoria_tiles_v4.png"
 TILE = 16
 SOURCE = (2, 7)  # PROP_FLAG_BLUE
 CLOTH_LIGHT = (59, 111, 224, 255)

@@ -214,7 +214,7 @@ func _test_wall_collar_sides() -> int:
 	return fail
 
 func _gate_outline() -> int:
-	var tex := load("res://art/flagoria/flagoria_tiles_v3.png") as Texture2D
+	var tex := load("res://art/flagoria/flagoria_tiles_v4.png") as Texture2D
 	var img := tex.get_image() if tex != null else null
 	if img == null:
 		printerr("FAIL wall_junctions: atlas did not load")
