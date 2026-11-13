@@ -59,7 +59,7 @@ func _test_build_costs_buy() -> int:
 	## planks and still 2 wood. With 3 wood it lays the planks and leaves 0.
 	## A placement the writer refuses (planks already there) spends nothing.
 	## The starting castle is bought with no wood. While multiplayer is on,
-	## buying a wall still refuses and spends nothing (walls stay host-alone).
+	## a wall buy spends and writes; the starting castle still refuses.
 	print("-- test_build_costs_buy")
 	var fail := 0
 	var scene = load("res://flagoria_main.tscn").instantiate()
@@ -117,10 +117,18 @@ func _test_build_costs_buy() -> int:
 		set_multiplayer(api, scene.get_path())
 		inventory.add(Inventory.WOOD, 10)
 		var called := [false]
-		why = BuildCosts.buy(inventory, BuildCosts.WALL_BLOCK, 1, func() -> bool:
+		why = BuildCosts.buy(inventory, BuildCosts.START_CASTLE, 1, func() -> bool:
 			called[0] = true
 			return true)
 		if why != BuildCosts.MULTIPLAYER_ON or called[0] or inventory.count_of(Inventory.WOOD) != 10:
+			printerr("FAIL build_costs_buy: castle multiplayer on gave '%s', placed %s, %d wood"
+					% [why, called[0], inventory.count_of(Inventory.WOOD)])
+			fail += 1
+		called[0] = false
+		why = BuildCosts.buy(inventory, BuildCosts.WALL_BLOCK, 1, func() -> bool:
+			called[0] = true
+			return true)
+		if why != "" or not called[0] or inventory.count_of(Inventory.WOOD) != 8:
 			printerr("FAIL build_costs_buy: wall multiplayer on gave '%s', placed %s, %d wood"
 					% [why, called[0], inventory.count_of(Inventory.WOOD)])
 			fail += 1

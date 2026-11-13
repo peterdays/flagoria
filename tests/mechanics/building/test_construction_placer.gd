@@ -7,7 +7,7 @@ func _test_construction_placer_plank() -> int:
 	## wood per cell. Too little wood places and spends nothing. Land, an
 	## existing plank, a bent run and a floating water cell (no land or plank
 	## next to it) are refused with a reason. While multiplayer is on, planks
-	## still place (bridge sync #297); towers/walls stay refused. Time cost:
+	## still place (bridge sync #297). Time cost:
 	## about 0.4 s in tools/verify.sh (~2.0 s alone with
 	## --only=construction_placer_plank, against ~1.7 s runner start-up).
 	print("-- test_construction_placer_plank")

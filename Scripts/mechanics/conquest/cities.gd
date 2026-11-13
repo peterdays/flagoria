@@ -9,7 +9,8 @@ extends Node2D
 ## City record: tower id, wall cells, interior cells. Owner follows the tower's
 ## owner (capture via #274 transfers the city). Breaking the loop dissolves it.
 ## Boundary tint is drawn here; the minimap paints the same walls.
-## Host alone only: while multiplayer is on the list stays empty (sync is #278).
+## In multiplayer only the host rebuilds (#498). Clients apply receive_cities.
+## A late joiner gets city_snapshot from the host.
 
 const STEPS: Array[Vector2i] = [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]
 const CHECK_FRAMES := 15
@@ -44,28 +45,32 @@ func _physics_process(_delta: float) -> void:
 
 func tick() -> bool:
 	## Rebuild when walls or placements change. Returns whether the city list
-	## changed. Tests call this directly.
+	## changed. A client does not rebuild: it shows the host's snapshot.
+	## Tests call this directly. The host sends the new list when it changes.
 	if _map == null:
 		return false
-	if Interaction.multiplayer_on(multiplayer):
-		if cities.is_empty():
-			return false
-		cities.clear()
-		_stamp = 0
-		return true
+	if Interaction.multiplayer_on(multiplayer) and not multiplayer.is_server():
+		return false
 	var stamp := _geometry_stamp()
 	if stamp == _stamp:
 		return false
 	_stamp = stamp
-	return rebuild()
+	var changed := rebuild()
+	if changed and Interaction.multiplayer_on(multiplayer) and multiplayer.is_server():
+		receive_cities.rpc(city_snapshot())
+	return changed
 
 
 func rebuild() -> bool:
 	## Scan every flag tower and replace `cities`. True when the set changed.
+	## A client keeps the host snapshot.
 	var before := cities.duplicate(true)
 	cities.clear()
-	if _map == null or Interaction.multiplayer_on(multiplayer):
+	if _map == null:
 		return not before.is_empty()
+	if Interaction.multiplayer_on(multiplayer) and not multiplayer.is_server():
+		cities = before
+		return false
 	var towers: Dictionary = _map._structures.towers()
 	for id: int in towers:
 		var found := _city_from_tower(id, towers[id])
@@ -79,6 +84,52 @@ func owner_of(tower_id: int) -> int:
 	if not cities.has(tower_id):
 		return 0
 	return _map._structures.placements().get(tower_id, {}).get("owner", 0)
+
+
+func city_snapshot() -> Array:
+	## `[tower id, wall cells, interior cells]` for every city, id order.
+	## The join snapshot and each live update use this.
+	var out := []
+	var ids := cities.keys()
+	ids.sort()
+	for id in ids:
+		var walls: Array = []
+		for cell: Vector2i in cities[id]["walls"]:
+			walls.append(cell)
+		var interior: Array = []
+		for cell: Vector2i in cities[id]["interior"]:
+			interior.append(cell)
+		out.append([int(id), walls, interior])
+	return out
+
+
+func sync_to_peer(peer_id: int) -> void:
+	## Host: send the current cities to a peer that just joined.
+	if multiplayer.is_server():
+		tick()
+		receive_cities.rpc_id(peer_id, city_snapshot())
+
+
+@rpc("authority", "reliable", "call_remote")
+func receive_cities(entries: Array) -> void:
+	## City list the host decided. Ignored unless peer 1 sent it.
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	cities.clear()
+	for entry in entries:
+		if not entry is Array or entry.size() < 3:
+			continue
+		var walls := {}
+		var interior := {}
+		for cell in entry[1]:
+			if cell is Vector2i:
+				walls[cell] = true
+		for cell in entry[2]:
+			if cell is Vector2i:
+				interior[cell] = true
+		cities[int(entry[0])] = {"walls": walls, "interior": interior}
+	_stamp = _geometry_stamp()
+	queue_redraw()
 
 
 func wall_cells() -> Dictionary:

@@ -11,13 +11,13 @@ progress and the owner change only on the host; every peer, including one
 that joins during a capture, shows the same owner and progress. The host
 awards one point per owned flag tower and both peers' totals match.
 
-Walls stay hidden. `StructureRequests` is the one host-request pipeline;
-a later walls slice adds a wall request to it.
+`StructureRequests` is the one host-request pipeline. Walls are a second
+kind on it (#498).
 
 ## Sub-features
 
 - `tower-shown` the Tower tool stays visible while a peer is connected. Wall
-  stays hidden (`MP_HIDDEN`).
+  is shown too (#498).
 - `tower-request` the client sends `request_place`; the host writes with
   `place_from_host` and the client spends 10 wood only after `receive_charge`.
 - `tower-refused` a tower on water is refused. The client's `Inventory.WOOD`
@@ -56,5 +56,5 @@ placer tests already in `tools/verify.sh` add nothing new there.
 
 - Inventories stay local. The host charges the placer with `receive_charge` after it accepts, the same as a plank. It does not spend the host's wood for a client's tower.
 - `StructurePlacer.can_place` still says `multiplayer on`. Clients must not call `place_structure` for a tower. The host uses `place_from_host`.
-- Walls are still in `MP_HIDDEN` and `BuildCosts.HOST_ALONE`. Adding them is another request on `StructureRequests`, not a new pipeline.
+- Walls are a request on `StructureRequests`, not a new pipeline (#498).
 - The drive parks mobs and calls `TowerCapture.tick` for exactly 5 s so a wanderer cannot contest the flag and the capture does not depend on the body staying inside the ring.

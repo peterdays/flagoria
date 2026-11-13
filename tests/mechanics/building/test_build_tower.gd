@@ -86,8 +86,8 @@ func _test_build_picker_includes_tower() -> int:
 		if tower_btn == null or not tower_btn.visible:
 			printerr("FAIL build_picker_includes_tower: MP should show Tower")
 			fail += 1
-		if wall_btn == null or wall_btn.visible:
-			printerr("FAIL build_picker_includes_tower: MP should hide Wall")
+		if wall_btn == null or not wall_btn.visible:
+			printerr("FAIL build_picker_includes_tower: MP should show Wall")
 			fail += 1
 		if plank_btn == null or not plank_btn.visible:
 			printerr("FAIL build_picker_includes_tower: MP should keep Plank visible")

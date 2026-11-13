@@ -15,7 +15,7 @@ A removal gives back `REFUND_SHARE` (half) of the total cost of the units remove
 
 `buy(inventory, kind, units, place)` checks first, takes the wood, then calls the writer `place` (for example `build_bridge`). Refusals, with nothing placed and nothing spent: `not enough wood`, `multiplayer on`, `unknown kind`. If `spend` fails after the check, `buy` returns `spend failed` and never calls the writer. If the writer refuses after the spend, the wood is put back and `buy` returns `not placed`. Charge and write stay atomic (#380 item 3).
 
-With peers connected, wood is still local. `buy` allows planks and towers: the host decides the placement and charges the placer (#297, #497). `buy` still refuses walls and the starting castle with `multiplayer on`. `StructurePlacer.can_place` still reports `multiplayer on`; the host writes a tower with `place_from_host`.
+With peers connected, wood is still local. `buy` allows planks, towers and walls: the host decides the placement and charges the placer (#297, #497, #498). `buy` still refuses the starting castle with `multiplayer on`. `StructurePlacer.can_place` still reports `multiplayer on`; the host writes a tower with `place_from_host` and a wall with `write_wall`.
 
 ## Sub-features
 

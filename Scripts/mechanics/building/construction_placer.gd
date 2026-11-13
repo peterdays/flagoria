@@ -5,8 +5,8 @@ extends RefCounted
 ## share the same path. Plank bridges, wooden towers (#273) and free-form
 ## wall blocks (#276) are registered. The placement UI (#225) only talks to
 ## this module.
-## Plank bridges sync between peers (#297). Towers sync through
-## StructureRequests (#497). Walls stay host-alone until their own request.
+## Plank bridges sync between peers (#297). Towers and free-form walls ask
+## the host through StructureRequests (#497, #498).
 
 const _WorldMap := preload("res://Scripts/TileMap.gd")
 
@@ -107,6 +107,14 @@ func write_plank(cells: Array[Vector2i]) -> Array[Vector2i]:
 	return ends
 
 
+func write_wall(cells: Array[Vector2i]) -> bool:
+	## Write a free-form run with no wood spend. False when geometry refuses.
+	## The host uses this for a peer's wall request (#498).
+	if not can_place_geometry(BuildCosts.WALL_BLOCK, cells).is_empty():
+		return false
+	return _map.place_wall_cells(cells)
+
+
 func write_tower(anchor: Vector2i, owner: int) -> int:
 	## Write one wooden tower for `owner` with no wood spend. Returns the
 	## placement id, or -1 when the footprint refuses or the write fails.
@@ -170,6 +178,10 @@ func _units(kind: StringName, cells: Array) -> int:
 
 func _place_wall(cells: Array[Vector2i], inventory: Inventory) -> bool:
 	## Spend 2 wood per cell, then WallBuilder writes plain palisade pieces.
+	## With peers connected, StructureRequests asks the host instead of writing.
+	if Interaction.multiplayer_on(_map.multiplayer):
+		var requests := _map.get_node_or_null("../StructureRequests")
+		return requests != null and requests.place(BuildCosts.WALL_BLOCK, cells)
 	var why := BuildCosts.buy(inventory, BuildCosts.WALL_BLOCK, cells.size(), func() -> bool:
 		return _map.place_wall_cells(cells))
 	return why == ""

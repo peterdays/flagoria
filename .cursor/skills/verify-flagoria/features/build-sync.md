@@ -8,8 +8,8 @@ placed it. The placer asks the host, the host decides and tells everyone, and
 only the placer is charged. A player joining later gets the host's exact bridge
 set with the map params. Offline and host-alone placement is unchanged
 ([Build placement](./build-placement.md), [Construction placement](./construction-placement.md)).
-Walls stay hidden and refused while multiplayer is on until their own
-request. Towers are requested from the host ([Conquest sync](./conquest-sync.md), #497).
+Walls and towers are requested from the host
+([Walls and cities sync](./walls-cities-sync.md), [Conquest sync](./conquest-sync.md)).
 
 ## Sub-features
 
@@ -28,8 +28,7 @@ request. Towers are requested from the host ([Conquest sync](./conquest-sync.md)
   replaces its bridges with it (`world.replace_bridges` /
   `BridgeBuilder.replace_from_host`). Live places after that arrive on the same
   reliable channel.
-- `build-mode` interact mode shows Plank and Tower in multiplayer; Wall stays
-  hidden.
+- `build-mode` interact mode shows Plank, Tower and Wall in multiplayer.
 
 ## How to get to it (user POV)
 

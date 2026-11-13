@@ -6,8 +6,8 @@ extends RefCounted
 ## has_cell / ground_at / object_at when it draws or predicts a cell.
 ## can_place still reports multiplayer on, so a client does not write. The
 ## host writes an accepted tower with place_from_host (#497). A joining peer
-## gets the host's list with the map (to_sync, replace_from_host). Walls
-## placed after a join are still #278.
+## gets the host's list with the map (to_sync, replace_from_host). Free-form
+## walls placed after a join go through StructureRequests (#498).
 
 const _WorldMap := preload("res://Scripts/TileMap.gd")
 

@@ -100,14 +100,14 @@ func _test_build_picker_includes_wall() -> int:
 		await process_frame
 		var wall_btn: Button = interaction.build._buttons.get(BuildPlacement.Tool.WALL)
 		var plank_btn: Button = interaction.build._buttons.get(BuildPlacement.Tool.PLANK)
-		if wall_btn == null or wall_btn.visible:
-			printerr("FAIL build_picker_includes_wall: MP should hide Wall")
+		if wall_btn == null or not wall_btn.visible:
+			printerr("FAIL build_picker_includes_wall: MP should show Wall")
 			fail += 1
 		if plank_btn == null or not plank_btn.visible:
 			printerr("FAIL build_picker_includes_wall: MP should keep Plank visible")
 			fail += 1
-		if interaction.build.tool == BuildPlacement.Tool.WALL:
-			printerr("FAIL build_picker_includes_wall: MP left tool on Wall")
+		if interaction.build.tool != BuildPlacement.Tool.WALL:
+			printerr("FAIL build_picker_includes_wall: MP cleared the Wall tool")
 			fail += 1
 		api.multiplayer_peer = null
 		peer.close()

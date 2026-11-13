@@ -280,6 +280,7 @@ func _sync_map_params_to_peer(peer_id: int) -> void:
 	## The placed structures go too (StructurePlacer.to_sync), so the peer's
 	## castles match the host's from its first frame (#278 join half).
 	## Placed plank bridges go too (BridgeBuilder.to_sync, #297).
+	## Free-form walls, solved auto junctions and cities follow (#498).
 	## The cut list goes JOIN_CUTS_PER_MESSAGE cuts at a time (#354): the
 	## first part with the params, the rest in receive_join_cuts right after.
 	if world_params == null:
@@ -290,6 +291,12 @@ func _sync_map_params_to_peer(peer_id: int) -> void:
 	var parts := WorldSave.split_changes(world.cut_changes(), JOIN_CUTS_PER_MESSAGE)
 	rpc_id(peer_id, "receive_map_params", world_params.to_dict(), spot, parts[0],
 			world.structures_for_sync(), world.bridges_for_sync(), _player_spots())
+	var requests := get_node_or_null("World/StructureRequests")
+	if requests != null:
+		requests.sync_to_peer(peer_id)
+	var cities := get_node_or_null("World/Cities")
+	if cities != null:
+		cities.sync_to_peer(peer_id)
 	var capture := get_node_or_null("World/TowerCapture")
 	if capture != null:
 		capture.sync_to_peer(peer_id)

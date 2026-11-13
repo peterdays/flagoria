@@ -54,12 +54,12 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Dead player cuts nothing](./dead-player-cut.md) — interact-mode taps and drags ignored while the hero is dead, host refuses `request_cut` from a dead peer.
 - [Cut request limit](./cut-rate-limit.md) — host-side per-peer bucket on `request_cut` (162 at once, 162.5 a second), drops a flood with no reply, never limits a real drag or walk.
 - [Explored map](./explored-map.md) — wood minimap (collapse, reopen, maximize) and the parchment full map; cells revealed within 10 cells of the hero.
-- [Build costs](./build-costs.md) — wood per plank (1), wall block (2), tower (10), starting castle (0), half back on removal, `Inventory.spend`, `BuildCosts.buy` refuses with too little wood or while multiplayer is on; live path is the build picker.
+- [Build costs](./build-costs.md) — wood per plank (1), wall block (2), tower (10), starting castle (0), half back on removal, `Inventory.spend`, `BuildCosts.buy` refuses with too little wood; the starting castle still refuses while multiplayer is on; live path is the build picker.
 - [Construction placement](./construction-placement.md) — shared `can_place` / `cost` / `place` for buildables; plank, wooden tower and wall block (through `BuildCosts.buy`); live path is the build picker.
 - [Build placement](./build-placement.md)
 - [Build sync](./build-sync.md) — plank bridges decided by the host and synced to every peer; late joiner gets the list (#297). — interact-mode Cut/Plank/Tower/Wall picker, H/V-snapped plank and wall drag, tower footprint preview, green/red preview and wood cost; places through ConstructionPlacer (#225 / #273 / #276).
 - [Build tower](./build-tower.md) — wooden palisade tower for 10 wood, land only, builder-owned flag; multiplayer asks the host (#273, #497).
-- [Free-form walls](./free-form-walls.md) — connected palisade chain via Wall tip, 2 wood per block, host-alone (#276).
+- [Free-form walls](./free-form-walls.md) — connected palisade chain via Wall tip, 2 wood per block (#276, #498).
 - [Wall and tower junctions](./wall-junctions.md) — mask pieces, collar overlays on stone, tower ring with the team flag, far corner flips when a loop closes.
 - [Walls and bridges](./walls-and-bridges.md) — wall solver, plank bridges (live via build picker); free-form walls via [Free-form walls](./free-form-walls.md).
 - [Bridge joins](./bridge-joins.md) — adjoining plank placements share plain interior planks; rope and tips stay on shores and open ends (#416).
@@ -75,10 +75,11 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Structures (data format)](./structures.md) — `flagoria-structure 1` text files.
 - [Structure placement](./structure-placement.md) — place a structure file at an anchor cell, refusal reasons, kept on redraw, a placed stump does not regrow; placed by a host still alone, sent to joining peers.
 - [Starting castle](./start-castle.md) — each player's castle next to the spawn, player starts outside the gate; placed by the host while alone, sent to joining peers.
-- [Cities](./cities.md) — closed wall loop around a flag tower makes a city; tint + minimap; capture transfers; host alone (#277).
+- [Cities](./cities.md) — closed wall loop around a flag tower makes a city; tint + minimap; capture transfers; the host decides in multiplayer (#277, #498).
 - [Tower capture](./tower-capture.md) — flag towers taken by a lone other side or mobs standing by the flag for 5 s; the host decides, peers receive owner and progress (#274, #497).
 - [Flags held points](./flags-held-points.md) — 1 point per owned flag tower every 5 s (`flags_held`); the host awards, peers share the totals (#275, #497).
 - [Conquest sync](./conquest-sync.md) — host-owned tower placement, capture progress and flag points in multiplayer; a late joiner matches (#497).
+- [Walls and cities sync](./walls-cities-sync.md) — host-owned wall chains and cities; a late joiner matches free-form walls, auto junctions and city keys (#498).
 - [Hero sprites](./hero-sprites.md) — layered hero sheet generator, checked by the generator smoke.
 - [App icon](./app-icon.md) — icon generator and wiring, checked by the generator smoke.
 

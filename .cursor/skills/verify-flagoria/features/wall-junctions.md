@@ -58,4 +58,4 @@ start-up). The collar-sides drive is about 10 s under xvfb.
 - Every stone side draws one existing `CAP_COLLAR_*`. A cell has at most four orthogonal sides, so four cap layers cover the list.
 - `PALISADE_*_JOIN_*` cells stay in the atlas and are not selected.
 - Tower ring cells are not city barriers. A tower still needs a free-form or stone loop around it to make a city.
-- Placements and free-form walls are still host-alone; joining peers get the lists with the map and solve them locally. No new net message.
+- A late joiner receives free-form walls and the solved auto junction cells (#498).

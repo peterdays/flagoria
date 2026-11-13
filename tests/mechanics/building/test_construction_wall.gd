@@ -31,8 +31,9 @@ func _clear_wall_cells(world, count: int = 3) -> Array[Vector2i]:
 func _test_construction_placer_wall() -> int:
 	## A clear land cell places a palisade for 2 wood; a straight run places
 	## every cell. Water, an existing wall, a structure, a player, a mob, a
-	## tree, short wood, a bent run and multiplayer on are refused and spend
-	## nothing. Pieces come from WallSolver. Collision stays on redraw.
+	## tree, short wood and a bent run are refused and spend nothing. A
+	## connecting client does not get multiplayer on: the host decides (#498).
+	## Pieces come from WallSolver. Collision stays on redraw.
 	## Time cost: about 0.7 s in tools/verify.sh (~2.5 s alone with
 	## --only=construction_placer_wall).
 	print("-- test_construction_placer_wall")
@@ -217,10 +218,13 @@ func _test_construction_placer_wall() -> int:
 		var mcell: Vector2i = tree_cell if tree_cell.x != 1 << 20 else (clear2 if clear2.x != 1 << 20 else run[0])
 		var mcells: Array[Vector2i] = [mcell]
 		inventory.add(Inventory.WOOD, 2)
+		var wood_before := inventory.count_of(Inventory.WOOD)
 		reasons = placer.can_place(BuildCosts.WALL_BLOCK, mcells, inventory)
-		if ConstructionPlacer.MULTIPLAYER_ON not in reasons \
-				or placer.place(BuildCosts.WALL_BLOCK, mcells, inventory):
-			printerr("FAIL construction_placer_wall: multiplayer gave %s" % [reasons])
+		if ConstructionPlacer.MULTIPLAYER_ON in reasons \
+				or placer.place(BuildCosts.WALL_BLOCK, mcells, inventory) \
+				or inventory.count_of(Inventory.WOOD) != wood_before:
+			printerr("FAIL construction_placer_wall: multiplayer gave %s wood %d"
+					% [reasons, inventory.count_of(Inventory.WOOD)])
 			fail += 1
 		api.multiplayer_peer = null
 		peer.close()
