@@ -6,14 +6,24 @@ extends "res://.cursor/skills/verify-flagoria/bin/drive_base.gd"
 
 const CUSTOMIZE_BTN := "CanvasLayer1/InGameMenu/Pause/Panel/Margin/VBox/CustomizeHud"
 const ATTACK := "CanvasLayer1/TouchScreenButton"
-const DONE := "CanvasLayer1/InGameMenu/HudLayoutEdit/Panel/Margin/VBox/Done"
-const SAVE := "CanvasLayer1/InGameMenu/HudLayoutEdit/Panel/Margin/VBox/Save"
-const RESET := "CanvasLayer1/InGameMenu/HudLayoutEdit/Panel/Margin/VBox/Reset"
-const JOYSTICK := "CanvasLayer1/player_joystick"
+const DONE := "CanvasLayer1/InGameMenu/HudLayoutEdit/TopBar/Margin/HBox/Done"
+const SAVE := "CanvasLayer1/InGameMenu/HudLayoutEdit/TopBar/Margin/HBox/Save"
+const RESET := "CanvasLayer1/InGameMenu/HudLayoutEdit/TopBar/Margin/HBox/Reset"
+const SIZE_SLIDER := "CanvasLayer1/InGameMenu/HudLayoutEdit/TopBar/Margin/HBox/SizeSlider"
 
 
 func _hud_layout() -> Node:
 	return root.get_node("HudLayout")
+
+
+func _tap(at: Vector2) -> void:
+	for pressed in [true, false]:
+		var touch := InputEventScreenTouch.new()
+		touch.index = 0
+		touch.position = at
+		touch.pressed = pressed
+		Input.parse_input_event(touch)
+		await process_frame
 
 
 func run() -> void:
@@ -30,19 +40,27 @@ func run() -> void:
 	await click(MENU_BUTTON)
 	await click(CUSTOMIZE_BTN)
 	ok = ok and current_scene.get_node("CanvasLayer1/InGameMenu/HudLayoutEdit").visible
+	var attack_at := to_window(attack, attack.texture_normal.get_size() * attack.scale * 0.5)
+	await _tap(attack_at)
+	await process_frame
+	ok = ok and (current_scene.get_node(SIZE_SLIDER) as HSlider).editable
 	await snapshot("edit-mode")
 
 	step("moved-control")
-	_hud_layout().try_place("attack", 0.55, 0.55, 1.2, layer)
+	_hud_layout().try_place("attack", 0.62, 0.58, 1.35, layer)
 	await process_frame
 	await process_frame
 	ok = ok and attack.global_position.distance_to(default_pos) > 12.0
 	await snapshot("moved-control")
 
 	step("no-overlap")
-	var mode_entry: Dictionary = _hud_layout().get_entry("mode")
+	var mode: Control = current_scene.get_node("CanvasLayer1/ModeButton")
+	attack_at = to_window(attack, attack.texture_normal.get_size() * attack.scale * 0.5)
+	await _tap(attack_at)
 	var blocked: bool = not _hud_layout().try_place(
-			"attack", float(mode_entry.get("x")), float(mode_entry.get("y")), 1.0, layer)
+			"attack", mode.global_position.x / layer.get_viewport().get_visible_rect().size.x,
+			mode.global_position.y / layer.get_viewport().get_visible_rect().size.y, 1.0, layer)
+	await process_frame
 	await snapshot("no-overlap")
 
 	step("after-save-restart")
@@ -70,7 +88,7 @@ func run() -> void:
 	await click(CUSTOMIZE_BTN)
 	await click(RESET)
 	for _i in 4:
-		await process_frame
+		await create_timer(0.0, true).timeout
 	ok = ok and blocked and not _hud_layout().uses_custom()
 	await click(DONE)
 	for _i in 2:

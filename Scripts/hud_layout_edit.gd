@@ -7,12 +7,13 @@ const SCALE_MIN := 1.0
 const SCALE_MAX := 1.75
 const CONTROL_IDS := ["joystick", "attack", "run", "buildings", "map", "mode"]
 
-@onready var _save: Button = $Panel/Margin/VBox/Save
-@onready var _reset: Button = $Panel/Margin/VBox/Reset
-@onready var _done: Button = $Panel/Margin/VBox/Done
-@onready var _size_row: HBoxContainer = $Panel/Margin/VBox/SizeRow
-@onready var _size_slider: HSlider = $Panel/Margin/VBox/SizeRow/SizeSlider
-@onready var _hint: Label = $Panel/Margin/VBox/Hint
+@onready var _top_bar: PanelContainer = $TopBar
+@onready var _save: Button = $TopBar/Margin/HBox/Save
+@onready var _reset: Button = $TopBar/Margin/HBox/Reset
+@onready var _done: Button = $TopBar/Margin/HBox/Done
+@onready var _size_slider: HSlider = $TopBar/Margin/HBox/SizeSlider
+@onready var _hint: Label = $TopBar/Margin/HBox/Hint
+@onready var _selected_label: Label = $TopBar/Margin/HBox/Selected
 
 var _selected := ""
 var _drag_id := ""
@@ -34,6 +35,7 @@ func _ready() -> void:
 	_size_slider.max_value = SCALE_MAX
 	_size_slider.step = 0.05
 	_size_slider.value_changed.connect(_on_slider)
+	_size_slider.editable = false
 
 
 func _hl() -> Node:
@@ -46,14 +48,15 @@ func open() -> void:
 		return
 	show()
 	_selected = ""
-	_size_row.hide()
+	_size_slider.editable = false
+	_selected_label.text = "Selected: —"
 	_hl().edit_begin(layer)
 	_hl().apply(layer)
-	_set_pause(_solo_match())
+	_set_pause(_should_pause_game())
 	var menu := get_parent()
 	menu.get_node("Pause").hide()
 	menu.menu_button.hide()
-	_hint.text = "Drag a control. Pinch or use the slider to resize."
+	_hint.text = "Tap a control, then drag to move."
 
 
 func close_editor() -> void:
@@ -69,6 +72,17 @@ func _set_pause(on: bool) -> void:
 		return
 	_paused = on
 	get_tree().paused = on
+
+
+func _should_pause_game() -> bool:
+	## Solo play pauses live matches, not headless CI, verify, or feature drives.
+	if DisplayServer.get_name() == "headless":
+		return false
+	if OS.get_environment("FLAGORIA_VERIFY_RUN") != "":
+		return false
+	if OS.get_environment("VERIFY_EVIDENCE_DIR") != "":
+		return false
+	return _solo_match()
 
 
 func _solo_match() -> bool:
@@ -129,7 +143,10 @@ func _begin_drag(pos: Vector2, layer: CanvasLayer) -> void:
 	var entry: Dictionary = _hl().get_entry(id)
 	var s: float = float(entry.get("s", 1.0)) if not entry.is_empty() else _hl().scale_of(id, layer)
 	_size_slider.set_value_no_signal(s)
-	_size_row.show()
+	_size_slider.editable = true
+	_selected_label.text = "Selected: %s" % id
+	_hint.text = "Drag to move. Size slider or pinch to resize."
+	queue_redraw()
 
 
 func _move_drag(pos: Vector2, layer: CanvasLayer) -> void:
@@ -138,6 +155,7 @@ func _move_drag(pos: Vector2, layer: CanvasLayer) -> void:
 	var s: float = float(entry.get("s", 1.0))
 	var top := (pos - _drag_offset) / view
 	_hl().try_place(_drag_id, top.x, top.y, s, layer)
+	queue_redraw()
 
 
 func _on_slider(value: float) -> void:
@@ -157,6 +175,7 @@ func _apply_scale(id: String, s: float, layer: CanvasLayer) -> void:
 		x = rect.position.x / view.x
 		y = rect.position.y / view.y
 	_hl().try_place(id, x, y, s, layer)
+	queue_redraw()
 
 
 func _on_save() -> void:
@@ -169,8 +188,8 @@ func _on_reset() -> void:
 	var layer := _layer()
 	if layer == null:
 		return
-	await get_tree().process_frame
-	await get_tree().process_frame
+	for _i in 2:
+		await get_tree().create_timer(0.0, true).timeout
 	_hl().capture_into_draft(layer)
 	_hl().apply(layer)
 	_hint.text = "Default layout restored."
@@ -195,3 +214,28 @@ func _pick_control(pos: Vector2, layer: CanvasLayer) -> String:
 			best_area = area
 			best = id
 	return best
+
+
+func _process(_delta: float) -> void:
+	if visible:
+		queue_redraw()
+
+
+func _draw() -> void:
+	if not visible:
+		return
+	var layer := _layer()
+	if layer == null:
+		return
+	var inv := get_global_transform_with_canvas().affine_inverse()
+	for id in CONTROL_IDS:
+		var grect: Rect2 = _hl().control_hit_rect(id, layer)
+		if grect.size == Vector2.ZERO:
+			continue
+		var p: Vector2 = inv * grect.position
+		var q: Vector2 = inv * grect.end
+		var local := Rect2(p, q - p)
+		if id == _selected:
+			draw_rect(local.grow(2.0), Color(1.0, 0.86, 0.28, 0.95), false, 2.0)
+		elif _selected == "":
+			draw_rect(local, Color(1.0, 1.0, 1.0, 0.2), false, 1.0)

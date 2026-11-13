@@ -30,6 +30,8 @@ func _test_hud_layout_round_trip() -> int:
 			printerr("FAIL hud_layout_round_trip: missing %s after load" % id)
 			fail += 1
 	_hud().reset_to_defaults()
+	_hud().edit_end()
+	tree.paused = false
 	DirAccess.remove_absolute(path)
 	_hud().save_path = "user://hud_layout.cfg"
 	scene.queue_free()
@@ -65,6 +67,8 @@ func _test_hud_layout_clamp_overlap() -> int:
 			printerr("FAIL hud_layout_overlap: attack overlaps mode")
 			fail += 1
 	_hud().reset_to_defaults()
+	_hud().edit_end()
+	tree.paused = false
 	scene.queue_free()
 	await process_frame
 	if fail == 0:
@@ -97,6 +101,8 @@ func _test_hud_layout_reset() -> int:
 	if not _hud().uses_custom() and before.position.distance_to(after.position) > 8.0:
 		printerr("FAIL hud_layout_reset: attack %s want near %s" % [after.position, before.position])
 		fail += 1
+	_hud().edit_end()
+	tree.paused = false
 	scene.queue_free()
 	await process_frame
 	if fail == 0:
