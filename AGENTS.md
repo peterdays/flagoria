@@ -49,6 +49,11 @@ This format applies to all new issues, including roadmap and epic trackers. A ne
 
 Do not automatically rewrite historical issues to match this format.
 
+## Roadmap and issues
+
+- Milestones are the default way to group issues. Open an umbrella or epic issue only for work that spans more than one milestone, or for dependent pieces that share one rationale (for example the weapon building-block system, or the dedicated-server epic #17). Never open an umbrella whose checklist mirrors a single milestone; the milestone already is that list.
+- Close an issue when its delivered v1 slice ships. Any future slice without an owner becomes its own linked issue, filed at creation or when scope shifts, and never stays behind as an unchecked item in the parent.
+
 ## Issue triage labels
 
 The task form collects reach, impact, confidence, effort, risk area and severity. A workflow on issue open and edit (`issue-triage`) reads those fields from the body and applies routing labels. It scores an issue only when the author login equals `SCORED_AUTHOR` in `tools/issue_triage.py`. Every other author is ignored. The workflow does not call a model or any external service.
