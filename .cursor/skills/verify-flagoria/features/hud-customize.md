@@ -21,7 +21,7 @@ Preconditions: `doctor.sh` exits `0`. Time cost: the three `tests/ui/test_hud_la
 
 - **Run.** `./tools/verify.sh`, or `godot --headless --path . --script res://tests/run_tests.gd -- --only=hud_layout_round_trip,hud_layout_clamp_overlap,hud_layout_reset`.
 - **Proof.** Headers `-- test_hud_layout_round_trip`, `-- test_hud_layout_clamp_overlap`, and `-- test_hud_layout_reset` with no `FAIL` after them.
-- **Drive (live).** `bin/launch.sh drives/hud_customize.gd --seed 49 --display`. Snapshots: `default-layout`, `edit-mode`, `moved-control`, `after-save-restart`, `reset-layout`.
+- **Drive (live).** `bin/launch.sh drives/hud_customize.gd --seed 49 --display`. Snapshots: `default-layout`, `edit-mode`, `moved-control` (attack and Map moved; edit bar clear of controls), `after-save-restart`, `reset-layout`.
 
 ## Gotchas
 

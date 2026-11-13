@@ -118,7 +118,7 @@ static func unused_save_name(base: String) -> String:
 
 func _on_customize_hud_pressed() -> void:
 	if hud_layout_edit != null and hud_layout_edit.has_method("open"):
-		hud_layout_edit.open()
+		await hud_layout_edit.open()
 
 
 func _on_main_menu_pressed() -> void:

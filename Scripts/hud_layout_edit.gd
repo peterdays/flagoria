@@ -6,14 +6,16 @@ const LAYER_PATH := "/root/Flagoria/CanvasLayer1"
 const SCALE_MIN := 1.0
 const SCALE_MAX := 1.75
 const CONTROL_IDS := ["joystick", "attack", "run", "buildings", "map", "mode"]
+const BAR_EDGE_INSET := 6.0
+const BAR_PAD := 2.0
 
 @onready var _top_bar: PanelContainer = $TopBar
-@onready var _save: Button = $TopBar/Margin/HBox/Save
-@onready var _reset: Button = $TopBar/Margin/HBox/Reset
-@onready var _done: Button = $TopBar/Margin/HBox/Done
-@onready var _size_slider: HSlider = $TopBar/Margin/HBox/SizeSlider
-@onready var _hint: Label = $TopBar/Margin/HBox/Hint
-@onready var _selected_label: Label = $TopBar/Margin/HBox/Selected
+@onready var _save: Button = $TopBar/Margin/VBox/Row/Save
+@onready var _reset: Button = $TopBar/Margin/VBox/Row/Reset
+@onready var _done: Button = $TopBar/Margin/VBox/Row/Done
+@onready var _size_slider: HSlider = $TopBar/Margin/VBox/Row/SizeSlider
+@onready var _hint: Label = $TopBar/Margin/VBox/Hint
+@onready var _selected_label: Label = $TopBar/Margin/VBox/Row/Selected
 
 var _selected := ""
 var _drag_id := ""
@@ -22,12 +24,16 @@ var _paused := false
 var _touches: Dictionary = {}
 var _pinch_distance := 0.0
 var _pinch_base_scale := 1.0
+var _relayout_bar_queued := false
 
 
 func _ready() -> void:
 	hide()
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_top_bar.mouse_filter = Control.MOUSE_FILTER_STOP
+	for btn in [_save, _reset, _done, _size_slider]:
+		btn.process_mode = Node.PROCESS_MODE_ALWAYS
 	_save.pressed.connect(_on_save)
 	_reset.pressed.connect(_on_reset)
 	_done.pressed.connect(_on_done)
@@ -50,6 +56,7 @@ func open() -> void:
 	_selected = ""
 	_size_slider.editable = false
 	_selected_label.text = "Selected: —"
+	_hint.visible = true
 	_hl().edit_begin(layer)
 	_hl().apply(layer)
 	_set_pause(_should_pause_game())
@@ -57,6 +64,13 @@ func open() -> void:
 	menu.get_node("Pause").hide()
 	menu.menu_button.hide()
 	_hint.text = "Tap a control, then drag to move."
+	await _relayout_edit_bar(layer)
+
+
+func relayout_bar() -> void:
+	var layer := _layer()
+	if layer != null:
+		await _relayout_edit_bar(layer)
 
 
 func close_editor() -> void:
@@ -96,6 +110,62 @@ func _layer() -> CanvasLayer:
 	return get_node_or_null(LAYER_PATH) as CanvasLayer
 
 
+func _relayout_edit_bar(layer: CanvasLayer) -> void:
+	_top_bar.set_anchors_preset(Control.PRESET_TOP_LEFT, false)
+	_top_bar.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_top_bar.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var sz := _top_bar.get_combined_minimum_size()
+	if _top_bar.size.y > 0.0:
+		sz.y = maxf(sz.y, _top_bar.size.y)
+	if _top_bar.size.x > 0.0:
+		sz.x = maxf(sz.x, _top_bar.size.x)
+	_top_bar.size = sz
+	var view := get_viewport().get_visible_rect().size
+	var floor_y := view.y * 0.55
+	var candidates: Array[Vector2] = [
+		Vector2((view.x - sz.x) * 0.5, view.y - sz.y - BAR_EDGE_INSET),
+		Vector2(view.x - sz.x - BAR_EDGE_INSET, view.y - sz.y - BAR_EDGE_INSET),
+		Vector2(BAR_EDGE_INSET, maxf(floor_y, view.y - sz.y - BAR_EDGE_INSET)),
+	]
+	var best_pos := candidates[0]
+	var best_score := INF
+	var zero_pos: Variant = null
+	for pos in candidates:
+		_top_bar.global_position = pos
+		await get_tree().process_frame
+		var score := _bar_overlap_score(layer)
+		if score == 0.0:
+			zero_pos = pos
+			break
+		if score < best_score:
+			best_score = score
+			best_pos = pos
+	if zero_pos != null:
+		best_pos = zero_pos
+	_top_bar.global_position = best_pos
+	await get_tree().process_frame
+	_hl().set_edit_exclusion(_top_bar.get_global_rect().grow(BAR_PAD))
+
+
+func _bar_overlap_score(layer: CanvasLayer) -> float:
+	var bar := _top_bar.get_global_rect().grow(BAR_PAD)
+	var area := 0.0
+	for id in CONTROL_IDS:
+		var rect: Rect2 = _hl().control_hit_rect(id, layer)
+		if rect.size == Vector2.ZERO:
+			continue
+		var hit: Rect2 = bar.intersection(rect)
+		if hit.size != Vector2.ZERO:
+			area += hit.size.x * hit.size.y
+	if _selected != "":
+		var sel: Rect2 = _hl().control_hit_rect(_selected, layer)
+		if sel.size != Vector2.ZERO and bar.intersects(sel):
+			area += 1000000.0
+	return area
+
+
 func _input(event: InputEvent) -> void:
 	if not visible:
 		return
@@ -106,7 +176,7 @@ func _input(event: InputEvent) -> void:
 		var touch := event as InputEventScreenTouch
 		if touch.pressed:
 			_touches[touch.index] = touch.position
-			if _touches.size() == 1 and _drag_id == "":
+			if _touches.size() == 1 and _drag_id == "" and not _top_bar.get_global_rect().has_point(touch.position):
 				_begin_drag(touch.position, layer)
 		else:
 			_touches.erase(touch.index)
@@ -145,8 +215,12 @@ func _begin_drag(pos: Vector2, layer: CanvasLayer) -> void:
 	_size_slider.set_value_no_signal(s)
 	_size_slider.editable = true
 	_selected_label.text = "Selected: %s" % id
-	_hint.text = "Drag to move. Size slider or pinch to resize."
+	_hint.visible = false
 	queue_redraw()
+
+
+func _queue_bar_relayout() -> void:
+	_relayout_bar_queued = true
 
 
 func _move_drag(pos: Vector2, layer: CanvasLayer) -> void:
@@ -155,6 +229,7 @@ func _move_drag(pos: Vector2, layer: CanvasLayer) -> void:
 	var s: float = float(entry.get("s", 1.0))
 	var top := (pos - _drag_offset) / view
 	_hl().try_place(_drag_id, top.x, top.y, s, layer)
+	_queue_bar_relayout()
 	queue_redraw()
 
 
@@ -175,24 +250,33 @@ func _apply_scale(id: String, s: float, layer: CanvasLayer) -> void:
 		x = rect.position.x / view.x
 		y = rect.position.y / view.y
 	_hl().try_place(id, x, y, s, layer)
+	_queue_bar_relayout()
 	queue_redraw()
 
 
 func _on_save() -> void:
 	_hl().save_to_disk()
+	_hint.visible = true
 	_hint.text = "Layout saved on this device."
 
 
 func _on_reset() -> void:
-	_hl().reset_to_defaults()
 	var layer := _layer()
 	if layer == null:
 		return
-	for _i in 2:
-		await get_tree().create_timer(0.0, true).timeout
-	_hl().capture_into_draft(layer)
-	_hl().apply(layer)
+	_hl().reset_to_defaults()
+	var row := layer.get_node_or_null("HudToolRow") as HudToolRow
+	if row != null:
+		row._layout()
+	_hl().edit_begin(layer)
+	_set_pause(_should_pause_game())
+	_selected = ""
+	_drag_id = ""
+	_size_slider.editable = false
+	_selected_label.text = "Selected: —"
+	_hint.visible = true
 	_hint.text = "Default layout restored."
+	_relayout_edit_bar(layer)
 
 
 func _on_done() -> void:
@@ -219,6 +303,11 @@ func _pick_control(pos: Vector2, layer: CanvasLayer) -> String:
 func _process(_delta: float) -> void:
 	if visible:
 		queue_redraw()
+	if _relayout_bar_queued and visible:
+		_relayout_bar_queued = false
+		var layer := _layer()
+		if layer != null:
+			_relayout_edit_bar(layer)
 
 
 func _draw() -> void:

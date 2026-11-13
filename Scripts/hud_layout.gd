@@ -37,6 +37,7 @@ func uses_custom() -> bool:
 
 
 var _editing := false
+var _edit_exclusion := Rect2()
 
 
 func editing() -> bool:
@@ -45,6 +46,7 @@ func editing() -> bool:
 
 func edit_begin(layer: CanvasLayer) -> void:
 	_editing = true
+	_edit_exclusion = Rect2()
 	_draft = _saved.duplicate(true)
 	if _draft.is_empty():
 		_draft = capture_from_layer(layer)
@@ -53,6 +55,11 @@ func edit_begin(layer: CanvasLayer) -> void:
 func edit_end() -> void:
 	_editing = false
 	_draft.clear()
+	_edit_exclusion = Rect2()
+
+
+func set_edit_exclusion(rect: Rect2) -> void:
+	_edit_exclusion = rect
 
 
 func active_layout() -> Dictionary:
@@ -103,6 +110,8 @@ func entry_write(id: String, entry: Dictionary, layer: CanvasLayer) -> bool:
 	if rect.size == Vector2.ZERO:
 		return false
 	rect = clamp_rect(rect, layer)
+	if _edit_exclusion.size != Vector2.ZERO and rect.intersects(_edit_exclusion):
+		return false
 	if overlaps(id, rect, layer):
 		return false
 	if _editing:
@@ -162,6 +171,7 @@ func reset_to_defaults() -> void:
 	_saved.clear()
 	_draft.clear()
 	_editing = false
+	_edit_exclusion = Rect2()
 	if FileAccess.file_exists(save_path):
 		DirAccess.remove_absolute(save_path)
 
@@ -245,7 +255,39 @@ func clamp_rect(rect: Rect2, layer: CanvasLayer) -> Rect2:
 		out.position.x = view.size.x - SIDE - out.size.x
 	if out.end.y > view.size.y - SIDE:
 		out.position.y = view.size.y - SIDE - out.size.y
+	if _editing and _edit_exclusion.size != Vector2.ZERO:
+		out = _avoid_edit_bar(out)
+		if out.position.x < SIDE:
+			out.position.x = SIDE
+		if out.position.y < SIDE:
+			out.position.y = SIDE
+		if out.end.x > view.size.x - SIDE:
+			out.position.x = view.size.x - SIDE - out.size.x
+		if out.end.y > view.size.y - SIDE:
+			out.position.y = view.size.y - SIDE - out.size.y
 	return out
+
+
+func _avoid_edit_bar(rect: Rect2) -> Rect2:
+	if not rect.intersects(_edit_exclusion):
+		return rect
+	var best := rect
+	var best_dist := INF
+	var opts: Array[Vector2] = [
+		Vector2(_edit_exclusion.position.x - rect.size.x, rect.position.y),
+		Vector2(_edit_exclusion.end.x, rect.position.y),
+		Vector2(rect.position.x, _edit_exclusion.position.y - rect.size.y),
+		Vector2(rect.position.x, _edit_exclusion.end.y),
+	]
+	for pos in opts:
+		var trial := Rect2(pos, rect.size)
+		if trial.intersects(_edit_exclusion):
+			continue
+		var d: float = pos.distance_squared_to(rect.position)
+		if d < best_dist:
+			best_dist = d
+			best = trial
+	return best
 
 
 func control_hit_rect(id: String, layer: CanvasLayer) -> Rect2:
