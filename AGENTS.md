@@ -37,6 +37,8 @@ State the intended change or tracking purpose in one sentence.
 
 Describe one concern. State what is included and what is out of scope. Link related issues instead of copying their scope.
 
+Keep each issue to one shippable vertical slice. When a spec has future slices with no immediate owner, file each of them as its own issue when the parent is created, and link them, instead of leaving them as unchecked items inside the parent. Never open an issue that bundles a slice about to be delivered with unowned future slices. This keeps milestones from accumulating open scope that nobody is working on.
+
 ### Done when
 
 List executable completion checks. Each check identifies an actor, an action, and an observable pass condition. Avoid criteria such as "works correctly" without a defined result.
