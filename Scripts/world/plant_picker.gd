@@ -10,7 +10,7 @@ const _WorldMap := preload("res://Scripts/TileMap.gd")
 const PARAMS := [
 	"bush_min_alt", "bush_max_alt", "bush_min_chance", "tree_min_alt", "tree_min_chance",
 	"flower_min_alt", "flower_max_alt", "flower_min_chance", "pine_min_alt", "pine_min_moist",
-	"pine_min_chance", "bushy_tree_min_moist", "swamp_bush_min_chance",
+	"pine_min_chance", "bushy_tree_min_moist", "swamp_bush_min_chance", "birch_min_chance",
 ]
 
 

@@ -28,6 +28,8 @@ static func _index() -> void:
 static func type_at(atlas: Vector2i) -> InteractableType:
 	## The type whose tile is `atlas`, or null when it is not choppable.
 	_index()
+	if atlas == TileCatalog.TREE_BIRCH_BOTTOM:
+		return TYPES[0]
 	return TYPES[_by_atlas[atlas]] if _by_atlas.has(atlas) else null
 
 

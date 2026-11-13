@@ -139,6 +139,8 @@ func _add(cell: Vector2i, type: InteractableType, cut_at: float) -> void:
 	_cut_cells[cell] = [cut_at, type.leaves_atlas(), type]
 	sprouts.touch(cell)
 	_map._predict_cache.erase(cell)
+	if BirchTrees.is_tree_tile(_map.get_cell_atlas_coords(1, cell)):
+		BirchTrees.clear_top(_map, cell)
 	if _map.get_cell_source_id(1, cell) != -1:  # drawn already: swap it like a chop
 		_map.erase_cell(1, cell)
 		_map.set_cell(_map.GROUND_DECOR_LAYER, cell, TileCatalog.SOURCE_ID, type.leaves_atlas())

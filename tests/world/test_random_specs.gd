@@ -20,7 +20,7 @@ func _assert_ranges(p: MapGenParams, label: String) -> int:
 			"items_frequency", "biome_frequency", "biome_edge", "fractal_lacunarity",
 			"fractal_gain", "island_falloff", "archipelago_jitter", "bush_min_chance",
 			"tree_min_chance", "flower_min_chance", "pine_min_alt", "pine_min_moist",
-			"pine_min_chance", "bushy_tree_min_moist", "swamp_bush_min_chance"]:
+			"pine_min_chance", "bushy_tree_min_moist", "swamp_bush_min_chance", "birch_min_chance"]:
 		if not _in_range(p.get(key), key):
 			printerr("FAIL %s %s=%s out of PLAYABLE_RANGES" % [label, key, p.get(key)])
 			fail += 1

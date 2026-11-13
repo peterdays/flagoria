@@ -339,10 +339,48 @@ func _test_biome_plants() -> int:
 		if got != c[5]:
 			printerr("FAIL biome_plants case=%s got %s want %s" % [c[0], got, c[5]])
 			fail += 1
+	# Birches: CONTINENTAL plain-tree land above birch_min_chance; nowhere else.
+	var birch_cell := Vector2i.ZERO
+	for x in range(-1024, 1024, 3):
+		for y in range(-1024, 1024, 3):
+			var cell := Vector2i(x, y)
+			if world.biome_at(cell) != cont:
+				continue
+			var alt0: float = world.cell_altitude(cell, cont)
+			var moist0: float = world.moisture.get_noise_2d(x, y)
+			var chance0: float = world.items_chance.get_noise_2d(x, y)
+			if BirchTrees.foliage_tile(world, cell, alt0, moist0, chance0, cont, false) == TileCatalog.TREE_BIRCH_BOTTOM:
+				birch_cell = cell
+				break
+		if birch_cell != Vector2i.ZERO:
+			break
+	if birch_cell == Vector2i.ZERO:
+		printerr("FAIL biome_plants: no continental birch in sample")
+		fail += 1
+	else:
+		var ba: float = world.cell_altitude(birch_cell, cont)
+		var bm: float = world.moisture.get_noise_2d(birch_cell.x, birch_cell.y)
+		var bc: float = world.items_chance.get_noise_2d(birch_cell.x, birch_cell.y)
+		for other in [T, ocean, dense]:
+			if BirchTrees.foliage_tile(world, birch_cell, ba, bm, bc, other, false) == TileCatalog.TREE_BIRCH_BOTTOM:
+				printerr("FAIL biome_plants: birch grew outside continental (biome %s)" % other)
+				fail += 1
+		var top_ok := BirchTrees.top_cell(birch_cell)
+		world.set_cell(0, top_ok, TileCatalog.SOURCE_ID, TileCatalog.WATER)
+		if BirchTrees.bottom_can_place(world, birch_cell):
+			printerr("FAIL biome_plants: birch top on water allowed")
+			fail += 1
+		world.erase_cell(0, top_ok)
+		if BirchTrees.foliage_tile(world, top_ok, world.cell_altitude(top_ok, cont),
+				world.moisture.get_noise_2d(top_ok.x, top_ok.y),
+				world.items_chance.get_noise_2d(top_ok.x, top_ok.y), cont, false) != TileCatalog.TREE_BIRCH_TOP:
+			printerr("FAIL biome_plants: birch top missing above bottom")
+			fail += 1
 
-	# Generated chunks place the plant that plant_tile picks (beaches stay bare).
+	# Generated chunks place the plant that predict_cell picks (beaches stay bare).
 	var probe := Vector2i(700, -300)
 	world.generate_chunk(world.map_to_local(probe))
+	world._predict_cache.clear()
 	var mismatched := 0
 	var placed := 0
 	for x in range(probe.x - 48, probe.x + 48):
@@ -350,18 +388,16 @@ func _test_biome_plants() -> int:
 			var cell := Vector2i(x, y)
 			var want: Vector2i = NONE
 			if world.is_walkable_land(cell) and world.get_cell_atlas_coords(0, cell) != TileCatalog.SAND:
-				var b: int = world.biome_at(cell)
-				want = world.plant_tile(world.cell_altitude(cell, b),
-					world.moisture.get_noise_2d(x, y), world.items_chance.get_noise_2d(x, y), b)
+				want = world.predict_cell(cell)[1]
 			var got: Vector2i = world.get_cell_atlas_coords(1, cell)
-			if want == TileCatalog.FLOWER:
+			if want == TileCatalog.FLOWER or want == TileCatalog.STONES:
 				got = world.get_cell_atlas_coords(world.GROUND_DECOR_LAYER, cell)
 			if got != want:
 				mismatched += 1
 			elif want != NONE:
 				placed += 1
 	if mismatched > 0 or placed == 0:
-		printerr("FAIL biome_plants: %s generated cells differ from plant_tile (%s placed)" % [mismatched, placed])
+		printerr("FAIL biome_plants: %s generated cells differ from predict_cell (%s placed)" % [mismatched, placed])
 		fail += 1
 
 	# Over a wide area: tree share of land is highest in CONTINENTAL and lowest
@@ -371,12 +407,14 @@ func _test_biome_plants() -> int:
 	var bushes := {}
 	var pines := {}
 	var bushy := {}
+	var birch := {}
 	for b in BiomeCatalog.PLANTS:
 		land[b] = 0
 		trees[b] = 0
 		bushes[b] = 0
 		pines[b] = 0
 		bushy[b] = 0
+		birch[b] = 0
 	for x in range(-2048, 2048, 16):
 		for y in range(-2048, 2048, 16):
 			var cell := Vector2i(x, y)
@@ -390,8 +428,11 @@ func _test_biome_plants() -> int:
 			land[b] += 1
 			if tile == TileCatalog.SAND:
 				continue
-			var plant: Vector2i = world.plant_tile(alt, moist, chance, b)
+			var plant: Vector2i = world.predict_cell(cell)[1]
 			if plant == TileCatalog.TREE:
+				trees[b] += 1
+			elif plant == TileCatalog.TREE_BIRCH_BOTTOM:
+				birch[b] += 1
 				trees[b] += 1
 			elif plant == TileCatalog.BUSH:
 				bushes[b] += 1
@@ -418,6 +459,10 @@ func _test_biome_plants() -> int:
 	if not (bushy[cont] > 0 and bushy[T] == 0):
 		printerr("FAIL biome_plants: bushy trees continental=%s temperate=%s" % [bushy[cont], bushy[T]])
 		fail += 1
+	if not (birch[cont] > 0 and birch[T] == 0 and birch[ocean] == 0 and birch[dense] == 0):
+		printerr("FAIL biome_plants: birch continental=%s temperate=%s oceanic=%s dense=%s"
+				% [birch[cont], birch[T], birch[ocean], birch[dense]])
+		fail += 1
 
 	# A save from before pines, bushy trees and swamp scrub (no pine_min_chance,
 	# bushy_tree_min_moist or swamp_bush_min_chance) loads with all three off, so
@@ -428,6 +473,7 @@ func _test_biome_plants() -> int:
 	data.erase("pine_min_chance")
 	data.erase("bushy_tree_min_moist")
 	data.erase("swamp_bush_min_chance")
+	data.erase("birch_min_chance")
 	var path := MapSave.path_for("test_pre_pine_save")
 	DirAccess.make_dir_recursive_absolute(MapSave.SAVE_DIR)
 	var file := FileAccess.open(path, FileAccess.WRITE)
@@ -449,17 +495,26 @@ func _test_biome_plants() -> int:
 		if world.plant_tile(0.6, -0.1, 0.9, dense) != NONE:
 			printerr("FAIL biome_plants: pre-scrub save grew swamp scrub")
 			fail += 1
+		if birch_cell != Vector2i.ZERO:
+			var bb: float = world.cell_altitude(birch_cell, cont)
+			var bch: float = world.items_chance.get_noise_2d(birch_cell.x, birch_cell.y)
+			var bmo: float = world.moisture.get_noise_2d(birch_cell.x, birch_cell.y)
+			if BirchTrees.foliage_tile(world, birch_cell, bb, bmo, bch, cont, false) != TileCatalog.TREE:
+				printerr("FAIL biome_plants: pre-birch save grew birches")
+				fail += 1
 	var saved = MapSave.save_map(older, "test_pine_save")
 	var reloaded = MapSave.load_map(saved["path"])
 	DirAccess.remove_absolute(saved["path"])
 	if reloaded["error"] != "" or reloaded["params"].pine_min_chance != older.pine_min_chance \
 			or reloaded["params"].bushy_tree_min_moist != older.bushy_tree_min_moist \
-			or reloaded["params"].swamp_bush_min_chance != older.swamp_bush_min_chance:
+			or reloaded["params"].swamp_bush_min_chance != older.swamp_bush_min_chance \
+			or reloaded["params"].birch_min_chance != older.birch_min_chance:
 		printerr("FAIL biome_plants: pine save reloaded error=%s" % reloaded["error"])
 		fail += 1
 
 	if fail == 0:
-		print("PASS test_biome_plants land=%s trees=%s bushes=%s pines=%s bushy=%s" % [land, trees, bushes, pines, bushy])
+		print("PASS test_biome_plants land=%s trees=%s bushes=%s pines=%s bushy=%s birch=%s"
+				% [land, trees, bushes, pines, bushy, birch])
 	scene.queue_free()
 	return 1 if fail > 0 else 0
 

@@ -375,3 +375,37 @@ func _test_chop_tap_ignores_stale_end() -> int:
 	if fail == 0:
 		print("PASS test_chop_tap_ignores_stale_end")
 	return fail
+
+
+func _test_chop_birch_clears_both_cells() -> int:
+	## Chopping a birch bottom removes its top canopy and leaves a stump with tree wood.
+	print("-- test_chop_birch_clears_both_cells")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world = scene.get_node("World/worldMap")
+	world.clear()
+	var bottom := Vector2i(12, 9)
+	var top := BirchTrees.top_cell(bottom)
+	for c in [bottom, top, bottom + Vector2i(1, 0)]:
+		world.set_cell(0, c, TileCatalog.SOURCE_ID, TileCatalog.GRASS_A)
+	BirchTrees.paint_bottom(world, bottom)
+	if world.get_cell_atlas_coords(1, bottom) != TileCatalog.TREE_BIRCH_BOTTOM \
+			or world.get_cell_atlas_coords(1, top) != TileCatalog.TREE_BIRCH_TOP:
+		printerr("FAIL chop_birch: setup bottom=%s top=%s"
+				% [world.get_cell_atlas_coords(1, bottom), world.get_cell_atlas_coords(1, top)])
+		fail += 1
+	var cut: InteractableType = world.cut_choppable(bottom)
+	if cut == null or cut.id != "tree":
+		printerr("FAIL chop_birch: cut type %s" % cut)
+		fail += 1
+	if world.get_cell_atlas_coords(1, top) != Vector2i(-1, -1) \
+			or world.get_cell_atlas_coords(world.GROUND_DECOR_LAYER, bottom) != TileCatalog.STUMP:
+		printerr("FAIL chop_birch: after cut top=%s stump=%s"
+				% [world.get_cell_atlas_coords(1, top), world.get_cell_atlas_coords(world.GROUND_DECOR_LAYER, bottom)])
+		fail += 1
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_chop_birch_clears_both_cells")
+	return fail

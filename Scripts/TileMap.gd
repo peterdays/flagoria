@@ -71,6 +71,7 @@ var pine_min_moist: float = -0.25
 var pine_min_chance: float = 0.3
 var bushy_tree_min_moist: float = 0.3
 var swamp_bush_min_chance: float = 0.3
+var birch_min_chance: float = 0.55
 var biome_frequency: float = 0.0
 var biome_seed: int = 0
 var biome_edge: float = 0.2
@@ -271,12 +272,13 @@ func set_tile_type_z1(pos_vec, alt, moist, _temp, chance, biome_id: int = BiomeC
 	if _tree_cuts.has_cut(pos_vec):
 		set_cell(GROUND_DECOR_LAYER, pos_vec, TileCatalog.SOURCE_ID, _tree_cuts.leftover(pos_vec))
 		return
-	var tile := NO_PLANT
-	# Biomes can widen beaches into the foliage bands; beaches get no plants.
-	if biome_frequency <= 0.0 or get_cell_atlas_coords(0, pos_vec) != TileCatalog.SAND:
-		tile = plant_tile(alt, moist, chance, biome_id)
+	var tile := BirchTrees.foliage_tile(self, pos_vec, alt, moist, chance, biome_id,
+			get_cell_atlas_coords(0, pos_vec) == TileCatalog.SAND)
 	if tile == NO_PLANT:
 		tile = _tree_cuts.sprouts.tile_or(pos_vec, structure_tile(chance, biome_id))
+	if tile != NO_PLANT and BirchTrees.is_tree_tile(tile):
+		BirchTrees.paint_bottom(self, pos_vec)
+		return
 	if tile == TileCatalog.FLOWER or tile == TileCatalog.STONES:
 		set_cell(GROUND_DECOR_LAYER, pos_vec, TileCatalog.SOURCE_ID, tile)
 	elif tile != NO_PLANT:
@@ -309,8 +311,7 @@ func predict_cell(cell: Vector2i) -> Array:
 	elif _walls.has_wall(cell):
 		top = _walls.piece(cell)
 	elif ground_is_walkable(ground) and not _bridges.has_bridge(cell):
-		if biome_frequency <= 0.0 or ground != TileCatalog.SAND:
-			top = plant_tile(alt, moist, chance, b)
+		top = BirchTrees.foliage_tile(self, cell, alt, moist, chance, b, ground == TileCatalog.SAND)
 		if top == NO_PLANT:
 			top = _tree_cuts.sprouts.tile_or(cell, structure_tile(chance, b))
 		if _tree_cuts.has_cut(cell):

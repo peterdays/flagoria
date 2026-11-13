@@ -17,7 +17,7 @@ Exit codes: 0 ok, 1 error, 2 bad usage."""
 ## instead of the ground under it.
 const LEGEND := {
 	"water": "~", "sand": ".", "swamp": "%", "swamp_special": "&", "grass": ",",
-	"tree": "T", "bush": "b", "flower": "*", "stones": "o", "unknown": "?",
+	"tree": "T", "bush": "b", "birch": "B", "flower": "*", "stones": "o", "unknown": "?",
 }
 
 
@@ -29,7 +29,8 @@ static func tile_names() -> Dictionary:
 		TileCatalog.GRASS_B: "grass", TileCatalog.GRASS_C: "grass", TileCatalog.GRASS_D: "grass",
 		TileCatalog.TREE: "tree", TileCatalog.BUSH: "bush", TileCatalog.FLOWER: "flower",
 		TileCatalog.STONES: "stones", TileCatalog.PINE: "pine",
-		TileCatalog.TREE_BUSHY: "bushy_tree",
+		TileCatalog.TREE_BUSHY: "bushy_tree", TileCatalog.TREE_BIRCH_BOTTOM: "birch",
+		TileCatalog.TREE_BIRCH_TOP: "birch",
 	}
 
 
