@@ -269,8 +269,9 @@ func _test_tower_capture_changes_owner_and_flag_only() -> int:
 
 
 func _test_tower_capture_off_in_multiplayer() -> int:
-	## While multiplayer is on (here a connecting client) no tower moves;
-	## live capture sync is #278. Back offline it runs again. Time cost: ~0.15 s.
+	## A connecting client does not advance a tower. The host does, and sends
+	## the result (#497, test_tower_capture_two_players). Back offline the
+	## client runs again. Time cost: ~0.15 s.
 	print("-- test_tower_capture_off_in_multiplayer")
 	var t := _tower("tower_capture_off_in_multiplayer")
 	if t.is_empty():

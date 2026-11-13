@@ -58,7 +58,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Construction placement](./construction-placement.md) — shared `can_place` / `cost` / `place` for buildables; plank, wooden tower and wall block (through `BuildCosts.buy`); live path is the build picker.
 - [Build placement](./build-placement.md)
 - [Build sync](./build-sync.md) — plank bridges decided by the host and synced to every peer; late joiner gets the list (#297). — interact-mode Cut/Plank/Tower/Wall picker, H/V-snapped plank and wall drag, tower footprint preview, green/red preview and wood cost; places through ConstructionPlacer (#225 / #273 / #276).
-- [Build tower](./build-tower.md) — wooden palisade tower for 10 wood, land only, builder-owned flag, host-alone (#273).
+- [Build tower](./build-tower.md) — wooden palisade tower for 10 wood, land only, builder-owned flag; multiplayer asks the host (#273, #497).
 - [Free-form walls](./free-form-walls.md) — connected palisade chain via Wall tip, 2 wood per block, host-alone (#276).
 - [Wall and tower junctions](./wall-junctions.md) — mask pieces, collar overlays on stone, tower ring with the team flag, far corner flips when a loop closes.
 - [Walls and bridges](./walls-and-bridges.md) — wall solver, plank bridges (live via build picker); free-form walls via [Free-form walls](./free-form-walls.md).
@@ -76,8 +76,9 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Structure placement](./structure-placement.md) — place a structure file at an anchor cell, refusal reasons, kept on redraw, a placed stump does not regrow; placed by a host still alone, sent to joining peers.
 - [Starting castle](./start-castle.md) — each player's castle next to the spawn, player starts outside the gate; placed by the host while alone, sent to joining peers.
 - [Cities](./cities.md) — closed wall loop around a flag tower makes a city; tint + minimap; capture transfers; host alone (#277).
-- [Tower capture](./tower-capture.md) — flag towers taken by a lone other side or mobs standing by the flag for 5 s, defenders pause, empty drains, contested freezes; host alone only.
-- [Flags held points](./flags-held-points.md) — 1 point per owned flag tower every 5 s (`flags_held`); host alone (#275).
+- [Tower capture](./tower-capture.md) — flag towers taken by a lone other side or mobs standing by the flag for 5 s; the host decides, peers receive owner and progress (#274, #497).
+- [Flags held points](./flags-held-points.md) — 1 point per owned flag tower every 5 s (`flags_held`); the host awards, peers share the totals (#275, #497).
+- [Conquest sync](./conquest-sync.md) — host-owned tower placement, capture progress and flag points in multiplayer; a late joiner matches (#497).
 - [Hero sprites](./hero-sprites.md) — layered hero sheet generator, checked by the generator smoke.
 - [App icon](./app-icon.md) — icon generator and wiring, checked by the generator smoke.
 

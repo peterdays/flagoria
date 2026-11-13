@@ -22,7 +22,8 @@ func _clear_tower_anchor(world) -> Variant:
 func _test_construction_placer_tower() -> int:
 	## A clear land anchor places tower_wood for 10 wood, owned by the local
 	## peer with a team flag. Water, an overlapping structure, a player, a mob,
-	## too little wood and multiplayer on are refused and spend nothing.
+	## too little wood is refused and spends nothing. A connecting client does
+	## not write a tower or spend; the host pipeline places it (#497).
 	## Time cost: about 0.6 s in tools/verify.sh (~2.3 s alone with
 	## --only=construction_placer_tower, against ~1.7 s runner start-up).
 	print("-- test_construction_placer_tower")
@@ -136,7 +137,8 @@ func _test_construction_placer_tower() -> int:
 	else:
 		printerr("FAIL construction_placer_tower: no second clear spot for occupancy")
 		fail += 1
-	# Multiplayer on.
+	# Connecting client: preview does not say multiplayer on, and place does
+	# not write or spend (the request is sent only once connected).
 	var peer := ENetMultiplayerPeer.new()
 	var api := SceneMultiplayer.new()
 	if peer.create_client("127.0.0.1", 1) != OK:
@@ -147,10 +149,15 @@ func _test_construction_placer_tower() -> int:
 		set_multiplayer(api, scene.get_path())
 		if clear2 != null:
 			var mcells: Array[Vector2i] = [clear2]
+			var wood_before := inventory.count_of(Inventory.WOOD)
+			var placed_before: int = world.placed_structures().size()
 			reasons = placer.can_place(BuildCosts.TOWER, mcells, inventory)
-			if ConstructionPlacer.MULTIPLAYER_ON not in reasons \
-					or placer.place(BuildCosts.TOWER, mcells, inventory):
-				printerr("FAIL construction_placer_tower: multiplayer gave %s" % [reasons])
+			var wrote := placer.place(BuildCosts.TOWER, mcells, inventory)
+			if ConstructionPlacer.MULTIPLAYER_ON in reasons or wrote \
+					or inventory.count_of(Inventory.WOOD) != wood_before \
+					or world.placed_structures().size() != placed_before:
+				printerr("FAIL construction_placer_tower: multiplayer gave %s wrote %s wood %d placed %d"
+						% [reasons, wrote, inventory.count_of(Inventory.WOOD), world.placed_structures().size()])
 				fail += 1
 		api.multiplayer_peer = null
 		peer.close()

@@ -12,7 +12,8 @@ extends Node2D
 ## Progress reaching CAPTURE_TIME hands the tower to that side
 ## (StructurePlacer.set_owner: owner entry and flag colour only).
 ## Mobs have no seeking yet (#280); they count when they wander or chase in.
-## Host alone only: while multiplayer is on nothing moves (sync is #278).
+## In multiplayer only the host advances progress (#497). Clients apply
+## receive_capture_state. A late joiner gets capture_snapshot from the host.
 ## Lives under World next to worldMap, Mobs and the players; draws the bars.
 ## The tower list is cached and refreshed on worldMap.ground_changed so a
 ## tick does not deep-copy placements()/towers(); players are gathered once
@@ -61,7 +62,10 @@ func _physics_process(delta: float) -> void:
 
 func tick(delta: float) -> bool:
 	## Advance every tower by `delta` s. Returns whether any progress changed.
-	if _map == null or Interaction.multiplayer_on(multiplayer):
+	## A client does not advance: it shows the host's snapshot.
+	if _map == null:
+		return false
+	if Interaction.multiplayer_on(multiplayer) and not multiplayer.is_server():
 		return false
 	var placer: StructurePlacer = _map._structures
 	var players := _player_list()
@@ -72,7 +76,59 @@ func tick(delta: float) -> bool:
 	for id in progress.keys():
 		if not _towers.has(id):
 			progress.erase(id)
+	if changed and Interaction.multiplayer_on(multiplayer) and multiplayer.is_server():
+		receive_capture_state.rpc(capture_snapshot())
 	return changed
+
+
+func capture_snapshot() -> Array:
+	## `[id, owner, side, progress]` for every flag tower. Progress is 0 and
+	## side is the owner when nobody is capturing. The join snapshot and each
+	## live update use this.
+	_refresh_towers()
+	if _map == null or _map._structures == null:
+		return []
+	var placer: StructurePlacer = _map._structures
+	var out := []
+	for id: int in _towers:
+		var owner := placer.owner_of(id)
+		var state: Dictionary = progress.get(id, {})
+		out.append([id, owner, int(state.get("side", owner)), float(state.get("progress", 0.0))])
+	return out
+
+
+func sync_to_peer(peer_id: int) -> void:
+	## Host: send the current owner and progress to a peer that just joined.
+	if multiplayer.is_server():
+		receive_capture_state.rpc_id(peer_id, capture_snapshot())
+
+
+@rpc("authority", "reliable", "call_remote")
+func receive_capture_state(entries: Array) -> void:
+	## Owner and progress the host decided. Ignored unless peer 1 sent it.
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	if _map == null or _map._structures == null:
+		return
+	var seen := {}
+	for entry in entries:
+		if not entry is Array or entry.size() < 4:
+			continue
+		var id := int(entry[0])
+		var owner := int(entry[1])
+		var side := int(entry[2])
+		var prog := float(entry[3])
+		seen[id] = true
+		if _map._structures.owner_of(id) != 0 and _map._structures.owner_of(id) != owner:
+			_map._structures.set_owner(id, owner)
+		if prog <= 0.0:
+			progress.erase(id)
+		else:
+			progress[id] = {"side": side, "progress": prog}
+	for id in progress.keys():
+		if not seen.has(id):
+			progress.erase(id)
+	queue_redraw()
 
 
 func _step(placer: StructurePlacer, id: int, owner: int, sides: Dictionary, delta: float) -> bool:

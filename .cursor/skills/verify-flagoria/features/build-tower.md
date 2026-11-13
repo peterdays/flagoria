@@ -9,8 +9,8 @@ refusal reason otherwise. On release, placement goes through
 `ConstructionPlacer` (`BuildCosts.TOWER` → `StructurePlacer` writing
 `structures/tower_wood.txt`). The builder owns the tower and its team flag so
 `TowerCapture` can take it (#274). Land only; no overlap with structures,
-players or mobs; unlimited count. While multiplayer is on, the Tower icon is
-hidden (same gate as Plank). The placed ring is `TOWER_STONE_*` (the centre
+players or mobs; unlimited count. The Tower icon stays visible in multiplayer;
+a client asks the host ([Conquest sync](./conquest-sync.md), #497). The placed ring is `TOWER_STONE_*` (the centre
 stays the team flag). The file still names `TOWER_WOOD_POST` / `TOWER_WOOD_WALL`
 as the auto entries the solver replaces. The picker icon comes from
 `tools/art/gen_tower_wood_tiles.py`.
@@ -18,7 +18,7 @@ as the auto entries the solver replaces. The picker icon comes from
 ## Sub-features
 
 - `build-tower-picker` Tower icon appears in interact mode with Cut / Plank,
-  hides while multiplayer is on, and switches `BuildPlacement.tool` to Tower.
+  stays visible while multiplayer is on (#497), and switches `BuildPlacement.tool` to Tower.
 - `build-tower-preview` footprint cells and cost match what commit places and
   charges; red when refused (wrong ground, occupied, short wood, multiplayer).
   A clear anchor beyond reach reports `out of reach`, not `occupied` (#386).
@@ -77,5 +77,5 @@ Staged screenshot harness about 3 s under xvfb.
   `place_structure` from the UI layer.
 - Preview green cells and cost must match what `commit` places; a short-wood
   or occupied footprint is all red with cost 0.
-- Do not show the Tower icon while multiplayer is on; peer sync of placed
-  towers is still #297 / #278.
+- Peer sync of a placed tower goes through `StructureRequests` (#497). Do not
+  write the tower on the client.

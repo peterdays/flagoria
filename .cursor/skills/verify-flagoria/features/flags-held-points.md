@@ -2,13 +2,13 @@
 
 Drive: not player-facing
 
-Every owned flag tower pays points on a timer (#275). `FlagsHeldPoints` (`Scripts/mechanics/conquest/flags_held_points.gd`, the `FlagsHeldPoints` node next to `Points` / `Discovery` in `flagoria_main.tscn`) awards `Points.FLAGS_HELD_POINTS` (1) with reason `flags_held` for each placement that has a `team` flag and a peer owner (id > 0). Neutral and mob-owned towers pay nothing. The interval is `FlagsHeldPoints.INTERVAL` (5 s). Awards go through the Points core, so the score HUD picks them up like any other reason. Host alone only: while multiplayer is on nothing is awarded (live sync is #278). No dedicated drive: the award is a background tick with no unique player action beyond already owning a tower; proof is the unit tests.
+Every owned flag tower pays points on a timer (#275). `FlagsHeldPoints` (`Scripts/mechanics/conquest/flags_held_points.gd`, the `FlagsHeldPoints` node next to `Points` / `Discovery` in `flagoria_main.tscn`) awards `Points.FLAGS_HELD_POINTS` (1) with reason `flags_held` for each placement that has a `team` flag and a peer owner (id > 0). Neutral and mob-owned towers pay nothing. The interval is `FlagsHeldPoints.INTERVAL` (5 s). Awards go through the Points core, so the score HUD picks them up like any other reason. The host awards with peers connected; a client does not (#497). Both peers' totals match because `Points` replicates each award. The background tick has no dedicated drive; the two-player total check is `test_tower_place_two_players`.
 
 ## Sub-features
 
 - `flags-held-awards` two host-owned towers pay once each on every tick; three ticks award `2 × 3 × FLAGS_HELD_POINTS`. Handing one tower to the mobs stops that tower's points on further ticks.
 - `flags-held-skips-non-players` neutral and mob-owned towers never pay.
-- `flags-held-off-in-multiplayer` while multiplayer is on (a connecting client in the test) no held-flag points are paid; back offline it runs again.
+- `flags-held-off-in-multiplayer` a connecting client pays nothing; back offline it awards again. The host awards with peers connected (`test_tower_place_two_players`).
 
 ## How to get to it (user POV)
 
@@ -25,4 +25,4 @@ Preconditions: `doctor.sh` exits `0`. Time cost: the three tests in `tests/mecha
 ## Gotchas
 
 - Points from held flags are not saved in world saves; a new game starts at 0 (same as other point sources).
-- While multiplayer is on, the ticker is idle; peers do not yet sync held-flag awards (#278).
+- A client does not award. The host does, and `Points` sends the new totals (#497).

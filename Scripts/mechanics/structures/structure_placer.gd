@@ -4,9 +4,10 @@ extends RefCounted
 ## the cells, and the list of placements. The map keeps wrappers
 ## (can_place_structure, place_structure, placed_structures) and asks
 ## has_cell / ground_at / object_at when it draws or predicts a cell.
-## Only a host that is still alone places: while multiplayer is on nothing is
-## placed. A peer that joins gets the host's list with the map (to_sync,
-## replace_from_host); live placements after a join are the rest of #278.
+## can_place still reports multiplayer on, so a client does not write. The
+## host writes an accepted tower with place_from_host (#497). A joining peer
+## gets the host's list with the map (to_sync, replace_from_host). Walls
+## placed after a join are still #278.
 
 const _WorldMap := preload("res://Scripts/TileMap.gd")
 
@@ -132,6 +133,19 @@ func place(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
 	## Returns the new placement id, or -1 and nothing written when can_place
 	## gives any reason.
 	if not can_place(structure, anchor_cell).is_empty():
+		return -1
+	return _write(structure, anchor_cell, owner)
+
+
+func place_from_host(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
+	## The host already decided this placement (#497). Same footprint rules
+	## as can_place, without the multiplayer refuse a client still gets from
+	## can_place. Returns the new id, or -1 when the footprint is refused.
+	var why: Array[String] = []
+	for reason in can_place(structure, anchor_cell):
+		if reason != MULTIPLAYER_ON:
+			why.append(reason)
+	if not why.is_empty():
 		return -1
 	return _write(structure, anchor_cell, owner)
 

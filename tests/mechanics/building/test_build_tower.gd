@@ -47,8 +47,8 @@ func _cell_vp(interaction: Interaction, world, cell: Vector2i) -> Vector2:
 
 
 func _test_build_picker_includes_tower() -> int:
-	## The row shows Plank / Tower / Wall; Tower hides while multiplayer
-	## is on (Plank stays, #297). Time cost: about 0.35 s in tools/verify.sh
+	## The row shows Plank / Tower / Wall. Tower stays visible in multiplayer
+	## (#497); Plank stays (#297). Time cost: about 0.35 s in tools/verify.sh
 	## (~2.0 s alone with --only=build_picker_includes_tower).
 	print("-- test_build_picker_includes_tower")
 	var fail := 0
@@ -82,14 +82,18 @@ func _test_build_picker_includes_tower() -> int:
 		await process_frame
 		var tower_btn: Button = interaction.build._buttons.get(BuildPlacement.Tool.TOWER)
 		var plank_btn: Button = interaction.build._buttons.get(BuildPlacement.Tool.PLANK)
-		if tower_btn == null or tower_btn.visible:
-			printerr("FAIL build_picker_includes_tower: MP should hide Tower")
+		var wall_btn: Button = interaction.build._buttons.get(BuildPlacement.Tool.WALL)
+		if tower_btn == null or not tower_btn.visible:
+			printerr("FAIL build_picker_includes_tower: MP should show Tower")
+			fail += 1
+		if wall_btn == null or wall_btn.visible:
+			printerr("FAIL build_picker_includes_tower: MP should hide Wall")
 			fail += 1
 		if plank_btn == null or not plank_btn.visible:
 			printerr("FAIL build_picker_includes_tower: MP should keep Plank visible")
 			fail += 1
-		if interaction.build.tool == BuildPlacement.Tool.TOWER:
-			printerr("FAIL build_picker_includes_tower: MP left tool on Tower")
+		if interaction.build.tool != BuildPlacement.Tool.TOWER:
+			printerr("FAIL build_picker_includes_tower: MP cleared the Tower tool")
 			fail += 1
 		api.multiplayer_peer = null
 		peer.close()

@@ -5,9 +5,8 @@ extends RefCounted
 ## share the same path. Plank bridges, wooden towers (#273) and free-form
 ## wall blocks (#276) are registered. The placement UI (#225) only talks to
 ## this module.
-## Plank bridges sync between peers (#297): place is allowed in multiplayer for
-## planks; the host decides and broadcasts. Towers and walls stay host-alone
-## until their peer sync (#278).
+## Plank bridges sync between peers (#297). Towers sync through
+## StructureRequests (#497). Walls stay host-alone until their own request.
 
 const _WorldMap := preload("res://Scripts/TileMap.gd")
 
@@ -108,6 +107,20 @@ func write_plank(cells: Array[Vector2i]) -> Array[Vector2i]:
 	return ends
 
 
+func write_tower(anchor: Vector2i, owner: int) -> int:
+	## Write one wooden tower for `owner` with no wood spend. Returns the
+	## placement id, or -1 when the footprint refuses or the write fails.
+	## The host uses this for a peer's request (#497). The multiplayer refuse
+	## on StructurePlacer.can_place is not a footprint failure.
+	var one: Array[Vector2i] = [anchor]
+	if not can_place_geometry(BuildCosts.TOWER, one).is_empty():
+		return -1
+	var structure := _load_tower()
+	if structure == null:
+		return -1
+	return _map._structures.place_from_host(structure, anchor, owner)
+
+
 func cost(kind: StringName, cells: Array) -> int:
 	## Wood for placing `kind` on `cells`; -1 for an unknown kind. A tower is
 	## always one unit (10 wood) regardless of footprint size; a wall block is
@@ -202,9 +215,13 @@ func _place_plank(cells: Array[Vector2i], inventory: Inventory) -> bool:
 
 func _place_tower(cells: Array[Vector2i], inventory: Inventory) -> bool:
 	## One tower: spend 10 wood, then StructurePlacer writes tower_wood owned
-	## by the local peer so TowerCapture can take it (#274).
+	## by the local peer so TowerCapture can take it (#274). With peers
+	## connected, StructureRequests asks the host instead of writing here.
 	if cells.size() != 1:
 		return false
+	if Interaction.multiplayer_on(_map.multiplayer):
+		var requests := _map.get_node_or_null("../StructureRequests")
+		return requests != null and requests.place(BuildCosts.TOWER, cells)
 	var structure := _load_tower()
 	if structure == null:
 		return false
@@ -244,6 +261,8 @@ func _check_tower(cells: Array[Vector2i], found: Dictionary) -> void:
 		found[UNKNOWN_KIND] = true
 		return
 	for reason in _map.can_place_structure(structure, cells[0]):
+		if reason == StructurePlacer.MULTIPLAYER_ON:
+			continue  # StructureRequests is the multiplayer gate (#497).
 		match reason:
 			StructurePlacer.WATER, StructurePlacer.OUT_OF_MAP:
 				found[WRONG_GROUND] = true

@@ -290,6 +290,9 @@ func _sync_map_params_to_peer(peer_id: int) -> void:
 	var parts := WorldSave.split_changes(world.cut_changes(), JOIN_CUTS_PER_MESSAGE)
 	rpc_id(peer_id, "receive_map_params", world_params.to_dict(), spot, parts[0],
 			world.structures_for_sync(), world.bridges_for_sync(), _player_spots())
+	var capture := get_node_or_null("World/TowerCapture")
+	if capture != null:
+		capture.sync_to_peer(peer_id)
 	for i in range(1, parts.size()):
 		rpc_id(peer_id, "receive_join_cuts", parts[i])
 

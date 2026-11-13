@@ -30,4 +30,4 @@ Preconditions: `doctor.sh` exits `0`.
 - The join test picks a free UDP port and kills only the server it started.
 - Dedicated boot passes `with_castle` false, so it places no starting castle. That is intentional.
 - Chunk refresh follows `World/<local unique id>`. The dedicated server is peer 1 with no player node, so it does not follow joiners. A listen host refreshes around peer 1 only.
-- Cities, tower capture, and flags-held points do nothing while a peer is connected (`Interaction.multiplayer_on`). Conquest runs only while the host is alone.
+- Cities do nothing while a peer is connected. Tower capture and flags-held points run on the host and replicate ([Conquest sync](./conquest-sync.md), #497).

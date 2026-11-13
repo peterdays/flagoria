@@ -75,7 +75,7 @@ func _test_join_cuts_split() -> int:
 		return 1
 	var want: Dictionary = host["world"].cut_changes()
 	host["scene"]._sync_map_params_to_peer(2)
-	var msgs: Array = host_api.sent.filter(func(r: Array) -> bool: return r[0] == 2)
+	var msgs: Array = host_api.sent.filter(func(r: Array) -> bool: return r[0] == 2 and str(r[1]) in ["receive_map_params", "receive_join_cuts"])
 	await _drop(host)
 	var counts: Array[int] = []
 	var biggest := 0
