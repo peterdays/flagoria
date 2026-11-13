@@ -89,7 +89,8 @@ func _test_parchment_map() -> int:
 	var before_px: int = parchment.cell_px
 	var focus := Vector2(120, 100)
 	var view: Control = parchment.get_node("MapView")
-	var anchor := parchment.map_pixel_at_view(focus - view.position)
+	var focus2_pre: Vector2 = focus - view.position
+	var anchor_cell := parchment.map_pixel_at_view(focus2_pre) / float(parchment.cell_px)
 	var wheel := InputEventMouseButton.new()
 	wheel.button_index = MOUSE_BUTTON_WHEEL_UP
 	wheel.pressed = true
@@ -103,8 +104,9 @@ func _test_parchment_map() -> int:
 		printerr("FAIL parchment_map wheel did not zoom the sheet (%s)" % parchment.cell_px)
 		fail += 1
 	var focus2: Vector2 = focus - view.position
-	if parchment.map_pixel_at_view(focus2).distance_to(anchor) > 0.5:
-		printerr("FAIL parchment_map wheel moved anchor (%s vs %s)" % [anchor, parchment.map_pixel_at_view(focus2)])
+	var after_cell := parchment.map_pixel_at_view(focus2) / float(parchment.cell_px)
+	if after_cell.distance_to(anchor_cell) > 0.01:
+		printerr("FAIL parchment_map wheel moved anchor (%s vs %s)" % [anchor_cell, after_cell])
 		fail += 1
 	parchment.cell_px = parchment.MAX_CELL_PX
 	parchment._zoom_at(focus2, parchment.MAX_CELL_PX)
@@ -118,6 +120,20 @@ func _test_parchment_map() -> int:
 	parchment._zoom_at(focus2, parchment.min_cell_px() - 2)
 	if parchment.cell_px < parchment.min_cell_px():
 		printerr("FAIL parchment_map min clamp %s min %s" % [parchment.cell_px, parchment.min_cell_px()])
+		fail += 1
+	while parchment.cell_px > parchment.min_cell_px():
+		var down := InputEventMouseButton.new()
+		down.button_index = MOUSE_BUTTON_WHEEL_DOWN
+		down.pressed = true
+		down.position = parchment.hero_screen_position()
+		parchment._gui_input(down)
+		await process_frame
+	if parchment.cell_px != parchment.min_cell_px():
+		printerr("FAIL parchment_map min zoom %s" % parchment.cell_px)
+		fail += 1
+	if not parchment.explored_fully_visible():
+		printerr("FAIL parchment_map min zoom chart outside view %s explored %s"
+				% [parchment.view_cells_rect(), parchment.panel.explored.explored_rect()])
 		fail += 1
 	var pinch_a := InputEventScreenTouch.new()
 	pinch_a.index = 0

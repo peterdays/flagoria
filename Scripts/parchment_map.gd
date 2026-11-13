@@ -8,9 +8,10 @@ extends Control
 const GROUP := "fullscreen_map"
 const INSET := 8
 const CELL_PX := 2
+const MIN_CELL_PX := 1  ## most zoomed out; nearest-filter pixel steps
 const DEFAULT_CELL_PX := 2  ## opening zoom; one world cell per two art pixels
 const MAX_CELL_PX := 16  ## cells are easy to read
-const FOG_TILE_CELLS := 16  ## fog pattern repeats every this many cells at default zoom
+const FOG_TILE_PX := 32  ## fog art tile; scales with cell_px at default zoom
 ## Aged paper, in the same ink and wood family as the panel frame.
 const PAPER := Color("e7d7b1")
 const PAPER_SHADE := Color("cbb98a")
@@ -76,18 +77,43 @@ func hide_map() -> void:
 
 
 func min_cell_px() -> int:
-	## The smallest integer step that still fits the explored chart in the viewport.
+	## Most zoomed-out allowed step; pan must show every explored cell.
+	return MIN_CELL_PX
+
+
+func view_cells_rect() -> Rect2i:
+	## Explored-map cells currently under the map window.
+	var origin := _origin()
+	var lo := Vector2i(floori(origin.x / cell_px), floori(origin.y / cell_px))
+	var cells := Vector2i(ceili(_view.size.x / cell_px), ceili(_view.size.y / cell_px))
+	return Rect2i(lo, cells)
+
+
+func explored_fully_visible() -> bool:
 	if panel == null:
-		return DEFAULT_CELL_PX
-	var rect := panel.explored.explored_rect()
-	if rect.size == Vector2i.ZERO:
-		return DEFAULT_CELL_PX
-	var window := _view.size
-	if window.x <= 1.0 or window.y <= 1.0:
-		return DEFAULT_CELL_PX
-	var cells := rect.size + Vector2i.ONE
-	var fit := mini(floori(window.x / float(cells.x)), floori(window.y / float(cells.y)))
-	return clampi(maxi(1, fit), 1, MAX_CELL_PX)
+		return true
+	var chart := panel.explored.explored_rect()
+	if chart.size == Vector2i.ZERO:
+		return true
+	var cells := chart.size + Vector2i.ONE
+	var lo := Vector2(chart.position * cell_px)
+	var hi := Vector2((chart.position + cells) * cell_px)
+	var view_lo := _origin()
+	var view_hi := view_lo + _view.size
+	return view_lo.x <= lo.x + 0.5 and view_lo.y <= lo.y + 0.5 \
+			and view_hi.x >= hi.x - 0.5 and view_hi.y >= hi.y - 0.5
+
+
+func hero_view_focus() -> Vector2:
+	## MapView-local point on the hero marker for wheel or pinch zoom.
+	var marker_scale := float(cell_px) / float(MinimapPanel.CELL_PX)
+	var hero := Vector2(panel.hero_cell * cell_px) + Vector2.ONE * marker_scale \
+			- Vector2(MinimapPanel.HERO_ANCHOR) * marker_scale
+	return hero - _origin()
+
+
+func hero_screen_position() -> Vector2:
+	return _view.position + hero_view_focus()
 
 
 func map_pixel_at_view(focus: Vector2) -> Vector2:
@@ -197,18 +223,10 @@ func _draw() -> void:
 
 func _draw_map() -> void:
 	var window := _view.size
-	var fog_step := FOG_TILE_CELLS * cell_px
-	var fog_size := Vector2(_fog.get_width(), _fog.get_height())
-	var y := 0.0
-	while y < window.y:
-		var x := 0.0
-		while x < window.x:
-			_view.draw_texture_rect(_fog, Rect2(Vector2(x, y), Vector2(fog_step, fog_step)), false)
-			x += fog_step
-		y += fog_step
+	var origin := _origin()
+	_draw_fog(window, origin)
 	if panel == null:
 		return
-	var origin := _origin()
 	var top_left := Vector2i(floori(origin.x / cell_px), floori(origin.y / cell_px))
 	var extent := Vector2i(ceili(window.x / cell_px), ceili(window.y / cell_px))
 	var first := ExploredMap.chunk_of(top_left)
@@ -235,13 +253,50 @@ func _origin() -> Vector2:
 
 func _zoom_at(focus: Vector2, stepped: int) -> void:
 	var clamped := clampi(stepped, min_cell_px(), MAX_CELL_PX)
-	if clamped == cell_px:
+	var old_px := cell_px
+	var changed := clamped != old_px
+	if not changed and clamped != stepped:
 		return
-	var anchor := map_pixel_at_view(focus)
+	var anchor_cell := map_pixel_at_view(focus) / float(old_px)
 	cell_px = clamped
-	var new_origin := anchor - focus
-	pan = new_origin - Vector2(panel.hero_cell * cell_px) + _view.size * 0.5
+	if changed:
+		var new_origin := Vector2(anchor_cell * float(cell_px)) - focus
+		pan = new_origin - Vector2(panel.hero_cell * cell_px) + _view.size * 0.5
+	if clamped == min_cell_px():
+		_center_explored_in_view()
 	_view.queue_redraw()
+
+
+func _center_explored_in_view() -> void:
+	if panel == null:
+		return
+	var chart := panel.explored.explored_rect()
+	if chart.size == Vector2i.ZERO:
+		pan = Vector2.ZERO
+		return
+	var cells := chart.size + Vector2i.ONE
+	var lo := Vector2(chart.position * cell_px)
+	var hi := Vector2((chart.position + cells) * cell_px)
+	var center := (lo + hi) * 0.5
+	var map_w := hi.x - lo.x
+	var map_h := hi.y - lo.y
+	var origin := center - _view.size * 0.5
+	if map_w > _view.size.x:
+		origin.x = clampf(origin.x, hi.x - _view.size.x, lo.x)
+	if map_h > _view.size.y:
+		origin.y = clampf(origin.y, hi.y - _view.size.y, lo.y)
+	pan = origin - Vector2(panel.hero_cell * cell_px) + _view.size * 0.5
+
+
+func _draw_fog(window: Vector2, origin: Vector2) -> void:
+	var fog_step := float(FOG_TILE_PX) * float(cell_px) / float(CELL_PX)
+	var y := fposmod(-origin.y, fog_step) - fog_step
+	while y < window.y + fog_step:
+		var x := fposmod(-origin.x, fog_step) - fog_step
+		while x < window.x + fog_step:
+			_view.draw_texture_rect(_fog, Rect2(Vector2(x, y), Vector2(fog_step, fog_step)), false)
+			x += fog_step
+		y += fog_step
 
 
 func _view_focus(screen_pos: Vector2) -> Vector2:
