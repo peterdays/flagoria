@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3 uid="uid://ingamemenu01"]
+[gd_scene load_steps=5 format=3 uid="uid://ingamemenu01"]
 
 [ext_resource type="Script" path="res://Scripts/ingame_menu.gd" id="1_menu"]
 [ext_resource type="Theme" path="res://art/ui/main_menu_theme.tres" id="2_theme"]
 [ext_resource type="Texture2D" path="res://art/ui/ui_menu_icon.png" id="3_icon"]
+[ext_resource type="PackedScene" path="res://hud_layout_edit.tscn" id="4_hud_edit"]
 
 [node name="InGameMenu" type="Control"]
 z_index = 10
@@ -71,6 +72,10 @@ text = "Resume"
 layout_mode = 2
 text = "Save"
 
+[node name="CustomizeHud" type="Button" parent="Pause/Panel/Margin/VBox"]
+layout_mode = 2
+text = "Customize HUD"
+
 [node name="MainMenu" type="Button" parent="Pause/Panel/Margin/VBox"]
 layout_mode = 2
 text = "Main menu"
@@ -80,3 +85,5 @@ custom_minimum_size = Vector2(140, 0)
 layout_mode = 2
 horizontal_alignment = 1
 autowrap_mode = 3
+
+[node name="HudLayoutEdit" parent="." instance=ExtResource("4_hud_edit")]

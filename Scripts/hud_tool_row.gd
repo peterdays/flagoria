@@ -22,6 +22,11 @@ func _layout() -> void:
 	var layer := get_parent()
 	if layer == null:
 		return
+	var layout := get_node_or_null("/root/HudLayout")
+	if layout != null and layout.layout_active():
+		layout.apply(layer)
+		return
+	_restore_touch_defaults(layer)
 	var buildings := layer.get_node_or_null("BuildingsButton") as Control
 	var map_button := layer.get_node_or_null("MinimapButton") as Control
 	var mode := layer.get_node_or_null("ModeButton") as Control
@@ -155,6 +160,24 @@ func _menu_rect(layer: Node) -> Rect2:
 	if menu == null:
 		return Rect2()
 	return menu.get_global_rect()
+
+
+func _restore_touch_defaults(layer: Node) -> void:
+	var attack := layer.get_node_or_null("TouchScreenButton") as TouchScreenButton
+	if attack != null:
+		attack.position = Vector2(378, 182)
+		attack.scale = Vector2.ONE
+		if attack.shape is CircleShape2D:
+			(attack.shape as CircleShape2D).radius = 24.0
+	var stick := layer.get_node_or_null("player_joystick") as Node2D
+	if stick != null:
+		stick.position = Vector2(77, 201)
+		stick.scale = Vector2.ONE
+
+
+func place_panel_only(layer: Node) -> void:
+	## Minimap placement when touch controls use a saved layout.
+	_place_panel(layer, layer.get_viewport().get_visible_rect().size)
 
 
 func _pin(control: Control) -> void:
