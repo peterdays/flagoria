@@ -134,6 +134,11 @@ func spawn_for_world(world: TileMap, origin: Vector2i, seed_value: int, rate := 
 	## the count. Clients get the server's mobs and never plan their own.
 	if not multiplayer.is_server():
 		return 0
+	# These mob ids are about to be used again. Drop kill credits first, or
+	# the new mob_0 could not pay.
+	var points := get_node_or_null("../../Points") as Points
+	if points:
+		points.clear_kill_credits()
 	clear_mobs()
 	var plans := plan(world, origin, seed_value, rate)
 	for i in plans.size():
