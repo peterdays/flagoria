@@ -62,6 +62,27 @@ func reveal_cells(center: Vector2i, radius: int = REVEAL_RADIUS) -> Array[Vector
 	return fresh
 
 
+func explored_rect() -> Rect2i:
+	## Smallest axis-aligned rectangle of explored cells; size zero when none.
+	var any := false
+	var lo := Vector2i.MAX
+	var hi := Vector2i.MIN
+	for chunk: Vector2i in _chunks:
+		var bits: PackedByteArray = _chunks[chunk]
+		for ly in CHUNK:
+			for lx in CHUNK:
+				var i := ly * CHUNK + lx
+				if bits[i >> 3] & (1 << (i & 7)) == 0:
+					continue
+				var cell := chunk * CHUNK + Vector2i(lx, ly)
+				lo = lo.min(cell)
+				hi = hi.max(cell)
+				any = true
+	if not any:
+		return Rect2i()
+	return Rect2i(lo, hi - lo + Vector2i.ONE)
+
+
 func chunks() -> Array:
 	## The chunks with at least one explored cell.
 	return _chunks.keys()

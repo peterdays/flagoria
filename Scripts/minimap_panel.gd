@@ -408,7 +408,7 @@ func _draw_map() -> void:
 	paint_city_walls(_view, top_left, WINDOW.size)
 
 
-func paint_city_walls(target: CanvasItem, top_left: Vector2i, window_size: Vector2i) -> void:
+func paint_city_walls(target: CanvasItem, top_left: Vector2i, window_size: Vector2i, cell_px: int = CELL_PX) -> void:
 	## Owner-coloured city wall cells over an explored window (#277).
 	var cities: Cities = get_node_or_null(WORLD_PATH + "/Cities")
 	if cities == null or cities.cities.is_empty():
@@ -425,11 +425,11 @@ func paint_city_walls(target: CanvasItem, top_left: Vector2i, window_size: Vecto
 		for cell: Vector2i in cities.cities[id]["walls"]:
 			if not explored.is_explored(cell):
 				continue
-			var local := (cell - top_left) * CELL_PX
-			if local.x < -CELL_PX or local.y < -CELL_PX \
+			var local := (cell - top_left) * cell_px
+			if local.x < -cell_px or local.y < -cell_px \
 					or local.x >= window_size.x or local.y >= window_size.y:
 				continue
-			target.draw_rect(Rect2(Vector2(local), Vector2(CELL_PX, CELL_PX)), colour)
+			target.draw_rect(Rect2(Vector2(local), Vector2(cell_px, cell_px)), colour)
 
 
 func _on_ground_changed(cells: Rect2i) -> void:

@@ -86,15 +86,64 @@ func _test_parchment_map() -> int:
 		fail += 1
 	var zoom = player.get_node("Camera2D/MapZoom")
 	var factor: float = zoom.factor
+	var before_px: int = parchment.cell_px
+	var focus := Vector2(120, 100)
+	var view: Control = parchment.get_node("MapView")
+	var anchor := parchment.map_pixel_at_view(focus - view.position)
 	var wheel := InputEventMouseButton.new()
 	wheel.button_index = MOUSE_BUTTON_WHEEL_UP
 	wheel.pressed = true
-	wheel.position = Vector2(200, 100)
-	scene.get_viewport().push_input(wheel, true)
+	wheel.position = focus
+	parchment._gui_input(wheel)
 	await process_frame
 	if not is_equal_approx(zoom.factor, factor):
 		printerr("FAIL parchment_map wheel zoomed the camera (%s -> %s)" % [factor, zoom.factor])
 		fail += 1
+	if parchment.cell_px <= before_px:
+		printerr("FAIL parchment_map wheel did not zoom the sheet (%s)" % parchment.cell_px)
+		fail += 1
+	var focus2: Vector2 = focus - view.position
+	if parchment.map_pixel_at_view(focus2).distance_to(anchor) > 0.5:
+		printerr("FAIL parchment_map wheel moved anchor (%s vs %s)" % [anchor, parchment.map_pixel_at_view(focus2)])
+		fail += 1
+	parchment.cell_px = parchment.MAX_CELL_PX
+	parchment._zoom_at(focus2, parchment.MAX_CELL_PX)
+	if parchment.cell_px != parchment.MAX_CELL_PX:
+		printerr("FAIL parchment_map max clamp %s" % parchment.cell_px)
+		fail += 1
+	parchment._zoom_at(focus2, parchment.MAX_CELL_PX + 4)
+	if parchment.cell_px != parchment.MAX_CELL_PX:
+		printerr("FAIL parchment_map above max clamp %s" % parchment.cell_px)
+		fail += 1
+	parchment._zoom_at(focus2, parchment.min_cell_px() - 2)
+	if parchment.cell_px < parchment.min_cell_px():
+		printerr("FAIL parchment_map min clamp %s min %s" % [parchment.cell_px, parchment.min_cell_px()])
+		fail += 1
+	var pinch_a := InputEventScreenTouch.new()
+	pinch_a.index = 0
+	pinch_a.pressed = true
+	pinch_a.position = Vector2(80, 200)
+	parchment._gui_input(pinch_a)
+	var pinch_b := InputEventScreenTouch.new()
+	pinch_b.index = 1
+	pinch_b.pressed = true
+	pinch_b.position = Vector2(180, 200)
+	parchment._gui_input(pinch_b)
+	var pinch_factor: float = zoom.factor
+	var drag := InputEventScreenDrag.new()
+	drag.index = 1
+	drag.position = Vector2(280, 200)
+	parchment._gui_input(drag)
+	await process_frame
+	if not is_equal_approx(zoom.factor, pinch_factor):
+		printerr("FAIL parchment_map pinch moved camera (%s -> %s)" % [pinch_factor, zoom.factor])
+		fail += 1
+	var up_a := pinch_a.duplicate() as InputEventScreenTouch
+	up_a.pressed = false
+	parchment._gui_input(up_a)
+	var up_b := pinch_b.duplicate() as InputEventScreenTouch
+	up_b.pressed = false
+	parchment._gui_input(up_b)
 	var health: PlayerHealth = player.get_node("Health")
 	if not health.take_damage(1):
 		printerr("FAIL parchment_map damage did not land")
@@ -126,10 +175,20 @@ func _test_parchment_map() -> int:
 		printerr("FAIL parchment_map recentre opened a closed map")
 		fail += 1
 	_tap(maximize)
+	parchment.cell_px = 8
 	parchment.pan = Vector2(30, 30)
 	_tap(parchment.get_node("RecentreButton"))
 	if parchment.pan != Vector2.ZERO:
 		printerr("FAIL parchment_map recentre left pan %s" % parchment.pan)
+		fail += 1
+	if parchment.cell_px != 8:
+		printerr("FAIL parchment_map recentre changed zoom %s" % parchment.cell_px)
+		fail += 1
+	parchment.hide_map()
+	panel.apply_chrome()
+	_tap(maximize)
+	if parchment.cell_px != parchment.DEFAULT_CELL_PX:
+		printerr("FAIL parchment_map reopen reset zoom %s" % parchment.cell_px)
 		fail += 1
 	parchment.hide_map()
 	panel.apply_chrome()

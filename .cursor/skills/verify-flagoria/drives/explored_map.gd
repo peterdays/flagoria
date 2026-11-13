@@ -52,6 +52,25 @@ func run() -> void:
 	ok = ok and parchment.pan.distance_to(pan_before) >= 10.0
 	await snapshot("panned-landscape")
 
+	step("parchment-zoom")
+	ok = ok and await _resize(360, 640)
+	ok = ok and await wait_until(func() -> bool: return parchment.is_open(), 2.0)
+	ok = ok and is_equal_approx(float(parchment.cell_px), float(parchment.DEFAULT_CELL_PX))
+	await snapshot("parchment-zoom-default-phone")
+	await _wheel(parchment, Vector2(180, 320), false)
+	ok = ok and parchment.cell_px == parchment.min_cell_px()
+	await snapshot("parchment-zoom-min-phone")
+	for _i in 24:
+		await _wheel(parchment, Vector2(180, 320), true)
+	ok = ok and parchment.cell_px == parchment.MAX_CELL_PX
+	await snapshot("parchment-zoom-max-phone")
+	await _drag(PARCHMENT, Vector2(40, 30))
+	await click("CanvasLayer1/ParchmentMap/RecentreButton")
+	ok = ok and parchment.pan == Vector2.ZERO and parchment.cell_px == parchment.MAX_CELL_PX
+	await snapshot("parchment-recentred-phone")
+	print("explored_map: zoom default %s min %s max %s px %s"
+			% [parchment.DEFAULT_CELL_PX, parchment.min_cell_px(), parchment.MAX_CELL_PX, parchment.cell_px])
+
 	step("input-blocked")
 	var stuck := hero().position
 	for action in WALK:
@@ -156,6 +175,15 @@ func _resize(width: int, height: int) -> bool:
 	var got := DisplayServer.window_get_size()
 	print("explored_map: window %s (asked %dx%d)" % [got, width, height])
 	return got.x == width and got.y == height
+
+
+func _wheel(parchment: ParchmentMap, at: Vector2, up: bool) -> void:
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_WHEEL_UP if up else MOUSE_BUTTON_WHEEL_DOWN
+	press.pressed = true
+	press.position = at
+	parchment._gui_input(press)
+	await process_frame
 
 
 func _inside(control: Control) -> bool:
