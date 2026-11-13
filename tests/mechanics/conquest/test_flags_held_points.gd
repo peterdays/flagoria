@@ -102,8 +102,9 @@ func _test_flags_held_skips_non_players() -> int:
 
 
 func _test_flags_held_off_in_multiplayer() -> int:
-	## While multiplayer is on (a connecting client here) no held-flag points
-	## are paid; live sync is #278. Back offline it runs again. Time cost: ~0.15 s.
+	## A connecting client pays no held-flag points. The host does, and Points
+	## replicates the totals (#497, test_tower_place_two_players). Back offline
+	## this peer awards again. Time cost: ~0.15 s.
 	print("-- test_flags_held_off_in_multiplayer")
 	var t := _setup("flags_held_off_in_multiplayer", 1)
 	if t.is_empty():

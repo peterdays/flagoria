@@ -8,8 +8,8 @@ placed it. The placer asks the host, the host decides and tells everyone, and
 only the placer is charged. A player joining later gets the host's exact bridge
 set with the map params. Offline and host-alone placement is unchanged
 ([Build placement](./build-placement.md), [Construction placement](./construction-placement.md)).
-Towers and walls stay hidden and refused while multiplayer is on until their
-own peer sync (#278).
+Walls stay hidden and refused while multiplayer is on until their own
+request. Towers are requested from the host ([Conquest sync](./conquest-sync.md), #497).
 
 ## Sub-features
 
@@ -28,7 +28,7 @@ own peer sync (#278).
   replaces its bridges with it (`world.replace_bridges` /
   `BridgeBuilder.replace_from_host`). Live places after that arrive on the same
   reliable channel.
-- `build-mode` interact mode shows Plank in multiplayer; Tower and Wall stay
+- `build-mode` interact mode shows Plank and Tower in multiplayer; Wall stays
   hidden.
 
 ## How to get to it (user POV)
@@ -52,6 +52,6 @@ peers); in the Netcode stress job it is one scenario × 20 runs.
 
 - Inventories stay local per peer; the host charges the placer with
   `receive_charge`, it does not spend the host's wood for a client's place.
-- Do not lift the Tower/Wall multiplayer gate here; that waits on #278.
+- Do not lift the Wall multiplayer gate here; towers already use StructureRequests (#497).
 - Bridge join list is a flat `[x, y, atlas_x, atlas_y]` array, not the cut
   changes dictionary.

@@ -19,8 +19,9 @@ Refusal reasons (each at most once): `empty cells`, `unknown kind`,
 `not adjacent` (2026-11-02: no floating planks).
 
 Plank bridges sync between peers (#297): `can_place` / `place` allow planks
-while multiplayer is on. Towers and walls still refuse with `multiplayer on`
-until #278.
+while multiplayer is on. Towers ask the host through `StructureRequests`
+(#497) and do not refuse with `multiplayer on`. Walls still do, until their
+own request.
 
 ## Sub-features
 
@@ -32,8 +33,9 @@ until #278.
   a structure is `occupied`: nothing is written, no wood is spent, and the
   host's `write_plank` for a peer's request refuses it too (#380 item 2).
 - `construction-tower` a clear land anchor places `tower_wood` for 10 wood,
-  owned by the local peer; water, an overlapping structure/player/mob, short
-  wood and multiplayer on are refused and spend nothing (#273).
+  owned by the local peer; water, an overlapping structure/player/mob and short
+  wood are refused and spend nothing (#273). A connecting client does not
+  write or spend; the host places it (#497).
 - `construction-wall` a clear land cell or straight H/V run that 4-touches an
   existing wall, tower or castle places palisade pieces for 2 wood each; water,
   occupied (structure/wall/player/mob/tree/bush), bent, floating (not adjacent),

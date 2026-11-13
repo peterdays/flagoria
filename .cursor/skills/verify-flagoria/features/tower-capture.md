@@ -2,7 +2,7 @@
 
 Drive: not player-facing
 
-Flag towers change hands (#274). Every placement with a `team` flag (the castle's main tower, a guard post) is a tower. `TowerCapture` (`Scripts/mechanics/conquest/tower_capture.gd`, the `World/TowerCapture` node in `flagoria_main.tscn`) checks each tower every physics tick against a tower list refreshed on `ground_changed` and a player list gathered once per tick (#378). Living players count for their peer id. Mobs that are not dying count for the mobs (`StructurePlacer.OWNER_MOBS`, -1). Only those within `CAPTURE_RADIUS` (32 px, two cells) of the flag cell's centre take part. When progress reaches `CAPTURE_TIME` (5 s), `StructurePlacer.set_owner` hands the tower over: the placement's `owner` entry and its flag tile change, nothing else. Flags: host blue, other peers red, neutral grey (`OWNER_NEUTRAL`, 0), mobs purple; the neutral and mob flags are placeholders drawn by `tools/art/gen_flag_tiles.py`. A bar above the flag shows progress in the capturing side's colour. Capture runs only offline or on a host that is still alone; live capture sync is #278.
+Flag towers change hands (#274). Every placement with a `team` flag (the castle's main tower, a guard post) is a tower. `TowerCapture` (`Scripts/mechanics/conquest/tower_capture.gd`, the `World/TowerCapture` node in `flagoria_main.tscn`) checks each tower every physics tick against a tower list refreshed on `ground_changed` and a player list gathered once per tick (#378). Living players count for their peer id. Mobs that are not dying count for the mobs (`StructurePlacer.OWNER_MOBS`, -1). Only those within `CAPTURE_RADIUS` (32 px, two cells) of the flag cell's centre take part. When progress reaches `CAPTURE_TIME` (5 s), `StructurePlacer.set_owner` hands the tower over: the placement's `owner` entry and its flag tile change, nothing else. Flags: host blue, other peers red, neutral grey (`OWNER_NEUTRAL`, 0), mobs purple; the neutral and mob flags are placeholders drawn by `tools/art/gen_flag_tiles.py`. A bar above the flag shows progress in the capturing side's colour. In multiplayer only the host advances progress and sends owner and progress to every peer, including a late joiner ([Conquest sync](./conquest-sync.md), #497). A client does not advance a tower on its own.
 
 ## Sub-features
 
@@ -13,7 +13,7 @@ Flag towers change hands (#274). Every placement with a `team` flag (the castle'
 - `capture-dead-players` a dead player counts for no side: it neither captures nor defends.
 - `capture-mob` a mob standing in the area takes the tower for the mobs (purple flag); a dying mob does not count. Mobs do not seek towers yet (#280); they count when they wander or chase in.
 - `capture-owner-and-flag-only` a capture changes the placement's owner and its flag cell only (every other footprint cell on every layer, the name and the anchor stay), `predict_cell` gives the new flag, and the new owner survives `structures_for_sync` → `replace_structures`, the copy a joining peer gets.
-- `capture-off-in-multiplayer` while multiplayer is on (a connecting client in the test) no tower moves; back offline it runs again.
+- `capture-off-in-multiplayer` a connecting client does not advance a tower; back offline it runs again. The host advances and syncs (`test_tower_capture_two_players`).
 
 ## How to get to it (user POV)
 
@@ -31,6 +31,6 @@ Preconditions: `doctor.sh` exits `0`. Time cost: the eight tests in `tests/mecha
 ## Gotchas
 
 - Placements, and so captured owners, are not saved to disk yet; a reloaded world places the castle again for the host (#42).
-- While multiplayer is on, progress stays where it was and the bars stay up; nothing syncs to peers yet (#278).
+- A client does not run capture. The host does, and `receive_capture_state` updates every peer (#497).
 - The cached tower list refreshes on `worldMap.ground_changed` (structure place and map clear). Owner reads use `StructurePlacer.owner_of`, so a capture does not need a ground signal to see the new owner (#378).
 - A side is a player node's name as a peer id; player bodies whose name is not a number are ignored.

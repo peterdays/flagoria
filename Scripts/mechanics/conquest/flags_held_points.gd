@@ -2,8 +2,9 @@ class_name FlagsHeldPoints
 extends Node
 ## Pays Points.FLAGS_HELD_POINTS every INTERVAL seconds for each flag tower
 ## a player owns (#275). Only peer owners (id > 0) count; OWNER_MOBS and
-## OWNER_NEUTRAL do not. Host alone only: while multiplayer is on nothing is
-## awarded (live sync is #278). Lives next to Points / Discovery.
+## OWNER_NEUTRAL do not. The host awards, including with peers connected
+## (#497); Points replicates each total. A client never awards. Lives next
+## to Points / Discovery.
 
 const INTERVAL := 5.0  ## seconds between awards for owned flag towers
 
@@ -14,8 +15,7 @@ var _elapsed := 0.0
 
 
 func _physics_process(delta: float) -> void:
-	if Interaction.multiplayer_on(multiplayer):
-		_elapsed = 0.0
+	if not multiplayer.is_server():
 		return
 	_elapsed += delta
 	while _elapsed >= INTERVAL:
@@ -26,9 +26,8 @@ func _physics_process(delta: float) -> void:
 func tick() -> int:
 	## Award FLAGS_HELD_POINTS once per player-owned flag tower. Returns how
 	## many towers were paid. Tests call this directly so nothing waits on
-	## INTERVAL. No-op while multiplayer is on or when this peer is not the
-	## server.
-	if Interaction.multiplayer_on(multiplayer) or not multiplayer.is_server():
+	## INTERVAL. No-op on a client; the host awards with peers connected.
+	if not multiplayer.is_server():
 		return 0
 	var map: TileMap = get_node_or_null(map_path)
 	var points: Points = get_node_or_null(points_path)

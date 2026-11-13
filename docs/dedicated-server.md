@@ -127,7 +127,7 @@ Current limits of this boot, not open bugs to fix in this note:
 
 - No starting castle, as above (`setup_server(..., with_castle)` is false).
 - Chunk refresh on a peer follows `World/<that peer's unique id>` (`TileMap._process`). The dedicated server is peer 1 and has no player node, so it does not move its chunk center after someone joins. A listen host refreshes around peer 1 only, not around remote players.
-- Cities, tower capture, and flags-held points do nothing while `Interaction.multiplayer_on` is true: a client, or a host with at least one peer connected. Conquest runs only while the host is alone.
+- Cities do nothing while `Interaction.multiplayer_on` is true. Tower capture and flags-held points run on the host and replicate to peers (#497). A client does not advance either.
 
 Clients join with Main Menu Join. A blank address uses `localhost` on UDP `9786`. A hostname or an IPv4 address may include `:port` (`127.0.0.1:9799`, `localhost:9799`); a bare host keeps port `9786`. The typed text stays in the address field and in `Could not join …`. A missing host, a non-numeric port, or a port outside 1 to 65535 is rejected on the menu before any connection attempt. An address with more than one colon (such as `::1`) is rejected instead of being read as a host and a port.
 

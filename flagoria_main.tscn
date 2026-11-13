@@ -1,4 +1,4 @@
-[gd_scene load_steps=31 format=3 uid="uid://cxtnu53ko1bon"]
+[gd_scene load_steps=32 format=3 uid="uid://cxtnu53ko1bon"]
 
 [ext_resource type="Script" path="res://flagoria_main.gd" id="1_p55uv"]
 [ext_resource type="Script" path="res://addons/virtual_joystick/scripts/virtual_joystick.gd" id="2_54anv"]
@@ -29,6 +29,7 @@
 [ext_resource type="Script" path="res://Scripts/minimap_panel.gd" id="16_minimap"]
 [ext_resource type="Script" path="res://Scripts/mechanics/run/run_control.gd" id="19_run"]
 [ext_resource type="Script" path="res://Scripts/hud_tool_row.gd" id="20_hud_row"]
+[ext_resource type="Script" path="res://Scripts/mechanics/building/structure_requests.gd" id="21_requests"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_bm55c"]
 radius = 24.0
@@ -189,6 +190,9 @@ script = ExtResource("7_n5hto")
 
 [node name="Interaction" type="Node2D" parent="World"]
 script = ExtResource("15_interaction")
+
+[node name="StructureRequests" type="Node" parent="World"]
+script = ExtResource("21_requests")
 
 [node name="TowerCapture" type="Node2D" parent="World"]
 script = ExtResource("16_tower_capture")
