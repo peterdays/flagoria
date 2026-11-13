@@ -76,6 +76,35 @@ func _test_hud_layout_clamp_overlap() -> int:
 	return fail
 
 
+func _test_hud_layout_edit_blocks_map() -> int:
+	print("-- test_hud_layout_edit_blocks_map")
+	var fail := 0
+	_hud().reset_to_defaults()
+	var scene = await _play_scene()
+	var layer: CanvasLayer = scene.get_node("CanvasLayer1")
+	await process_frame
+	var panel: MinimapPanel = layer.get_node("MinimapPanel")
+	var map_btn: Button = layer.get_node("MinimapButton")
+	_hud().edit_begin(layer)
+	await process_frame
+	map_btn.pressed.emit()
+	await process_frame
+	await process_frame
+	if panel.shown:
+		printerr("FAIL hud_layout_edit_blocks_map: minimap panel opened during edit")
+		fail += 1
+	if panel.parchment != null and panel.parchment.is_open():
+		printerr("FAIL hud_layout_edit_blocks_map: parchment opened during edit")
+		fail += 1
+	_hud().edit_end()
+	tree.paused = false
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_hud_layout_edit_blocks_map")
+	return fail
+
+
 func _test_hud_layout_reset() -> int:
 	print("-- test_hud_layout_reset")
 	var fail := 0

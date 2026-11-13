@@ -10,6 +10,7 @@ The in-game menu has a Customize HUD entry. It opens an edit mode over the live 
 - `hud-customize-save` Save and load round-trip in user settings (`-- test_hud_layout_round_trip` in `tests/ui/test_hud_layout.gd`).
 - `hud-customize-clamp` Off-screen positions clamp; overlaps are rejected (`-- test_hud_layout_clamp_overlap`).
 - `hud-customize-reset` Reset clears the saved file and brings back HudToolRow defaults (`-- test_hud_layout_reset`).
+- `hud-customize-edit-guard` In edit mode HUD buttons do not open map, buildings, mode, attack, run, or move the stick (`-- test_hud_layout_edit_blocks_map` and the drive tap on Map).
 
 ## How to get to it (user POV)
 
@@ -17,11 +18,11 @@ The in-game menu has a Customize HUD entry. It opens an edit mode over the live 
 
 ## Driving it with verify-flagoria helpers
 
-Preconditions: `doctor.sh` exits `0`. Time cost: the three `tests/ui/test_hud_layout.gd` cases are about 1.2 s in `tools/verify.sh`. The live drive is about 30 s under xvfb.
+Preconditions: `doctor.sh` exits `0`. Time cost: four `tests/ui/test_hud_layout.gd` cases are about 1.5 s in `tools/verify.sh`. The live drive is about 30 s under xvfb.
 
-- **Run.** `./tools/verify.sh`, or `godot --headless --path . --script res://tests/run_tests.gd -- --only=hud_layout_round_trip,hud_layout_clamp_overlap,hud_layout_reset`.
-- **Proof.** Headers `-- test_hud_layout_round_trip`, `-- test_hud_layout_clamp_overlap`, and `-- test_hud_layout_reset` with no `FAIL` after them.
-- **Drive (live).** `bin/launch.sh drives/hud_customize.gd --seed 49 --display`. Snapshots: `default-layout`, `edit-mode`, `moved-control` (attack and Map moved; edit bar clear of controls), `after-save-restart`, `reset-layout`.
+- **Run.** `./tools/verify.sh`, or `godot --headless --path . --script res://tests/run_tests.gd -- --only=hud_layout_round_trip,hud_layout_clamp_overlap,hud_layout_reset,hud_layout_edit_blocks_map`.
+- **Proof.** Headers for the four `test_hud_layout_*` cases with no `FAIL` after them.
+- **Drive (live).** `bin/launch.sh drives/hud_customize.gd --seed 49 --display`. Snapshots: `default-layout`, `edit-mode`, `moved-control` (attack and Map moved; edit bar clear of every control visual rect), `no-overlap`, `after-save-restart`, `reset-layout`.
 
 ## Gotchas
 

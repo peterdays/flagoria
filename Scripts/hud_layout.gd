@@ -44,12 +44,17 @@ func editing() -> bool:
 	return _editing
 
 
+func blocks_hud_actions() -> bool:
+	return _editing
+
+
 func edit_begin(layer: CanvasLayer) -> void:
 	_editing = true
 	_edit_exclusion = Rect2()
 	_draft = _saved.duplicate(true)
 	if _draft.is_empty():
 		_draft = capture_from_layer(layer)
+	HudLayoutVisual.dismiss_popups(layer)
 
 
 func edit_end() -> void:
@@ -288,6 +293,10 @@ func _avoid_edit_bar(rect: Rect2) -> Rect2:
 			best_dist = d
 			best = trial
 	return best
+
+
+func control_visual_rect(id: String, layer: CanvasLayer) -> Rect2:
+	return HudLayoutVisual.control_rect(id, layer, PATHS)
 
 
 func control_hit_rect(id: String, layer: CanvasLayer) -> Rect2:

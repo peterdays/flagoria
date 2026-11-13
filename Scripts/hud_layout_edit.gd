@@ -10,12 +10,12 @@ const BAR_EDGE_INSET := 6.0
 const BAR_PAD := 2.0
 
 @onready var _top_bar: PanelContainer = $TopBar
-@onready var _save: Button = $TopBar/Margin/VBox/Row/Save
-@onready var _reset: Button = $TopBar/Margin/VBox/Row/Reset
-@onready var _done: Button = $TopBar/Margin/VBox/Row/Done
-@onready var _size_slider: HSlider = $TopBar/Margin/VBox/Row/SizeSlider
-@onready var _hint: Label = $TopBar/Margin/VBox/Hint
-@onready var _selected_label: Label = $TopBar/Margin/VBox/Row/Selected
+@onready var _save: Button = $TopBar/Margin/Row/Save
+@onready var _reset: Button = $TopBar/Margin/Row/Reset
+@onready var _done: Button = $TopBar/Margin/Row/Done
+@onready var _size_slider: HSlider = $TopBar/Margin/Row/SizeSlider
+@onready var _size_label: Label = $TopBar/Margin/Row/SizeLabel
+@onready var _selected_label: Label = $TopBar/Margin/Row/Selected
 
 var _selected := ""
 var _drag_id := ""
@@ -55,15 +55,13 @@ func open() -> void:
 	show()
 	_selected = ""
 	_size_slider.editable = false
-	_selected_label.text = "Selected: —"
-	_hint.visible = true
+	_selected_label.text = "Tap a HUD control · drag · pinch"
 	_hl().edit_begin(layer)
 	_hl().apply(layer)
 	_set_pause(_should_pause_game())
 	var menu := get_parent()
 	menu.get_node("Pause").hide()
 	menu.menu_button.hide()
-	_hint.text = "Tap a control, then drag to move."
 	await _relayout_edit_bar(layer)
 
 
@@ -114,6 +112,9 @@ func _relayout_edit_bar(layer: CanvasLayer) -> void:
 	_top_bar.set_anchors_preset(Control.PRESET_TOP_LEFT, false)
 	_top_bar.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	_top_bar.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_top_bar.custom_minimum_size = Vector2.ZERO
+	_size_label.visible = true
+	_size_slider.visible = true
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var sz := _top_bar.get_combined_minimum_size()
@@ -124,11 +125,33 @@ func _relayout_edit_bar(layer: CanvasLayer) -> void:
 	_top_bar.size = sz
 	var view := get_viewport().get_visible_rect().size
 	var floor_y := view.y * 0.55
-	var candidates: Array[Vector2] = [
-		Vector2((view.x - sz.x) * 0.5, view.y - sz.y - BAR_EDGE_INSET),
-		Vector2(view.x - sz.x - BAR_EDGE_INSET, view.y - sz.y - BAR_EDGE_INSET),
-		Vector2(BAR_EDGE_INSET, maxf(floor_y, view.y - sz.y - BAR_EDGE_INSET)),
-	]
+	var joy: Rect2 = _hl().control_visual_rect("joystick", layer)
+	var atk: Rect2 = _hl().control_visual_rect("attack", layer)
+	var slot_left: float = joy.end.x + BAR_EDGE_INSET if joy.size != Vector2.ZERO else BAR_EDGE_INSET
+	var slot_right: float = atk.position.x - BAR_EDGE_INSET if atk.size != Vector2.ZERO else view.x - BAR_EDGE_INSET
+	var slot_w := maxf(0.0, slot_right - slot_left)
+	var bar_w := sz.x
+	if slot_w > 0.0 and slot_w < bar_w:
+		bar_w = maxf(slot_w, 140.0)
+		if bar_w < sz.x:
+			_top_bar.custom_minimum_size = Vector2(bar_w, 0.0)
+			if bar_w < 200.0:
+				_size_label.visible = false
+				_size_slider.visible = false
+			await get_tree().process_frame
+			sz = _top_bar.get_combined_minimum_size()
+			sz.x = bar_w
+			_top_bar.size = sz
+	var bottom_y := view.y - sz.y - BAR_EDGE_INSET
+	var candidates: Array[Vector2] = []
+	if slot_w >= bar_w * 0.85:
+		candidates.append(Vector2(slot_left + (slot_w - bar_w) * 0.5, bottom_y))
+	candidates.append_array([
+		Vector2((view.x - bar_w) * 0.5, bottom_y),
+		Vector2(view.x - bar_w - BAR_EDGE_INSET, bottom_y),
+		Vector2(BAR_EDGE_INSET, maxf(floor_y, bottom_y)),
+		Vector2(BAR_EDGE_INSET, BAR_EDGE_INSET),
+	])
 	var best_pos := candidates[0]
 	var best_score := INF
 	var zero_pos: Variant = null
@@ -153,14 +176,14 @@ func _bar_overlap_score(layer: CanvasLayer) -> float:
 	var bar := _top_bar.get_global_rect().grow(BAR_PAD)
 	var area := 0.0
 	for id in CONTROL_IDS:
-		var rect: Rect2 = _hl().control_hit_rect(id, layer)
+		var rect: Rect2 = _hl().control_visual_rect(id, layer)
 		if rect.size == Vector2.ZERO:
 			continue
 		var hit: Rect2 = bar.intersection(rect)
 		if hit.size != Vector2.ZERO:
 			area += hit.size.x * hit.size.y
 	if _selected != "":
-		var sel: Rect2 = _hl().control_hit_rect(_selected, layer)
+		var sel: Rect2 = _hl().control_visual_rect(_selected, layer)
 		if sel.size != Vector2.ZERO and bar.intersects(sel):
 			area += 1000000.0
 	return area
@@ -178,6 +201,8 @@ func _input(event: InputEvent) -> void:
 			_touches[touch.index] = touch.position
 			if _touches.size() == 1 and _drag_id == "" and not _top_bar.get_global_rect().has_point(touch.position):
 				_begin_drag(touch.position, layer)
+				if _drag_id != "":
+					get_viewport().set_input_as_handled()
 		else:
 			_touches.erase(touch.index)
 			if touch.index == 0 or _touches.is_empty():
@@ -214,8 +239,7 @@ func _begin_drag(pos: Vector2, layer: CanvasLayer) -> void:
 	var s: float = float(entry.get("s", 1.0)) if not entry.is_empty() else _hl().scale_of(id, layer)
 	_size_slider.set_value_no_signal(s)
 	_size_slider.editable = true
-	_selected_label.text = "Selected: %s" % id
-	_hint.visible = false
+	_selected_label.text = "Selected: %s · drag · pinch" % id
 	queue_redraw()
 
 
@@ -256,8 +280,7 @@ func _apply_scale(id: String, s: float, layer: CanvasLayer) -> void:
 
 func _on_save() -> void:
 	_hl().save_to_disk()
-	_hint.visible = true
-	_hint.text = "Layout saved on this device."
+	_selected_label.text = "Layout saved on this device."
 
 
 func _on_reset() -> void:
@@ -273,9 +296,7 @@ func _on_reset() -> void:
 	_selected = ""
 	_drag_id = ""
 	_size_slider.editable = false
-	_selected_label.text = "Selected: —"
-	_hint.visible = true
-	_hint.text = "Default layout restored."
+	_selected_label.text = "Default layout restored · tap a control"
 	_relayout_edit_bar(layer)
 
 

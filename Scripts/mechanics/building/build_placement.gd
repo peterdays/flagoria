@@ -298,6 +298,8 @@ func _commit_tower(inventory: Inventory) -> bool:
 
 
 func _on_buildings_toggled(on: bool) -> void:
+	if HudLayoutVisual.blocks_hud_actions():
+		_buildings.set_pressed_no_signal(false); return
 	_list_open = on
 	_refresh_picker_visible()
 

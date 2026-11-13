@@ -120,6 +120,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 | `Scripts/ingame_menu.gd` | In-game menu, Save, Customize HUD | stays |
 | `Scripts/hud_layout.gd` | Per-device touch HUD positions in user settings | stays (#492) |
 | `Scripts/hud_layout_edit.gd` | Customize HUD edit overlay | stays (#492) |
+| `Scripts/hud_layout_visual.gd` | HUD control visual rects for edit overlap | stays (#492) |
 | `Scripts/quit_prompt.gd` | Quit prompt | stays |
 | `Scripts/game_settings.gd` | Autoload: mob spawn rate | stays (autoload) |
 | `Scripts/audio_settings.gd` | Autoload: bus volumes | stays (autoload) |

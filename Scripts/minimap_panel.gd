@@ -147,17 +147,17 @@ func _add_header_buttons() -> void:
 	layer.add_child.call_deferred(_map_button)
 	layer.add_child.call_deferred(parchment)
 
-
 func _on_map_button() -> void:
-	## Opens the wood panel, or closes it. A press while the parchment is up
-	## puts the parchment away and leaves the panel closed.
+	## Toggles the wood panel; closes parchment first when it is open.
+	if HudLayoutVisual.blocks_hud_actions():
+		_map_button.set_pressed_no_signal(false)
+		return
 	if parchment != null and parchment.is_open():
 		parchment.hide_map()
 		shown = false
 	else:
 		shown = not shown
 	apply_chrome()
-
 
 func _header_button(node_name: String, glyph: int, at: Vector2) -> MapWoodButton:
 	var button := MapWoodButton.new()

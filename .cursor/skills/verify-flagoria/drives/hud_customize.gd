@@ -8,10 +8,11 @@ const CUSTOMIZE_BTN := "CanvasLayer1/InGameMenu/Pause/Panel/Margin/VBox/Customiz
 const ATTACK := "CanvasLayer1/TouchScreenButton"
 const MAP := "CanvasLayer1/MinimapButton"
 const EDIT_BAR := "CanvasLayer1/InGameMenu/HudLayoutEdit/TopBar"
-const DONE := "CanvasLayer1/InGameMenu/HudLayoutEdit/TopBar/Margin/VBox/Row/Done"
-const SAVE := "CanvasLayer1/InGameMenu/HudLayoutEdit/TopBar/Margin/VBox/Row/Save"
-const RESET := "CanvasLayer1/InGameMenu/HudLayoutEdit/TopBar/Margin/VBox/Row/Reset"
-const SIZE_SLIDER := "CanvasLayer1/InGameMenu/HudLayoutEdit/TopBar/Margin/VBox/Row/SizeSlider"
+const DONE := "CanvasLayer1/InGameMenu/HudLayoutEdit/TopBar/Margin/Row/Done"
+const SAVE := "CanvasLayer1/InGameMenu/HudLayoutEdit/TopBar/Margin/Row/Save"
+const RESET := "CanvasLayer1/InGameMenu/HudLayoutEdit/TopBar/Margin/Row/Reset"
+const SIZE_SLIDER := "CanvasLayer1/InGameMenu/HudLayoutEdit/TopBar/Margin/Row/SizeSlider"
+const HUD_IDS := ["joystick", "attack", "run", "buildings", "map", "mode"]
 
 
 func _hud_layout() -> Node:
@@ -32,12 +33,21 @@ func _edit_bar_rect() -> Rect2:
 	return (current_scene.get_node(EDIT_BAR) as Control).get_global_rect()
 
 
-func _controls_clear_of_bar(layer: CanvasLayer, ids: Array) -> bool:
+func _controls_clear_of_bar(layer: CanvasLayer) -> bool:
 	var bar := _edit_bar_rect().grow(2.0)
-	for id in ids:
-		var rect: Rect2 = _hud_layout().control_hit_rect(id, layer)
+	for id in HUD_IDS:
+		var rect: Rect2 = _hud_layout().control_visual_rect(id, layer)
 		if rect.size != Vector2.ZERO and bar.intersects(rect):
 			return false
+	return true
+
+
+func _map_closed_in_edit(layer: CanvasLayer) -> bool:
+	var panel: MinimapPanel = layer.get_node("MinimapPanel")
+	if panel.shown:
+		return false
+	if panel.parchment != null and panel.parchment.is_open():
+		return false
 	return true
 
 
@@ -72,14 +82,19 @@ func run() -> void:
 	step("edit-mode")
 	await click(MENU_BUTTON)
 	await click(CUSTOMIZE_BTN)
+	var editor := current_scene.get_node("CanvasLayer1/InGameMenu/HudLayoutEdit")
+	if editor.has_method("relayout_bar"):
+		await editor.relayout_bar()
 	await process_frame
-	ok = ok and current_scene.get_node("CanvasLayer1/InGameMenu/HudLayoutEdit").visible
-	ok = ok and _controls_clear_of_bar(layer, ["map", "buildings", "mode"])
+	ok = ok and editor.visible
+	ok = ok and _controls_clear_of_bar(layer)
 	var attack_at := to_window(attack, attack.texture_normal.get_size() * attack.scale * 0.5)
 	await _tap(attack_at)
 	await process_frame
 	ok = ok and (current_scene.get_node(SIZE_SLIDER) as HSlider).editable
+	ok = ok and _map_closed_in_edit(layer)
 	await snapshot("edit-mode")
+	ok = ok and _controls_clear_of_bar(layer)
 
 	step("moved-control")
 	_hud_layout().try_place("attack", 0.62, 0.58, 1.35, layer)
@@ -87,12 +102,16 @@ func run() -> void:
 	ok = ok and attack.global_position.distance_to(default_pos) > 12.0
 	await _tap_control(layer, "map")
 	await process_frame
+	ok = ok and _map_closed_in_edit(layer)
 	_hud_layout().try_place("map", 0.52, 0.38, 1.15, layer)
+	if editor.has_method("relayout_bar"):
+		await editor.relayout_bar()
 	for _i in 16:
 		await process_frame
 	ok = ok and map_btn.global_position.distance_to(default_map) > 10.0
-	ok = ok and _controls_clear_of_bar(layer, ["map", "buildings", "mode", "attack"])
+	ok = ok and _controls_clear_of_bar(layer)
 	await snapshot("moved-control")
+	ok = ok and _controls_clear_of_bar(layer)
 
 	step("no-overlap")
 	var mode: Control = current_scene.get_node("CanvasLayer1/ModeButton")
@@ -104,6 +123,7 @@ func run() -> void:
 	await process_frame
 	ok = ok and blocked
 	await snapshot("no-overlap")
+	ok = ok and _controls_clear_of_bar(layer)
 
 	step("after-save-restart")
 	var saved_pos := attack.global_position
@@ -134,10 +154,11 @@ func run() -> void:
 	_hud_layout().reset_to_defaults()
 	(layer.get_node("HudToolRow") as HudToolRow)._layout()
 	_hud_layout().edit_begin(layer)
-	var editor := current_scene.get_node("CanvasLayer1/InGameMenu/HudLayoutEdit")
+	editor = current_scene.get_node("CanvasLayer1/InGameMenu/HudLayoutEdit")
 	if editor.has_method("relayout_bar"):
 		await editor.relayout_bar()
 	await snapshot("reset-layout")
+	ok = ok and _controls_clear_of_bar(layer)
 	await click(DONE)
 	for _i in 2:
 		await process_frame
