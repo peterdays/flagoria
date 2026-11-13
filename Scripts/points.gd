@@ -5,8 +5,9 @@ extends Node
 ## award() and award_kill() are the places points are added. Both act only on
 ## the server (peer 1, which is also the only peer offline) and tell every
 ## peer through a reliable call_local RPC, so all peers agree. A peer that
-## connects later gets every total from the server as it connects. Totals are
-## keyed by peer id and stay after a player leaves.
+## connects later gets every total, and the mob ids already paid, after the
+## map for that join is queued. Totals are keyed by peer id and stay after a
+## player leaves.
 ##
 ## A mob kill is keyed by that mob's id. The server may send the award again,
 ## and a peer may receive it again: the second copy changes nothing.
@@ -66,8 +67,14 @@ func award_kill(peer_id: int, mob_id: String, amount: int) -> bool:
 
 func clear_kill_credits() -> void:
 	## Server only: forget which mobs have paid, so a freshly spawned set
-	## (the same mob ids again) can pay. Sent to every peer.
+	## (the same mob ids again) can pay. Peers already in the match are told.
+	## With none yet, the clear stays local so server startup does not put a
+	## packet on the wire ahead of the first join.
 	if not multiplayer.is_server():
+		return
+	if multiplayer.get_peers().is_empty():
+		_kill_sent.clear()
+		_kill_applied.clear()
 		return
 	_clear_kill_credits.rpc()
 
@@ -82,9 +89,24 @@ func restore_total(peer_id: int, total: int) -> void:
 
 func _on_peer_connected(peer_id: int) -> void:
 	if multiplayer.is_server():
-		# Totals and the mob ids already paid, so a later copy of an old kill
-		# message does not add points on top of this snapshot.
-		_receive_totals.rpc_id(peer_id, _totals, _kill_applied)
+		# After this handler returns, the player spawn and the map run (they are
+		# connected later). The snapshot goes out only once those are queued.
+		_send_join_snapshot.bind(peer_id).call_deferred()
+
+
+func _send_join_snapshot(peer_id: int) -> void:
+	## Totals and the mob ids already paid, so a later copy of an old kill
+	## message does not add points on top of this snapshot.
+	if not multiplayer.is_server() or not multiplayer.get_peers().has(peer_id):
+		return
+	_receive_totals.rpc_id(peer_id, _totals.duplicate(), _kill_ids())
+
+
+func _kill_ids() -> PackedStringArray:
+	var ids := PackedStringArray()
+	for mob_id in _kill_applied.keys():
+		ids.append(str(mob_id))
+	return ids
 
 
 @rpc("authority", "call_local", "reliable")
@@ -112,7 +134,9 @@ func _clear_kill_credits() -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _receive_totals(totals: Dictionary, kills: Dictionary) -> void:
+func _receive_totals(totals: Dictionary, kills: PackedStringArray) -> void:
 	_totals = totals.duplicate()
-	_kill_applied = kills.duplicate()
+	_kill_applied.clear()
+	for mob_id in kills:
+		_kill_applied[str(mob_id)] = true
 	totals_received.emit()

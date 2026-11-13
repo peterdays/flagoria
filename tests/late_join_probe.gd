@@ -22,6 +22,7 @@ var _origin := Vector2.INF
 var _kill_text = null
 var _deaths := 0
 var _walking := ""
+var _points_before_map := false
 var _errors := _ErrorLog.new()
 
 
@@ -79,6 +80,13 @@ func _run() -> void:
 		main.start_dedicated_server(port)
 	else:
 		main.add_player_joined(port)
+	var points := main.get_node_or_null("Points") as Points
+	if points:
+		# The kill snapshot must not ride ahead of the map: totals_received
+		# before world_params means this peer got points first.
+		points.totals_received.connect(func() -> void:
+			if main.world_params == null:
+				_points_before_map = true)
 	_id = main.multiplayer.get_unique_id()
 	var deadline := Time.get_ticks_msec() + 90000
 	var next_write := 0
@@ -129,6 +137,13 @@ func _write(main: Node, world: Node) -> void:
 				"pos": [child.position.x, child.position.y],
 				"respawns": child.health.respawn_count,
 			}
+	var mobs: Array = []
+	var mob_root := world.get_node_or_null("Mobs")
+	if mob_root:
+		for child in mob_root.get_children():
+			mobs.append(str(child.name))
+		mobs.sort()
+	var points := main.get_node_or_null("Points") as Points
 	var state := {
 		"id": str(_id),
 		"origin": [_origin.x, _origin.y] if _origin != Vector2.INF else null,
@@ -137,6 +152,9 @@ func _write(main: Node, world: Node) -> void:
 		"deaths": _deaths,
 		"errors": _errors.snapshot(),
 		"players": players,
+		"mobs": mobs,
+		"host_points": points.total_of(1) if points else 0,
+		"points_before_map": _points_before_map,
 	}
 	var tmp := _out + ".tmp"
 	var f := FileAccess.open(tmp, FileAccess.WRITE)
