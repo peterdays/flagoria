@@ -4,8 +4,8 @@ extends RefCounted
 ## Plank / Tower / Wall buttons. Cut is the tool when none is selected. H/V-snapped
 ## plank and wall drag, single-anchor tower preview,
 ## green/red preview and wood cost. Placement goes only through
-## ConstructionPlacer (planks and towers ask the host in multiplayer,
-## #297 / #497). Preview green cells and cost match exactly what
+## ConstructionPlacer (planks, towers and walls ask the host in multiplayer,
+## #297 / #497 / #498). Preview green cells and cost match exactly what
 ## commit places and charges. Wall keeps a persistent tip while selected (#276).
 
 enum Tool { CUT, PLANK, TOWER, WALL }
@@ -31,9 +31,9 @@ const BUTTON_NAMES := {
 const BUILDINGS_ICON := preload("res://assets/ui/hud/icon_buildings.png")
 ## Opaque tool art. Narrower than the disc so the circle and the gold ring show.
 const COLUMN_ICON := 12
-## Wall stays host-alone until its request lands. Plank (#297) and Tower
-## (#497) stay visible in multiplayer.
-const MP_HIDDEN := [Tool.WALL]
+## Nothing stays hidden once its request exists. Plank (#297), Tower (#497)
+## and Wall (#498) stay visible. An empty list hides nothing.
+const MP_HIDDEN: Array = []
 
 var tool := Tool.CUT
 var cells: Array[Vector2i] = []  ## snapped run or tower footprint under the finger
@@ -343,8 +343,8 @@ func _ensure_picker() -> void:
 
 
 func _refresh_picker_visible() -> void:
-	## Column stays hidden until Buildings is open. Wall hides in
-	## multiplayer; Plank and Tower stay once the list is open.
+	## Column stays hidden until Buildings is open. Plank, Tower and Wall
+	## stay once the list is open (#498).
 	if _picker == null or _interaction == null:
 		return
 	var mp := Interaction.multiplayer_on(_interaction.multiplayer)

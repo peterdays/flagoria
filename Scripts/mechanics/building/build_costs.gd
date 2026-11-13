@@ -4,9 +4,9 @@ extends RefCounted
 ## spend, then place. The shared construction placement module (#296) is
 ## calls buy; the placement UI (#225) talks only to that module. Tests also
 ## call buy directly for the cost table.
-## Wood is local to each game (Inventory). Planks (#297) and towers (#497)
-## are allowed while multiplayer is on: the host decides and the placer is
-## charged. Walls and the starting castle still refuse (the walls slice of #278).
+## Wood is local to each game (Inventory). Planks (#297), towers (#497) and
+## walls (#498) are allowed while multiplayer is on: the host decides and the
+## placer is charged. The starting castle still refuses.
 
 const PLANK := &"plank"
 const WALL_BLOCK := &"wall_block"
@@ -47,18 +47,17 @@ static func refund(kind: StringName, units := 1) -> int:
 	return floori(cost(kind, units) * REFUND_SHARE) if WOOD.has(kind) else 0
 
 
-## Kinds that stay host-alone until their own request lands on
-## StructureRequests (#278). Towers are requested there (#497).
+## Kinds that stay host-alone. Towers (#497) and walls (#498) are requested
+## on StructureRequests. The starting castle is still placed by the host alone.
 const HOST_ALONE := {
-	WALL_BLOCK: true,
 	START_CASTLE: true,
 }
 
 
 static func refusal(inventory: Inventory, kind: StringName, units := 1) -> String:
 	## Why buying `units` of `kind` is refused before placing; "" when it may
-	## go ahead. Planks (#297) and towers (#497) are allowed in multiplayer;
-	## walls and the starting castle still refuse while peers are connected.
+	## go ahead. Planks (#297), towers (#497) and walls (#498) are allowed in
+	## multiplayer. The starting castle still refuses while peers are connected.
 	if not WOOD.has(kind):
 		return UNKNOWN_KIND
 	if HOST_ALONE.has(kind) and Interaction.multiplayer_on(inventory.multiplayer):

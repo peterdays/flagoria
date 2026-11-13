@@ -15,15 +15,15 @@ Pieces come from `WallSolver` (`PALISADE_*`); no gates in this slice. A cell
 that touches stone gets collar overlays ([Wall and tower junctions](./wall-junctions.md)). Length is
 unlimited (reach still bounds a drag). Land only; refuse structures, existing
 walls, players, mobs, trees and bushes. Collision stays when a chunk redraws.
-While multiplayer is on, the Wall icon is hidden (same gate as Plank / Tower);
-peer sync of walls is #278. Preview green cells and cost match exactly what
+While multiplayer is on, the Wall icon stays visible and a drag is a request
+to the host (#498). Preview green cells and cost match exactly what
 `commit` places and charges.
 
 ## Sub-features
 
 - `build-wall-picker` Wall icon appears in interact mode with Cut / Plank /
-  Tower, hides while multiplayer is on, and switches `BuildPlacement.tool` to
-  Wall.
+  Tower, stays visible while multiplayer is on (#498), and switches
+  `BuildPlacement.tool` to Wall.
 - `build-wall-tip` first block must 4-touch tower/castle/wall; tip persists
   while Wall is selected; tap must 4-touch tip; drag is H/V from the tip
   neighbour; leave tool clears tip; gap / diagonal / floating first block
@@ -31,9 +31,9 @@ peer sync of walls is #278. Preview green cells and cost match exactly what
 - `build-wall-preview` green cells and cost match what commit places and
   charges; red when refused.
 - `construction-wall` a clear land cell or straight H/V run places palisade
-  pieces for 2 wood each through ConstructionPlacer; water, occupied, bent,
-  short wood and multiplayer on are refused and spend nothing; redraw keeps
-  collision.
+  pieces for 2 wood each through ConstructionPlacer; water, occupied, bent
+  and short wood are refused and spend nothing. A connecting client does not
+  get `multiplayer on` (#498). Redraw keeps collision.
 - `construction-wall-atomic` spend-fail stub leaves no wall; writer refusal
   after a real spend refunds the wood (#380).
 
@@ -75,8 +75,8 @@ about 20 s under xvfb.
   from the UI layer.
 - Preview green cells and cost must match what `commit` places; a gap or
   diagonal off the tip spends nothing.
-- Do not show the Wall icon while multiplayer is on; peer sync of walls is
-  #278.
+- The Wall icon stays visible in multiplayer. Peer sync is
+  [Walls and cities sync](./walls-cities-sync.md).
 - No gates in this slice; plain `PALISADE_*` only via `WallSolver`.
 - Drive evidence closes the default-open MinimapPanel (M in play) so the
   wall chain and gap tint are not covered by the mist panel.

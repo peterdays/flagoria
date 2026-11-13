@@ -19,9 +19,8 @@ Refusal reasons (each at most once): `empty cells`, `unknown kind`,
 `not adjacent` (2026-11-02: no floating planks).
 
 Plank bridges sync between peers (#297): `can_place` / `place` allow planks
-while multiplayer is on. Towers ask the host through `StructureRequests`
-(#497) and do not refuse with `multiplayer on`. Walls still do, until their
-own request.
+while multiplayer is on. Towers and walls ask the host through
+`StructureRequests` (#497, #498) and do not refuse with `multiplayer on`.
 
 ## Sub-features
 
@@ -39,7 +38,8 @@ own request.
 - `construction-wall` a clear land cell or straight H/V run that 4-touches an
   existing wall, tower or castle places palisade pieces for 2 wood each; water,
   occupied (structure/wall/player/mob/tree/bush), bent, floating (not adjacent),
-  short wood and multiplayer on are refused and spend nothing (#276).
+  and short wood are refused and spend nothing. A connecting client does not
+  get `multiplayer on`; the host places the run (#498).
 - `build-spend-failed` when spend refuses after the check, `BuildCosts.buy`
   returns `spend failed` and never calls the writer (#380 item 3).
 - `construction-atomic-spend` `ConstructionPlacer.place` leaves no written

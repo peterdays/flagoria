@@ -81,6 +81,33 @@ func place_cells(cells: Array[Vector2i]) -> bool:
 	return true
 
 
+func replace_from_host(cells: Array) -> void:
+	## Make the free-form chain exactly `cells` and re-solve with the auto
+	## junctions. The host already checked the chain (#498).
+	var keep := {}
+	for cell in cells:
+		if cell is Vector2i:
+			keep[cell] = true
+	var removed := false
+	for cell: Vector2i in _wall_cells.keys():
+		if keep.has(cell):
+			continue
+		_wall_cells.erase(cell)
+		_pieces.erase(cell)
+		_caps.erase(cell)
+		_map._predict_cache.erase(cell)
+		_erase_tiles(cell)
+		removed = true
+	var added := false
+	for cell: Vector2i in keep:
+		if _wall_cells.has(cell):
+			continue
+		_wall_cells[cell] = {"family": WallSolver.PALISADE}
+		added = true
+	if added or removed:
+		resolve()
+
+
 func paint_cell(cell: Vector2i) -> void:
 	## Redraw one free-form wall after a chunk draw. has_wall must be true.
 	_map.set_cell(1, cell, TileCatalog.SOURCE_ID, _pieces[cell])

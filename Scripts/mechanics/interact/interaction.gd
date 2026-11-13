@@ -21,7 +21,7 @@ extends Node2D
 ## other peer and charges the placer with receive_charge. A host placing with
 ## peers connected spends its own wood through ConstructionPlacer.place and
 ## broadcasts apply_bridge. Peers that join later get the host's bridges with
-## the map params. Towers use StructureRequests (#497); walls stay host-alone.
+## the map params. Towers and walls use StructureRequests (#497, #498).
 
 signal mode_changed(mode: Mode)
 ## A chop's axe landed on `cell`; `hit` counts from 1 to the type's `hits`.

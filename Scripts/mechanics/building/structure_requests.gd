@@ -1,12 +1,13 @@
 class_name StructureRequests
 extends Node
-## Host-request pipeline for structures (#497). A client asks; the host checks
-## reach and the solo footprint, writes, charges the placer, and tells peers.
-## Towers are the first kind. A walls slice adds a kind here, not a new pipeline.
-## Clients still cannot write: can_place reports multiplayer on.
+## Host-request pipeline for structures (#497, #498). A client asks; the host
+## checks reach and the solo footprint, writes, charges the placer, and tells
+## peers. Towers and free-form walls are the kinds. Clients still cannot
+## write: can_place reports multiplayer on for a raw structure place.
 
 const REQUEST_KINDS := {
 	BuildCosts.TOWER: true,
+	BuildCosts.WALL_BLOCK: true,
 }
 
 
@@ -54,7 +55,30 @@ func host_place(kind: StringName, cells: Array[Vector2i], peer_id: int) -> bool:
 			return false
 	if kind == BuildCosts.TOWER:
 		return _host_tower(cells[0], peer_id)
+	if kind == BuildCosts.WALL_BLOCK:
+		return _host_wall(cells, peer_id)
 	return false
+
+
+func host_erase_wall(cell: Vector2i) -> bool:
+	## Host removes one free-form wall and sends the chain and the cities.
+	## A loop that opens dissolves on the host; peers receive that list.
+	if not multiplayer.is_server():
+		return false
+	var gone: Array[Vector2i] = [cell]
+	if not _map()._walls.erase_cells(gone):
+		return false
+	_publish()
+	return true
+
+
+func sync_to_peer(peer_id: int) -> void:
+	## Host: free-form walls and solved auto junction cells for a peer that
+	## just joined. Cities are sent by Cities.sync_to_peer after this.
+	if not multiplayer.is_server():
+		return
+	var snap := _wall_snapshot()
+	apply_wall_state.rpc_id(peer_id, snap[0], snap[1])
 
 
 func _host_tower(anchor: Vector2i, peer_id: int) -> bool:
@@ -77,6 +101,51 @@ func _host_tower(anchor: Vector2i, peer_id: int) -> bool:
 	return true
 
 
+func _host_wall(cells: Array[Vector2i], peer_id: int) -> bool:
+	## Solo wall rules: land, a straight run, touching a wall or structure.
+	## Two wood per cell. The host spends its own; a client is charged after
+	## the write. Peers get the whole chain and the solved auto junctions.
+	var placer := ConstructionPlacer.new(_map())
+	if peer_id == multiplayer.get_unique_id():
+		var inventory := get_node_or_null("../../Inventory") as Inventory
+		if inventory == null:
+			return false
+		var why := BuildCosts.buy(inventory, BuildCosts.WALL_BLOCK, cells.size(), func() -> bool:
+			return placer.write_wall(cells))
+		if why != "":
+			return false
+	elif not placer.write_wall(cells):
+		return false
+	else:
+		_interaction().rpc_id(peer_id, "receive_charge", BuildCosts.cost(BuildCosts.WALL_BLOCK, cells.size()))
+	_publish()
+	return true
+
+
+func _publish() -> void:
+	## Walls first, then Cities.tick, so a closed or opened loop is the host's
+	## decision and leaves on the same reliable channel.
+	var snap := _wall_snapshot()
+	apply_wall_state.rpc(snap[0], snap[1])
+	var cities := get_node_or_null("../Cities") as Cities
+	if cities != null:
+		cities.tick()
+
+
+func _wall_snapshot() -> Array:
+	## [free-form cells, auto junction entries [cell, solved tile name]].
+	var map := _map()
+	var free: Array = []
+	for cell: Vector2i in map._walls._wall_cells:
+		free.append(cell)
+	var autos: Array = []
+	for cell: Vector2i in map._structures.auto_cells():
+		var name := WallBuilder._atlas_wall_name(map._structures.object_at(cell))
+		if name != "":
+			autos.append([cell, name])
+	return [free, autos]
+
+
 @rpc("any_peer", "reliable", "call_remote")
 func request_place(kind: String, cells: Array) -> void:
 	if not multiplayer.is_server():
@@ -97,3 +166,17 @@ func apply_structure(structure_name: String, owner: int, anchor: Vector2i) -> vo
 	if structure == null:
 		return
 	_map()._structures.place_from_host(structure, anchor, owner)
+
+
+@rpc("authority", "reliable", "call_remote")
+func apply_wall_state(free_cells: Array, autos: Array) -> void:
+	## Free-form chain and solved auto junctions the host decided. A late
+	## joiner and a live place both use this, so the pieces match.
+	if multiplayer.get_remote_sender_id() != 1:
+		return
+	var map := _map()
+	map._walls.replace_from_host(free_cells)
+	for entry in autos:
+		if entry is Array and entry.size() >= 2 and entry[0] is Vector2i \
+				and entry[1] is String and str(entry[1]) != "":
+			map._structures.apply_solved(entry[0], str(entry[1]))

@@ -589,8 +589,8 @@ func _test_build_picker_hides_on_multiplayer_start() -> int:
 		if plank_btn == null or not plank_btn.visible:
 			printerr("FAIL picker_hides_on_multiplayer_start: Plank should stay visible in MP")
 			fail += 1
-		if tower_btn == null or not tower_btn.visible or wall_btn == null or wall_btn.visible:
-			printerr("FAIL picker_hides_on_multiplayer_start: Tower should stay, Wall should hide")
+		if tower_btn == null or not tower_btn.visible or wall_btn == null or not wall_btn.visible:
+			printerr("FAIL picker_hides_on_multiplayer_start: Tower and Wall should stay visible")
 			fail += 1
 		if interaction.build.tool != BuildPlacement.Tool.PLANK:
 			printerr("FAIL picker_hides_on_multiplayer_start: tool %s want Plank"
