@@ -33,6 +33,12 @@ If `stress_tier()` is called without `--diff`, any changed `NETCODE_MIXED` path 
 
 `python3 tools/stress_netcode.py` defaults to 20 runs (`STRESS_RUNS` or `-n`). That default is for local stress, not the CI tier rules above.
 
+## Writing netcode stress scenarios
+
+Scenarios must be deterministic: a fixed world seed, no sleep-based timing, and a wait on explicit host or peer state with a bounded timeout. Each run has a 60 s budget (`--timeout` on `tools/stress_netcode.py`). The job stops at the first run that fails and names the scenario, the run index, and the time. It keeps the pass-rate table for whatever finished and does not start the rest.
+
+A single flaky run otherwise shows up only after every scenario has finished, which costs about 30 minutes of CI. `tools/stress_scenario_lint.py` rejects a bare sleep or an unseeded random call in a scenario or its probe; it runs from `tools/verify.sh`. See [AGENTS.md](../../../AGENTS.md#writing-netcode-stress-scenarios).
+
 ## Proof
 
 - `python3 tools/play_review_paths.py --self-test` includes tier cases for both `FULL_RUNS` and `LIGHT_RUNS`.
