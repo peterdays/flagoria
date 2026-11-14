@@ -91,6 +91,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 | `Scripts/MapGenParams.gd` | Map generation parameters resource | stays (shared) |
 | `Scripts/map_gen.gd` | Autoload: active params, save/load hooks | stays (autoload) |
 | `Scripts/map_save.gd` | Versioned save files (gzip of JSON) | stays |
+| `Scripts/world_save_preview.gd` | Cached terrain thumbnails for the saved-worlds list | stays |
 | `Scripts/world_save.gd` | One saved world in memory | stays |
 | `Scripts/player_save.gd` | Player section of a world save: position, health, wood, score, charted ground | new (#197) |
 | `Scripts/player.gd` | Player movement, sword, animation | stays |

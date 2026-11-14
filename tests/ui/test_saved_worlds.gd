@@ -259,3 +259,66 @@ func _list_text(list: ItemList) -> PackedStringArray:
 	for i in list.item_count:
 		out.append(list.get_item_text(i))
 	return out
+
+
+func _test_world_save_preview() -> int:
+	## A preview is built from generation inputs, is stable for the same seed,
+	## and a save with no cached preview still lists and loads.
+	print("-- test_world_save_preview")
+	var fail := 0
+	var map_gen = root.get_node("/root/MapGen")
+	var saved_params: MapGenParams = map_gen.params.duplicate_params()
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	var world: TileMap = scene.get_node("World/worldMap")
+	var params := MapGenParams.make_defaults()
+	params.ensure_seeds()
+	params.altitude_seed = 507001
+	params.water_max_alt = 0.38
+	var first := WorldSavePreview.build_image(world, params)
+	var second := WorldSavePreview.build_image(world, params)
+	if first.get_data() != second.get_data():
+		printerr("FAIL world_save_preview: same params gave different images")
+		fail += 1
+	var saved := MapSave.save_world(WorldSave.new(params), "preview-fixture")
+	if saved["error"] != "":
+		printerr("FAIL world_save_preview: save %s" % saved["error"])
+		_release_scene(scene)
+		return fail + 1
+	WorldSavePreview.remove("preview-fixture")
+	var source := FileAccess.get_file_as_bytes("res://tests/fixtures/world_save_v1.json")
+	DirAccess.make_dir_recursive_absolute(MapSave.SAVE_DIR)
+	var legacy_path := MapSave.path_for("preview-legacy")
+	FileAccess.open(legacy_path, FileAccess.WRITE).store_buffer(source)
+	scene.host_port = _free_udp_port()
+	await process_frame
+	var menu = scene.get_node("CanvasLayer2/MainMenu")
+	menu._on_worlds_pressed()
+	var list: ItemList = scene.get_node("CanvasLayer2/WorldsPanel/Margin/VBox/Scroll/List")
+	var row := _row_named(list, "preview-legacy")
+	if row < 0:
+		printerr("FAIL world_save_preview: legacy missing from %s" % _list_text(list))
+		fail += 1
+	elif list.get_item_icon(row) == null:
+		printerr("FAIL world_save_preview: legacy row has no icon")
+		fail += 1
+	else:
+		list.select(row)
+		menu._on_load_world_pressed()
+		await process_frame
+		await process_frame
+		if scene.world_params == null or scene.world_params.altitude_seed != 4242:
+			printerr("FAIL world_save_preview: legacy load seed %s" % scene.world_params)
+			fail += 1
+	DirAccess.remove_absolute(saved["path"])
+	DirAccess.remove_absolute(legacy_path)
+	WorldSavePreview.remove("preview-fixture")
+	WorldSavePreview.remove("preview-legacy")
+	_release_scene(scene)
+	map_gen.params = saved_params
+	map_gen.clear_loaded_world()
+	map_gen.save_to_disk()
+	await process_frame
+	if fail == 0:
+		print("PASS test_world_save_preview")
+	return fail
