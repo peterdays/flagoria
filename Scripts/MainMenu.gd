@@ -2,6 +2,7 @@ extends PanelContainer
 
 const JoinAddress = preload("res://Scripts/join_address.gd")
 const WorldsSaveList = preload("res://Scripts/worlds_save_list.gd")
+const WorldSavePreview = preload("res://Scripts/world_save_preview.gd")
 
 @onready var main_menu = $"."
 @onready var address_entry = $MarginContainer/VBoxContainer/AddressEntry
@@ -169,6 +170,8 @@ func _worlds_panel() -> PanelContainer:
 	var list := WorldsSaveList.new()
 	list.name = "List"
 	list.auto_height = true
+	list.fixed_icon_size = WorldSavePreview.ICON_SIZE
+	list.icon_mode = ItemList.ICON_MODE_LEFT
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(list)
 	var buttons := HBoxContainer.new()
@@ -225,11 +228,14 @@ func _world_button(parent: Node, node_name: String, handler: Callable) -> Button
 func _refresh_worlds() -> void:
 	var list := _worlds_list()
 	list.clear()
+	list.fixed_icon_size = WorldSavePreview.ICON_SIZE
 	for row in MapSave.list_saves():
 		var when: Dictionary = Time.get_datetime_dict_from_unix_time(int(row["modified"]))
 		var stamp := "%04d-%02d-%02d %02d:%02d" % [when["year"], when["month"], when["day"], when["hour"], when["minute"]]
 		list.add_item("%s  %s" % [row["name"], stamp])
-		list.set_item_metadata(list.item_count - 1, row["name"])
+		var i := list.item_count - 1
+		list.set_item_icon(i, WorldSavePreview.icon_for(get_tree(), str(row["path"]), str(row["name"])))
+		list.set_item_metadata(i, row["name"])
 
 
 func _selected_world() -> String:

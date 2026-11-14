@@ -51,7 +51,7 @@ GAMEPLAY = [
     "Scripts/MapGenParams.gd",  # map generation defaults and value ranges
     "Scripts/map_save.gd",  # saved worlds: which parameters a world loads with
     "Scripts/hearts_hud.gd", "Scripts/map_zoom.gd",
-    "Scripts/MainMenu.gd", "Scripts/MapAdminPanel.gd",
+    "Scripts/MainMenu.gd", "Scripts/MapAdminPanel.gd", "Scripts/world_save_preview.gd",
     "Scripts/attack_aim.gd", "Scripts/aim_cone_style.gd",  # aimed attacks and the cone's reach
     "Scripts/points.gd", "Scripts/discovery_points.gd",  # score awards
     "Scripts/inventory.gd",  # gathered wood
