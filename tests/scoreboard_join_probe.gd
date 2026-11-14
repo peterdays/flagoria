@@ -10,11 +10,14 @@ func _initialize() -> void:
 func _run() -> void:
 	var out := ""
 	var port := 9786
+	var min_players := 2
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--out="):
 			out = arg.trim_prefix("--out=")
 		elif arg.begins_with("--port="):
 			port = arg.trim_prefix("--port=").to_int()
+		elif arg.begins_with("--min-players="):
+			min_players = maxi(2, arg.trim_prefix("--min-players=").to_int())
 	if out == "" or change_scene_to_file("res://flagoria_main.tscn") != OK:
 		printerr("scoreboard_join_probe: needs --out and the main scene")
 		quit(1)
@@ -29,10 +32,10 @@ func _run() -> void:
 	join.pressed.emit()
 	var until := Time.get_ticks_msec() + 30000
 	while Time.get_ticks_msec() < until:
-		if main.get_node("World").get_child_count() >= 2 and main.world_params != null:
+		if main.get_node("World").get_child_count() >= min_players and main.world_params != null:
 			break
 		await process_frame
-	var ready := main.get_node("World").get_child_count() >= 2
+	var ready := main.get_node("World").get_child_count() >= min_players
 	_write(out, {"ready": ready, "players": _player_names(main)})
 	if not ready:
 		quit(1)

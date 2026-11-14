@@ -4,10 +4,20 @@ extends Control
 ## Points totals (#509). Opened from the score HUD; stays touch-sized at 480x270.
 
 const MAX_ROWS := 8
-const MARGIN := 4.0  ## art px from the score row
-const PANEL_W := 108.0
-const ROW_H := 12.0
-const TITLE_H := 14.0
+const MARGIN := 4.0  ## art px below the hearts / points row
+const PANEL_W := 118.0
+const ROW_H := 10.0
+const TITLE_H := 12.0
+const SWATCH := Vector2(6, 8)
+
+## Castle flag colours on the minimap / capture bar (host + other peers).
+const FLAG_HOST := Color(0.23, 0.44, 0.88)
+const FLAG_OTHERS := [
+	Color(0.88, 0.29, 0.29),
+	Color(0.55, 0.75, 0.35),
+	Color(0.85, 0.65, 0.2),
+	Color(0.61, 0.33, 0.77),
+]
 
 var _points: Points
 var _self_id := 0
@@ -18,7 +28,7 @@ var _title: Label
 func _ready() -> void:
 	visible = false
 	mouse_filter = MOUSE_FILTER_IGNORE
-	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	texture_filter = TEXTURE_FILTER_NEAREST
 	z_index = 5
 	var panel := PanelContainer.new()
 	panel.name = "Panel"
@@ -28,8 +38,8 @@ func _ready() -> void:
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 6)
 	margin.add_theme_constant_override("margin_right", 6)
-	margin.add_theme_constant_override("margin_top", 4)
-	margin.add_theme_constant_override("margin_bottom", 4)
+	margin.add_theme_constant_override("margin_top", 3)
+	margin.add_theme_constant_override("margin_bottom", 3)
 	panel.add_child(margin)
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 2)
@@ -40,9 +50,9 @@ func _ready() -> void:
 	vbox.add_child(_title)
 	_list = VBoxContainer.new()
 	_list.add_theme_constant_override("separation", 0)
-	_list.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_list.mouse_filter = MOUSE_FILTER_IGNORE
 	vbox.add_child(_list)
-	get_viewport().size_changed.connect(_follow_score_row)
+	get_viewport().size_changed.connect(follow_hud_row)
 
 
 func bind(points: Points, self_id: int) -> void:
@@ -56,7 +66,7 @@ func bind(points: Points, self_id: int) -> void:
 	if not multiplayer.peer_disconnected.is_connected(_on_peer_disconnected):
 		multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	_refresh()
-	_follow_score_row()
+	follow_hud_row()
 
 
 func is_open() -> bool:
@@ -69,7 +79,7 @@ func open() -> void:
 	mouse_filter = MOUSE_FILTER_STOP
 	visible = true
 	_refresh()
-	_follow_score_row()
+	follow_hud_row()
 
 
 func close() -> void:
@@ -98,6 +108,34 @@ func sorted_rows() -> Array:
 	return rows
 
 
+## Readable lines as drawn (name, optional swatch, total) for tests and drives.
+func display_lines() -> PackedStringArray:
+	var lines := PackedStringArray()
+	for peer_id in _join_order():
+		lines.append(_row_text(peer_id, _points.total_of(peer_id)))
+	return lines
+
+
+func panel_height() -> float:
+	return custom_minimum_size.y * scale.y
+
+
+func follow_hud_row() -> void:
+	var hearts := get_node_or_null("../HeartsHud") as Control
+	var score := get_node_or_null("../ScoreHud") as Control
+	var toggle := get_node_or_null("../ScoreboardToggle") as Control
+	if score == null:
+		return
+	var k := hearts.scale.x if hearts != null else 1.0
+	scale = Vector2(k, k)
+	var left := hearts.position.x if hearts != null else score.position.x
+	var bottom := score.position.y + score.size.y * k
+	if toggle != null and toggle.is_visible_in_tree():
+		bottom = maxf(bottom, toggle.position.y + toggle.size.y * toggle.scale.y)
+	position = Vector2(left, bottom + MARGIN * k)
+	size = custom_minimum_size
+
+
 func _on_points_changed(_peer_id: int, _total: int, _amount: int, _reason: String) -> void:
 	_refresh()
 
@@ -115,20 +153,74 @@ func _refresh() -> void:
 		return
 	for child in _list.get_children():
 		child.queue_free()
-	var rows := sorted_rows()
-	var rank := 0
-	for row in rows:
-		rank += 1
+	for row in sorted_rows():
 		var peer_id: int = row[0]
 		var total: int = row[1]
-		var label := Label.new()
-		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var name := "You" if peer_id == _self_id else "P%d" % rank
-		label.text = "%s  %d" % [name, total]
-		_list.add_child(label)
-	var row_count := maxi(rows.size(), 1)
-	custom_minimum_size = Vector2(PANEL_W, TITLE_H + row_count * ROW_H + 12.0)
-	_follow_score_row()
+		_list.add_child(_make_row(peer_id, total))
+	var row_count := maxi(sorted_rows().size(), 1)
+	custom_minimum_size = Vector2(PANEL_W, TITLE_H + row_count * ROW_H + 6.0)
+	follow_hud_row()
+
+
+func _make_row(peer_id: int, total: int) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 3)
+	var swatch := ColorRect.new()
+	swatch.custom_minimum_size = SWATCH
+	swatch.color = _flag_color(peer_id)
+	swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(swatch)
+	var label := Label.new()
+	label.text = _row_text(peer_id, total)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(label)
+	return row
+
+
+func _row_text(peer_id: int, total: int) -> String:
+	return "%s  %d" % [_player_name(peer_id), total]
+
+
+func _player_name(peer_id: int) -> String:
+	if peer_id == _self_id:
+		return "You"
+	var custom := _display_name_of(peer_id)
+	if custom != "":
+		return custom
+	return "Player %d" % _join_index(peer_id)
+
+
+func _display_name_of(peer_id: int) -> String:
+	var world := get_node_or_null("/root/Flagoria/World")
+	if world == null:
+		return ""
+	var body := world.get_node_or_null(str(peer_id))
+	if body == null:
+		return ""
+	if body.has_method("get_display_name"):
+		var name_text: String = body.get_display_name()
+		return name_text.strip_edges()
+	return ""
+
+
+func _join_order() -> Array:
+	var ids := _connected_peer_ids()
+	ids.sort()
+	return ids
+
+
+func _join_index(peer_id: int) -> int:
+	return _join_order().find(peer_id) + 1
+
+
+func _flag_color(peer_id: int) -> Color:
+	if peer_id == Points.SERVER_ID:
+		return FLAG_HOST
+	var idx := _join_index(peer_id) - 2
+	if idx < 0:
+		idx = 0
+	return FLAG_OTHERS[idx % FLAG_OTHERS.size()]
 
 
 func _connected_peer_ids() -> Array:
@@ -142,14 +234,3 @@ func _connected_peer_ids() -> Array:
 		if peer_id not in ids:
 			ids.append(peer_id)
 	return ids
-
-
-func _follow_score_row() -> void:
-	var score := get_node_or_null("../ScoreHud") as Control
-	if score == null:
-		return
-	var hearts := get_node_or_null("../HeartsHud") as Control
-	var k := hearts.scale.x if hearts != null else 1.0
-	scale = Vector2(k, k)
-	position = score.position + Vector2(0.0, score.size.y * score.scale.y + MARGIN * k)
-	size = custom_minimum_size

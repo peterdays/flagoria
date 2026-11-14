@@ -308,6 +308,92 @@ func _test_points_scoreboard_late_join() -> int:
 	return fail
 
 
+func _test_points_scoreboard_four_players() -> int:
+	## Four connected peers see join-order names with flag colours, not raw
+	## peer ids; the panel height stays within the 480x270 HUD band.
+	print("-- test_points_scoreboard_four_players")
+	var fail := 0
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL points_scoreboard_four_players found no free UDP port")
+		return 1
+	var server_root := Node.new()
+	server_root.name = "ScoreboardFourServer"
+	root.add_child(server_root)
+	var smp := SceneMultiplayer.new()
+	set_multiplayer(smp, server_root.get_path())
+	var s_points := Points.new()
+	s_points.name = "Points"
+	server_root.add_child(s_points)
+	var s_panel := ScoreboardPanel.new()
+	server_root.add_child(s_panel)
+	s_panel.bind(s_points, Points.SERVER_ID)
+	var speer := ENetMultiplayerPeer.new()
+	speer.create_server(port)
+	smp.multiplayer_peer = speer
+	var clients: Array = []
+	var wait := func(cond: Callable) -> bool:
+		var until := Time.get_ticks_msec() + 8000
+		while Time.get_ticks_msec() < until and not cond.call():
+			await process_frame
+		return cond.call()
+	for i in 3:
+		var client_root := Node.new()
+		client_root.name = "ScoreboardFourClient%d" % (i + 1)
+		root.add_child(client_root)
+		var cmp := SceneMultiplayer.new()
+		set_multiplayer(cmp, client_root.get_path())
+		var c_points := Points.new()
+		c_points.name = "Points"
+		client_root.add_child(c_points)
+		var cpeer := ENetMultiplayerPeer.new()
+		cpeer.create_client("127.0.0.1", port)
+		cmp.multiplayer_peer = cpeer
+		clients.append({"root": client_root, "peer": cpeer, "points": c_points, "api": cmp})
+		if not await _client_connected(smp, cpeer):
+			printerr("FAIL points_scoreboard_four_players client %d did not connect" % (i + 1))
+			fail += 1
+			break
+	if fail == 0:
+		var ids := [Points.SERVER_ID]
+		for entry in clients:
+			ids.append(entry["peer"].get_unique_id())
+		for peer_id in ids:
+			s_points.award(peer_id, peer_id % 10, "test")
+		if not await wait.call(func() -> bool: return s_panel.sorted_rows().size() == 4):
+			printerr("FAIL points_scoreboard_four_players rows %s, want 4" % s_panel.sorted_rows())
+			fail += 1
+		var lines := s_panel.display_lines()
+		if lines.size() != 4:
+			printerr("FAIL points_scoreboard_four_players display %s" % lines)
+			fail += 1
+		for line in lines:
+			var t := str(line)
+			if not t.begins_with("You") and not t.begins_with("Player"):
+				printerr("FAIL points_scoreboard_four_players unreadable label: %s" % t)
+				fail += 1
+			for entry in clients:
+				var huge := str(entry["peer"].get_unique_id())
+				if t.find(huge) >= 0:
+					printerr("FAIL points_scoreboard_four_players label used a raw id: %s" % t)
+					fail += 1
+		if fail == 0 and s_panel.custom_minimum_size.y > 58.0:
+			printerr("FAIL points_scoreboard_four_players panel art height %s, want <= 58"
+					% s_panel.custom_minimum_size.y)
+			fail += 1
+	for entry in clients:
+		entry["peer"].close()
+		set_multiplayer(null, entry["root"].get_path())
+		entry["root"].queue_free()
+	speer.close()
+	set_multiplayer(null, server_root.get_path())
+	server_root.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_points_scoreboard_four_players")
+	return fail
+
+
 func _test_points_mob_kill() -> int:
 	## Kill points by type (slime 5, crab 8, piglet 10) go to the player
 	## whose hit kills the mob, once: earlier hits by another player and hits

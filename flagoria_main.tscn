@@ -88,10 +88,10 @@ script = ExtResource("11_score_hud")
 
 [node name="ScoreboardToggle" type="Button" parent="CanvasLayer1"]
 visible = false
-offset_left = 56.0
+offset_left = 4.0
 offset_top = 15.0
-offset_right = 76.0
-offset_bottom = 35.0
+offset_right = 28.0
+offset_bottom = 39.0
 focus_mode = 0
 script = ExtResource("11_score_toggle")
 
