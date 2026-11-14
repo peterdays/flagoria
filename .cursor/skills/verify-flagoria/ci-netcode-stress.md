@@ -2,13 +2,15 @@
 
 Drive: not player-facing
 
-The required check **Netcode stress** (`.github/workflows/play-review.yml`) runs `tools/stress_netcode.py` only for gameplay changes. How many times each multiplayer scenario runs is chosen in `tools/play_review_paths.py` (`FULL_RUNS`, `LIGHT_RUNS`, `stress_tier()`). Do not change default run counts in the workflow; set `STRESS_RUNS` from that script's output only.
+The required check **Netcode stress** (`.github/workflows/play-review.yml`) runs `tools/stress_netcode.py` when `tools/play_review_paths.py` sets `run_stress=true`: a gameplay change, or a change to the stress runner, the stress lint, `tests/net/`, or a `tests/*_probe.gd` probe. How many times each multiplayer scenario runs is chosen in that script (`FULL_RUNS`, `LIGHT_RUNS`, `stress_tier()`). Do not change default run counts in the workflow; set `STRESS_RUNS` from that script's output only.
 
 Pull-request workflows classify changes once per job through `.github/actions/classify-change`, which runs `play_review_paths.py` and exposes `gameplay` and `stress_runs` outputs. `play-review-label.yml` uses the same composite with paths read via the API (no checkout of PR code).
 
 ## When the job is skipped
 
-The change is not gameplay: no changed path matches `GAMEPLAY` in `play_review_paths.py`, and the pull request does not carry `needs-play-review` (the label workflow adds it when paths match). The workflow still checks out the repo, runs `python3 tools/play_review_paths.py --self-test`, and classifies paths; install Godot and stress are skipped. Wall time is on the order of tens of seconds.
+The change is not gameplay and it does not touch the stress matrix: no changed path matches `GAMEPLAY` or `STRESS_MATRIX` in `play_review_paths.py`, and the pull request does not carry `needs-play-review` (the label workflow adds it when gameplay paths match). The workflow still checks out the repo, runs `python3 tools/play_review_paths.py --self-test`, and classifies paths; install Godot and stress are skipped. Wall time is on the order of tens of seconds.
+
+`STRESS_MATRIX` is the stress runner (`tools/stress_netcode.py`), the stress lint and its allow list, `tests/net/*`, and `tests/*_probe.gd`. Those paths are not player-facing gameplay, so they do not add the label, a drive, or a debug APK. They do run the full matrix, so a broken runner or probe fails on the pull request that changed it.
 
 ## 5 runs per scenario (`LIGHT_RUNS`)
 
@@ -24,7 +26,7 @@ Typical job time is a few to about ten minutes, depending on scenario count.
 Any of:
 
 - GitHub `event` is `push` to `main` and the push includes gameplay paths (main always gets the full tier when stress runs).
-- Any changed path is listed in `NETCODE` (spawners, score sync probes, `tools/stress_netcode.py`, and the other entries there).
+- Any changed path matches `NETCODE` (spawners, score sync, and every `STRESS_MATRIX` path: the runner, the lint, `tests/net/*`, and `tests/*_probe.gd`).
 - A changed `NETCODE_MIXED` file has at least one changed line matching `NET_LINE` in the PR diff.
 
 If `stress_tier()` is called without `--diff`, any changed `NETCODE_MIXED` path counts as netcode (used in self-tests and anywhere diff is not passed). CI on pull requests always passes `--diff`.

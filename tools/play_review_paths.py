@@ -8,18 +8,22 @@ Audio scripts are not gameplay. A
 project.godot change counts only when its [input] section differs; with no
 before/after copies given, any project.godot change counts.
 
-Also picks the netcode stress tier (runs per scenario): skipped when not
-gameplay; otherwise see FULL_RUNS, LIGHT_RUNS and stress_tier() below and
+Also picks the netcode stress tier (runs per scenario): skipped when the
+change is not gameplay and does not touch the stress matrix (STRESS_MATRIX);
+otherwise see FULL_RUNS, LIGHT_RUNS and stress_tier() below and
 .cursor/skills/verify-flagoria/ci-netcode-stress.md. Without --diff, any
 NETCODE_MIXED file counts as netcode.
 
 Reads changed paths, one per line, from --files (or stdin). Prints the
-matching paths and the tier, and writes `gameplay=true|false` and
-`stress_runs=N` to $GITHUB_OUTPUT when set.
+matching paths and the tier, and writes `gameplay=true|false`,
+`stress_runs=N`, and `run_stress=true|false` to $GITHUB_OUTPUT when set.
+`run_stress` is what play-review.yml uses to start the matrix. It is true
+for a gameplay change and also for a stress-matrix path that is not
+player-facing gameplay (the runner, the lint, tests/net, and probes).
 
 CI runs this at most once per job via the composite
 `.github/actions/classify-change` (play-review.yml, verify-drive.yml,
-pr-debug-apk.yml, play-review-label.yml). Job outputs: `gameplay`, `stress_runs`,
+pr-debug-apk.yml, play-review-label.yml). Job outputs: `gameplay`, `stress_runs`, `run_stress`,
 and `paths_file` (the path list file used). Rules stay in this file only.
 
 It only reads its inputs and never runs project code, so the label workflow
@@ -68,12 +72,23 @@ GAMEPLAY = [
     "data/interactables/*.tres",  # choppable types: hits, yields, regrowth, art and sounds
 ]
 
-# Netcode files: spawners, RPC-only scripts, the multiplayer test probes and
-# the stress runner. Any change to them gets the full stress tier.
+# Not player-facing gameplay (no drive evidence, no debug APK, no
+# needs-play-review). They still start the full stress matrix. A broken
+# runner, lint, probe, or net scenario would otherwise show up only on the
+# next gameplay pull request. fnmatch "*" matches "/".
+STRESS_MATRIX = [
+    "tests/net/*",  # multiplayer scenarios the stress job runs
+    "tests/*_probe.gd",  # headless peer processes those scenarios start
+    "tools/stress_netcode.py",
+    "tools/stress_scenario_lint.py",
+    "tools/stress_scenario_lint_allow.txt",
+]
+# Netcode files: spawners, RPC-only scripts, and the stress matrix above.
+# Any change to them gets the full stress tier.
 NETCODE = [
     "Scripts/mob_spawner.gd", "Scripts/points.gd", "Scripts/discovery_points.gd",
-    "tilemap_dynamic.tscn", "tests/late_join_probe.gd", "tests/ingame_menu_probe.gd",
-    "tools/stress_netcode.py",
+    "tilemap_dynamic.tscn",
+    *STRESS_MATRIX,
 ]
 # Files that mix netcode with other gameplay. They get the full tier only when
 # a changed line names netcode (RPCs, peers, authority, synchronizers).
@@ -89,18 +104,35 @@ NET_LINE = re.compile(r"rpc|multiplayer|peer|authority|replicat|synchroniz|spawn
 # .cursor/skills/verify-flagoria/ci-netcode-stress.md (do not duplicate those
 # rules in workflow YAML comments except a pointer to this file).
 #
-# Skipped (~seconds): not a gameplay change (no paths in GAMEPLAY, and no
-# needs-play-review label on a pull request). play-review.yml still runs
-# --self-test and classification; it skips Godot and stress_netcode.py.
+# Skipped (~seconds): not a gameplay change and no STRESS_MATRIX path (no
+# paths in GAMEPLAY, no needs-play-review label, and no runner, lint, probe,
+# or tests/net file). play-review.yml still runs --self-test and
+# classification; it skips Godot and stress_netcode.py.
 #
 # LIGHT_RUNS (5): pull_request + gameplay paths, but stress_tier() picks the
 # light tier — no NETCODE file changed, and no netcode-tagged line in a changed
 # NETCODE_MIXED file (git diff -U0). Roughly 3–10 minutes for the job.
 #
-# FULL_RUNS (20): event push (gameplay on main), or any NETCODE path changed, or
-# any NETCODE_MIXED path whose changed lines match NET_LINE, or (when --diff is
-# omitted) any NETCODE_MIXED path in the path list. Up to ~25 minutes.
+# FULL_RUNS (20): event push (when the matrix runs), or any NETCODE path
+# changed (including STRESS_MATRIX: the runner, the lint, tests/net, and
+# tests/*_probe.gd), or any NETCODE_MIXED path whose changed lines match
+# NET_LINE, or (when --diff is omitted) any NETCODE_MIXED path in the path
+# list. Up to ~25 minutes.
 FULL_RUNS, LIGHT_RUNS = 20, 5
+
+
+def _match(path: str, patterns: list[str]) -> bool:
+    return any(fnmatch.fnmatchcase(path, pat) for pat in patterns)
+
+
+def matrix_paths(paths: list[str]) -> list[str]:
+    """Changed paths that start the full stress matrix on their own."""
+    return [p for p in paths if _match(p, STRESS_MATRIX)]
+
+
+def runs_stress(gameplay: bool, paths: list[str]) -> bool:
+    """True when play-review.yml should run the scenario matrix."""
+    return gameplay or bool(matrix_paths(paths))
 
 
 def net_lines(diff: str) -> dict[str, int]:
@@ -123,7 +155,7 @@ def stress_tier(event: str, paths: list[str], diff: str | None) -> tuple[int, st
     """(runs per scenario, reason) for a gameplay change. diff=None: no diff, assume netcode."""
     if event == "push":
         return FULL_RUNS, "push to main"
-    net = [p for p in paths if p in NETCODE]
+    net = [p for p in paths if _match(p, NETCODE)]
     if diff is None:
         net += [p for p in paths if p in NETCODE_MIXED]
     else:
@@ -175,6 +207,12 @@ def self_test() -> int:
         (["Scripts/mechanics/walls/wall_solver.gd.uid"], None, None, False),
         (["Scripts/player.gd.uid", "tests/run_tests.gd"], None, None, False),
         (["tests/ui/test_map_zoom.gd", "tests/helpers/test_helpers.gd"], None, None, False),
+        # Stress tooling is not player-facing gameplay. runs_stress() still
+        # starts the full matrix for these paths; see the matrix cases below.
+        (["tools/stress_netcode.py", "tools/stress_scenario_lint.py"], None, None, False),
+        (["tools/stress_scenario_lint_allow.txt"], None, None, False),
+        (["tests/wall_sync_probe.gd", "tests/net/test_wall_sync.gd"], None, None, False),
+        (["tests/docker_publish_probe.gd"], None, None, False),
         (["Scripts/attack_aim.gd"], None, None, True),
         (["Scripts/aim_cone_style.gd"], None, None, True),
         (["Scripts/points.gd"], None, None, True),
@@ -204,7 +242,11 @@ def self_test() -> int:
     tiers = [
         ("pull_request", ["Scripts/mob_spawner.gd", "README.md"], "", FULL_RUNS),
         ("pull_request", ["tools/stress_netcode.py"], "", FULL_RUNS),
+        ("pull_request", ["tools/stress_scenario_lint.py"], "", FULL_RUNS),
         ("pull_request", ["tests/late_join_probe.gd"], "", FULL_RUNS),
+        ("pull_request", ["tests/wall_sync_probe.gd"], "", FULL_RUNS),
+        ("pull_request", ["tests/net/test_wall_sync.gd"], "", FULL_RUNS),
+        ("pull_request", ["tests/net/test_wall_sync.gd.uid"], "", FULL_RUNS),
         ("pull_request", ["Scripts/player.gd"], play_net, FULL_RUNS),
         ("pull_request", ["flagoria_main.tscn"], scene_net, FULL_RUNS),
         ("pull_request", ["Scripts/player.gd"], None, FULL_RUNS),
@@ -236,6 +278,36 @@ def self_test() -> int:
                 file=sys.stderr,
             )
             fail += 1
+    # These paths are not player-facing, but each one starts the full matrix
+    # with or without a diff. A UI test and a verify script do not.
+    matrix_cases = [
+        ["tools/stress_netcode.py"],
+        ["tools/stress_scenario_lint.py"],
+        ["tools/stress_scenario_lint_allow.txt"],
+        ["tests/wall_sync_probe.gd"],
+        ["tests/late_join_probe.gd"],
+        ["tests/net/test_wall_sync.gd"],
+        ["tests/docker_publish_probe.gd"],
+    ]
+    for paths in matrix_cases:
+        for text in ("", None):
+            got_play, got_runs = classify(paths, diff=text)
+            if got_play or got_runs != FULL_RUNS or not runs_stress(got_play, paths):
+                print(
+                    "FAIL stress matrix %s diff=%s: play=%s runs=%d stress=%s"
+                    % (paths, text is not None, got_play, got_runs,
+                       runs_stress(got_play, paths)),
+                    file=sys.stderr,
+                )
+                fail += 1
+    for paths in (["tests/ui/test_map_zoom.gd"], ["tools/verify.sh"], ["README.md"]):
+        got_play, _runs = classify(paths, diff="")
+        if runs_stress(got_play, paths):
+            print("FAIL stress matrix should skip %s" % paths, file=sys.stderr)
+            fail += 1
+    if not runs_stress(True, ["Scripts/hearts_hud.gd"]):
+        print("FAIL gameplay change should run stress", file=sys.stderr)
+        fail += 1
     docs = ["docs/architecture.md", "README.md"]
     hud = ["Scripts/hearts_hud.gd"]
     for paths in (docs, hud):
@@ -248,7 +320,7 @@ def self_test() -> int:
                 file=sys.stderr,
             )
             fail += 1
-    total = len(cases) + len(tiers) + len(parity) + 2
+    total = len(cases) + len(tiers) + len(parity) + 2 + len(matrix_cases) * 2 + 4
     print("play_review_paths self-test: %d/%d ok" % (total - fail, total))
     return 1 if fail else 0
 
@@ -294,15 +366,21 @@ def main() -> int:
     for path in hits:
         print("gameplay: " + path)
     gameplay = bool(hits) or args.labeled
+    matrix = matrix_paths(paths)
+    for path in matrix:
+        print("stress matrix: " + path)
+    do_stress = runs_stress(gameplay, paths)
     print("gameplay=%s (%d of %d paths%s)" % (str(gameplay).lower(), len(hits), len(paths),
                                              ", labeled" if args.labeled else ""))
     runs, reason = stress_tier(args.event, paths, read_opt(args.diff) if args.diff else None)
-    if gameplay:
+    if do_stress:
         print("stress tier: %d runs per scenario (%s)" % (runs, reason))
+    print("run_stress=%s" % str(do_stress).lower())
     out = os.environ.get("GITHUB_OUTPUT")
     if out:
         with open(out, "a") as fh:
-            fh.write("gameplay=%s\nstress_runs=%d\n" % (str(gameplay).lower(), runs))
+            fh.write("gameplay=%s\nstress_runs=%d\nrun_stress=%s\n" % (
+                str(gameplay).lower(), runs, str(do_stress).lower()))
     return 0
 
 
