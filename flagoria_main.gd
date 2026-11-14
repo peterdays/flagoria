@@ -292,7 +292,8 @@ func _sync_map_params_to_peer(peer_id: int) -> void:
 	var world = get_node("World/worldMap")
 	var parts := WorldSave.split_changes(world.cut_changes(), JOIN_CUTS_PER_MESSAGE)
 	rpc_id(peer_id, "receive_map_params", world_params.to_dict(), spot, parts[0],
-			world.structures_for_sync(), world.bridges_for_sync(), _player_spots())
+			world.structures_for_sync(), world.bridges_for_sync(), _player_spots(),
+			world.resolve_player_spawn())
 	var requests := get_node_or_null("World/StructureRequests")
 	if requests != null:
 		requests.sync_to_peer(peer_id)
@@ -308,7 +309,7 @@ func _sync_map_params_to_peer(peer_id: int) -> void:
 
 @rpc("authority", "reliable", "call_remote")
 func receive_map_params(data: Dictionary, spot: Vector2, cuts: Dictionary, placements: Array,
-		bridges: Array = [], spots: Dictionary = {}) -> void:
+		bridges: Array = [], spots: Dictionary = {}, spawn_cell: Vector2i = Vector2i.ZERO) -> void:
 	if multiplayer.get_remote_sender_id() != 1:
 		return  # only the host sends the map; the rpc mode already refuses others
 	var params = MapGenParams.new()
@@ -323,6 +324,7 @@ func receive_map_params(data: Dictionary, spot: Vector2, cuts: Dictionary, place
 	_apply_player_spots(spots)  # other players' server spots (#352), before any draw
 	_place_own_player()  # or once the player arrives, see _on_world_child_entered
 	var world = get_node("World/worldMap")
+	world.set_meta(&"resolved_spawn", spawn_cell)  # same cell the host planned mobs from
 	world.player_spawned = true
 
 
