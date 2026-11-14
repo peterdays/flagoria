@@ -248,6 +248,7 @@ func attack_animation(direction: String = "", angle: float = NAN):
 	isAttacking = true
 	weapon.visible = true
 	sword_shape.set_deferred("disabled", false)  # the sword only hits during a swing
+	_swing_world_decor(direction, angle)
 	await animations.animation_finished
 	weapon.visible = false
 	sword_shape.set_deferred("disabled", true)
@@ -274,6 +275,28 @@ func _map_covers_play() -> bool:
 func sword_active() -> bool:
 	## True while this player's swing can hit: mid-attack and alive.
 	return isAttacking and not health.is_dead()
+
+
+func _swing_world_decor(direction: String, angle: float) -> void:
+	## Combat swing: destroy walkable stones in the aim arc (#198).
+	var map := get_node_or_null(MAP_PATH)
+	if map == null or health.is_dead():
+		return
+	var facing := direction if direction in AttackAimScript.DIRECTIONS else str(lastAnimDirection)
+	var swing := _facing_to_angle(facing)
+	if not is_nan(angle) and facing in AttackAimScript.DIRECTIONS:
+		var turn := AttackAimScript.turn_to(facing, angle)
+		if not is_nan(turn):
+			swing += turn
+	map._object_removals.cells_in_arc(global_position, swing, AimConeStyle.SWORD_REACH, AttackAimScript.ARC, true)
+
+
+func _facing_to_angle(facing: String) -> float:
+	match facing:
+		"Up": return Vector2.UP.angle()
+		"Left": return Vector2.LEFT.angle()
+		"Right": return Vector2.RIGHT.angle()
+		_: return Vector2.DOWN.angle()
 
 func _enter_tree():
 	set_multiplayer_authority(str(name).to_int())

@@ -135,6 +135,24 @@ the same pass as the cuts; a sprout is dropped on a load when the map no
 longer grows that tree on that cell. Joining peers get them in the same cut
 list.
 
+## Picked flowers and destroyed stones
+
+A cell where a flower was picked up, or walkable stones were destroyed, is a
+`world.object_changes` entry:
+
+```json
+"world": {"object_changes": {"0,0": {"14,12": {"removed": true}}}}
+```
+
+| Key | Meaning |
+| --- | --- |
+| `removed` | The flower or stones that were on the cell are gone for good until the params change. |
+
+`ObjectRemovals.to_changes` writes the entries and `ObjectRemovals.restore`
+reads them back with the cuts. On a load, an entry is dropped when the map no
+longer generates a flower or stones on that cell. Entries with `cut` or
+`sprout` belong to tree and bush cuts. Defeated mobs are not stored.
+
 ## Placed plank bridges
 
 A plank bridge cell (#226) is a `world.tile_edits` entry on its cell, naming
@@ -227,8 +245,8 @@ so the player can resume or leave. The file is the version 3 gzip above. It
 holds the generation inputs, this peer's tree and bush cuts, plank bridges,
 placed structures and walls, and this peer's player state (position, health,
 wood, score, charted ground). A second save of that same file keeps `created`
-and refreshes `updated`. The rest of the object changes (#198: picked items,
-destroyed objects, cleared mobs) are not saved yet.
+and refreshes `updated`, and the picked flowers and destroyed stones in
+`world.object_changes`. Defeated mobs are not saved.
 
 The new bytes are not written into the existing file. They go to
 `<name>.json.tmp` beside it. That file is closed, then kept only when

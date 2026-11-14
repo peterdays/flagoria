@@ -33,6 +33,8 @@ var archipelago_island_count: int = 0
 var _predict_cache: Dictionary = {}
 ## Tree and bush cuts and regrowth (Scripts/mechanics/trees/tree_cuts.gd).
 var _tree_cuts := TreeCuts.new(self)
+## Picked flowers and destroyed stones (Scripts/world/object_removals.gd).
+var _object_removals := ObjectRemovals.new(self)
 ## Placed plank bridges (Scripts/mechanics/bridges/bridge_builder.gd).
 var _bridges := BridgeBuilder.new(self)
 ## Placed structures (#270); generate_chunk draws their cells.
@@ -127,13 +129,13 @@ func apply_map_params(p: MapGenParams) -> void:
 	clear()
 	_predict_cache.clear()
 	_tree_cuts.clear()
+	_object_removals.clear()
 	_bridges.clear()
 	_structures.clear()
 	_walls.clear()
 	_castle_front = null
 	spawn_point = Vector2i(0, 0)
-	if has_meta(&"resolved_spawn"):
-		remove_meta(&"resolved_spawn")
+	if has_meta(&"resolved_spawn"): remove_meta(&"resolved_spawn")
 	ground_changed.emit(Rect2i())
 
 
@@ -257,6 +259,8 @@ func get_random_ground_vec(chance):
 
 
 func set_tile_type_z1(pos_vec, alt, moist, _temp, chance, biome_id: int = BiomeCatalog.TEMPERATE):
+	if _object_removals.has_removed(pos_vec):
+		return
 	if _structures.has_cell(pos_vec):
 		if _structures.object_at(pos_vec) != NO_PLANT:
 			set_cell(1, pos_vec, TileCatalog.SOURCE_ID, _structures.object_at(pos_vec))
@@ -306,6 +310,8 @@ func predict_cell(cell: Vector2i) -> Array:
 		top = _structures.object_at(cell)
 	elif _walls.has_wall(cell):
 		top = _walls.piece(cell)
+	elif _object_removals.has_removed(cell):
+		top = NO_PLANT
 	elif ground_is_walkable(ground) and not _bridges.has_bridge(cell):
 		if biome_frequency <= 0.0 or ground != TileCatalog.SAND:
 			top = plant_tile(alt, moist, chance, b)
@@ -352,11 +358,26 @@ func grow_back(cell: Vector2i) -> bool:
 func cut_changes() -> Dictionary[String, Dictionary]:
 	return _tree_cuts.to_changes()
 
+func object_changes() -> Dictionary[String, Dictionary]:
+	return _object_removals.object_changes_with(_tree_cuts)
+
 func restore_cuts(changes: Dictionary) -> int:
 	return _tree_cuts.restore(changes)
 
+func restore_object_changes(changes: Dictionary) -> int:
+	return _object_removals.restore_with(_tree_cuts, changes)
+
 func replace_cuts(changes: Dictionary) -> int:
 	return _tree_cuts.replace(changes)
+
+func replace_object_changes(changes: Dictionary) -> int:
+	return _object_removals.replace_with(_tree_cuts, changes)
+
+func pick_decor(cell: Vector2i) -> bool:
+	return _object_removals.pick(cell)
+
+func destroy_decor(cell: Vector2i) -> bool:
+	return _object_removals.destroy(cell)
 
 func cut_grown(cell: Vector2i) -> InteractableType:
 	return _tree_cuts.cut_grown(cell)
@@ -480,10 +501,8 @@ func is_clear_ground(cell: Vector2i) -> bool:
 func reachable_clear_cells(start: Vector2i, limit: int = SpawnFinder.SPAWN_MIN_REACHABLE) -> Array[Vector2i]:
 	return SpawnFinder.reachable_clear_cells(self, start, limit)
 
-
 func resolve_player_spawn(origin_cell: Vector2i = Vector2i(0, 0), max_radius: int = 192) -> Vector2i:
-	## Start-castle gate, else the first finder result. A later castle must
-	## not move this spawn by clearing trees.
+	## Gate front, else the first search. A later castle must not move it.
 	if _castle_front != null:
 		return _castle_front
 	if not has_meta(&"resolved_spawn"):

@@ -44,6 +44,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Tileset and collision](./tileset-and-collision.md) — tile catalog, water and forest walls.
 - [Biomes](./biomes.md) — biome terrain, plants, stones, island and archipelago shaping, biomes on by default, `render_biomes` coverage gate.
 - [Map save files](./map-save.md) — versioned world saves (inputs plus cuts and plank bridges), v1 migration, Save from the in-game menu, saved-maps API.
+- [Object removals save](./object-removals-save.md) — picked flowers and destroyed stones in `world.object_changes` (#198).
 - [Player save](./player-save.md) — save and load position, health, wood, score and charted ground (#197).
 - [Map zoom](./map-zoom.md) — local pinch, wheel and Ctrl +/- zoom.
 - [Chopping trees and bushes](./chop-trees-and-bushes.md) — interact-mode chop, tree, pine and bush types, their hit and fall frames, per-type wood and regrow delay, stumps, regrowth (held while a player or mob stands on the stump, one mob-cell set per pass), wood HUD, type checklist.

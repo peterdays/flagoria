@@ -190,7 +190,7 @@ func _restore_loaded_world() -> int:
 	_saved_player = loaded.player.duplicate(true)
 	_saved_player_ready = true
 	var bridges: int = world.replace_bridges(BridgeBuilder.from_changes(loaded.tile_edits, world))
-	var cuts: int = world.restore_cuts(loaded.object_changes)
+	var cuts: int = world.restore_object_changes(loaded.object_changes)
 	return cuts + bridges + StructureSaves.restore(loaded.structures, world)  # after cuts: a structure clears its cells
 
 
@@ -290,7 +290,7 @@ func _sync_map_params_to_peer(peer_id: int) -> void:
 	var player = get_node_or_null("World/" + str(peer_id))
 	var spot: Vector2 = player.position if player else Vector2.INF
 	var world = get_node("World/worldMap")
-	var parts := WorldSave.split_changes(world.cut_changes(), JOIN_CUTS_PER_MESSAGE)
+	var parts := WorldSave.split_changes(world.object_changes(), JOIN_CUTS_PER_MESSAGE)
 	rpc_id(peer_id, "receive_map_params", world_params.to_dict(), spot, parts[0],
 			world.structures_for_sync(), world.bridges_for_sync(), _player_spots(),
 			world.resolve_player_spawn())
@@ -317,7 +317,7 @@ func receive_map_params(data: Dictionary, spot: Vector2, cuts: Dictionary, place
 	world_params = params
 	get_node("/root/MapGen").params = params.duplicate_params()
 	_apply_params_to_world(params)
-	get_node("World/worldMap").replace_cuts(cuts)  # the host's set, before the chunks are drawn again
+	get_node("World/worldMap").replace_object_changes(cuts)  # the host's set, before the chunks are drawn again
 	get_node("World/worldMap").replace_structures(placements)  # likewise, before the player is placed
 	get_node("World/worldMap").replace_bridges(bridges)  # plank bridges (#297)
 	_own_spot = spot
@@ -345,7 +345,7 @@ func receive_join_cuts(cuts: Dictionary) -> void:
 	## they land before any later cut or regrowth.
 	if multiplayer.get_remote_sender_id() != 1:
 		return  # only the host sends the map; the rpc mode already refuses others
-	get_node("World/worldMap").restore_cuts(cuts)
+	get_node("World/worldMap").restore_object_changes(cuts)
 
 
 func add_player(peer_id):
