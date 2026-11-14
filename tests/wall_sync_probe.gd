@@ -100,7 +100,10 @@ func _run() -> void:
 			_write(out, main, world, me)
 			next_write = Time.get_ticks_msec() + 100
 		await process_frame
-	_write(out, main, world, main.get_node_or_null("World/" + str(main.multiplayer.get_unique_id())))
+	var fin: Node2D = null
+	if main.multiplayer != null:
+		fin = main.get_node_or_null("World/" + str(main.multiplayer.get_unique_id()))
+	_write(out, main, world, fin)
 	quit(0)
 
 

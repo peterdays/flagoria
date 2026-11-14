@@ -5,7 +5,7 @@ extends Control
 const LAYER_PATH := "/root/Flagoria/CanvasLayer1"
 const SCALE_MIN := 1.0
 const SCALE_MAX := 1.75
-const CONTROL_IDS := ["joystick", "attack", "run", "buildings", "map", "mode"]
+const CONTROL_IDS := ["joystick", "attack", "run", "buildings", "map", "mode", "scores"]
 const BAR_EDGE_INSET := 6.0
 const BAR_PAD := 2.0
 

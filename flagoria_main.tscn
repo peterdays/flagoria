@@ -1,4 +1,4 @@
-[gd_scene load_steps=32 format=3 uid="uid://cxtnu53ko1bon"]
+[gd_scene load_steps=34 format=3 uid="uid://cxtnu53ko1bon"]
 
 [ext_resource type="Script" path="res://flagoria_main.gd" id="1_p55uv"]
 [ext_resource type="Script" path="res://addons/virtual_joystick/scripts/virtual_joystick.gd" id="2_54anv"]
@@ -19,6 +19,8 @@
 [ext_resource type="PackedScene" path="res://quit_prompt.tscn" id="10_quit_prompt"]
 [ext_resource type="Script" path="res://Scripts/points.gd" id="10_points"]
 [ext_resource type="Script" path="res://Scripts/score_hud.gd" id="11_score_hud"]
+[ext_resource type="Script" path="res://Scripts/scoreboard_panel.gd" id="11_scoreboard"]
+[ext_resource type="Script" path="res://Scripts/scoreboard_toggle.gd" id="11_score_toggle"]
 [ext_resource type="Script" path="res://Scripts/discovery_points.gd" id="12_discovery"]
 [ext_resource type="Script" path="res://Scripts/inventory.gd" id="13_inventory"]
 [ext_resource type="Script" path="res://Scripts/resource_hud.gd" id="14_resource_hud"]
@@ -83,6 +85,25 @@ mouse_filter = 2
 theme = ExtResource("6_menu")
 text = "0 pts"
 script = ExtResource("11_score_hud")
+
+[node name="ScoreboardToggle" type="Button" parent="CanvasLayer1"]
+visible = false
+offset_left = 4.0
+offset_top = 15.0
+offset_right = 28.0
+offset_bottom = 39.0
+focus_mode = 0
+script = ExtResource("11_score_toggle")
+
+[node name="ScoreboardPanel" type="Control" parent="CanvasLayer1"]
+visible = false
+layout_mode = 3
+offset_left = 4.0
+offset_top = 30.0
+offset_right = 112.0
+offset_bottom = 72.0
+mouse_filter = 0
+script = ExtResource("11_scoreboard")
 
 [node name="ResourceHud" type="HBoxContainer" parent="CanvasLayer1"]
 visible = false

@@ -12,7 +12,7 @@ const GAP := 2.0
 const SCALE_MIN := 1.0
 const SCALE_MAX := 1.75
 
-const IDS := ["joystick", "attack", "run", "buildings", "map", "mode"]
+const IDS := ["joystick", "attack", "run", "buildings", "map", "mode", "scores"]
 const PATHS := {
 	"joystick": "player_joystick",
 	"attack": "TouchScreenButton",
@@ -20,6 +20,7 @@ const PATHS := {
 	"buildings": "BuildingsButton",
 	"map": "MinimapButton",
 	"mode": "ModeButton",
+	"scores": "ScoreboardToggle",
 }
 
 ## Tests point this at a scratch file.
@@ -303,6 +304,8 @@ func control_hit_rect(id: String, layer: CanvasLayer) -> Rect2:
 	var node := layer.get_node_or_null(PATHS[id])
 	if node == null:
 		return Rect2()
+	if id == "scores":
+		return ScoreboardToggle.layout_hit_rect(layer)
 	match id:
 		"joystick":
 			var stick := node as Node2D
@@ -459,13 +462,16 @@ func capture_from_layer(layer: CanvasLayer) -> Dictionary:
 	var view := layer.get_viewport().get_visible_rect().size
 	for id in IDS:
 		var rect := control_hit_rect(id, layer)
+		if rect.size == Vector2.ZERO and id == "scores" and view.x > 0.0 and view.y > 0.0:
+			var toggle := layer.get_node_or_null(PATHS["scores"]) as Control
+			if toggle != null:
+				rect = Rect2(layer.global_position + toggle.position, Vector2(RoundHudStyle.HIT, RoundHudStyle.HIT))
 		if rect.size == Vector2.ZERO:
 			continue
-		var s := _scale_of(id, layer)
 		out[id] = {
-			"x": rect.position.x / view.x,
-			"y": rect.position.y / view.y,
-			"s": s,
+			"x": clampf(rect.position.x / view.x, 0.0, 1.0),
+			"y": clampf(rect.position.y / view.y, 0.0, 1.0),
+			"s": _scale_of(id, layer),
 		}
 	return out
 

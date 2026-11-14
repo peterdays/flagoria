@@ -9,7 +9,7 @@ Players earn points for discovering ground and for killing mobs. The host owns e
 - `points-core` `Points` (`Scripts/points.gd`): server-owned totals per peer, an award RPC, `points_changed` for the HUD.
 - `points-discovery` `Scripts/discovery_points.gd`: `DISCOVERY_POINTS` 1 per new chunk-sized square walked into, checked every `CHECK_FRAMES` (15) frames and counted after two checks in a row.
 - `points-mob-kill` `MOB_KILL_POINTS` slime 5, crab 8, piglet 10, paid to the player whose hit kills. The mob's name is the kill id. Host and clients add those points once: a second award message for that id does not change the total. Spawning a world's mobs clears the credited ids, so the next map's `mob_0` can pay. A joining peer is told which ids already paid only after its map is queued, so that list is not the first packet of the join.
-- `points-hud` `ScoreHud` shows `N pts` for the local player.
+- `points-hud` `ScoreHud` shows `N pts` for the local player and toggles the scoreboard (see [Points scoreboard](./points-scoreboard.md)).
 - `points-flags-held` `FlagsHeldPoints` (`Scripts/mechanics/conquest/flags_held_points.gd`): `FLAGS_HELD_POINTS` 1 per owned flag tower every `INTERVAL` (5 s), reason `flags_held`; host alone. See [Flags held points](./flags-held-points.md).
 
 ## How to get to it (user POV)

@@ -2,7 +2,7 @@
 
 Drive: drives/hud_customize.gd
 
-The in-game menu has a Customize HUD entry. It opens an edit mode over the live touch controls: joystick, attack, run, Buildings, Map and Mode. Solo play pauses while editing; in multiplayer only the local layout changes. Drag moves a control; the size slider or a pinch resizes it between today’s size and 1.75×. Controls stay on screen and cannot overlap. The Buildings tool column opens above or below to fit. Save writes the layout to user settings on this device (not in world saves). Reset restores the default arc layout. Positions are stored relative to screen size.
+The in-game menu has a Customize HUD entry. It opens an edit mode over the live touch controls: joystick, attack, run, Buildings, Map, Mode and Scores. Solo play pauses while editing; in multiplayer only the local layout changes. Drag moves a control; the size slider or a pinch resizes it between today’s size and 1.75×. Controls stay on screen and cannot overlap. The Buildings tool column opens above or below to fit. Save writes the layout to user settings on this device (not in world saves). Reset restores the default arc layout. Positions are stored relative to screen size.
 
 ## Sub-features
 

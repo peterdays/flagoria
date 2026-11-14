@@ -61,7 +61,8 @@ GAMEPLAY = [
     "Scripts/player_save.gd",  # player position, health, wood, score, charted ground
     "Scripts/explored_map.gd", "Scripts/minimap_panel.gd",  # explored map and its HUD panel
     "Scripts/parchment_map.gd", "Scripts/map_wood_button.gd",  # parchment full map and its wood controls
-    "Scripts/resource_hud.gd", "Scripts/score_hud.gd",
+    "Scripts/resource_hud.gd", "Scripts/score_hud.gd", "Scripts/scoreboard_toggle.gd",
+    "Scripts/scoreboard_panel.gd",
     "Scripts/ingame_menu.gd", "Scripts/hud_layout.gd", "Scripts/hud_layout_edit.gd",
     "Scripts/quit_prompt.gd", "Scripts/number_pad.gd", "hud_layout_edit.tscn",
     "data/interactables/*.tres",  # choppable types: hits, yields, regrowth, art and sounds
