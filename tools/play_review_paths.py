@@ -38,6 +38,10 @@ import re
 import sys
 
 # fnmatch's "*" also matches "/", so "Player/*" covers the whole folder.
+NOT_GAMEPLAY = [
+    "debug/*",  # editor-only layouts, not reachable in play
+]
+
 GAMEPLAY = [
     "Player/*", "Mobs/*", "*.tscn",
     "flagoria_main.gd",  # host, join, spawn and sync
@@ -146,6 +150,8 @@ def input_section(text: str) -> str:
 def gameplay_paths(paths: list[str], base_project: str | None, head_project: str | None) -> list[str]:
     hits = []
     for path in paths:
+        if any(fnmatch.fnmatchcase(path, g) for g in NOT_GAMEPLAY):
+            continue
         if path == "project.godot":
             if base_project is None or head_project is None or \
                     input_section(base_project) != input_section(head_project):
@@ -168,6 +174,7 @@ def self_test() -> int:
         (["Scripts/MapGenParams.gd.uid", "Scripts/map_save.gd.uid"], None, None, False),
         (["Scripts/world/spawn_finder.gd"], None, None, True),
         (["Scripts/world/terrain_shape.gd.uid"], None, None, False),
+        (["debug/building_block_pieces.tscn"], None, None, False),
         (["Scripts/mechanics/trees/tree_cuts.gd"], None, None, True),
         (["Scripts/mechanics/bridges/bridge_builder.gd"], None, None, True),
         (["Scripts/mechanics/interact/interaction.gd"], None, None, True),
