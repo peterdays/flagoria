@@ -105,6 +105,37 @@ func _test_hud_layout_edit_blocks_map() -> int:
 	return fail
 
 
+func _test_hud_edit_bar_viewport_sizes() -> int:
+	print("-- test_hud_edit_bar_viewport_sizes")
+	var fail := 0
+	var sizes: Array[Vector2i] = [Vector2i(390, 844), Vector2i(720, 1280), Vector2i(1280, 720), Vector2i(1920, 1080)]
+	_hud().reset_to_defaults()
+	var scene = await _play_scene()
+	var layer: CanvasLayer = scene.get_node("CanvasLayer1")
+	var editor := scene.get_node("CanvasLayer1/InGameMenu/HudLayoutEdit")
+	var win := scene.get_window()
+	for vp in sizes:
+		win.size = vp
+		await process_frame
+		await process_frame
+		_hud().edit_begin(layer)
+		editor.show()
+		if editor.has_method("relayout_bar"):
+			await editor.relayout_bar()
+		await process_frame
+		if not editor.has_method("bar_fits_viewport") or not editor.bar_fits_viewport():
+			printerr("FAIL hud_edit_bar_viewport: bar outside view %s rect=%s" % [vp, editor.get_node("TopBar").get_global_rect()])
+			fail += 1
+		editor.close_editor()
+	_hud().edit_end()
+	tree.paused = false
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_hud_edit_bar_viewport_sizes")
+	return fail
+
+
 func _test_hud_layout_reset() -> int:
 	print("-- test_hud_layout_reset")
 	var fail := 0

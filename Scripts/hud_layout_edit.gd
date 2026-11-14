@@ -8,6 +8,8 @@ const SCALE_MAX := 1.75
 const CONTROL_IDS := ["joystick", "attack", "run", "buildings", "map", "mode", "scores"]
 const BAR_EDGE_INSET := 6.0
 const BAR_PAD := 2.0
+const SELECTED_LABEL_MIN_WIDE := 120.0
+const SELECTED_LABEL_MIN_NARROW := 72.0
 
 @onready var _top_bar: PanelContainer = $TopBar
 @onready var _save: Button = $TopBar/Margin/Row/Save
@@ -108,22 +110,39 @@ func _layer() -> CanvasLayer:
 	return get_node_or_null(LAYER_PATH) as CanvasLayer
 
 
+func bar_fits_viewport() -> bool:
+	var view := get_viewport().get_visible_rect()
+	var bar := _top_bar.get_global_rect().grow(BAR_PAD)
+	if not view.encloses(bar):
+		return false
+	for path in ["Save", "Reset", "Done"]:
+		var btn: Control = _top_bar.get_node("Margin/Row/%s" % path)
+		if btn.get_global_rect().size.x <= 0.0:
+			return false
+		if not view.encloses(btn.get_global_rect()):
+			return false
+	return true
+
+
 func _relayout_edit_bar(layer: CanvasLayer) -> void:
 	_top_bar.set_anchors_preset(Control.PRESET_TOP_LEFT, false)
 	_top_bar.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	_top_bar.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	_top_bar.custom_minimum_size = Vector2.ZERO
+	_selected_label.custom_minimum_size.x = SELECTED_LABEL_MIN_WIDE
 	_size_label.visible = true
 	_size_slider.visible = true
 	await get_tree().process_frame
 	await get_tree().process_frame
-	var sz := _top_bar.get_combined_minimum_size()
-	if _top_bar.size.y > 0.0:
-		sz.y = maxf(sz.y, _top_bar.size.y)
-	if _top_bar.size.x > 0.0:
-		sz.x = maxf(sz.x, _top_bar.size.x)
-	_top_bar.size = sz
 	var view := get_viewport().get_visible_rect().size
+	var max_w := view.x - BAR_EDGE_INSET * 2.0
+	while true:
+		var sz := _bar_measured_size()
+		if sz.x <= max_w or not _shrink_bar_for_width(max_w, sz):
+			_top_bar.size = sz
+			break
+		await get_tree().process_frame
+	var sz := _top_bar.size
 	var floor_y := view.y * 0.55
 	var joy: Rect2 = _hl().control_visual_rect("joystick", layer)
 	var atk: Rect2 = _hl().control_visual_rect("attack", layer)
@@ -142,6 +161,8 @@ func _relayout_edit_bar(layer: CanvasLayer) -> void:
 			sz = _top_bar.get_combined_minimum_size()
 			sz.x = bar_w
 			_top_bar.size = sz
+	bar_w = _top_bar.size.x
+	sz = _top_bar.size
 	var bottom_y := view.y - sz.y - BAR_EDGE_INSET
 	var candidates: Array[Vector2] = []
 	if slot_w >= bar_w * 0.85:
@@ -156,20 +177,54 @@ func _relayout_edit_bar(layer: CanvasLayer) -> void:
 	var best_score := INF
 	var zero_pos: Variant = null
 	for pos in candidates:
-		_top_bar.global_position = pos
+		_top_bar.global_position = _clamp_bar_position(pos, _top_bar.size, view)
 		await get_tree().process_frame
 		var score := _bar_overlap_score(layer)
 		if score == 0.0:
-			zero_pos = pos
+			zero_pos = _top_bar.global_position
 			break
 		if score < best_score:
 			best_score = score
-			best_pos = pos
+			best_pos = _top_bar.global_position
 	if zero_pos != null:
 		best_pos = zero_pos
-	_top_bar.global_position = best_pos
+	_top_bar.global_position = _clamp_bar_position(best_pos, _top_bar.size, view)
 	await get_tree().process_frame
 	_hl().set_edit_exclusion(_top_bar.get_global_rect().grow(BAR_PAD))
+
+
+func _bar_measured_size() -> Vector2:
+	var sz := _top_bar.get_combined_minimum_size()
+	if _top_bar.size.y > 0.0:
+		sz.y = maxf(sz.y, _top_bar.size.y)
+	if _top_bar.size.x > 0.0:
+		sz.x = maxf(sz.x, _top_bar.size.x)
+	return sz
+
+
+func _shrink_bar_for_width(max_w: float, sz: Vector2) -> bool:
+	if sz.x <= max_w:
+		return false
+	if _size_slider.visible:
+		_size_label.visible = false
+		_size_slider.visible = false
+		return true
+	if _selected_label.custom_minimum_size.x > SELECTED_LABEL_MIN_NARROW:
+		_top_bar.custom_minimum_size = Vector2(max_w, 0.0)
+		_selected_label.custom_minimum_size.x = SELECTED_LABEL_MIN_NARROW
+		return true
+	if _selected_label.custom_minimum_size.x > 0.0:
+		_selected_label.custom_minimum_size.x = 0.0
+		_top_bar.custom_minimum_size = Vector2(max_w, 0.0)
+		return true
+	_top_bar.custom_minimum_size = Vector2(max_w, 0.0)
+	return _top_bar.get_combined_minimum_size().x > max_w
+
+
+func _clamp_bar_position(pos: Vector2, bar_size: Vector2, view: Vector2) -> Vector2:
+	pos.x = clampf(pos.x, BAR_EDGE_INSET, view.x - bar_size.x - BAR_EDGE_INSET)
+	pos.y = clampf(pos.y, BAR_EDGE_INSET, view.y - bar_size.y - BAR_EDGE_INSET)
+	return pos
 
 
 func _bar_overlap_score(layer: CanvasLayer) -> float:
