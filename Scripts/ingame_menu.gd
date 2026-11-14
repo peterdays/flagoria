@@ -81,7 +81,7 @@ func save_world() -> Dictionary:
 		var world := WorldSave.new(params)
 		var world_map := owner.get_node_or_null("World/worldMap")
 		if world_map:
-			world.object_changes = world_map.cut_changes()
+			world.object_changes = world_map.object_changes()
 			world.tile_edits = BridgeBuilder.to_changes(world_map.bridges_for_sync())
 			world.structures = StructureSaves.to_changes(world_map)
 		world.player = PlayerSave.capture(owner)
