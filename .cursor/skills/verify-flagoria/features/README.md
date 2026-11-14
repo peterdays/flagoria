@@ -81,6 +81,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Flags held points](./flags-held-points.md) — 1 point per owned flag tower every 5 s (`flags_held`); the host awards, peers share the totals (#275, #497).
 - [Conquest sync](./conquest-sync.md) — host-owned tower placement, capture progress and flag points in multiplayer; a late joiner matches (#497).
 - [Walls and cities sync](./walls-cities-sync.md) — host-owned wall chains and cities; a late joiner matches free-form walls, auto junctions and city keys (#498).
+- [Castle sync](./castle-sync.md) — the host places each peer's starting castle and every peer, including a late joiner, sees the same castles and owners (#278).
 - [Hero sprites](./hero-sprites.md) — layered hero sheet generator, checked by the generator smoke.
 - [App icon](./app-icon.md) — icon generator and wiring, checked by the generator smoke.
 

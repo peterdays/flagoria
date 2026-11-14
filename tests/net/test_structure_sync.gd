@@ -107,7 +107,8 @@ func _test_structure_sync_join() -> int:
 func _test_castle_sync_join() -> int:
 	## A host (tests/cut_sync_probe.gd) on seed 7 starts through setup_server,
 	## which places its starting castle while alone (#271). A client that
-	## joins then holds the same castle, and every footprint cell predicts,
+	## joins then holds the same host castle plus a castle the host placed for
+	## the joiner, and every host-castle footprint cell predicts,
 	## draws and collides as on the host, so no wall is solid on one peer
 	## only. The joiner spawns on the land outside the gate (the spot
 	## free_spawn_position picks there, the host's player standing on the
@@ -158,8 +159,14 @@ func _test_castle_sync_join() -> int:
 		var host := _read(peers, 0)
 		var peer := _read(peers, 1)
 		var me := str(peer.get("id"))
-		if host.get("placements") != want or peer.get("placements") != want:
-			printerr("FAIL castle_sync_join: placements host %s, joiner %s, want %s" % [host.get("placements"), peer.get("placements"), want])
+		var joiner_id := int(str(peer.get("id")))
+		var castles := _castle_rows(host.get("placements"))
+		var peer_castles := _castle_rows(peer.get("placements"))
+		if host.get("placements") != peer.get("placements") or castles != peer_castles \
+				or castles.size() != 2 or not _has_castle(castles, 1, anchor) \
+				or not _has_owner(castles, joiner_id):
+			printerr("FAIL castle_sync_join: placements host %s, joiner %s, want host castle %s and joiner %s"
+					% [host.get("placements"), peer.get("placements"), anchor, joiner_id])
 			fail += 1
 		var walls := 0
 		var differ: Array = []
@@ -199,6 +206,27 @@ func _test_castle_sync_join() -> int:
 	if fail == 0:
 		print("PASS test_castle_sync_join (castle at %s, %d footprint cells, joiner at %s)" % [anchor, foot.size(), spot_cell])
 	return fail
+
+
+func _castle_rows(list) -> Array:
+	var out: Array = []
+	if not list is Array:
+		return out
+	for entry in list:
+		if entry is Array and entry.size() >= 4 and str(entry[0]) == "castle":
+			out.append([int(entry[1]), int(entry[2]), int(entry[3])])
+	return out
+
+
+func _has_castle(rows: Array, owner: int, anchor: Vector2i) -> bool:
+	return [owner, anchor.x, anchor.y] in rows
+
+
+func _has_owner(rows: Array, owner: int) -> bool:
+	for row in rows:
+		if int(row[0]) == owner:
+			return true
+	return false
 
 
 func _start_peers(label: String, params: MapGenParams, keys: Array) -> Dictionary:

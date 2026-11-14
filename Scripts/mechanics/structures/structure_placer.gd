@@ -5,9 +5,10 @@ extends RefCounted
 ## (can_place_structure, place_structure, placed_structures) and asks
 ## has_cell / ground_at / object_at when it draws or predicts a cell.
 ## can_place still reports multiplayer on, so a client does not write. The
-## host writes an accepted tower with place_from_host (#497). A joining peer
-## gets the host's list with the map (to_sync, replace_from_host). Free-form
-## walls placed after a join go through StructureRequests (#498).
+## host writes an accepted tower with place_from_host (#497), and a joining
+## peer's starting castle the same way (#278). A joining peer gets the host's
+## list with the map (to_sync, replace_from_host). Free-form walls placed
+## after a join go through StructureRequests (#498).
 
 const _WorldMap := preload("res://Scripts/TileMap.gd")
 
@@ -95,12 +96,13 @@ func apply_solved(cell: Vector2i, tile_name: String) -> void:
 	_map.set_cell(1, cell, TileCatalog.SOURCE_ID, atlas)
 
 
-func can_place(structure: Structure, anchor_cell: Vector2i) -> Array[String]:
+func can_place(structure: Structure, anchor_cell: Vector2i, from_host := false) -> Array[String]:
 	## Why `structure` cannot go with its anchor on `anchor_cell`; empty when
 	## it can. Each reason appears once, in the order of the constants above.
-	## Read from predict_cell, so it works on cells not drawn yet.
+	## Read from predict_cell, so it works on cells not drawn yet. `from_host`
+	## skips the multiplayer refuse: the host already decided (#497, #278).
 	var found := {}
-	if Interaction.multiplayer_on(_map.multiplayer):
+	if not from_host and Interaction.multiplayer_on(_map.multiplayer):
 		found[MULTIPLAYER_ON] = true
 	for cell: Vector2i in footprint(structure, anchor_cell):
 		var p: Array = _map.predict_cell(cell)
@@ -138,14 +140,10 @@ func place(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
 
 
 func place_from_host(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
-	## The host already decided this placement (#497). Same footprint rules
-	## as can_place, without the multiplayer refuse a client still gets from
-	## can_place. Returns the new id, or -1 when the footprint is refused.
-	var why: Array[String] = []
-	for reason in can_place(structure, anchor_cell):
-		if reason != MULTIPLAYER_ON:
-			why.append(reason)
-	if not why.is_empty():
+	## The host already decided this placement (#497, #278). Same footprint
+	## rules as can_place, without the multiplayer refuse a client still gets
+	## from can_place. Returns the new id, or -1 when the footprint is refused.
+	if not can_place(structure, anchor_cell, true).is_empty():
 		return -1
 	return _write(structure, anchor_cell, owner)
 

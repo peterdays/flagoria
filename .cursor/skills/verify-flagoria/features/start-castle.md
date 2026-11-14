@@ -29,4 +29,4 @@ Preconditions: `doctor.sh` exits `0`. Time cost: `test_start_castle` about 0.8 s
 
 ## Gotchas
 
-- The castle reaches a peer only when it joins; placements made after a join do not sync yet (rest of #278). It is not saved yet either; reloading a saved world places it again from the restored map (#42).
+- The host's castle reaches a peer when it joins. The host also places a castle for that peer, outside the shared spawn, and sends it to peers already connected; a later peer receives every castle ([Castle sync](./castle-sync.md), #278). A saved world keeps the host's castle and does not place a second one for that peer (#42).

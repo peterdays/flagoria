@@ -155,9 +155,10 @@ func _peer_id(data: Dictionary) -> int:
 	return int(str(data.get("id", "0")))
 
 func _flag_points(data: Dictionary, builder: int) -> bool:
+	## The host owns its castle. The builder owns a castle and the new tower.
 	var scores: Dictionary = data.get("points", {})
 	return int(scores.get("1", -1)) == Points.FLAGS_HELD_POINTS \
-			and int(scores.get(str(builder), -1)) == Points.FLAGS_HELD_POINTS
+			and int(scores.get(str(builder), -1)) == Points.FLAGS_HELD_POINTS * 2
 
 func _same_points(a: Dictionary, b: Dictionary) -> bool:
 	var left: Dictionary = a.get("points", {})

@@ -145,7 +145,8 @@ func setup_server(params: MapGenParams, port: int = PORT, with_castle := true) -
 	## Host applies the chosen map params locally, then syncs the full set to
 	## joining peers. With `with_castle` (a host that plays), the host's
 	## starting castle goes next to the spawn while it is still alone, before
-	## the mobs (#271); joining peers receive it with the map (#278).
+	## the mobs (#271). A joining peer receives that castle with the map, and
+	## the host places one for the peer outside the shared spawn (#278).
 	world_params = params.duplicate_params()
 	world_params.ensure_seeds()
 	get_node("/root/MapGen").params = world_params.duplicate_params()
@@ -278,7 +279,8 @@ func _sync_map_params_to_peer(peer_id: int) -> void:
 	## same reliable channel, and regrowth through
 	## Interaction.apply_regrow_cells (#298).
 	## The placed structures go too (StructurePlacer.to_sync), so the peer's
-	## castles match the host's from its first frame (#278 join half).
+	## castles match the host's from its first frame, including the castle
+	## add_player just placed for this peer (#278).
 	## Placed plank bridges go too (BridgeBuilder.to_sync, #297).
 	## Free-form walls, solved auto junctions and cities follow (#498).
 	## The cut list goes JOIN_CUTS_PER_MESSAGE cuts at a time (#354): the
@@ -346,6 +348,12 @@ func receive_join_cuts(cuts: Dictionary) -> void:
 
 func add_player(peer_id):
 	# host / peer spawn
+	var world = get_node("World/worldMap")
+	var anchor: Variant = StartCastle.place_for_peer(world, int(peer_id))
+	if anchor is Vector2i:
+		var requests := get_node_or_null("World/StructureRequests")
+		if requests != null:
+			requests.publish_structure(StartCastle.structure().name, int(peer_id), anchor)
 	var player = Player.instantiate()
 	player.name = str(peer_id)
 	print("player added", player.name)
@@ -363,7 +371,6 @@ func add_player(peer_id):
 	# sync; send the server's spot so every peer draws them in place (#352).
 	rpc("receive_player_spots", {str(peer_id): player.position})
 
-	var world = get_node("World/worldMap")
 	world.player_spawned = true
 
 
