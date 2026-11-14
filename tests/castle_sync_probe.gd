@@ -78,6 +78,8 @@ func _run() -> void:
 	var deadline := Time.get_ticks_msec() + 90000
 	var next_write := 0
 	while Time.get_ticks_msec() < deadline and not FileAccess.file_exists(out + ".stop"):
+		if main.multiplayer == null:
+			break
 		var me: Node2D = main.get_node_or_null("World/" + str(main.multiplayer.get_unique_id()))
 		var ready := main.world_params != null and me != null
 		if not host and mode == "drive" and ready and not framed and _castle_count(world) >= 2:
@@ -107,8 +109,17 @@ func _run() -> void:
 			_write(out, main, world, me)
 			next_write = Time.get_ticks_msec() + 100
 		await process_frame
-	_write(out, main, world, main.get_node_or_null("World/" + str(main.multiplayer.get_unique_id())))
+	var fin: Node2D = null
+	if main.multiplayer != null:
+		fin = main.get_node_or_null("World/" + str(main.multiplayer.get_unique_id()))
+	_write(out, main, world, fin)
 	quit(0)
+
+
+func _peer_id(main) -> String:
+	if main == null or main.multiplayer == null:
+		return ""
+	return str(main.multiplayer.get_unique_id())
 
 
 func _castle_count(world) -> int:
@@ -223,7 +234,7 @@ func _write(out: String, main, world, me: Node2D) -> void:
 	if file == null:
 		return
 	file.store_string(JSON.stringify({
-		"id": str(main.multiplayer.get_unique_id()) if main != null else "",
+		"id": _peer_id(main),
 		"ready": main != null and main.world_params != null and me != null,
 		"castles": castles,
 		"shot": _shot,
