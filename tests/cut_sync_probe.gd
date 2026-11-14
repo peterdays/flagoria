@@ -145,6 +145,12 @@ func _run() -> void:
 	var deadline := Time.get_ticks_msec() + 90000
 	var next_write := 0
 	while Time.get_ticks_msec() < deadline and not FileAccess.file_exists(out + ".stop"):
+		# The peer API is null for a frame while a client connects. Calling
+		# get_unique_id then is a script error, and the load job treats that
+		# as a failed test even when the scenario later passes.
+		if main.multiplayer == null:
+			await process_frame
+			continue
 		var me: Node2D = main.get_node_or_null("World/" + str(main.multiplayer.get_unique_id()))
 		if me and main.world_params != null and FileAccess.file_exists(out + ".cut"):
 			for cell in parse_cells(FileAccess.get_file_as_string(out + ".cut")):
