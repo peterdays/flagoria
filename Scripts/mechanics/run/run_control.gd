@@ -47,11 +47,15 @@ func speed_scale() -> float:
 
 
 func _on_down() -> void:
+	if HudLayoutVisual.blocks_hud_actions():
+		return
 	held = true
 	_down_frame = Engine.get_process_frames()
 
 
 func _on_up() -> void:
+	if HudLayoutVisual.blocks_hud_actions():
+		return
 	if not held:
 		return
 	var frames := Engine.get_process_frames() - _down_frame

@@ -216,6 +216,8 @@ func _input(event: InputEvent) -> void:
 	# Touches go here, not to _unhandled_input: the move stick and the map
 	# zoom read touches in _input too, and a finger on the button must be seen
 	# whatever they do with the other fingers.
+	if HudLayoutVisual.blocks_hud_actions():
+		return
 	if _parchment_open():
 		if _touch_index != -1:
 			_drop_touch()

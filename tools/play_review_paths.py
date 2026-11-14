@@ -62,7 +62,8 @@ GAMEPLAY = [
     "Scripts/explored_map.gd", "Scripts/minimap_panel.gd",  # explored map and its HUD panel
     "Scripts/parchment_map.gd", "Scripts/map_wood_button.gd",  # parchment full map and its wood controls
     "Scripts/resource_hud.gd", "Scripts/score_hud.gd",
-    "Scripts/ingame_menu.gd", "Scripts/quit_prompt.gd", "Scripts/number_pad.gd",
+    "Scripts/ingame_menu.gd", "Scripts/hud_layout.gd", "Scripts/hud_layout_edit.gd",
+    "Scripts/quit_prompt.gd", "Scripts/number_pad.gd", "hud_layout_edit.tscn",
     "data/interactables/*.tres",  # choppable types: hits, yields, regrowth, art and sounds
 ]
 
@@ -179,6 +180,7 @@ def self_test() -> int:
         (["Scripts/world_save.gd"], None, None, True),
         (["Scripts/player_save.gd"], None, None, True),
         (["Scripts/ingame_menu.gd"], None, None, True),
+        (["Scripts/hud_layout.gd", "Scripts/hud_layout_edit.gd", "hud_layout_edit.tscn"], None, None, True),
         (["data/interactables/tree.tres"], None, None, True),
         (["Scripts/attack_aim.gd.uid", "data/interactables/tree.tres.uid"], None, None, False),
         (["Scripts/combat_sfx.gd", "Scripts/music_player.gd", "tools/render_biomes.gd"], None, None, False),

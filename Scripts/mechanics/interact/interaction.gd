@@ -108,6 +108,8 @@ func bind(local_player: Node2D) -> void:
 
 
 func toggle_mode() -> void:
+	if HudLayoutVisual.blocks_hud_actions():
+		return
 	set_mode(Mode.INTERACT if mode == Mode.COMBAT else Mode.COMBAT)
 
 

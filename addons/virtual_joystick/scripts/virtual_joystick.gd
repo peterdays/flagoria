@@ -60,6 +60,8 @@ func _process(delta: float) -> void:
 		
 
 func _input(event: InputEvent) -> void:
+	if HudLayoutVisual.blocks_hud_actions():
+		return
 	if _map_covers():
 		# A finger on the parchment pans the sheet; it does not hold the stick.
 		if ongoing_drag != -1:

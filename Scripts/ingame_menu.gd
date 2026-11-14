@@ -17,8 +17,10 @@ const ICON_BUTTON_PAD := 2  ## px left and right of the icon at 1x
 @onready var panel: Control = $Pause
 @onready var resume_button: Button = $Pause/Panel/Margin/VBox/Resume
 @onready var save_button: Button = $Pause/Panel/Margin/VBox/Save
+@onready var customize_hud_button: Button = $Pause/Panel/Margin/VBox/CustomizeHud
 @onready var main_menu_button: Button = $Pause/Panel/Margin/VBox/MainMenu
 @onready var status_label: Label = $Pause/Panel/Margin/VBox/Status
+@onready var hud_layout_edit: Control = $HudLayoutEdit
 
 
 func _ready() -> void:
@@ -26,6 +28,7 @@ func _ready() -> void:
 	menu_button.pressed.connect(open)
 	resume_button.pressed.connect(close)
 	save_button.pressed.connect(save_world)
+	customize_hud_button.pressed.connect(_on_customize_hud_pressed)
 	main_menu_button.pressed.connect(_on_main_menu_pressed)
 
 
@@ -111,6 +114,11 @@ static func unused_save_name(base: String) -> String:
 		save_name = "%s %d" % [base, n]
 		n += 1
 	return save_name
+
+
+func _on_customize_hud_pressed() -> void:
+	if hud_layout_edit != null and hud_layout_edit.has_method("open"):
+		await hud_layout_edit.open()
 
 
 func _on_main_menu_pressed() -> void:
