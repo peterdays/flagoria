@@ -3,6 +3,76 @@ extends "res://tests/helpers/test_helpers.gd"
 ## (world.structures, #42).
 
 
+func _castle_city_snapshot(world, cities: Cities) -> Dictionary:
+	var castle_id := -1
+	for id in world.placed_structures():
+		var p: Dictionary = world.placed_structures()[id]
+		if p["name"] == StartCastle.structure().name:
+			castle_id = int(id)
+			break
+	if castle_id < 0 or not cities.cities.has(castle_id):
+		return {}
+	var owner: int = world._structures.owner_of(castle_id)
+	var tint: Color = Cities.TINT.get(owner, Cities.TINT_OTHER)
+	var walls: Dictionary = cities.cities[castle_id]["walls"]
+	return {"castle_id": castle_id, "owner": owner, "tint": tint, "wall_count": walls.size()}
+
+
+func _test_castle_wall_tint_save_reload() -> int:
+	## The starting castle's city walls keep the peer-1 owner tint through a
+	## save and load even when Cities had to clear between apply and restore.
+	print("-- test_castle_wall_tint_save_reload")
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	scene.get_node("CanvasLayer2/MainMenu").hide()
+	var world = scene.get_node("World/worldMap")
+	world.set_process(false)
+	var cities: Cities = scene.get_node("World/Cities")
+	var params := _spawn_params(7, 0.0)
+	params.ensure_seeds()
+	scene.world_params = params
+	scene._apply_params_to_world(params)
+	if not world.place_start_castle(1):
+		printerr("FAIL castle_wall_tint: no castle on seed 7")
+		scene.queue_free()
+		return 1
+	cities.rebuild()
+	var before: Dictionary = _castle_city_snapshot(world, cities)
+	if before.is_empty() or before["owner"] != 1 or before["wall_count"] <= 0:
+		printerr("FAIL castle_wall_tint: no walled city before save %s" % before)
+		scene.queue_free()
+		return 1
+	var result: Dictionary = scene.get_node("CanvasLayer1/InGameMenu").save_world()
+	if result["error"] != "":
+		printerr("FAIL castle_wall_tint: save %s" % result["error"])
+		scene.queue_free()
+		return 1
+	var map_gen = root.get_node("MapGen")
+	map_gen.load_map_inputs(result["path"])
+	scene.world_params = map_gen.params.duplicate_params()
+	scene._apply_params_to_world(scene.world_params)
+	cities.tick()
+	scene._restore_loaded_world()
+	if not StructureSaves.adopt_start_castle(world, 1):
+		printerr("FAIL castle_wall_tint: castle not adopted")
+		fail += 1
+	var after: Dictionary = _castle_city_snapshot(world, cities)
+	if after.is_empty():
+		printerr("FAIL castle_wall_tint: no city after reload restore")
+		fail += 1
+	elif after["wall_count"] != before["wall_count"] or after["tint"] != before["tint"] or after["owner"] != before["owner"]:
+		printerr("FAIL castle_wall_tint: after %s want %s" % [after, before])
+		fail += 1
+	DirAccess.remove_absolute(result["path"])
+	map_gen.params = params
+	scene.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_castle_wall_tint_save_reload (walls %d tint owner %d)" % [before["wall_count"], before["owner"]])
+	return fail
+
+
 func _test_structure_save_round_trip() -> int:
 	## The starting castle, a wooden tower the mobs hold and a three-cell
 	## palisade saved from the in-game menu come back from the load before

@@ -43,6 +43,22 @@ func _physics_process(_delta: float) -> void:
 		queue_redraw()
 
 
+func on_world_cleared() -> void:
+	## Call when apply_map_params clears the map so a later restore does not
+	## keep stale wall cells or skip rebuild when the geometry stamp matches.
+	cities.clear()
+	_stamp = 0
+	queue_redraw()
+
+
+func refresh_after_structure_restore() -> void:
+	## Host load path: structures are back before chunks draw; rebuild city
+	## boundaries so owner tint matches a fresh host start (#525).
+	_stamp = 0
+	rebuild()
+	queue_redraw()
+
+
 func tick() -> bool:
 	## Rebuild when walls or placements change. Returns whether the city list
 	## changed. A client does not rebuild: it shows the host's snapshot.

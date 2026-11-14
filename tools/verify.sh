@@ -218,6 +218,15 @@ if ! python3 "$ROOT/tools/test_lint.py"; then
 fi
 echo "Test registry lint: ok"
 
+echo "== Stress scenario lint (tools/stress_scenario_lint.py) =="
+# Fast, no Godot. Bare sleeps and unseeded randomness in stress scenarios.
+python3 "$ROOT/tools/stress_scenario_lint.py" --self-test
+if ! python3 "$ROOT/tools/stress_scenario_lint.py"; then
+  echo "error: stress scenario lint failed (see above)" >&2
+  exit 1
+fi
+echo "Stress scenario lint: ok"
+
 echo "== Tests (godot --headless --script res://tests/run_tests.gd) =="
 test_log="$(mktemp -p "${verify_tmp}")"
 set +e

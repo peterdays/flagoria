@@ -70,7 +70,7 @@ func _wall_connects(data: Dictionary) -> bool:
 func _test_city_change_two_players() -> int:
 	## A client closes a wall loop around a tower. Both peers and a late
 	## joiner share cities keys. Opening one cell drops that city on all three.
-	## About 15 s alone; stress runs it at the job's tier.
+	## Seed 11. The open request is one atomic file. Stress runs it at the job's tier.
 	print("-- test_city_change_two_players")
 	var session := _open("city")
 	if session.is_empty():
@@ -102,13 +102,21 @@ func _test_city_change_two_players() -> int:
 					printerr("FAIL city_change_two_players: no gap cell")
 					fail = 1
 				else:
-					var open := FileAccess.open(session["outs"][0] + ".open", FileAccess.WRITE)
-					open.store_string("%d %d" % [int(gap[0]), int(gap[1])])
-					open.close()
-					if not await wait_for.call(func() -> bool: return _city_opened(read), 15000):
-						printerr("FAIL city_change_two_players: after open host %s client %s joiner %s"
-								% [read.call(0), read.call(1), read.call(2)])
+					# Publish the coordinates in one rename. Opening the destination
+					# first truncates it, and the host used to read that empty
+					# file, skip the erase, and never try again.
+					if not _publish_text(session["outs"][0] + ".open", "%d %d\n" % [int(gap[0]), int(gap[1])]):
+						printerr("FAIL city_change_two_players: could not publish the open request")
 						fail = 1
+					else:
+						var opened_or_err: bool = await wait_for.call(func() -> bool:
+							if str(read.call(0).get("place_error", "")) != "":
+								return true
+							return _city_opened(read), 15000)
+						if not opened_or_err or not _city_opened(read):
+							printerr("FAIL city_change_two_players: after open host %s client %s joiner %s"
+									% [read.call(0), read.call(1), read.call(2)])
+							fail = 1
 		_note_errors(read, session, "city_change_two_players")
 		if _any_errors(read, session):
 			fail = 1
@@ -129,6 +137,19 @@ func _city_closed(read: Callable) -> bool:
 	if int(client.get("wood", -1)) != 8:
 		return false
 	return _has_city(host, tower) and _same_cities(client, host) and _same_built(client, host)
+
+
+func _publish_text(path: String, text: String) -> bool:
+	## The reader must not see a truncated file. Write aside, then rename.
+	var tmp := path + ".tmp"
+	var file := FileAccess.open(tmp, FileAccess.WRITE)
+	if file == null:
+		return false
+	file.store_string(text)
+	file.close()
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
+	return DirAccess.rename_absolute(tmp, path) == OK
 
 
 func _city_opened(read: Callable) -> bool:

@@ -39,7 +39,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 | `addons/server_shutdown/` | Linux SIGTERM helper for `-- --server` only. |
 | `Dockerfile`, `docker-compose.yml`, `docker/` | Non-root dedicated-server image. The game is not rebuilt there beyond Godot's import. |
 | `tests/` | Runner (`tests/run_tests.gd`, plus its own self-checks), area test files (`tests/<area>/test_*.gd`), shared helpers (`tests/helpers/test_helpers.gd`), probes started as separate processes, `tests/fixtures/`, `tests/golden/`. |
-| `tools/` | Verify, CLI, renders, asset generators, CI helpers (`tools/pr_hygiene.py`, `tools/private_server_doc.py`, `tools/file_budget.py`, `tools/play_review_paths.py`, `tools/verify_drive_picks.py`, `tools/stress_netcode.py`, `tools/ci_job_times.py`, `tools/issue_triage.py`, `tools/required_checks.py`), and local git hooks (`tools/commit_identity_hook.py`, `tools/staged_import_hook.py`). |
+| `tools/` | Verify, CLI, renders, asset generators, CI helpers (`tools/pr_hygiene.py`, `tools/private_server_doc.py`, `tools/file_budget.py`, `tools/play_review_paths.py`, `tools/verify_drive_picks.py`, `tools/stress_netcode.py`, `tools/stress_scenario_lint.py`, `tools/ci_job_times.py`, `tools/issue_triage.py`, `tools/required_checks.py`), and local git hooks (`tools/commit_identity_hook.py`, `tools/staged_import_hook.py`). |
 | `.github/workflows/` | verify, pr-hygiene, play-review-label, play-review, pr-debug-apk, android-apk, job-times, issue-triage. |
 | `.cursor/skills/verify-flagoria/` | Launch, doctor and drive scripts, and one feature file per feature under `.cursor/skills/verify-flagoria/features/`. |
 | `docs/` | Feature and process notes, e.g. `docs/interactables.md` (checklist for a new choppable type). |
@@ -59,6 +59,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 - Moving a script: `git mv` the `.gd` and its `.gd.uid` together, so the uid stays next to the script. Scenes here load scripts by `path=` without a `uid=`, so the same pull request also updates every `res://` path to the script: scenes, `preload`/`load` calls, tests, and the path lists in `tools/play_review_paths.py`. `test_tile_catalog` scans `Scripts/` and its subfolders.
 - No behaviour change in a move pull request. Keep thin wrappers with the old names until callers move.
 - Each new test or verify step states its time cost in the pull request ("Time cost" line). CI reports each job's time per run (#294).
+- Netcode stress scenarios are deterministic and the stress job stops at the first failed run. The rule is [Writing netcode stress scenarios](../AGENTS.md#writing-netcode-stress-scenarios). `tools/verify.sh` runs `tools/stress_scenario_lint.py`.
 - Every new player-facing mechanic (a new choppable, a tower, a wall type, a city rule) adds its feature file, `.cursor/skills/verify-flagoria/features/<feature>.md`, and its index line in `features/README.md` in the same pull request. When a player can reach the feature in a running game, the same pull request also adds a drive under `.cursor/skills/verify-flagoria/drives/`. A change that is not player-facing says so on the pull request template's feature-file line (#291).
 - Before each checkpoint in #253's gate, a verification maintenance pass runs over `.cursor/skills/verify-flagoria/`. The pass covers index hygiene (every feature file is in the index, and every index line points at a file that exists), one source read per feature file (its paths, names and steps still match the code), and one live drive per reachable feature. Its outcome goes in a short comment on #253: clean, changed (with the PR link), or blocked (with the reason). The pass edits only the skill directory; any product bug it finds gets its own issue.
 
@@ -81,6 +82,9 @@ Where each part of the game lives today, how data moves between the parts, and w
 | `Scripts/mechanics/building/build_placement_rotate.gd` | Round rotate control beside footprint placement preview | new (#493) |
 | `Scripts/mechanics/building/footprint_orientation.gd` | Rotated facing marker on preview and placed footprint tools | new (#493) |
 | `Scripts/mechanics/building/structure_requests.gd` | Host-request pipeline for towers, free-form walls, and a joining peer's starting castle | new (#497, #498, #278) |
+| `Scripts/mechanics/building_blocks/building_block_piece.gd` | One WFC modular piece: TileCatalog tile and cardinal edge sockets | new (#23) |
+| `Scripts/mechanics/building_blocks/building_block_catalog.gd` | Piece set, socket compatibility and adjacency table for WFC | new (#23) |
+| `Scripts/mechanics/building_blocks/wfc_solver.gd` | Pure GDScript WFC: collapse, propagate, seeded restarts (#24) | new (#24) |
 | `Scripts/mechanics/walls/wall_builder.gd` | Free-form palisade cells, shared solve with structure walls and towers, piece and collar paint, kept on redraw | new (#276) |
 | `Scripts/world/plant_picker.gd` | Plant or stones for one walkable cell from altitude, moisture, chance and biome | moved from `Scripts/TileMap.gd` (#370 put that file over its 500-line budget); `Scripts/TileMap.gd` keeps `plant_tile` and `structure_tile` wrappers |
 | `Scripts/world/object_removals.gd` | Picked flowers and destroyed stones on the map; `world.object_changes` entries with `removed` | new (#198) |

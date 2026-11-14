@@ -1,7 +1,8 @@
 name: play-review
 
-# Netcode stress (tools/stress_netcode.py) for gameplay pull requests and
-# gameplay pushes to main. Skipped vs 5 vs 20 runs per scenario: see
+# Netcode stress (tools/stress_netcode.py) for gameplay pull requests,
+# gameplay pushes to main, and changes to the stress runner, the stress
+# lint, tests/net, or a tests/*_probe.gd file. Skipped vs 5 vs 20 runs: see
 # tools/play_review_paths.py (FULL_RUNS, LIGHT_RUNS, stress_tier) and
 # .cursor/skills/verify-flagoria/ci-netcode-stress.md — do not restate tier
 # rules here. pull_request uses read-only contents and no secrets (fork-safe).
@@ -43,17 +44,17 @@ jobs:
           labeled: ${{ contains(github.event.pull_request.labels.*.name, 'needs-play-review') }}
 
       - name: Install Godot 4.7.2
-        if: steps.gate.outputs.gameplay == 'true'
+        if: steps.gate.outputs.run_stress == 'true'
         uses: ./.github/actions/install-godot
 
       - name: Stress multiplayer scenarios (${{ steps.gate.outputs.stress_runs }} runs each, 4 at a time)
-        if: steps.gate.outputs.gameplay == 'true'
+        if: steps.gate.outputs.run_stress == 'true'
         env:
           STRESS_RUNS: ${{ steps.gate.outputs.stress_runs }}
         run: python3 tools/stress_netcode.py
 
       - name: Upload failed run logs (also retried ones)
-        if: always() && steps.gate.outputs.gameplay == 'true'
+        if: always() && steps.gate.outputs.run_stress == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: netcode-stress-logs

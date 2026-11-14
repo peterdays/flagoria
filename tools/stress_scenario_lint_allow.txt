@@ -1,0 +1,5 @@
+# Legacy sleeps still inside stress probes. Do not add a new scenario here.
+# A line is a repo-relative path (the whole file) or path::function.
+tests/tower_sync_probe.gd
+tests/wall_sync_probe.gd::_place_one_wall
+tests/wall_sync_probe.gd::_drive_settle

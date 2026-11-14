@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="BuildingBlockPiece" format=3]
+
+[ext_resource type="Script" path="res://Scripts/mechanics/building_blocks/building_block_piece.gd" id="1_piece"]
+
+[resource]
+script = ExtResource("1_piece")
+id = "roof_edge"
+tile_name = "SKY_DOCK_N_END"
+sockets = {
+"E": "roof",
+"N": "eave",
+"S": "roof",
+"W": "roof"
+}
