@@ -12,7 +12,8 @@ func _test_build_cost_table() -> int:
 	var want := {
 		[BuildCosts.PLANK, 1]: [1, 0], [BuildCosts.PLANK, 4]: [4, 2],
 		[BuildCosts.WALL_BLOCK, 1]: [2, 1], [BuildCosts.WALL_BLOCK, 3]: [6, 3],
-		[BuildCosts.TOWER, 1]: [10, 5], [BuildCosts.START_CASTLE, 1]: [0, 0],
+		[BuildCosts.TOWER, 1]: [10, 5], [BuildCosts.CASTLE, 1]: [50, 25],
+		[BuildCosts.START_CASTLE, 1]: [0, 0],
 		[&"moat", 1]: [-1, 0],
 	}
 	for k in want:

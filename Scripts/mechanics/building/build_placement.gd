@@ -8,7 +8,7 @@ extends RefCounted
 ## #297 / #497 / #498). Preview green cells and cost match exactly what
 ## commit places and charges. Wall keeps a persistent tip while selected (#276).
 
-enum Tool { CUT, PLANK, TOWER, WALL }
+enum Tool { CUT, PLANK, TOWER, CASTLE, WALL }
 
 const VALID_TINT := Color(0.2, 0.85, 0.3, 0.42)
 const INVALID_TINT := Color(0.92, 0.22, 0.18, 0.48)
@@ -20,13 +20,16 @@ const TOOL_ICONS := {
 	Tool.CUT: preload("res://art/ui/ui_tool_cut.png"),
 	Tool.PLANK: preload("res://art/ui/ui_tool_plank.png"),
 	Tool.TOWER: preload("res://art/ui/ui_tool_tower.png"),
+	Tool.CASTLE: preload("res://art/ui/ui_tool_castle.png"),
 	Tool.WALL: preload("res://art/ui/ui_tool_wall.png"),
 }
 const TOOL_TIPS := {
-	Tool.CUT: "Cut", Tool.PLANK: "Plank", Tool.TOWER: "Tower", Tool.WALL: "Wall",
+	Tool.CUT: "Cut", Tool.PLANK: "Plank", Tool.TOWER: "Tower", Tool.CASTLE: "Castle",
+	Tool.WALL: "Wall",
 }
 const BUTTON_NAMES := {
-	Tool.PLANK: "PlankButton", Tool.TOWER: "TowerButton", Tool.WALL: "WallButton",
+	Tool.PLANK: "PlankButton", Tool.TOWER: "TowerButton", Tool.CASTLE: "CastleButton",
+	Tool.WALL: "WallButton",
 }
 const BUILDINGS_ICON := preload("res://assets/ui/hud/icon_buildings.png")
 const _FootprintOrientation := preload("res://Scripts/mechanics/building/footprint_orientation.gd")
@@ -85,7 +88,7 @@ func setup(interaction: Interaction) -> void:
 
 
 static func is_footprint_tool(value: Tool) -> bool:
-	return value == Tool.TOWER
+	return value == Tool.TOWER or value == Tool.CASTLE
 
 
 func set_tool(value: Tool) -> void:
@@ -163,7 +166,10 @@ func update_preview(start_viewport: Vector2, end_viewport: Vector2) -> void:
 		return
 	cost_viewport = end_viewport
 	if tool == Tool.TOWER:
-		_update_tower_preview(end_viewport, inventory)
+		_update_footprint_preview(end_viewport, inventory, BuildCosts.TOWER)
+		return
+	if tool == Tool.CASTLE:
+		_update_footprint_preview(end_viewport, inventory, BuildCosts.CASTLE)
 		return
 	if tool == Tool.WALL:
 		_update_wall_preview(start_viewport, end_viewport, inventory)
@@ -193,7 +199,9 @@ func commit() -> bool:
 		return false
 	var ok := false
 	if tool == Tool.TOWER:
-		ok = _commit_tower(inventory)
+		ok = _commit_footprint(inventory, BuildCosts.TOWER)
+	elif tool == Tool.CASTLE:
+		ok = _commit_footprint(inventory, BuildCosts.CASTLE)
 	elif tool == Tool.PLANK:
 		ok = _commit_plank(inventory)
 	elif tool == Tool.WALL:
@@ -279,14 +287,17 @@ func _update_plank_preview(start_viewport: Vector2, end_viewport: Vector2, inven
 		reasons = []
 
 
-func _update_tower_preview(end_viewport: Vector2, inventory: Inventory) -> void:
-	## Footprint of the anchor under the finger. All green and cost 10 when
-	## commit will place; all red with reasons otherwise.
+func _update_footprint_preview(end_viewport: Vector2, inventory: Inventory, kind: StringName) -> void:
+	## Footprint of the anchor under the finger. All green and the kind's cost
+	## when commit will place; all red with reasons otherwise.
 	var anchor := _cell_at(end_viewport)
 	if _preview_inputs_unchanged(anchor, anchor, inventory):
 		return
 	_remember_preview_inputs(anchor, anchor, inventory)
-	cells = _placer.tower_footprint(anchor, _rotate.quarter_turns)
+	if kind == BuildCosts.TOWER:
+		cells = _placer.tower_footprint(anchor, _rotate.quarter_turns)
+	else:
+		cells = _placer.castle_footprint(anchor, _rotate.quarter_turns)
 	cell_ok.clear()
 	var one: Array[Vector2i] = [anchor]
 	var placeable := false
@@ -294,19 +305,19 @@ func _update_tower_preview(end_viewport: Vector2, inventory: Inventory) -> void:
 	if cells.is_empty():
 		reasons.append(ConstructionPlacer.EMPTY_CELLS)
 	elif not _interaction.in_reach(anchor):
-		var why := _placer.can_place(BuildCosts.TOWER, one, inventory, _rotate.quarter_turns)
+		var why := _placer.can_place(kind, one, inventory, _rotate.quarter_turns)
 		if why.is_empty():
 			reasons.append("out of reach")
 		else:
 			reasons = why
 	else:
-		var why := _placer.can_place(BuildCosts.TOWER, one, inventory, _rotate.quarter_turns)
+		var why := _placer.can_place(kind, one, inventory, _rotate.quarter_turns)
 		placeable = why.is_empty()
 		if not placeable:
 			reasons = why
 	for _i in cells.size():
 		cell_ok.append(placeable)
-	cost = _placer.cost(BuildCosts.TOWER, one) if placeable else 0
+	cost = _placer.cost(kind, one) if placeable else 0
 	_position_rotate_button(end_viewport)
 
 
@@ -321,14 +332,11 @@ func _commit_plank(inventory: Inventory) -> bool:
 	return not placeable.is_empty() and _interaction.place_planks(placeable)
 
 
-func _commit_tower(inventory: Inventory) -> bool:
-	## Place on the preview's anchor (centre of the footprint's first cell set
-	## via _snap_from). Green preview means can_place already passed.
+func _commit_footprint(inventory: Inventory, kind: StringName) -> bool:
 	var anchor := _snap_from
 	if not _interaction.in_reach(anchor):
 		return false
-	var one: Array[Vector2i] = [anchor]
-	return _placer.place(BuildCosts.TOWER, one, inventory, _rotate.quarter_turns)
+	return _placer.place(kind, [anchor], inventory, _rotate.quarter_turns)
 
 
 func _on_buildings_toggled(on: bool) -> void:
@@ -363,7 +371,7 @@ func _ensure_picker() -> void:
 	for child in _picker.get_children():
 		child.queue_free()
 	_buttons.clear()
-	for t in [Tool.PLANK, Tool.TOWER, Tool.WALL]:
+	for t in [Tool.PLANK, Tool.TOWER, Tool.CASTLE, Tool.WALL]:
 		var button := Button.new()
 		button.name = BUTTON_NAMES[t]
 		button.toggle_mode = true

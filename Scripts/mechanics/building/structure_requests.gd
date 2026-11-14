@@ -9,6 +9,7 @@ extends Node
 
 const REQUEST_KINDS := {
 	BuildCosts.TOWER: true,
+	BuildCosts.CASTLE: true,
 	BuildCosts.WALL_BLOCK: true,
 }
 
@@ -46,7 +47,7 @@ func host_place(kind: StringName, cells: Array[Vector2i], peer_id: int, quarter_
 	## Host accepts `peer_id`'s request, or places for itself. False charges nothing.
 	if not multiplayer.is_server() or not REQUEST_KINDS.has(kind) or cells.is_empty():
 		return false
-	if kind == BuildCosts.TOWER and cells.size() != 1:
+	if (kind == BuildCosts.TOWER or kind == BuildCosts.CASTLE) and cells.size() != 1:
 		return false
 	var body := get_node_or_null("../" + str(peer_id)) as Node2D
 	if body == null or Interaction.player_dead(body):
@@ -57,6 +58,8 @@ func host_place(kind: StringName, cells: Array[Vector2i], peer_id: int, quarter_
 			return false
 	if kind == BuildCosts.TOWER:
 		return _host_tower(cells[0], peer_id, quarter_turns)
+	if kind == BuildCosts.CASTLE:
+		return _host_castle(cells[0], peer_id, quarter_turns)
 	if kind == BuildCosts.WALL_BLOCK:
 		return _host_wall(cells, peer_id)
 	return false
@@ -94,6 +97,28 @@ func sync_to_peer(peer_id: int) -> void:
 		return
 	var snap := _wall_snapshot()
 	apply_wall_state.rpc_id(peer_id, snap[0], snap[1])
+
+
+func _host_castle(anchor: Vector2i, peer_id: int, quarter_turns: int = 0) -> bool:
+	var placer := ConstructionPlacer.new(_map())
+	if peer_id == multiplayer.get_unique_id():
+		var inventory := get_node_or_null("../../Inventory") as Inventory
+		if inventory == null:
+			return false
+		var turns := quarter_turns
+		var why := BuildCosts.buy(inventory, BuildCosts.CASTLE, 1, func() -> int:
+			return placer.write_castle(anchor, peer_id, turns))
+		if why != "":
+			return false
+	elif placer.write_castle(anchor, peer_id, quarter_turns) <= 0:
+		return false
+	else:
+		_interaction().rpc_id(peer_id, "receive_charge", BuildCosts.cost(BuildCosts.CASTLE, 1))
+	apply_structure.rpc(ConstructionPlacer.CASTLE_STRUCTURE, peer_id, anchor, quarter_turns)
+	var cities := get_node_or_null("../Cities") as Cities
+	if cities != null:
+		cities.tick()
+	return true
 
 
 func _host_tower(anchor: Vector2i, peer_id: int, quarter_turns: int = 0) -> bool:
