@@ -265,13 +265,16 @@ func choppables_in_sweep() -> Array[Vector2i]:
 
 
 func _release_drag() -> void:
+	_pick_flowers_in_sweep()
 	_chop.enqueue(choppables_in_sweep())
 
 
 func _release_tap() -> void:
 	## A short press on the attack button. Facing and full reach. `_end` is
 	## not used: cut mode never writes it, and a build drag may have.
-	_chop.enqueue(_chop.plants_toward(_facing_angle(), CHOP_REACH))
+	var facing := _facing_angle()
+	_pick_flowers_in_arc(facing, CHOP_REACH)
+	_chop.enqueue(_chop.plants_toward(facing, CHOP_REACH))
 
 
 func _facing_angle() -> float:
@@ -283,6 +286,19 @@ func _facing_angle() -> float:
 		"Left": return Vector2.LEFT.angle()
 		"Right": return Vector2.RIGHT.angle()
 		_: return Vector2.DOWN.angle()
+
+
+func _pick_flowers_in_sweep() -> void:
+	var sweep := chop_sweep()
+	if sweep.is_empty():
+		return
+	_pick_flowers_in_arc(float(sweep["direction"]), float(sweep["reach"]))
+
+
+func _pick_flowers_in_arc(direction: float, reach: float) -> void:
+	if player == null or mode != Mode.INTERACT:
+		return
+	world_map._object_removals.cells_in_arc(player.global_position, direction, reach, CHOP_ARC, false)
 
 
 func chopping() -> bool:

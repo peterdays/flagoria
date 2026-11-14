@@ -83,6 +83,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 | `Scripts/mechanics/building/structure_requests.gd` | Host-request pipeline for towers and free-form walls | new (#497, #498) |
 | `Scripts/mechanics/walls/wall_builder.gd` | Free-form palisade cells, shared solve with structure walls and towers, piece and collar paint, kept on redraw | new (#276) |
 | `Scripts/world/plant_picker.gd` | Plant or stones for one walkable cell from altitude, moisture, chance and biome | moved from `Scripts/TileMap.gd` (#370 put that file over its 500-line budget); `Scripts/TileMap.gd` keeps `plant_tile` and `structure_tile` wrappers |
+| `Scripts/world/object_removals.gd` | Picked flowers and destroyed stones on the map; `world.object_changes` entries with `removed` | new (#198) |
 | `Scripts/world/start_castle.gd` | Find the spot for a player's starting castle next to the spawn and place it | new (#271) |
 | `Scripts/mechanics/conquest/tower_capture.gd` | Flag towers change hands: who stands by each flag, capture progress, the progress bars | new (#274) |
 | `Scripts/mechanics/conquest/cities.gd` | Closed wall loop around a flag tower → city; boundary tint; minimap walls; host decides in multiplayer | new (#277, #498) |
