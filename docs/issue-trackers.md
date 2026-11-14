@@ -2,7 +2,7 @@
 
 ## Default
 
-Keep roadmap and epic tracker issues unmilestoned. Reuse each existing tracker as the single maintained source for its broader scope. Do not introduce a parallel roadmap document or another milestone for tracking.
+A roadmap or epic tracker may sit in the milestone it mainly groups (see "Roadmap and issues" in AGENTS.md); it is not counted as an executable task. Reuse each existing tracker as the single maintained source for its broader scope. Do not introduce a parallel roadmap document or another milestone for tracking.
 
 Milestones contain executable tasks with defined acceptance criteria. A tracker explains how those tasks fit together; it is not another implementation task to count alongside them.
 
