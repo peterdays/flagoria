@@ -132,8 +132,14 @@ static func _apply_wood(game: Node, value) -> void:
 
 
 static func _score_of(game: Node, who: int) -> int:
+	## Earned points only. The live land count is derived from the city and
+	## applied again on load, so a save does not add it twice.
 	var points := game.get_node_or_null("Points")
-	return int(points.total_of(who)) if points else 0
+	if points == null:
+		return 0
+	if points.has_method("earned_of"):
+		return int(points.earned_of(who))
+	return int(points.total_of(who))
 
 
 static func _apply_score(game: Node, who: int, value) -> void:

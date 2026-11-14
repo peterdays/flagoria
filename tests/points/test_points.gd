@@ -48,6 +48,8 @@ func _test_points_hud_in_scene() -> int:
 	var fail := 0
 	var scene = load("res://flagoria_main.tscn").instantiate()
 	root.add_child(scene)
+	# This checks the counter itself. Land score would already show the castle.
+	scene.get_node("World/LandScore").set_physics_process(false)
 	await process_frame
 	var me: int = scene.multiplayer.get_unique_id()
 	scene.add_player(me)
@@ -578,6 +580,8 @@ func _test_points_kill_late_join() -> int:
 		return 1
 	var scene = load("res://flagoria_main.tscn").instantiate()
 	root.add_child(scene)
+	# Land score would move the host total while this test watches a kill.
+	scene.get_node("World/LandScore").set_physics_process(false)
 	if scene.setup_server(root.get_node("MapGen").params, port, false) != OK:
 		printerr("FAIL points_kill_late_join server did not listen")
 		scene.queue_free()

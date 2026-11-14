@@ -108,24 +108,30 @@ func _test_points_discovery_two_players() -> int:
 	root.add_child(scene)
 	var points: Points = scene.get_node("Points")
 	var hud: ScoreHud = scene.get_node("CanvasLayer1/ScoreHud")
+	var land: LandScore = scene.get_node("World/LandScore")
 	scene.add_player_joined(port)
 	var fail := 0
 	var me := 0
+	var covered := 0
 	var deadline := Time.get_ticks_msec() + 30000
 	while Time.get_ticks_msec() < deadline and OS.is_process_running(pid):
 		me = scene.multiplayer.get_unique_id()
-		if me > 1 and points.total_of(me) > 0:
+		covered = land.covered_of(me) if me > 1 else 0
+		# The castle's land is part of the total. Discovery still pays once.
+		if me > 1 and covered > 0 and points.total_of(me) == Points.DISCOVERY_POINTS + covered:
 			break
 		await process_frame
-	if points.total_of(me) != Points.DISCOVERY_POINTS:
-		printerr("FAIL points_discovery_two_players client total %s, want %s" % [points.total_of(me), Points.DISCOVERY_POINTS])
+	if covered <= 0 or points.total_of(me) != Points.DISCOVERY_POINTS + covered:
+		printerr("FAIL points_discovery_two_players client total %s, want %s plus land %s"
+				% [points.total_of(me), Points.DISCOVERY_POINTS, covered])
 		fail += 1
 	else:
 		var until := Time.get_ticks_msec() + 1500  # several more checks
 		while Time.get_ticks_msec() < until:
 			await process_frame
-		if points.total_of(me) != Points.DISCOVERY_POINTS or hud.text != "%d pts" % Points.DISCOVERY_POINTS:
-			printerr("FAIL points_discovery_two_players standing still: total %s, counter '%s'" % [points.total_of(me), hud.text])
+		if points.total_of(me) != Points.DISCOVERY_POINTS + covered or hud.text != "%d pts" % points.total_of(me):
+			printerr("FAIL points_discovery_two_players standing still: total %s, counter '%s'"
+					% [points.total_of(me), hud.text])
 			fail += 1
 	OS.kill(pid)
 	scene.enet_peer.close()
