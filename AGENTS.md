@@ -37,6 +37,8 @@ State the intended change or tracking purpose in one sentence.
 
 Describe one concern. State what is included and what is out of scope. Link related issues instead of copying their scope.
 
+Keep each issue to one shippable vertical slice. When a spec has future slices with no immediate owner, file each of them as its own issue when the parent is created, and link them, instead of leaving them as unchecked items inside the parent. Never open an issue that bundles a slice about to be delivered with unowned future slices. This keeps milestones from accumulating open scope that nobody is working on.
+
 ### Done when
 
 List executable completion checks. Each check identifies an actor, an action, and an observable pass condition. Avoid criteria such as "works correctly" without a defined result.
@@ -46,6 +48,11 @@ Use the task issue form when available. Issues created through the API, CLI, or 
 This format applies to all new issues, including roadmap and epic trackers. A new tracker links its tasks and defines completion as acceptance of the included tasks, with deferred scope stated explicitly.
 
 Do not automatically rewrite historical issues to match this format.
+
+## Roadmap and issues
+
+- Milestones are the default way to group issues. Open an umbrella or epic issue only for work that spans more than one milestone, or for dependent pieces that share one rationale (for example the weapon building-block system, or the dedicated-server epic #17). Never open an umbrella whose checklist mirrors a single milestone; the milestone already is that list.
+- Close an issue when its delivered v1 slice ships. Any future slice without an owner becomes its own linked issue, filed at creation or when scope shifts, and never stays behind as an unchecked item in the parent.
 
 ## Issue triage labels
 

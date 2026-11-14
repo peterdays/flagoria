@@ -18,7 +18,7 @@ import os
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-ATLAS = os.path.join(ROOT, "art", "flagoria", "flagoria_tiles_v3.png")
+ATLAS = os.path.join(ROOT, "art", "flagoria", "flagoria_tiles_v4.png")
 ICON_GRID = os.path.join(ROOT, "art", "icon", "tower_32.txt")
 PICKER = os.path.join(ROOT, "art", "ui", "ui_tool_tower.png")
 TILE = 16

@@ -122,6 +122,8 @@ func _parchment_open() -> bool:
 
 
 func _is_zoom_event(event: InputEvent) -> bool:
+	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		return true
 	if event is InputEventMouseButton:
 		var button := event as InputEventMouseButton
 		return button.button_index == MOUSE_BUTTON_WHEEL_UP \

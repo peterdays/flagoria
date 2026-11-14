@@ -185,6 +185,11 @@ func _test_explored_map() -> int:
 	if map.explored_count() != 0 or map.is_explored(Vector2i.ZERO):
 		printerr("FAIL explored_map clear")
 		fail += 1
+	map.reveal(Vector2i(4, -3))
+	var rect := map.explored_rect()
+	if rect.position != Vector2i(-6, -13) or rect.size != Vector2i(21, 21):
+		printerr("FAIL explored_map explored_rect %s" % [rect])
+		fail += 1
 	if fail == 0:
 		print("PASS test_explored_map")
 	return fail
