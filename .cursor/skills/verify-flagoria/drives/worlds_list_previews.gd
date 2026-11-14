@@ -49,7 +49,12 @@ func _seed_saves() -> bool:
 		params.temperature_seed = seed_value + 2
 		params.items_seed = seed_value + 3
 		params.biome_seed = seed_value + 4
-		params.water_max_alt = 0.25 + float(i) * 0.05
+		params.island_radius = 0
+		params.archipelago_spacing = 64 + i * 24
+		params.archipelago_world_extent = 240 + i * 100
+		params.archipelago_island_radius = 36
+		params.archipelago_island_count = 0
+		params.water_max_alt = 0.22
 		var saved := MapSave.save_world(WorldSave.new(params), NAMES[i])
 		if saved["error"] != "":
 			printerr("worlds_list_previews: save %s" % saved["error"])

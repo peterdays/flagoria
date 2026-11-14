@@ -274,11 +274,23 @@ func _test_world_save_preview() -> int:
 	var params := MapGenParams.make_defaults()
 	params.ensure_seeds()
 	params.altitude_seed = 507001
-	params.water_max_alt = 0.38
+	params.archipelago_spacing = 80
+	params.archipelago_world_extent = 320
+	params.archipelago_island_radius = 36
+	params.water_max_alt = 0.24
 	var first := WorldSavePreview.build_image(world, params)
 	var second := WorldSavePreview.build_image(world, params)
 	if first.get_data() != second.get_data():
 		printerr("FAIL world_save_preview: same params gave different images")
+		fail += 1
+	var land_frac := WorldSavePreview.land_pixel_fraction(first)
+	if land_frac < WorldSavePreview.MIN_LAND_FRACTION:
+		printerr("FAIL world_save_preview: land fraction %.3f below minimum" % land_frac)
+		fail += 1
+	var flat := Image.create(WorldSavePreview.ICON_SIZE.x, WorldSavePreview.ICON_SIZE.y, false, Image.FORMAT_RGBA8)
+	flat.fill(MinimapPanel.SKY_DEEP)
+	if WorldSavePreview.land_pixel_fraction(flat) >= WorldSavePreview.MIN_LAND_FRACTION:
+		printerr("FAIL world_save_preview: land fraction check accepted an all-water image")
 		fail += 1
 	var saved := MapSave.save_world(WorldSave.new(params), "preview-fixture")
 	if saved["error"] != "":

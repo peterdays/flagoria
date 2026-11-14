@@ -2,7 +2,7 @@
 
 Drive: drives/saved_worlds.gd
 
-The main menu Worlds screen lists every world save by name and the time the file was last written. Each row shows a small terrain preview from that save's generation inputs (`Scripts/world_save_preview.gd`), cached under `user://saves/_previews/v1/`, with a plain placeholder when a preview is missing or broken. Load hosts that world. Host, and New world, start a match that saves into a new file, so an existing save is not replaced. Save writes that match's file again. Delete asks first, then removes the file and its preview. Rename opens an inline name field; confirm calls `MapSave.rename_save` and renames the cached preview too.
+The main menu Worlds screen lists every world save by name and the time the file was last written. Each row shows a small terrain preview from that save's generation inputs (`Scripts/world_save_preview.gd`), cached under `user://saves/_previews/v2/` (whole-world fit, minimap palette), with a plain placeholder when a preview is missing or broken. Load hosts that world. Host, and New world, start a match that saves into a new file, so an existing save is not replaced. Save writes that match's file again. Delete asks first, then removes the file and its preview. Rename opens an inline name field; confirm calls `MapSave.rename_save` and renames the cached preview too.
 
 ## Sub-features
 
