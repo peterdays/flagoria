@@ -80,7 +80,7 @@ offset_left = 4.0
 offset_top = 15.0
 offset_right = 64.0
 offset_bottom = 27.0
-mouse_filter = 0
+mouse_filter = 2
 theme = ExtResource("6_menu")
 script = ExtResource("11_score_hud")
 

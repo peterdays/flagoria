@@ -24,7 +24,7 @@ func _init() -> void:
 
 
 func _ready() -> void:
-	mouse_filter = Control.MOUSE_FILTER_PASS
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_counter.theme = theme
 	add_child(_counter)
