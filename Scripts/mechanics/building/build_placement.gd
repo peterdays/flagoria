@@ -29,6 +29,7 @@ const BUTTON_NAMES := {
 	Tool.PLANK: "PlankButton", Tool.TOWER: "TowerButton", Tool.WALL: "WallButton",
 }
 const BUILDINGS_ICON := preload("res://assets/ui/hud/icon_buildings.png")
+const _FootprintOrientation := preload("res://Scripts/mechanics/building/footprint_orientation.gd")
 ## Opaque tool art. Narrower than the disc so the circle and the gold ring show.
 const COLUMN_ICON := 12
 ## Nothing stays hidden once its request exists. Plank (#297), Tower (#497)
@@ -217,6 +218,9 @@ func draw_preview(ci: CanvasItem) -> void:
 		var center: Vector2 = ci.to_local(_interaction.cell_center(cells[i]))
 		var rect := Rect2(center - half, half * 2.0)
 		ci.draw_rect(rect, VALID_TINT if cell_ok[i] else INVALID_TINT)
+	if is_footprint_tool(tool) and _snap_valid and cells.size() > 0:
+		var mark: Vector2 = ci.to_local(_interaction.cell_center(_snap_from))
+		_FootprintOrientation.draw_at(ci, mark, _rotate.quarter_turns)
 	var anchor: Vector2 = ci.to_local(_interaction.to_world(cost_viewport)) + Vector2(8, -12)
 	var font: Font = ThemeDB.fallback_font
 	var font_size := 10

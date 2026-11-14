@@ -10,6 +10,7 @@ extends RefCounted
 ## walls placed after a join go through StructureRequests (#498).
 
 const _WorldMap := preload("res://Scripts/TileMap.gd")
+const _FootprintOrientation := preload("res://Scripts/mechanics/building/footprint_orientation.gd")
 
 const WATER := "water"
 const TREE := "tree"
@@ -43,6 +44,8 @@ var _placed: Dictionary = {}
 var _flags: Dictionary = {}
 var _next_id := 1
 var _map: _WorldMap
+## Placement id -> facing sprite at the anchor (#493).
+var _markers: Dictionary = {}
 
 
 func _init(map: _WorldMap) -> void:
@@ -69,6 +72,7 @@ func placements() -> Dictionary:
 
 
 func clear() -> void:
+	_FootprintOrientation.clear_sprites(_markers)
 	_cells.clear()
 	_auto.clear()
 	_placed.clear()
@@ -237,6 +241,7 @@ func _write(structure: Structure, anchor_cell: Vector2i, owner: int, quarter_tur
 	_placed[id] = meta
 	if not flags.is_empty():
 		_flags[id] = flags
+	_FootprintOrientation.sync_sprite(_map, _markers, id, anchor_cell, turns)
 	_map._walls.resolve()
 	_map.ground_changed.emit(Rect2i(anchor_cell - placed.anchor, placed.size))
 	return id

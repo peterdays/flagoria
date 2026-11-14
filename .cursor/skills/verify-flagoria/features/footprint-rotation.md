@@ -33,7 +33,9 @@ Preconditions: `doctor.sh` exits `0`. Time cost: three headless tests
 
 - **Run (headless).** `--only=structure_rotation_four_turns,structure_rotation_blocked,structure_rotation_save_roundtrip`, or full `tools/verify.sh`.
 - **Proof.** Those three headers in `artifacts/verify.log` without `FAIL`.
-  Drive snapshots `preview-0`, `preview-90`, `placed-90` phone PNGs.
+  Drive snapshots `preview-0`, `preview-90`, and `placed-two` phone PNGs
+  (two towers at rotation 0 and 90°; wooden tiles are symmetric so a rotated
+  marker sprite shows facing).
 
 ## Gotchas
 
