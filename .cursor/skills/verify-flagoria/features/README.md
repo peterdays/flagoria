@@ -70,6 +70,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [In-game menu and quit prompt](./ingame-menu.md) — menu button, Pause panel (Resume, Save, Main menu), quit confirm.
 - [Interact mode](./interact-mode.md) — mode button; Space still swings the sword in interact (chop) mode; aimed attacks stay combat-only (#351).
 - [Points](./points.md) — discovery and mob-kill points, host-owned totals, score HUD.
+- [Points scoreboard](./points-scoreboard.md) — every connected player's total, highest first, from the score row toggle (#509).
 - [Touch controls](./touch-controls.md) — joystick hold, Castle Stone attack button and stick, number pad and letter keyboard (`-` key; `Del` and `-` edit a selected value).
 - [Run control](./run-control.md) — hold or tap Run (or hold Shift) to walk faster; chop reach, the sword and the joystick direction stay put (#449).
 - [Round HUD buttons](./hud-round-buttons.md) — minimap closed at match start; Buildings, Map and Mode on a top-right arc, build tools on discs in a column, map panel clear of the arc, Run beside attack (#480).

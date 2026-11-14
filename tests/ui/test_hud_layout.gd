@@ -25,7 +25,7 @@ func _test_hud_layout_round_trip() -> int:
 		fail += 1
 	_hud().apply(layer)
 	await process_frame
-	for id in ["joystick", "attack", "run", "buildings", "map", "mode"]:
+	for id in ["joystick", "attack", "run", "buildings", "map", "mode", "scores"]:
 		if _hud().get_entry(id).is_empty():
 			printerr("FAIL hud_layout_round_trip: missing %s after load" % id)
 			fail += 1
@@ -151,6 +151,6 @@ func _play_scene() -> Node:
 	world.apply_map_params(scene.world_params)
 	await process_frame
 	scene.add_player(scene.multiplayer.get_unique_id())
-	await process_frame
-	await process_frame
+	for _i in 6:
+		await process_frame
 	return scene

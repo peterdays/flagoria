@@ -44,6 +44,9 @@ static func dismiss_popups(layer: CanvasLayer) -> void:
 	var picker := layer.get_node_or_null("BuildPicker") as CanvasItem
 	if picker != null:
 		picker.visible = false
+	var scores := layer.get_node_or_null("ScoreboardPanel") as ScoreboardPanel
+	if scores != null:
+		scores.close()
 
 
 static func _joystick_rect(stick: Node2D) -> Rect2:
