@@ -8,8 +8,10 @@ placer is alive and in reach, checks the footprint the way solo play does,
 writes the tower, charges the placer and tells every other peer. A refused
 request leaves no tower and does not change the client's wood. Capture
 progress and the owner change only on the host; every peer, including one
-that joins during a capture, shows the same owner and progress. The host
-awards one point per owned flag tower and both peers' totals match.
+that joins during a capture, shows the same owner and progress. With land
+score off, the host awards one point per owned flag tower and both peers'
+totals match. Land score is the live conquest total
+([Land score](./land-score.md)).
 
 `StructureRequests` is the one host-request pipeline. Walls are a second
 kind on it (#498).

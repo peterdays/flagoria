@@ -2,12 +2,13 @@ class_name Points
 extends Node
 ## Every player's point total, owned by the server.
 ##
-## award() and award_kill() are the places points are added. Both act only on
-## the server (peer 1, which is also the only peer offline) and tell every
-## peer through a reliable call_local RPC, so all peers agree. A peer that
-## connects later gets every total, and the mob ids already paid, after the
-## map for that join is queued. Totals are keyed by peer id and stay after a
-## player leaves.
+## award() and award_kill() are the places points are added. set_land() is the
+## place a player's land count is set, including when it falls. All three act
+## only on the server (peer 1, which is also the only peer offline) and tell
+## every peer through a reliable call_local RPC, so all peers agree. A peer
+## that connects later gets every total, and the mob ids already paid, after
+## the map for that join is queued. Totals are keyed by peer id and stay
+## after a player leaves.
 ##
 ## A mob kill is keyed by that mob's id. The server may send the award again,
 ## and a peer may receive it again: the second copy changes nothing.
@@ -26,7 +27,8 @@ const FLAGS_HELD_POINTS := 1  ## per owned flag tower each FlagsHeldPoints tick 
 ## Paid to the player whose sword hit kills a mob, by mob type (Mob.take_hit).
 const MOB_KILL_POINTS := {MobCatalog.SLIME: 5, MobCatalog.CRAB: 8, MobCatalog.PIGLET: 10}
 
-var _totals := {}  ## peer id -> points
+var _totals := {}  ## peer id -> points, land included
+var _land := {}  ## peer id -> land cells currently included in that total
 var _kill_sent := {}  ## mob id -> true once the server has awarded that kill
 var _kill_applied := {}  ## mob id -> true once this peer added its points
 
@@ -41,6 +43,29 @@ func _ready() -> void:
 
 func total_of(peer_id: int) -> int:
 	return _totals.get(peer_id, 0)
+
+
+func earned_of(peer_id: int) -> int:
+	## Points other than the live land count. A save stores this. Loading it
+	## back and letting LandScore set the land again does not count the city
+	## twice.
+	return maxi(0, total_of(peer_id) - int(_land.get(peer_id, 0)))
+
+
+func set_land(peer_id: int, cells: int) -> bool:
+	## Server only: make `peer_id`'s land contribution `cells`. The displayed
+	## total moves by the difference, so losing land removes it and other
+	## awards stay. Reason `land`. Returns true when the total changed.
+	if not multiplayer.is_server() or peer_id <= 0 or cells < 0:
+		return false
+	var prev := int(_land.get(peer_id, 0))
+	if prev == cells:
+		return false
+	var delta := cells - prev
+	var total := total_of(peer_id) + delta
+	_land[peer_id] = cells
+	_apply_award.rpc(peer_id, total, delta, "land")
+	return true
 
 
 func award(peer_id: int, amount: int, reason: String) -> bool:
@@ -82,8 +107,12 @@ func clear_kill_credits() -> void:
 func restore_total(peer_id: int, total: int) -> void:
 	## Server only: set `peer_id`'s total to `total`, as a loaded save does.
 	## Not an award: the amount on the signal is 0 and the reason is "load".
-	if not multiplayer.is_server() or peer_id <= 0 or total < 0 or total_of(peer_id) == total:
+	if not multiplayer.is_server() or peer_id <= 0 or total < 0:
 		return
+	## The saved number is earned points. Land is applied again after load.
+	if total_of(peer_id) == total and int(_land.get(peer_id, 0)) == 0:
+		return
+	_land[peer_id] = 0
 	_apply_award.rpc(peer_id, total, 0, "load")
 
 

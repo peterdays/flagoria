@@ -5,8 +5,11 @@ extends "res://tests/helpers/test_helpers.gd"
 
 
 func _setup(label: String, n_towers: int) -> Dictionary:
+	## Land score is the live total. These tests exercise the flags-held
+	## fallback, so they turn land score off and the caller turns it back on.
 	## {scene, world, held, points, ids} with `n_towers` host-owned
 	## guard_posts near the origin, or {} after a FAIL line.
+	LandScore.enabled = false
 	var scene = load("res://flagoria_main.tscn").instantiate()
 	root.add_child(scene)
 	var held: FlagsHeldPoints = scene.get_node_or_null("FlagsHeldPoints")
@@ -45,6 +48,7 @@ func _test_flags_held_awards_per_tower() -> int:
 	print("-- test_flags_held_awards_per_tower")
 	var t := _setup("flags_held_awards_per_tower", 2)
 	if t.is_empty():
+		LandScore.enabled = true
 		return 1
 	var fail := 0
 	var seen: Array = []
@@ -77,6 +81,7 @@ func _test_flags_held_awards_per_tower() -> int:
 		printerr("FAIL flags_held_awards_per_tower: after loss awards %s" % [seen])
 		fail += 1
 	t["scene"].queue_free()
+	LandScore.enabled = true
 	if fail == 0:
 		print("PASS test_flags_held_awards_per_tower")
 	return fail
@@ -87,6 +92,7 @@ func _test_flags_held_skips_non_players() -> int:
 	print("-- test_flags_held_skips_non_players")
 	var t := _setup("flags_held_skips_non_players", 2)
 	if t.is_empty():
+		LandScore.enabled = true
 		return 1
 	var fail := 0
 	t["world"]._structures.set_owner(t["ids"][0], StructurePlacer.OWNER_NEUTRAL)
@@ -96,6 +102,7 @@ func _test_flags_held_skips_non_players() -> int:
 		printerr("FAIL flags_held_skips_non_players: paid %s total %s" % [paid, t["points"].total_of(1)])
 		fail += 1
 	t["scene"].queue_free()
+	LandScore.enabled = true
 	if fail == 0:
 		print("PASS test_flags_held_skips_non_players")
 	return fail
@@ -108,6 +115,7 @@ func _test_flags_held_off_in_multiplayer() -> int:
 	print("-- test_flags_held_off_in_multiplayer")
 	var t := _setup("flags_held_off_in_multiplayer", 1)
 	if t.is_empty():
+		LandScore.enabled = true
 		return 1
 	var fail := 0
 	var path: NodePath = t["held"].get_path()
@@ -129,6 +137,7 @@ func _test_flags_held_off_in_multiplayer() -> int:
 				% [paid, t["points"].total_of(1)])
 		fail += 1
 	t["scene"].queue_free()
+	LandScore.enabled = true
 	if fail == 0:
 		print("PASS test_flags_held_off_in_multiplayer")
 	return fail

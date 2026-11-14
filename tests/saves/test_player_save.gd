@@ -144,6 +144,7 @@ func _player_scene(with_body := true) -> Node:
 	scene._apply_params_to_world(params)
 	scene.get_node("Discovery").set_physics_process(false)
 	scene.get_node("FlagsHeldPoints").set_physics_process(false)
+	scene.get_node("World/LandScore").set_physics_process(false)
 	scene.get_node("CanvasLayer1/MinimapPanel").set_physics_process(false)
 	if with_body:
 		scene.add_player(1)
