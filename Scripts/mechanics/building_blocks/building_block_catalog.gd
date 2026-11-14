@@ -20,12 +20,12 @@ const OPPOSITE := {"N": "S", "E": "W", "S": "N", "W": "E"}
 
 ## Allowed neighbours across an edge: both labels must list each other.
 const SOCKET_COMPAT: Dictionary = {
-	"void": ["void", "eave", "wall", "door", "window"],
-	"floor": ["floor", "wall", "door", "window"],
-	"wall": ["floor", "wall", "door", "window", "void"],
+	"void": ["void", "eave", "wall", "door", "window", "roof"],
+	"floor": ["floor", "wall", "door", "window", "roof"],
+	"wall": ["floor", "wall", "door", "window", "void", "roof"],
 	"door": ["floor", "wall", "void"],
 	"window": ["floor", "wall", "void"],
-	"roof": ["roof", "eave"],
+	"roof": ["roof", "eave", "floor"],
 	"eave": ["void", "roof", "eave"],
 }
 
