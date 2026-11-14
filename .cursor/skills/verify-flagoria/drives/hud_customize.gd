@@ -33,6 +33,14 @@ func _edit_bar_rect() -> Rect2:
 	return (current_scene.get_node(EDIT_BAR) as Control).get_global_rect()
 
 
+func _bar_inside_viewport() -> bool:
+	var view := current_scene.get_viewport().get_visible_rect()
+	if not view.encloses(_edit_bar_rect().grow(2.0)):
+		return false
+	var editor := current_scene.get_node("CanvasLayer1/InGameMenu/HudLayoutEdit")
+	return editor.has_method("bar_fits_viewport") and editor.bar_fits_viewport()
+
+
 func _controls_clear_of_bar(layer: CanvasLayer) -> bool:
 	var bar := _edit_bar_rect().grow(2.0)
 	for id in HUD_IDS:
@@ -87,6 +95,7 @@ func run() -> void:
 		await editor.relayout_bar()
 	await process_frame
 	ok = ok and editor.visible
+	ok = ok and _bar_inside_viewport()
 	ok = ok and _controls_clear_of_bar(layer)
 	var attack_at := to_window(attack, attack.texture_normal.get_size() * attack.scale * 0.5)
 	await _tap(attack_at)
@@ -94,6 +103,7 @@ func run() -> void:
 	ok = ok and (current_scene.get_node(SIZE_SLIDER) as HSlider).editable
 	ok = ok and _map_closed_in_edit(layer)
 	await snapshot("edit-mode")
+	ok = ok and _bar_inside_viewport()
 	ok = ok and _controls_clear_of_bar(layer)
 
 	step("moved-control")
@@ -158,6 +168,7 @@ func run() -> void:
 	if editor.has_method("relayout_bar"):
 		await editor.relayout_bar()
 	await snapshot("reset-layout")
+	ok = ok and _bar_inside_viewport()
 	ok = ok and _controls_clear_of_bar(layer)
 	await click(DONE)
 	for _i in 2:
