@@ -85,6 +85,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 | `Scripts/mechanics/building_blocks/building_block_piece.gd` | One WFC modular piece: TileCatalog tile and cardinal edge sockets | new (#23) |
 | `Scripts/mechanics/building_blocks/building_block_catalog.gd` | Piece set, socket compatibility and adjacency table for WFC | new (#23) |
 | `Scripts/mechanics/building_blocks/wfc_solver.gd` | Pure GDScript WFC: collapse, propagate, seeded restarts (#24) | new (#24) |
+| `Scripts/mechanics/building_blocks/wfc_building_constraints.gd` | Building footprint rules: ring, door, reachability, roof, pre-seed + re-solve (#25) | new (#25) |
 | `Scripts/mechanics/walls/wall_builder.gd` | Free-form palisade cells, shared solve with structure walls and towers, piece and collar paint, kept on redraw | new (#276) |
 | `Scripts/world/plant_picker.gd` | Plant or stones for one walkable cell from altitude, moisture, chance and biome | moved from `Scripts/TileMap.gd` (#370 put that file over its 500-line budget); `Scripts/TileMap.gd` keeps `plant_tile` and `structure_tile` wrappers |
 | `Scripts/world/object_removals.gd` | Picked flowers and destroyed stones on the map; `world.object_changes` entries with `removed` | new (#198) |

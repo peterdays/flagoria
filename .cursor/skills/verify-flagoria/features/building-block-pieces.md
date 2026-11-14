@@ -9,6 +9,7 @@ Modular building-block piece definitions for procedural structures: eight kinds 
 - `building-block-catalog` `BuildingBlockCatalog.adjacency_table()` and `socket_compatible()` feed the WFC solver (#24).
 - `building-block-sockets` `tests/mechanics/building_blocks/test_building_block_sockets.gd` checks partners, symmetric compat, symmetric adjacency, and writes `docs/screenshots/building_block_pieces.png`.
 - `building-block-wfc` `tests/mechanics/building_blocks/test_wfc_solver.gd` and `Scripts/mechanics/building_blocks/wfc_solver.gd` (#24): 500 seeds across four grid sizes, determinism, fast failure on an impossible set, and a 16×16 timing line in verify output.
+- `building-block-constraints` `tests/mechanics/building_blocks/test_wfc_building_constraints.gd` and `Scripts/mechanics/building_blocks/wfc_building_constraints.gd` (#25): per-rule validation, 1000 accepted seeds on a 6×5 footprint, and one negative layout per rule.
 
 ## How to get to it (user POV)
 
@@ -20,4 +21,4 @@ Modular building-block piece definitions for procedural structures: eight kinds 
 Preconditions: `doctor.sh` exits `0`. Time cost: under 0.2 s in `tools/verify.sh`.
 
 - **Run.** `./.cursor/skills/verify-flagoria/bin/drive-verify.sh` and read `artifacts/verify.log`.
-- **Proof.** Headers `-- test_building_block_sockets` and `-- test_wfc_solver` with no following `FAIL` lines.
+- **Proof.** Headers `-- test_building_block_sockets`, `-- test_wfc_solver`, and `-- test_wfc_building_constraints` with no following `FAIL` lines.

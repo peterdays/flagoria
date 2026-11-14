@@ -30,6 +30,7 @@ static func solve(
 		pieces: Array,
 		seed: int,
 		max_attempts: int = DEFAULT_MAX_ATTEMPTS,
+		cell_allowed: Array = [],
 ) -> Dictionary:
 	if width < 1 or height < 1:
 		return _fail("grid size must be positive")
@@ -48,10 +49,10 @@ static func solve(
 		var rng := RandomNumberGenerator.new()
 		rng.seed = int(seed + attempt * 0x9E3779B9)
 		var wave: Array = []
-		for _y in height:
+		for y in height:
 			var row: Array = []
-			for _x in width:
-				row.append(all_opts.duplicate())
+			for x in width:
+				row.append(_initial_opts(x, y, all_opts, piece_ids, cell_allowed))
 			wave.append(row)
 		if not _collapse(wave, width, height, adjacency, rng):
 			continue
@@ -160,6 +161,31 @@ static func _filter_toward(
 		return false
 	wave[to_y][to_x] = keep
 	return true
+
+
+static func _initial_opts(
+		x: int,
+		y: int,
+		all_opts: Array,
+		piece_ids: Array[String],
+		cell_allowed: Array,
+) -> Array:
+	if cell_allowed.is_empty():
+		return all_opts.duplicate()
+	if y >= cell_allowed.size():
+		return all_opts.duplicate()
+	var line: Variant = cell_allowed[y]
+	if line == null or not line is Array or x >= line.size():
+		return all_opts.duplicate()
+	var allow: Variant = line[x]
+	if allow == null or not allow is Array or allow.is_empty():
+		return all_opts.duplicate()
+	var out: Array = []
+	for id in allow:
+		var sid: String = str(id)
+		if sid in piece_ids:
+			out.append(sid)
+	return out if not out.is_empty() else all_opts.duplicate()
 
 
 static func _grid_from_wave(wave: Array) -> Array:
