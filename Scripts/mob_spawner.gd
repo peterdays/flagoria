@@ -129,16 +129,34 @@ static func _first_free(pool: Array, taken: Array[Vector2i]) -> Variant:
 	return null
 
 
-func spawn_for_world(world: TileMap, origin: Vector2i, seed_value: int, rate := 1.0) -> int:
+func opening_roster(world: TileMap, origin: Vector2i, seed_value: int, rate: float) -> bool:
+	## True when every planned mob is still here and no player body exists
+	## yet. A later castle may clear trees and change the plan; a death or
+	## a player already in the world means this set must stay.
+	if mobs().size() != plan(world, origin, seed_value, rate).size():
+		return false
+	var parent := world.get_parent()
+	if parent == null:
+		return false
+	for child in parent.get_children():
+		if child is CharacterBody2D:
+			return false
+	return true
+
+
+func spawn_for_world(world: TileMap, origin: Vector2i, seed_value: int, rate := 1.0, reset_credits := true) -> int:
 	## Server only: replace any mobs with this map's plan at `rate`. Returns
 	## the count. Clients get the server's mobs and never plan their own.
+	## `reset_credits` false skips the kill-credit packet. The caller uses
+	## that only for an opening set that has not paid anyone.
 	if not multiplayer.is_server():
 		return 0
 	# These mob ids are about to be used again. Drop kill credits first, or
 	# the new mob_0 could not pay.
-	var points := get_node_or_null("../../Points") as Points
-	if points:
-		points.clear_kill_credits()
+	if reset_credits:
+		var points := get_node_or_null("../../Points") as Points
+		if points:
+			points.clear_kill_credits()
 	clear_mobs()
 	var plans := plan(world, origin, seed_value, rate)
 	for i in plans.size():

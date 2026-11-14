@@ -36,7 +36,10 @@ func _test_mobs_sync_to_peer() -> int:
 		var params: MapGenParams = scene.world_params
 		if plan.is_empty() and params != null and params.altitude_seed != 0:
 			plan = MobSpawner.plan(world, world.resolve_player_spawn(), params.altitude_seed, host_rate)
-		if not plan.is_empty() and mobs_node.mobs().size() >= plan.size():
+		# The host may still be replacing the opening set after the castle
+		# clears trees. Wait until this peer's mobs are that plan, not the
+		# first packet of the previous set.
+		if not plan.is_empty() and _roster_matches(mobs_node, world, plan):
 			break
 		await process_frame
 	var mobs: Array = mobs_node.mobs()
@@ -77,6 +80,19 @@ func _test_mobs_sync_to_peer() -> int:
 	if fail == 0:
 		print("PASS test_mobs_sync_to_peer (%s mobs)" % plan.size())
 	return fail
+
+
+func _roster_matches(mobs_node: MobSpawner, world, plan: Array) -> bool:
+	if mobs_node.mobs().size() != plan.size():
+		return false
+	for i in plan.size():
+		var m: Mob = mobs_node.get_node_or_null("mob_%d" % i)
+		if m == null or m.mob_type != plan[i]["type"]:
+			return false
+		var at: Vector2 = world.map_to_local(plan[i]["cell"])
+		if m.position.distance_to(at) > Mob.WANDER_RADIUS + 1.0:
+			return false
+	return true
 
 
 func _test_mob_hidden_on_uncharted() -> int:

@@ -349,11 +349,19 @@ func receive_join_cuts(cuts: Dictionary) -> void:
 func add_player(peer_id):
 	# host / peer spawn
 	var world = get_node("World/worldMap")
+	var origin: Vector2i = world.resolve_player_spawn()
+	var rate: float = get_node("/root/GameSettings").mob_rate
+	var mobs: MobSpawner = get_node("World/Mobs")
+	var opening := world_params != null and mobs.opening_roster(world, origin, world_params.altitude_seed, rate)
 	var anchor: Variant = StartCastle.place_for_peer(world, int(peer_id))
 	if anchor is Vector2i:
 		var requests := get_node_or_null("World/StructureRequests")
 		if requests != null:
 			requests.publish_structure(StartCastle.structure().name, int(peer_id), anchor)
+		# The castle can clear trees inside the mob scan. Replan the opening
+		# set so a joiner's plan matches, before any death or other player.
+		if opening:
+			mobs.spawn_for_world(world, origin, world_params.altitude_seed, rate, false)
 	var player = Player.instantiate()
 	player.name = str(peer_id)
 	print("player added", player.name)

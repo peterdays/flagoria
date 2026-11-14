@@ -45,3 +45,4 @@ the host castle's cells and the joiner's spawn.
 - The shared spawn does not move. A joining castle's footprint stays `SPAWN_KEEP` (6) cells off that spawn, so the spawn-radius checks still hold.
 - A client must not call `place_structure` for a castle. The host uses `place_for_peer`, then `publish_structure`.
 - `apply_structure` ignores a castle the peer already has at that anchor, so the join snapshot and the broadcast do not stack two copies.
+- A castle can clear trees inside the mob scan. When the opening set is still intact and no player body exists yet, the host replans it so a joiner's mobs match that map. A set that already lost a mob stays as it is.
