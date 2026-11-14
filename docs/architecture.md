@@ -78,6 +78,8 @@ Where each part of the game lives today, how data moves between the parts, and w
 | `Scripts/mechanics/structures/structure_placer.gd` | Check and place a parsed structure on the map, keep placements across redraws | new (#270) |
 | `Scripts/mechanics/building/build_costs.gd` | Wood cost and refund per buildable; buy: check wood, spend, place | new (#272) |
 | `Scripts/mechanics/building/build_placement.gd` | Buildings column of round Plank/Tower/Wall buttons, snapped plank/wall and tower footprint preview via ConstructionPlacer | stays (#225 / #273 / #276, #480) |
+| `Scripts/mechanics/building/build_placement_rotate.gd` | Round rotate control beside footprint placement preview | new (#493) |
+| `Scripts/mechanics/building/footprint_orientation.gd` | Rotated facing marker on preview and placed footprint tools | new (#493) |
 | `Scripts/mechanics/building/structure_requests.gd` | Host-request pipeline for towers and free-form walls | new (#497, #498) |
 | `Scripts/mechanics/walls/wall_builder.gd` | Free-form palisade cells, shared solve with structure walls and towers, piece and collar paint, kept on redraw | new (#276) |
 | `Scripts/world/plant_picker.gd` | Plant or stones for one walkable cell from altitude, moisture, chance and biome | moved from `Scripts/TileMap.gd` (#370 put that file over its 500-line budget); `Scripts/TileMap.gd` keeps `plant_tile` and `structure_tile` wrappers |
@@ -92,6 +94,7 @@ Where each part of the game lives today, how data moves between the parts, and w
 | `Scripts/MapGenParams.gd` | Map generation parameters resource | stays (shared) |
 | `Scripts/map_gen.gd` | Autoload: active params, save/load hooks | stays (autoload) |
 | `Scripts/map_save.gd` | Versioned save files (gzip of JSON) | stays |
+| `Scripts/world_save_preview.gd` | Cached terrain thumbnails for the saved-worlds list | stays |
 | `Scripts/world_save.gd` | One saved world in memory | stays |
 | `Scripts/player_save.gd` | Player section of a world save: position, health, wood, score, charted ground | new (#197) |
 | `Scripts/player.gd` | Player movement, sword, animation | stays |

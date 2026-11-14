@@ -279,7 +279,10 @@ static func rename_save(save_name: String, new_name: String, dir: String = SAVE_
 	if FileAccess.file_exists(new_path):
 		return "a map save named %s already exists" % clean
 	var err := DirAccess.rename_absolute(path, new_path)
-	return "" if err == OK else "cannot rename %s to %s (error %s)" % [save_name, clean, err]
+	if err != OK:
+		return "cannot rename %s to %s (error %s)" % [save_name, clean, err]
+	WorldSavePreview.rename_save(save_name, clean)
+	return ""
 
 
 static func delete_save(save_name: String, dir: String = SAVE_DIR) -> String:
@@ -291,7 +294,10 @@ static func delete_save(save_name: String, dir: String = SAVE_DIR) -> String:
 	if not FileAccess.file_exists(path):
 		return "no map save named %s" % save_name
 	var err := DirAccess.remove_absolute(path)
-	return "" if err == OK else "cannot delete %s (error %s)" % [save_name, err]
+	if err != OK:
+		return "cannot delete %s (error %s)" % [save_name, err]
+	WorldSavePreview.remove(save_name)
+	return ""
 
 
 static func _bad_name_error(save_name: String) -> String:

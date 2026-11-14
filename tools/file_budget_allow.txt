@@ -5,3 +5,4 @@
 Scripts/tile_catalog.gd 642 shared data table mapping every tile name to its atlas coords; one entry per tile, little logic, stays whole by the docs/architecture.md rules
 Scripts/TileMap.gd 519 chunk drawing plus thin mechanic wrappers until #253; object-removals save hooks stay one line each
 Scripts/mechanics/interact/interaction.gd 516 combat and interact mode, chop and build; flower-pick hooks are a few lines (#198)
+Scripts/mechanics/building/build_placement.gd 552 interact build picker with plank/wall/tower previews and footprint rotate control; wall segment helpers stay here until a split (#493)

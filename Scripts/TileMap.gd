@@ -416,11 +416,11 @@ func place_wall_cells(cells: Array[Vector2i]) -> bool:
 func has_wall(cell: Vector2i) -> bool:
 	return _walls.has_wall(cell)
 
-func can_place_structure(structure: Structure, anchor_cell: Vector2i) -> Array[String]:
-	return _structures.can_place(structure, anchor_cell)
+func can_place_structure(structure: Structure, anchor_cell: Vector2i, quarter_turns: int = 0) -> Array[String]:
+	return _structures.can_place(structure, anchor_cell, quarter_turns)
 
-func place_structure(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
-	return _structures.place(structure, anchor_cell, owner)
+func place_structure(structure: Structure, anchor_cell: Vector2i, owner: int, quarter_turns: int = 0) -> int:
+	return _structures.place(structure, anchor_cell, owner, quarter_turns)
 
 func placed_structures() -> Dictionary:
 	return _structures.placements()
