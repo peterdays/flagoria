@@ -61,6 +61,7 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Build placement](./build-placement.md)
 - [Build sync](./build-sync.md) — plank bridges decided by the host and synced to every peer; late joiner gets the list (#297). — interact-mode Cut/Plank/Tower/Wall picker, H/V-snapped plank and wall drag, tower footprint preview, green/red preview and wood cost; places through ConstructionPlacer (#225 / #273 / #276).
 - [Build tower](./build-tower.md) — wooden palisade tower for 10 wood, land only, builder-owned flag; multiplayer asks the host (#273, #497).
+- [Build castle](./build-castle.md) — extra `castle.txt` for 50 wood with rotation, save/reload and multiplayer sync (#527).
 - [Footprint rotation](./footprint-rotation.md) — rotate footprint structures before placing; tower today (#493).
 - [Free-form walls](./free-form-walls.md) — connected palisade chain via Wall tip, 2 wood per block (#276, #498).
 - [Wall and tower junctions](./wall-junctions.md) — mask pieces, collar overlays on stone, tower ring with the team flag, far corner flips when a loop closes.

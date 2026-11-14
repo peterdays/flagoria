@@ -47,7 +47,7 @@ func _test_build_picker_switches_tool() -> int:
 	await process_frame
 	var interaction: Interaction = scene.get_node("World/Interaction")
 	var picker: Control = scene.get_node_or_null("CanvasLayer1/BuildPicker")
-	if picker == null or picker.get_child_count() != 3 or not picker.visible:
+	if picker == null or picker.get_child_count() != 4 or not picker.visible:
 		printerr("FAIL build_picker_switches_tool: picker %s children %s"
 				% [picker, picker.get_child_count() if picker else null])
 		fail += 1

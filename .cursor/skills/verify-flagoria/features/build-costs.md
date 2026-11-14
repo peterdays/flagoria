@@ -9,6 +9,7 @@ What each buildable costs in wood, and buying one. `BuildCosts` (`Scripts/mechan
 | `plank` | 1 | one bridge cell |
 | `wall_block` | 2 | one wall cell |
 | `tower` | 10 | one tower |
+| `castle` | 50 | one extra castle (#527) |
 | `start_castle` | 0 | the castle each player starts with |
 
 A removal gives back `REFUND_SHARE` (half) of the total cost of the units removed together, rounded down. Nothing removes a build yet, so nothing reads it in play.

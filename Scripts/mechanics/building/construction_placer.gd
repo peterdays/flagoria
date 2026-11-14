@@ -24,10 +24,12 @@ const UNKNOWN_KIND := BuildCosts.UNKNOWN_KIND
 const KINDS := {
 	BuildCosts.PLANK: true,
 	BuildCosts.TOWER: true,
+	BuildCosts.CASTLE: true,
 	BuildCosts.WALL_BLOCK: true,
 }
 
 const TOWER_STRUCTURE := "tower_wood"
+const CASTLE_STRUCTURE := "castle"
 
 const _REASON_ORDER := [
 	EMPTY_CELLS, UNKNOWN_KIND, WRONG_GROUND, OCCUPIED, NOT_STRAIGHT, NOT_ADJACENT,
@@ -39,6 +41,8 @@ var _map: _WorldMap
 ## Load once per placer, not once per footprint / preview check (#386).
 var _tower: Structure
 var _tower_loaded := false
+var _castle: Structure
+var _castle_loaded := false
 
 
 func _init(map: _WorldMap) -> void:
@@ -61,6 +65,8 @@ func can_place(kind: StringName, cells: Array[Vector2i], inventory: Inventory, q
 				_check_plank(cells, found)
 			BuildCosts.TOWER:
 				_check_tower(cells, found, quarter_turns)
+			BuildCosts.CASTLE:
+				_check_castle(cells, found, quarter_turns)
 			BuildCosts.WALL_BLOCK:
 				_check_wall(cells, found)
 	if not cells.is_empty() and KINDS.has(kind):
@@ -85,6 +91,8 @@ func can_place_geometry(kind: StringName, cells: Array[Vector2i], quarter_turns:
 				_check_plank(cells, found)
 			BuildCosts.TOWER:
 				_check_tower(cells, found, quarter_turns)
+			BuildCosts.CASTLE:
+				_check_castle(cells, found, quarter_turns)
 			BuildCosts.WALL_BLOCK:
 				_check_wall(cells, found)
 	return _ordered(found)
@@ -113,6 +121,18 @@ func write_wall(cells: Array[Vector2i]) -> bool:
 	if not can_place_geometry(BuildCosts.WALL_BLOCK, cells).is_empty():
 		return false
 	return _map.place_wall_cells(cells)
+
+
+func write_castle(anchor: Vector2i, owner: int, quarter_turns: int = 0) -> int:
+	## Write one castle for `owner` with no wood spend. Returns the placement
+	## id, or -1 when the footprint refuses or the write fails.
+	var one: Array[Vector2i] = [anchor]
+	if not can_place_geometry(BuildCosts.CASTLE, one, quarter_turns).is_empty():
+		return -1
+	var structure := _load_castle()
+	if structure == null:
+		return -1
+	return _map._structures.place_from_host(structure, anchor, owner, quarter_turns)
 
 
 func write_tower(anchor: Vector2i, owner: int, quarter_turns: int = 0) -> int:
@@ -149,6 +169,8 @@ func place(kind: StringName, cells: Array[Vector2i], inventory: Inventory, quart
 			return _place_plank(cells, inventory)
 		BuildCosts.TOWER:
 			return _place_tower(cells, inventory, quarter_turns)
+		BuildCosts.CASTLE:
+			return _place_castle(cells, inventory, quarter_turns)
 		BuildCosts.WALL_BLOCK:
 			return _place_wall(cells, inventory)
 	return false
@@ -159,6 +181,13 @@ func _load_tower() -> Structure:
 		_tower = StructurePlacer.load_named(TOWER_STRUCTURE)
 		_tower_loaded = true
 	return _tower
+
+
+func _load_castle() -> Structure:
+	if not _castle_loaded:
+		_castle = StructurePlacer.load_named(CASTLE_STRUCTURE)
+		_castle_loaded = true
+	return _castle
 
 
 func tower_footprint(anchor_cell: Vector2i, quarter_turns: int = 0) -> Array[Vector2i]:
@@ -173,8 +202,20 @@ func tower_footprint(anchor_cell: Vector2i, quarter_turns: int = 0) -> Array[Vec
 	return out
 
 
+func castle_footprint(anchor_cell: Vector2i, quarter_turns: int = 0) -> Array[Vector2i]:
+	## Map cells an extra castle would cover with its anchor on `anchor_cell`.
+	var structure := _load_castle()
+	if structure == null:
+		return []
+	structure = Structure.rotated(structure, quarter_turns)
+	var out: Array[Vector2i] = []
+	for cell: Vector2i in StructurePlacer.footprint(structure, anchor_cell):
+		out.append(cell)
+	return out
+
+
 func _units(kind: StringName, cells: Array) -> int:
-	return 1 if kind == BuildCosts.TOWER else cells.size()
+	return 1 if kind == BuildCosts.TOWER or kind == BuildCosts.CASTLE else cells.size()
 
 
 func _place_wall(cells: Array[Vector2i], inventory: Inventory) -> bool:
@@ -226,6 +267,26 @@ func _place_plank(cells: Array[Vector2i], inventory: Inventory) -> bool:
 	return why == ""
 
 
+func _place_castle(cells: Array[Vector2i], inventory: Inventory, quarter_turns: int = 0) -> bool:
+	## One castle: spend 50 wood, then StructurePlacer writes structures/castle
+	## owned by the local peer (#527). With peers connected, StructureRequests
+	## asks the host instead of writing here.
+	if cells.size() != 1:
+		return false
+	if Interaction.multiplayer_on(_map.multiplayer):
+		var requests := _map.get_node_or_null("../StructureRequests")
+		return requests != null and requests.place(BuildCosts.CASTLE, cells, quarter_turns)
+	var structure := _load_castle()
+	if structure == null:
+		return false
+	var anchor: Vector2i = cells[0]
+	var owner := inventory.multiplayer.get_unique_id()
+	var turns := quarter_turns
+	var why := BuildCosts.buy(inventory, BuildCosts.CASTLE, 1, func() -> bool:
+		return _map.place_structure(structure, anchor, owner, turns) > 0)
+	return why == ""
+
+
 func _place_tower(cells: Array[Vector2i], inventory: Inventory, quarter_turns: int = 0) -> bool:
 	## One tower: spend 10 wood, then StructurePlacer writes tower_wood owned
 	## by the local peer so TowerCapture can take it (#274). With peers
@@ -262,6 +323,28 @@ func _check_plank(cells: Array[Vector2i], found: Dictionary) -> void:
 		found[NOT_STRAIGHT] = true
 	elif not _run_touches_support(cells):
 		found[NOT_ADJACENT] = true
+
+
+func _check_castle(cells: Array[Vector2i], found: Dictionary, quarter_turns: int = 0) -> void:
+	if cells.size() != 1:
+		found[EMPTY_CELLS] = true
+		return
+	var structure := _load_castle()
+	if structure == null:
+		found[UNKNOWN_KIND] = true
+		return
+	for reason in _map.can_place_structure(structure, cells[0], quarter_turns):
+		if reason == StructurePlacer.MULTIPLAYER_ON:
+			continue
+		match reason:
+			StructurePlacer.WATER, StructurePlacer.OUT_OF_MAP:
+				found[WRONG_GROUND] = true
+			StructurePlacer.TREE, StructurePlacer.BUSH, \
+			StructurePlacer.OVERLAPS_STRUCTURE, StructurePlacer.OVERLAPS_PLAYER, \
+			StructurePlacer.OVERLAPS_MOB:
+				found[OCCUPIED] = true
+			StructurePlacer.MULTIPLAYER_ON:
+				found[MULTIPLAYER_ON] = true
 
 
 func _check_tower(cells: Array[Vector2i], found: Dictionary, quarter_turns: int = 0) -> void:
