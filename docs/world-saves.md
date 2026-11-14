@@ -94,8 +94,8 @@ modified time. Load hosts that file. Host, and New world, start a match whose
 saves go in a new file, so an existing save is not replaced. Save writes that
 match's file again. A file already in the folder is listed as it is; opening
 the list does not rewrite it. Rename changes the file name through the same
-inline confirm pattern as delete (`MapSave.rename_save`). A terrain preview is
-still #40.
+inline confirm pattern as delete (`MapSave.rename_save`). Each row shows a
+cached terrain preview from the generation inputs (`Scripts/world_save_preview.gd`).
 
 ## Cut trees and bushes
 
@@ -171,6 +171,7 @@ free-form palisade wall cell (#276) is an entry on its cell:
 | `structure` | The shipped structure file, by name (`res://structures/<name>.txt`). |
 | `owner` | The owning peer id, `0` for a neutral tower or `-1` for one the mobs took (#274). The flag colour follows it. |
 | `order` | Placement order, so placement ids come back the same. |
+| `rotation` | Optional quarter turns clockwise (0–3) for a footprint structure placed in a rotated orientation (#493). Omitted when zero. |
 | `wall` | `palisade`: a free-form wall cell. Its piece is solved again on load. |
 
 `StructureSaves.to_changes` writes the entries and `StructureSaves.restore`

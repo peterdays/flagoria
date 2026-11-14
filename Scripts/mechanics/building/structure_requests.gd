@@ -21,7 +21,7 @@ func _interaction() -> Interaction:
 	return get_node("../Interaction") as Interaction
 
 
-func place(kind: StringName, cells: Array[Vector2i]) -> bool:
+func place(kind: StringName, cells: Array[Vector2i], quarter_turns: int = 0) -> bool:
 	## Alone, ConstructionPlacer spends and writes. With peers, the host decides
 	## and a client only sends the request. A connecting client sends nothing.
 	if cells.is_empty():
@@ -30,19 +30,19 @@ func place(kind: StringName, cells: Array[Vector2i]) -> bool:
 		var inventory := get_node_or_null("../../Inventory") as Inventory
 		if inventory == null:
 			return false
-		return ConstructionPlacer.new(_map()).place(kind, cells, inventory)
+		return ConstructionPlacer.new(_map()).place(kind, cells, inventory, quarter_turns)
 	if not REQUEST_KINDS.has(kind):
 		return false
 	if multiplayer.is_server():
-		return host_place(kind, cells, multiplayer.get_unique_id())
+		return host_place(kind, cells, multiplayer.get_unique_id(), quarter_turns)
 	var peer := multiplayer.multiplayer_peer
 	if peer == null or peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
 		return false
-	request_place.rpc_id(1, String(kind), cells)
+	request_place.rpc_id(1, String(kind), cells, quarter_turns)
 	return true
 
 
-func host_place(kind: StringName, cells: Array[Vector2i], peer_id: int) -> bool:
+func host_place(kind: StringName, cells: Array[Vector2i], peer_id: int, quarter_turns: int = 0) -> bool:
 	## Host accepts `peer_id`'s request, or places for itself. False charges nothing.
 	if not multiplayer.is_server() or not REQUEST_KINDS.has(kind) or cells.is_empty():
 		return false
@@ -56,7 +56,7 @@ func host_place(kind: StringName, cells: Array[Vector2i], peer_id: int) -> bool:
 		if body.global_position.distance_to(interaction.cell_center(cell)) > Interaction.REACH + Interaction.REACH_SLACK:
 			return false
 	if kind == BuildCosts.TOWER:
-		return _host_tower(cells[0], peer_id)
+		return _host_tower(cells[0], peer_id, quarter_turns)
 	if kind == BuildCosts.WALL_BLOCK:
 		return _host_wall(cells, peer_id)
 	return false
@@ -81,7 +81,7 @@ func publish_structure(structure_name: String, owner: int, anchor: Vector2i) -> 
 	if not multiplayer.is_server():
 		return
 	if not multiplayer.get_peers().is_empty():
-		apply_structure.rpc(structure_name, owner, anchor)
+		apply_structure.rpc(structure_name, owner, anchor, 0)
 	var cities := get_node_or_null("../Cities") as Cities
 	if cities != null:
 		cities.tick()
@@ -96,7 +96,7 @@ func sync_to_peer(peer_id: int) -> void:
 	apply_wall_state.rpc_id(peer_id, snap[0], snap[1])
 
 
-func _host_tower(anchor: Vector2i, peer_id: int) -> bool:
+func _host_tower(anchor: Vector2i, peer_id: int, quarter_turns: int = 0) -> bool:
 	## Solo footprint rules. The host spends its own wood; a client is charged
 	## with receive_charge after the write, same order as a plank (#297).
 	var placer := ConstructionPlacer.new(_map())
@@ -104,15 +104,16 @@ func _host_tower(anchor: Vector2i, peer_id: int) -> bool:
 		var inventory := get_node_or_null("../../Inventory") as Inventory
 		if inventory == null:
 			return false
+		var turns := quarter_turns
 		var why := BuildCosts.buy(inventory, BuildCosts.TOWER, 1, func() -> int:
-			return placer.write_tower(anchor, peer_id))
+			return placer.write_tower(anchor, peer_id, turns))
 		if why != "":
 			return false
-	elif placer.write_tower(anchor, peer_id) <= 0:
+	elif placer.write_tower(anchor, peer_id, quarter_turns) <= 0:
 		return false
 	else:
 		_interaction().rpc_id(peer_id, "receive_charge", BuildCosts.cost(BuildCosts.TOWER, 1))
-	apply_structure.rpc(ConstructionPlacer.TOWER_STRUCTURE, peer_id, anchor)
+	apply_structure.rpc(ConstructionPlacer.TOWER_STRUCTURE, peer_id, anchor, quarter_turns)
 	return true
 
 
@@ -162,31 +163,33 @@ func _wall_snapshot() -> Array:
 
 
 @rpc("any_peer", "reliable", "call_remote")
-func request_place(kind: String, cells: Array) -> void:
+func request_place(kind: String, cells: Array, quarter_turns: int = 0) -> void:
 	if not multiplayer.is_server():
 		return
 	var parsed: Array[Vector2i] = []
 	for cell in cells:
 		if cell is Vector2i:
 			parsed.append(cell)
-	host_place(StringName(kind), parsed, multiplayer.get_remote_sender_id())
+	host_place(StringName(kind), parsed, multiplayer.get_remote_sender_id(), quarter_turns)
 
 
 @rpc("authority", "reliable", "call_remote")
-func apply_structure(structure_name: String, owner: int, anchor: Vector2i) -> void:
+func apply_structure(structure_name: String, owner: int, anchor: Vector2i, quarter_turns: int = 0) -> void:
 	## Applied only from peer 1, so ids follow the host's list. The same
-	## castle arriving again (snapshot, then this call) is left as it is.
+	## placement arriving again (snapshot, then this call) is left as it is.
+	## `quarter_turns` is clockwise; 0 keeps an older three-field row.
 	if multiplayer.get_remote_sender_id() != 1:
 		return
 	var map := _map()
+	var turns := posmod(quarter_turns, 4)
 	for entry in map.placed_structures().values():
 		if str(entry["name"]) == structure_name and int(entry["owner"]) == owner \
-				and entry["anchor"] == anchor:
+				and entry["anchor"] == anchor and int(entry.get("rotation", 0)) == turns:
 			return
 	var structure := StructurePlacer.load_named(structure_name)
 	if structure == null:
 		return
-	map._structures.place_from_host(structure, anchor, owner)
+	map._structures.place_from_host(structure, anchor, owner, quarter_turns)
 
 
 @rpc("authority", "reliable", "call_remote")

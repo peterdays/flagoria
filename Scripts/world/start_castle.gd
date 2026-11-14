@@ -107,9 +107,9 @@ static func _ring(origin: Vector2i, dist: int, step: int) -> Array[Vector2i]:
 static func _fits(map: _WorldMap, castle: Structure, front: Vector2i, from_host: bool) -> bool:
 	var anchor := front - GATE_FRONT
 	if not map.predicted_clear(front) \
-			or not map._structures.can_place(castle, anchor, from_host, false).is_empty():
+			or not map._structures.can_place(castle, anchor, 0, from_host, false).is_empty():
 		return false
-	if not map._structures.can_place(castle, anchor, from_host).is_empty():
+	if not map._structures.can_place(castle, anchor, 0, from_host).is_empty():
 		return false
 	var foot := StructurePlacer.footprint(castle, anchor)
 	return SpawnFinder.reachable_clear_cells(map, front, SpawnFinder.SPAWN_MIN_REACHABLE, foot).size() >= SpawnFinder.SPAWN_MIN_REACHABLE

@@ -16,8 +16,11 @@ static func to_changes(map: _WorldMap) -> Dictionary[String, Dictionary]:
 	## The map's placements and free-form walls as world.structures entries.
 	var out: Dictionary[String, Dictionary] = {}
 	var order := 0
-	for entry in map.structures_for_sync():  # [name, owner, anchor] in id order
-		_put(out, entry[2], {"structure": entry[0], "owner": entry[1], "order": order})
+	for entry in map.structures_for_sync():  # [name, owner, anchor, rotation?] in id order
+		var cell_data := {"structure": entry[0], "owner": entry[1], "order": order}
+		if entry.size() >= 4 and int(entry[3]) != 0:
+			cell_data["rotation"] = int(entry[3])
+		_put(out, entry[2], cell_data)
 		order += 1
 	for cell: Vector2i in map._walls._wall_cells:
 		_put(out, cell, {"wall": PALISADE})
@@ -39,11 +42,16 @@ static func restore(changes: Dictionary, map: _WorldMap) -> int:
 			if cell == null or not entry is Dictionary:
 				continue
 			if entry.get("structure") is String and StructurePlacer.load_named(entry["structure"]) != null:
-				placed.append([int(entry.get("order", 0)), entry["structure"], int(entry.get("owner", 0)), cell])
+				var turns := int(entry.get("rotation", 0))
+				placed.append([int(entry.get("order", 0)), entry["structure"], int(entry.get("owner", 0)), cell, turns])
 			elif entry.get("wall") == PALISADE and map.ground_is_walkable(map.predict_cell(cell)[0]):
 				walls.append(cell)
 	placed.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
-	var list := placed.map(func(p: Array) -> Array: return [p[1], p[2], p[3]])
+	var list := placed.map(func(p: Array) -> Array:
+		var row: Array = [p[1], p[2], p[3]]
+		if p.size() >= 5 and int(p[4]) != 0:
+			row.append(int(p[4]))
+		return row)
 	var count: int = map.replace_structures(list) if not list.is_empty() else 0
 	if not walls.is_empty() and map.place_wall_cells(walls):
 		count += walls.size()
