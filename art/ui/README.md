@@ -72,8 +72,9 @@ the panel again. The frame PNG is unchanged.
 The parchment (`Scripts/parchment_map.gd`) fills the viewport. It is old
 paper, not a second wood frame: `#e7d7b1` with a `#cbb98a` dither, a
 `#8a5a32` edge and the same ink. Explored cells use the panel's map colours.
-Unexplored cells stay that paper fog. A drag pans the sheet, the cross
-recentres on the hero, and the X closes it.
+Unexplored cells stay that paper fog. Wheel and pinch zoom the sheet in
+integer pixel steps; a drag pans, the cross recentres on the hero, and the X
+closes it.
 
 ## Touch controls
 
