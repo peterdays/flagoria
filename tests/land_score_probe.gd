@@ -71,8 +71,11 @@ func _run() -> void:
 	var deadline := Time.get_ticks_msec() + 60000
 	var next_write := 0
 	while Time.get_ticks_msec() < deadline and not FileAccess.file_exists(out + ".stop"):
-		if main.multiplayer == null:
+		if main.multiplayer == null or main.multiplayer.multiplayer_peer == null:
 			break
+		if not _peer_ready(main):
+			await process_frame
+			continue
 		var me: Node2D = main.get_node_or_null("World/" + str(main.multiplayer.get_unique_id()))
 		if host and not _dropped and FileAccess.file_exists(out + ".drop"):
 			_dropped = true
@@ -88,7 +91,7 @@ func _run() -> void:
 			next_write = Time.get_ticks_msec() + 100
 		await process_frame
 	var fin: Node2D = null
-	if main.multiplayer != null:
+	if _peer_ready(main):
 		fin = main.get_node_or_null("World/" + str(main.multiplayer.get_unique_id()))
 	_write(out, main, world, fin)
 	quit(0)
@@ -107,6 +110,15 @@ func _drop_host_castle(main, world) -> void:
 	var capture: TowerCapture = main.get_node("World/TowerCapture")
 	capture.receive_capture_state.rpc(capture.capture_snapshot())
 	main.get_node("World/LandScore").tick()
+
+
+func _peer_ready(main) -> bool:
+	## False once the peer API is gone or no longer connected. A last snapshot
+	## after .stop must not read the id; that script error fails the stress
+	## run after the test passed.
+	if main == null or main.multiplayer == null or main.multiplayer.multiplayer_peer == null:
+		return false
+	return main.multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
 
 
 func _park_mobs(main) -> void:
@@ -131,14 +143,15 @@ func _write(out: String, main, world, me: Node2D) -> void:
 		for peer_id in ids:
 			points[str(peer_id)] = scores.total_of(int(peer_id))
 			land[str(peer_id)] = int(counts.get(int(peer_id), 0))
-		var panel: ScoreboardPanel = main.get_node("CanvasLayer1/ScoreboardPanel")
-		for row in panel.sorted_rows():
-			board.append([int(row[0]), int(row[1])])
+		if _peer_ready(main):
+			var panel: ScoreboardPanel = main.get_node("CanvasLayer1/ScoreboardPanel")
+			for row in panel.sorted_rows():
+				board.append([int(row[0]), int(row[1])])
 	var file := FileAccess.open(out + ".tmp", FileAccess.WRITE)
 	if file == null:
 		return
 	file.store_string(JSON.stringify({
-		"id": str(main.multiplayer.get_unique_id()) if main.multiplayer != null else "",
+		"id": str(main.multiplayer.get_unique_id()) if _peer_ready(main) else "",
 		"ready": main.world_params != null and me != null,
 		"dropped": _dropped,
 		"client_tick_same": _client_tick_same,

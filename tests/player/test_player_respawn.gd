@@ -23,6 +23,9 @@ func _test_player_respawn_no_snapback() -> int:
 	server_root.add_child(s_world)
 	var scene = load("res://flagoria_main.tscn").instantiate()
 	root.add_child(scene)
+	var land: Node = scene.get_node_or_null("World/LandScore")
+	if land != null:
+		land.set_physics_process(false)
 	var smp := SceneMultiplayer.new()
 	var cmp := SceneMultiplayer.new()
 	set_multiplayer(smp, server_root.get_path())
