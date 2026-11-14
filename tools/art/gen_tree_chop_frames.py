@@ -17,7 +17,7 @@ root: python3 tools/art/gen_tree_chop_frames.py (needs Pillow).
 """
 from PIL import Image
 
-ATLAS = "art/flagoria/flagoria_tiles_v3.png"
+ATLAS = "art/flagoria/flagoria_tiles_v4.png"
 OUT = "art/flagoria/fx/"
 TILE = 16
 # Atlas cells (Scripts/tile_catalog.gd) and the first row of each trunk.

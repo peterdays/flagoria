@@ -1,0 +1,1445 @@
+{
+ "atlas": "atlas/flagoria_tiles_v4.png (448x304, source 0) = v3 + new pieces in empty cells",
+ "team_suffix": {
+  "1 (host)": "_BLUE",
+  "any other player": "_RED",
+  "rule": "only cells drawn with team colour have _BLUE/_RED variants; swap them on capture/ownership like PROP_FLAG_*"
+ },
+ "structures": {
+  "archer_post": {
+   "footprint": [
+    1,
+    1
+   ],
+   "anchor": [
+    0,
+    0
+   ],
+   "suggested_cost": "6 wood (suggestion, IDEAS.md)",
+   "rules": "Only on a wall cell whose solved shape is H or V (stone WALL_* or PALISADE_*). Replaces that cell: WALL_H -> ARCHER_POST_STONE_H, WALL_V -> ARCHER_POST_STONE_V, PALISADE_H/V -> ARCHER_POST_PALISADE_H/V. Counts as a wall neighbour of its own kind (stone / palisade) for masks, enclosures, cities and C2 collar caps. A later wall that would turn the cell into a corner, T, cross or end is refused (\"archer post\") rather than silently removing the post."
+  },
+  "neutral_outpost": {
+   "footprint": [
+    5,
+    4
+   ],
+   "anchor": [
+    2,
+    3
+   ],
+   "suggested_cost": "world-gen only (suggestion, IDEAS.md)",
+   "rules": "guard_post layout (T###T / #...# / #.F.# / ##G##) placed by world gen, one per island. After the wall solver, map each WALL_<shape> to WALL_MOSS_<shape> (all solved shapes of this layout exist). Optionally one N/S straight cell becomes WALL_MOSS_H_BREACH and one W/E straight cell WALL_MOSS_V_DMG_CRACK (seeded). The flag is PROP_FLAG_GREY (team); on capture it swaps to PROP_FLAG_BLUE/RED like any flag tower. Moss stays after capture. STONES on a cell next to the breach."
+  },
+  "barracks": {
+   "footprint": [
+    3,
+    2
+   ],
+   "anchor": [
+    1,
+    1
+   ],
+   "suggested_cost": "25 wood (suggestion, IDEAS.md)",
+   "rules": "All 6 cells walkable free land (no water, structure, plant, stump, mob or player); the cell below the anchor (door) must be walkable and is kept free. Team cells: column 1 (crest and door banners)."
+  },
+  "respawn_camp": {
+   "footprint": [
+    2,
+    2
+   ],
+   "anchor": [
+    0,
+    1
+   ],
+   "suggested_cost": "12 wood (suggestion, IDEAS.md)",
+   "rules": "All 4 cells walkable free land; the respawn point is the cell below the anchor (in front of the tent door), which must be walkable and is kept free. Tent cells carry team colour."
+  },
+  "trading_post": {
+   "footprint": [
+    2,
+    2
+   ],
+   "anchor": [
+    0,
+    1
+   ],
+   "suggested_cost": "world-gen, or 15 wood (suggestion, IDEAS.md)",
+   "rules": "All 4 cells walkable free land; the trader NPC stands on the cell below the anchor, facing the counter. Neutral (no team cells)."
+  },
+  "lumber_mill": {
+   "footprint": [
+    3,
+    2
+   ],
+   "anchor": [
+    1,
+    1
+   ],
+   "suggested_cost": "20 wood (suggestion, IDEAS.md)",
+   "rules": "All 6 cells walkable free land; cell below the anchor kept free. Neutral colours (no team cells)."
+  },
+  "watchtower": {
+   "footprint": [
+    1,
+    1
+   ],
+   "anchor": [
+    0,
+    0
+   ],
+   "suggested_cost": "8 wood (suggestion, IDEAS.md)",
+   "rules": "WATCHTOWER_BASE on a walkable free land cell (collides). WATCHTOWER_TOP_<team> on the cell above, no collision, like TREE_*_TOP; that cell must have nothing on layer 1 (no wall, tree, bush or other structure)."
+  },
+  "sky_dock": {
+   "footprint": [
+    2,
+    2
+   ],
+   "anchor": "the ROOT cell",
+   "suggested_cost": "15 wood (suggestion, IDEAS.md)",
+   "rules": "Coast-edge only. Pick direction d where the root is a walkable land cell and the cell beyond it in d is water: SKY_DOCK_<d>_ROOT on the root (walkable, no collision), SKY_DOCK_<d>_END on that water cell, SKY_SKIFF_<team> on the water cell beside the end (E of it for N/S docks, S of it for E/W docks); both must be water. The fourth cell of the 2x2 is left as it is. Layer 1, ground stays as generated (coast art shows under the deck). Board/travel by tapping the skiff in interact mode from the root."
+  }
+ },
+ "dock_cells": {
+  "N": {
+   "root": [
+    0,
+    1
+   ],
+   "end": [
+    0,
+    0
+   ],
+   "skiff": [
+    1,
+    0
+   ]
+  },
+  "S": {
+   "root": [
+    0,
+    0
+   ],
+   "end": [
+    0,
+    1
+   ],
+   "skiff": [
+    1,
+    1
+   ]
+  },
+  "E": {
+   "root": [
+    0,
+    0
+   ],
+   "end": [
+    1,
+    0
+   ],
+   "skiff": [
+    1,
+    1
+   ]
+  },
+  "W": {
+   "root": [
+    1,
+    0
+   ],
+   "end": [
+    0,
+    0
+   ],
+   "skiff": [
+    0,
+    1
+   ]
+  }
+ },
+ "pieces": [
+  {
+   "name": "ARCHER_POST_STONE_H",
+   "struct": "archer_post",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "1 (replaces the wall cell)",
+   "collision": [
+    [
+     -8,
+     -7,
+     8,
+     7
+    ],
+    [
+     -7,
+     -8,
+     7,
+     7
+    ]
+   ],
+   "team": null,
+   "replaces": "WALL_H",
+   "keeps_edges": "cols 0,15",
+   "atlas": [
+    0,
+    3
+   ]
+  },
+  {
+   "name": "ARCHER_POST_STONE_V",
+   "struct": "archer_post",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "1 (replaces the wall cell)",
+   "collision": [
+    [
+     -5,
+     -8,
+     5,
+     8
+    ],
+    [
+     -7,
+     -7,
+     7,
+     7
+    ]
+   ],
+   "team": null,
+   "replaces": "WALL_V",
+   "keeps_edges": "rows 0,15",
+   "atlas": [
+    1,
+    3
+   ]
+  },
+  {
+   "name": "ARCHER_POST_PALISADE_H",
+   "struct": "archer_post",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "1 (replaces the wall cell)",
+   "collision": [
+    [
+     -8,
+     -7,
+     8,
+     7
+    ],
+    [
+     -7,
+     -8,
+     7,
+     7
+    ]
+   ],
+   "team": null,
+   "replaces": "PALISADE_H",
+   "keeps_edges": "cols 0,15",
+   "atlas": [
+    2,
+    3
+   ]
+  },
+  {
+   "name": "ARCHER_POST_PALISADE_V",
+   "struct": "archer_post",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "1 (replaces the wall cell)",
+   "collision": [
+    [
+     -5,
+     -8,
+     5,
+     8
+    ],
+    [
+     -7,
+     -7,
+     7,
+     7
+    ]
+   ],
+   "team": null,
+   "replaces": "PALISADE_V",
+   "keeps_edges": "rows 0,15",
+   "atlas": [
+    3,
+    3
+   ]
+  },
+  {
+   "name": "WALL_MOSS_CORNER_OUT_NW",
+   "struct": "neutral_outpost",
+   "offset": null,
+   "layer": "1 (as the plain wall piece)",
+   "collision": [
+    [
+     -5,
+     -7,
+     8,
+     7
+    ],
+    [
+     -5,
+     -7,
+     5,
+     8
+    ]
+   ],
+   "team": null,
+   "replaces": "WALL_CORNER_OUT_NW",
+   "atlas": [
+    4,
+    3
+   ]
+  },
+  {
+   "name": "WALL_MOSS_CORNER_OUT_NE",
+   "struct": "neutral_outpost",
+   "offset": null,
+   "layer": "1 (as the plain wall piece)",
+   "collision": [
+    [
+     -8,
+     -7,
+     5,
+     7
+    ],
+    [
+     -5,
+     -7,
+     5,
+     8
+    ]
+   ],
+   "team": null,
+   "replaces": "WALL_CORNER_OUT_NE",
+   "atlas": [
+    5,
+    3
+   ]
+  },
+  {
+   "name": "WALL_MOSS_CORNER_OUT_SW",
+   "struct": "neutral_outpost",
+   "offset": null,
+   "layer": "1 (as the plain wall piece)",
+   "collision": [
+    [
+     -5,
+     -7,
+     8,
+     7
+    ],
+    [
+     -5,
+     -8,
+     5,
+     7
+    ]
+   ],
+   "team": null,
+   "replaces": "WALL_CORNER_OUT_SW",
+   "atlas": [
+    6,
+    3
+   ]
+  },
+  {
+   "name": "WALL_MOSS_CORNER_OUT_SE",
+   "struct": "neutral_outpost",
+   "offset": null,
+   "layer": "1 (as the plain wall piece)",
+   "collision": [
+    [
+     -8,
+     -7,
+     5,
+     7
+    ],
+    [
+     -5,
+     -8,
+     5,
+     7
+    ]
+   ],
+   "team": null,
+   "replaces": "WALL_CORNER_OUT_SE",
+   "atlas": [
+    10,
+    3
+   ]
+  },
+  {
+   "name": "WALL_MOSS_H",
+   "struct": "neutral_outpost",
+   "offset": null,
+   "layer": "1 (as the plain wall piece)",
+   "collision": [
+    [
+     -8,
+     -7,
+     8,
+     7
+    ]
+   ],
+   "team": null,
+   "replaces": "WALL_H",
+   "atlas": [
+    11,
+    3
+   ]
+  },
+  {
+   "name": "WALL_MOSS_V",
+   "struct": "neutral_outpost",
+   "offset": null,
+   "layer": "1 (as the plain wall piece)",
+   "collision": [
+    [
+     -5,
+     -8,
+     5,
+     8
+    ]
+   ],
+   "team": null,
+   "replaces": "WALL_V",
+   "atlas": [
+    15,
+    3
+   ]
+  },
+  {
+   "name": "WALL_MOSS_GATE_H",
+   "struct": "neutral_outpost",
+   "offset": null,
+   "layer": "1 (as the plain wall piece)",
+   "collision": [
+    [
+     -8,
+     -7,
+     8,
+     7
+    ]
+   ],
+   "team": null,
+   "replaces": "WALL_GATE_H",
+   "atlas": [
+    25,
+    3
+   ]
+  },
+  {
+   "name": "WALL_MOSS_GATE_H_OPEN",
+   "struct": "neutral_outpost",
+   "offset": null,
+   "layer": "1 (as the plain wall piece)",
+   "collision": [
+    [
+     -8,
+     -7,
+     -6,
+     7
+    ],
+    [
+     6,
+     -7,
+     8,
+     7
+    ]
+   ],
+   "team": null,
+   "replaces": "WALL_GATE_H_OPEN",
+   "atlas": [
+    26,
+    3
+   ]
+  },
+  {
+   "name": "WALL_MOSS_V_DMG_CRACK",
+   "struct": "neutral_outpost",
+   "offset": null,
+   "layer": "1 (as the plain wall piece)",
+   "collision": [
+    [
+     -5,
+     -8,
+     5,
+     8
+    ]
+   ],
+   "team": null,
+   "replaces": "WALL_V_DMG_CRACK",
+   "atlas": [
+    27,
+    3
+   ]
+  },
+  {
+   "name": "WALL_MOSS_H_BREACH",
+   "struct": "neutral_outpost",
+   "offset": null,
+   "layer": "1 (as WALL_H)",
+   "collision": [
+    [
+     -8,
+     -7,
+     -4,
+     7
+    ],
+    [
+     4,
+     -7,
+     8,
+     7
+    ]
+   ],
+   "team": null,
+   "replaces": "WALL_H",
+   "atlas": [
+    0,
+    4
+   ]
+  },
+  {
+   "name": "PROP_FLAG_GREY",
+   "struct": "neutral_outpost",
+   "offset": [
+    2,
+    2
+   ],
+   "layer": "1 (team flag cell)",
+   "collision": [],
+   "team": null,
+   "replaces": "PROP_FLAG_NEUTRAL",
+   "atlas": [
+    1,
+    4
+   ]
+  },
+  {
+   "name": "BARRACKS_0_0",
+   "struct": "barracks",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -7,
+     -7,
+     8,
+     8
+    ]
+   ],
+   "team": null,
+   "atlas": [
+    12,
+    3
+   ]
+  },
+  {
+   "name": "BARRACKS_1_0_BLUE",
+   "struct": "barracks",
+   "offset": [
+    1,
+    0
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -8,
+     -7,
+     8,
+     8
+    ]
+   ],
+   "team": "BLUE",
+   "atlas": [
+    13,
+    3
+   ]
+  },
+  {
+   "name": "BARRACKS_1_0_RED",
+   "struct": "barracks",
+   "offset": [
+    1,
+    0
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -8,
+     -7,
+     8,
+     8
+    ]
+   ],
+   "team": "RED",
+   "atlas": [
+    2,
+    4
+   ]
+  },
+  {
+   "name": "BARRACKS_2_0",
+   "struct": "barracks",
+   "offset": [
+    2,
+    0
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -8,
+     -7,
+     7,
+     8
+    ]
+   ],
+   "team": null,
+   "atlas": [
+    14,
+    3
+   ]
+  },
+  {
+   "name": "BARRACKS_0_1",
+   "struct": "barracks",
+   "offset": [
+    0,
+    1
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -7,
+     -8,
+     8,
+     8
+    ]
+   ],
+   "team": null,
+   "atlas": [
+    12,
+    4
+   ]
+  },
+  {
+   "name": "BARRACKS_1_1_BLUE",
+   "struct": "barracks",
+   "offset": [
+    1,
+    1
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -8,
+     -8,
+     8,
+     8
+    ]
+   ],
+   "team": "BLUE",
+   "atlas": [
+    13,
+    4
+   ]
+  },
+  {
+   "name": "BARRACKS_1_1_RED",
+   "struct": "barracks",
+   "offset": [
+    1,
+    1
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -8,
+     -8,
+     8,
+     8
+    ]
+   ],
+   "team": "RED",
+   "atlas": [
+    3,
+    4
+   ]
+  },
+  {
+   "name": "BARRACKS_2_1",
+   "struct": "barracks",
+   "offset": [
+    2,
+    1
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -8,
+     -8,
+     7,
+     8
+    ]
+   ],
+   "team": null,
+   "atlas": [
+    14,
+    4
+   ]
+  },
+  {
+   "name": "RESPAWN_CAMP_0_0_BLUE",
+   "struct": "respawn_camp",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -2,
+     -8,
+     8,
+     8
+    ]
+   ],
+   "team": "BLUE",
+   "atlas": [
+    21,
+    3
+   ]
+  },
+  {
+   "name": "RESPAWN_CAMP_0_0_RED",
+   "struct": "respawn_camp",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -2,
+     -8,
+     8,
+     8
+    ]
+   ],
+   "team": "RED",
+   "atlas": [
+    4,
+    4
+   ]
+  },
+  {
+   "name": "RESPAWN_CAMP_1_0_BLUE",
+   "struct": "respawn_camp",
+   "offset": [
+    1,
+    0
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -8,
+     0,
+     -3,
+     8
+    ]
+   ],
+   "team": "BLUE",
+   "atlas": [
+    22,
+    3
+   ]
+  },
+  {
+   "name": "RESPAWN_CAMP_1_0_RED",
+   "struct": "respawn_camp",
+   "offset": [
+    1,
+    0
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -8,
+     0,
+     -3,
+     8
+    ]
+   ],
+   "team": "RED",
+   "atlas": [
+    6,
+    4
+   ]
+  },
+  {
+   "name": "RESPAWN_CAMP_0_1_BLUE",
+   "struct": "respawn_camp",
+   "offset": [
+    0,
+    1
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -8,
+     -8,
+     8,
+     3
+    ]
+   ],
+   "team": "BLUE",
+   "atlas": [
+    21,
+    4
+   ]
+  },
+  {
+   "name": "RESPAWN_CAMP_0_1_RED",
+   "struct": "respawn_camp",
+   "offset": [
+    0,
+    1
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -8,
+     -8,
+     8,
+     3
+    ]
+   ],
+   "team": "RED",
+   "atlas": [
+    7,
+    4
+   ]
+  },
+  {
+   "name": "RESPAWN_CAMP_1_1_BLUE",
+   "struct": "respawn_camp",
+   "offset": [
+    1,
+    1
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -8,
+     -8,
+     7,
+     7
+    ]
+   ],
+   "team": "BLUE",
+   "atlas": [
+    22,
+    4
+   ]
+  },
+  {
+   "name": "RESPAWN_CAMP_1_1_RED",
+   "struct": "respawn_camp",
+   "offset": [
+    1,
+    1
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -8,
+     -8,
+     7,
+     7
+    ]
+   ],
+   "team": "RED",
+   "atlas": [
+    15,
+    4
+   ]
+  },
+  {
+   "name": "TRADING_POST_0_0",
+   "struct": "trading_post",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -8,
+     -7,
+     8,
+     8
+    ]
+   ],
+   "team": null,
+   "atlas": [
+    23,
+    3
+   ]
+  },
+  {
+   "name": "TRADING_POST_1_0",
+   "struct": "trading_post",
+   "offset": [
+    1,
+    0
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -8,
+     -7,
+     8,
+     8
+    ]
+   ],
+   "team": null,
+   "atlas": [
+    24,
+    3
+   ]
+  },
+  {
+   "name": "TRADING_POST_0_1",
+   "struct": "trading_post",
+   "offset": [
+    0,
+    1
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -7,
+     -8,
+     8,
+     7
+    ]
+   ],
+   "team": null,
+   "atlas": [
+    23,
+    4
+   ]
+  },
+  {
+   "name": "TRADING_POST_1_1",
+   "struct": "trading_post",
+   "offset": [
+    1,
+    1
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -8,
+     -8,
+     7,
+     7
+    ]
+   ],
+   "team": null,
+   "atlas": [
+    24,
+    4
+   ]
+  },
+  {
+   "name": "LUMBER_MILL_0_0",
+   "struct": "lumber_mill",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -7,
+     -7,
+     8,
+     8
+    ]
+   ],
+   "team": null,
+   "atlas": [
+    18,
+    3
+   ]
+  },
+  {
+   "name": "LUMBER_MILL_1_0",
+   "struct": "lumber_mill",
+   "offset": [
+    1,
+    0
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -8,
+     -7,
+     8,
+     8
+    ]
+   ],
+   "team": null,
+   "atlas": [
+    19,
+    3
+   ]
+  },
+  {
+   "name": "LUMBER_MILL_2_0",
+   "struct": "lumber_mill",
+   "offset": [
+    2,
+    0
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -3,
+     4,
+     4,
+     8
+    ]
+   ],
+   "team": null,
+   "atlas": [
+    20,
+    3
+   ]
+  },
+  {
+   "name": "LUMBER_MILL_0_1",
+   "struct": "lumber_mill",
+   "offset": [
+    0,
+    1
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -6,
+     -8,
+     8,
+     7
+    ]
+   ],
+   "team": null,
+   "atlas": [
+    18,
+    4
+   ]
+  },
+  {
+   "name": "LUMBER_MILL_1_1",
+   "struct": "lumber_mill",
+   "offset": [
+    1,
+    1
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -8,
+     -8,
+     8,
+     7
+    ]
+   ],
+   "team": null,
+   "atlas": [
+    19,
+    4
+   ]
+  },
+  {
+   "name": "LUMBER_MILL_2_1",
+   "struct": "lumber_mill",
+   "offset": [
+    2,
+    1
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -8,
+     -8,
+     8,
+     6
+    ]
+   ],
+   "team": null,
+   "atlas": [
+    20,
+    4
+   ]
+  },
+  {
+   "name": "WATCHTOWER_TOP_BLUE",
+   "struct": "watchtower",
+   "offset": [
+    0,
+    -1
+   ],
+   "layer": "1 (overhang, like TREE_*_TOP)",
+   "collision": [],
+   "team": "BLUE",
+   "atlas": [
+    16,
+    4
+   ]
+  },
+  {
+   "name": "WATCHTOWER_TOP_RED",
+   "struct": "watchtower",
+   "offset": [
+    0,
+    -1
+   ],
+   "layer": "1 (overhang, like TREE_*_TOP)",
+   "collision": [],
+   "team": "RED",
+   "atlas": [
+    17,
+    4
+   ]
+  },
+  {
+   "name": "WATCHTOWER_BASE",
+   "struct": "watchtower",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "1",
+   "collision": [
+    [
+     -6,
+     -8,
+     6,
+     7
+    ]
+   ],
+   "team": null,
+   "atlas": [
+    25,
+    4
+   ]
+  },
+  {
+   "name": "SKY_DOCK_N_ROOT",
+   "struct": "sky_dock",
+   "offset": [
+    0,
+    1
+   ],
+   "layer": "1 (deck, walkable on the root)",
+   "collision": [],
+   "team": null,
+   "atlas": [
+    26,
+    4
+   ]
+  },
+  {
+   "name": "SKY_DOCK_N_END",
+   "struct": "sky_dock",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "1 (deck, walkable on the root)",
+   "collision": [
+    [
+     -6,
+     -8,
+     8,
+     8
+    ]
+   ],
+   "team": null,
+   "atlas": [
+    27,
+    4
+   ]
+  },
+  {
+   "name": "SKY_DOCK_E_ROOT",
+   "struct": "sky_dock",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "1 (deck, walkable on the root)",
+   "collision": [],
+   "team": null,
+   "atlas": [
+    0,
+    6
+   ]
+  },
+  {
+   "name": "SKY_DOCK_E_END",
+   "struct": "sky_dock",
+   "offset": [
+    1,
+    0
+   ],
+   "layer": "1 (deck, walkable on the root)",
+   "collision": [
+    [
+     -8,
+     -6,
+     8,
+     8
+    ]
+   ],
+   "team": null,
+   "atlas": [
+    1,
+    6
+   ]
+  },
+  {
+   "name": "SKY_DOCK_S_ROOT",
+   "struct": "sky_dock",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "1 (deck, walkable on the root)",
+   "collision": [],
+   "team": null,
+   "atlas": [
+    2,
+    6
+   ]
+  },
+  {
+   "name": "SKY_DOCK_S_END",
+   "struct": "sky_dock",
+   "offset": [
+    0,
+    1
+   ],
+   "layer": "1 (deck, walkable on the root)",
+   "collision": [
+    [
+     -6,
+     -8,
+     8,
+     8
+    ]
+   ],
+   "team": null,
+   "atlas": [
+    3,
+    6
+   ]
+  },
+  {
+   "name": "SKY_DOCK_W_ROOT",
+   "struct": "sky_dock",
+   "offset": [
+    1,
+    0
+   ],
+   "layer": "1 (deck, walkable on the root)",
+   "collision": [],
+   "team": null,
+   "atlas": [
+    4,
+    6
+   ]
+  },
+  {
+   "name": "SKY_DOCK_W_END",
+   "struct": "sky_dock",
+   "offset": [
+    0,
+    0
+   ],
+   "layer": "1 (deck, walkable on the root)",
+   "collision": [
+    [
+     -8,
+     -6,
+     8,
+     8
+    ]
+   ],
+   "team": null,
+   "atlas": [
+    6,
+    6
+   ]
+  },
+  {
+   "name": "SKY_SKIFF_BLUE",
+   "struct": "sky_dock",
+   "offset": null,
+   "layer": "1 (over water)",
+   "collision": [
+    [
+     -6,
+     -5,
+     6,
+     7
+    ]
+   ],
+   "team": "BLUE",
+   "atlas": [
+    7,
+    6
+   ]
+  },
+  {
+   "name": "SKY_SKIFF_RED",
+   "struct": "sky_dock",
+   "offset": null,
+   "layer": "1 (over water)",
+   "collision": [
+    [
+     -6,
+     -5,
+     6,
+     7
+    ]
+   ],
+   "team": "RED",
+   "atlas": [
+    8,
+    6
+   ]
+  }
+ ],
+ "hero_boxes_exempt_from_palette": {
+  "scene_full_x1.png": [
+   [
+    130,
+    190,
+    146,
+    206
+   ],
+   [
+    504,
+    124,
+    520,
+    140
+   ]
+  ],
+  "phone_view_x1.png": [
+   [
+    130,
+    190,
+    146,
+    206
+   ],
+   [
+    504,
+    124,
+    520,
+    140
+   ]
+  ],
+  "phone_view_x2.png": [
+   [
+    260,
+    380,
+    292,
+    412
+   ],
+   [
+    1008,
+    248,
+    1040,
+    280
+   ]
+  ],
+  "phone_frame_x1.png": [
+   [
+    178,
+    223,
+    194,
+    239
+   ],
+   [
+    552,
+    157,
+    568,
+    173
+   ]
+  ],
+  "phone_frame_x2.png": [
+   [
+    336,
+    426,
+    368,
+    458
+   ],
+   [
+    1084,
+    294,
+    1116,
+    326
+   ]
+  ],
+  "detail_city_x4.png": [
+   [
+    520,
+    632,
+    584,
+    696
+   ],
+   [
+    2016,
+    368,
+    2080,
+    432
+   ]
+  ],
+  "detail_outpost_isle_x4.png": [
+   [
+    -1400,
+    568,
+    -1336,
+    632
+   ],
+   [
+    96,
+    304,
+    160,
+    368
+   ]
+  ]
+ }
+}

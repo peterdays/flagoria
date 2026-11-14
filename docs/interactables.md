@@ -34,7 +34,7 @@ The catalog is a fixed `preload` list. It does not scan `data/interactables/`, b
 
 ## 2. Art
 
-- **Tiles:** add them to `art/flagoria/flagoria_tiles_v3.png` (16x16 cells), and name them in `Scripts/tile_catalog.gd`: a constant and an entry in `TILES`.
+- **Tiles:** add them to `art/flagoria/flagoria_tiles_v4.png` (16x16 cells), and name them in `Scripts/tile_catalog.gd`: a constant and an entry in `TILES`.
 - **Collision:** set it in the TileSet `art/flagoria/flagoria_tiles_v3.tres`.
 - **Hit sheet:** a type with a `hit_sheet` also needs alternative tile `ChopAction.HIDDEN_ALT` (1) in the TileSet: invisible, with the same collision. Otherwise the hit frames draw over the tile. A type with several `tiles` gives its hit sheet one 16 px row per tile, in the order of `tiles` (`InteractableType.hit_row`). The tree and pine frames are drawn from their tiles by `tools/art/gen_tree_chop_frames.py`.
 - **Tile table:** add a row to `docs/tiles.md`, for the plant and for what it leaves.

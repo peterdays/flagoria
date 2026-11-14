@@ -157,8 +157,8 @@ func _test_wall_collision() -> int:
 		elif n.ends_with("_H") and (lo.x != -8.0 or hi.x != 8.0) or n.ends_with("_V") and (lo.y != -8.0 or hi.y != 8.0):
 			printerr("FAIL wall_collision: %s does not span its cell (%s..%s)" % [n, lo, hi])
 			fail += 1
-	if walls != 57:
-		printerr("FAIL wall_collision: expected 26 stone + 31 palisade pieces, got %d" % walls)
+	if walls != 67:
+		printerr("FAIL wall_collision: expected 26 stone + 31 palisade + 10 moss pieces, got %d" % walls)
 		fail += 1
 	scene.free()
 	if fail == 0:
