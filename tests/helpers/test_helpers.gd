@@ -138,7 +138,7 @@ func _spawn_session(mode: String, joiners: int) -> int:
 				if seen_pos != null and seen_pos.is_equal_approx(Vector2.ZERO) and not (at[id] as Vector2).is_equal_approx(Vector2.ZERO):
 					printerr("FAIL spawn_late_join %s %s: peer %s still sees %s at (0, 0), its owner has %s" % [mode, stage, s.get("id"), id, at[id]])
 					bad += 1
-				elif seen == null or not (seen_pos as Vector2).is_equal_approx(at[id]):
+				elif seen == null or (seen_pos as Vector2).distance_to(at[id]) > settle:
 					printerr("FAIL spawn_late_join %s %s: peer %s sees %s at %s, its owner has %s" % [mode, stage, s.get("id"), id, seen, at[id]])
 					bad += 1
 		if bad == 0:
@@ -161,7 +161,10 @@ func _spawn_session(mode: String, joiners: int) -> int:
 			var s: Dictionary = read.call(i)
 			for id in owned:
 				var seen = s.get("players", {}).get(id)
-				if seen == null or not Vector2(seen["pos"][0], seen["pos"][1]).is_equal_approx(owned[id]):
+				# The owner's body can sit about 2 px off the cell centre when a
+				# wall is above it. Copies catch up a frame later, so the match
+				# is the same settle as the spot check, not an exact vector.
+				if seen == null or Vector2(seen["pos"][0], seen["pos"][1]).distance_to(owned[id]) > settle:
 					return false
 		return true
 	# synced for 300 ms in a row: a copy that matched once, while its owner

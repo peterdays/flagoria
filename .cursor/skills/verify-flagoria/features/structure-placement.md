@@ -2,7 +2,7 @@
 
 Drive: not player-facing
 
-A parsed structure file can be placed on the generated map at an anchor cell. `StructurePlacer` (`Scripts/mechanics/structures/structure_placer.gd`, owned by `Scripts/TileMap.gd`) checks the footprint, writes the ground and object cells, picks wall and gate pieces with `WallSolver`, sets the team flag, and records the placement so `generate_chunk` draws it again after a redraw. Only a host that is still alone places; callers in game are the [starting castle](./start-castle.md) and the buildable wooden tower (#273 / [build-tower](./build-tower.md)). A peer that joins gets the host's placements with the map (`receive_map_params`, after the cuts) and draws them before its player is placed; placements made after a join do not reach peers yet (rest of #278).
+A parsed structure file can be placed on the generated map at an anchor cell. `StructurePlacer` (`Scripts/mechanics/structures/structure_placer.gd`, owned by `Scripts/TileMap.gd`) checks the footprint, writes the ground and object cells, picks wall and gate pieces with `WallSolver`, sets the team flag, and records the placement so `generate_chunk` draws it again after a redraw. Only a host that is still alone places; callers in game are the [starting castle](./start-castle.md) and the buildable wooden tower (#273 / [build-tower](./build-tower.md)). A peer that joins gets the host's placements with the map (`receive_map_params`, after the cuts) and draws them before its player is placed. A castle the host places for a joining peer is sent to peers already connected and is in the list a later peer receives (#278). Towers and walls placed after a join are host requests (#497, #498).
 
 ## Sub-features
 

@@ -87,6 +87,8 @@ func _run() -> void:
 	var deadline := Time.get_ticks_msec() + 90000
 	var next_write := 0
 	while Time.get_ticks_msec() < deadline and not FileAccess.file_exists(out + ".stop"):
+		if main.multiplayer == null:
+			break
 		var me: Node2D = main.get_node_or_null("World/" + str(main.multiplayer.get_unique_id()))
 		var ready := main.world_params != null and me != null
 		if not host and mode in ["place", "capture", "drive"] and phase == "idle" and ready:
@@ -115,8 +117,17 @@ func _run() -> void:
 			_write(out, main, world, me)
 			next_write = Time.get_ticks_msec() + 100
 		await process_frame
-	_write(out, main, world, main.get_node_or_null("World/" + str(main.multiplayer.get_unique_id())))
+	var fin: Node2D = null
+	if main.multiplayer != null:
+		fin = main.get_node_or_null("World/" + str(main.multiplayer.get_unique_id()))
+	_write(out, main, world, fin)
 	quit(0)
+
+
+func _peer_id(main) -> String:
+	if main == null or main.multiplayer == null:
+		return ""
+	return str(main.multiplayer.get_unique_id())
 
 
 func _do_place(main, world, me: Node2D, mode: String) -> String:
@@ -172,6 +183,8 @@ func _scripted_ticks(main, world, text: String) -> void:
 	for node in main.get_node("World/Mobs").get_children():
 		if node is Mob:
 			node.global_position = Vector2(100000, 100000)
+	if main.multiplayer == null:
+		return
 	var me: Node2D = main.get_node_or_null("World/" + str(main.multiplayer.get_unique_id()))
 	if me == null:
 		return
@@ -252,7 +265,8 @@ func _write(out: String, main, world, me: Node2D) -> void:
 			capture.append([int(entry[0]), int(entry[1]), int(entry[2]), float(entry[3])])
 		var scores: Points = main.get_node("Points")
 		var score_ids := {1: true}
-		var uid := int(main.multiplayer.get_unique_id())
+		var peer := _peer_id(main)
+		var uid := int(peer) if peer != "" else 0
 		if uid > 0:
 			score_ids[uid] = true
 		for node in main.get_node("World").get_children():
@@ -267,7 +281,7 @@ func _write(out: String, main, world, me: Node2D) -> void:
 	if file == null:
 		return
 	file.store_string(JSON.stringify({
-		"id": str(main.multiplayer.get_unique_id()) if main != null else "",
+		"id": _peer_id(main),
 		"ready": main != null and main.world_params != null and me != null,
 		"wood": inventory.count_of(Inventory.WOOD) if inventory != null else -1,
 		"refused_wood": _refused_wood,

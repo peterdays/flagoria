@@ -145,7 +145,8 @@ func setup_server(params: MapGenParams, port: int = PORT, with_castle := true) -
 	## Host applies the chosen map params locally, then syncs the full set to
 	## joining peers. With `with_castle` (a host that plays), the host's
 	## starting castle goes next to the spawn while it is still alone, before
-	## the mobs (#271); joining peers receive it with the map (#278).
+	## the mobs (#271). A joining peer receives that castle with the map, and
+	## the host places one for the peer outside the shared spawn (#278).
 	world_params = params.duplicate_params()
 	world_params.ensure_seeds()
 	get_node("/root/MapGen").params = world_params.duplicate_params()
@@ -278,7 +279,8 @@ func _sync_map_params_to_peer(peer_id: int) -> void:
 	## same reliable channel, and regrowth through
 	## Interaction.apply_regrow_cells (#298).
 	## The placed structures go too (StructurePlacer.to_sync), so the peer's
-	## castles match the host's from its first frame (#278 join half).
+	## castles match the host's from its first frame, including the castle
+	## add_player just placed for this peer (#278).
 	## Placed plank bridges go too (BridgeBuilder.to_sync, #297).
 	## Free-form walls, solved auto junctions and cities follow (#498).
 	## The cut list goes JOIN_CUTS_PER_MESSAGE cuts at a time (#354): the
@@ -290,7 +292,8 @@ func _sync_map_params_to_peer(peer_id: int) -> void:
 	var world = get_node("World/worldMap")
 	var parts := WorldSave.split_changes(world.object_changes(), JOIN_CUTS_PER_MESSAGE)
 	rpc_id(peer_id, "receive_map_params", world_params.to_dict(), spot, parts[0],
-			world.structures_for_sync(), world.bridges_for_sync(), _player_spots())
+			world.structures_for_sync(), world.bridges_for_sync(), _player_spots(),
+			world.resolve_player_spawn())
 	var requests := get_node_or_null("World/StructureRequests")
 	if requests != null:
 		requests.sync_to_peer(peer_id)
@@ -306,7 +309,7 @@ func _sync_map_params_to_peer(peer_id: int) -> void:
 
 @rpc("authority", "reliable", "call_remote")
 func receive_map_params(data: Dictionary, spot: Vector2, cuts: Dictionary, placements: Array,
-		bridges: Array = [], spots: Dictionary = {}) -> void:
+		bridges: Array = [], spots: Dictionary = {}, spawn_cell: Vector2i = Vector2i.ZERO) -> void:
 	if multiplayer.get_remote_sender_id() != 1:
 		return  # only the host sends the map; the rpc mode already refuses others
 	var params = MapGenParams.new()
@@ -321,6 +324,7 @@ func receive_map_params(data: Dictionary, spot: Vector2, cuts: Dictionary, place
 	_apply_player_spots(spots)  # other players' server spots (#352), before any draw
 	_place_own_player()  # or once the player arrives, see _on_world_child_entered
 	var world = get_node("World/worldMap")
+	world.set_meta(&"resolved_spawn", spawn_cell)  # same cell the host planned mobs from
 	world.player_spawned = true
 
 
@@ -341,11 +345,25 @@ func receive_join_cuts(cuts: Dictionary) -> void:
 	## they land before any later cut or regrowth.
 	if multiplayer.get_remote_sender_id() != 1:
 		return  # only the host sends the map; the rpc mode already refuses others
-	get_node("World/worldMap").restore_cuts(cuts)
+	get_node("World/worldMap").restore_object_changes(cuts)
 
 
 func add_player(peer_id):
 	# host / peer spawn
+	var world = get_node("World/worldMap")
+	var origin: Vector2i = world.resolve_player_spawn()
+	var rate: float = get_node("/root/GameSettings").mob_rate
+	var mobs: MobSpawner = get_node("World/Mobs")
+	var opening := world_params != null and mobs.opening_roster(world, origin, world_params.altitude_seed, rate)
+	var anchor: Variant = StartCastle.place_for_peer(world, int(peer_id))
+	if anchor is Vector2i:
+		var requests := get_node_or_null("World/StructureRequests")
+		if requests != null:
+			requests.publish_structure(StartCastle.structure().name, int(peer_id), anchor)
+		# The castle can clear trees inside the mob scan. Replan the opening
+		# set so a joiner's plan matches, before any death or other player.
+		if opening:
+			mobs.spawn_for_world(world, origin, world_params.altitude_seed, rate, false)
 	var player = Player.instantiate()
 	player.name = str(peer_id)
 	print("player added", player.name)
@@ -363,7 +381,6 @@ func add_player(peer_id):
 	# sync; send the server's spot so every peer draws them in place (#352).
 	rpc("receive_player_spots", {str(peer_id): player.position})
 
-	var world = get_node("World/worldMap")
 	world.player_spawned = true
 
 

@@ -1,13 +1,9 @@
 extends TileMap
 
-## Layer-0 ground was drawn in `cells`, or (an empty Rect2i) cleared everywhere.
-## Emitted on every peer right after the cells are set, so local visuals that
-## depend on the ground (hidden mobs) update in the same frame.
+## Emitted as the cells change, so local visuals update in that frame.
 signal ground_changed(cells: Rect2i)
-## Stumps regrew in these cells in one regrow_due tick (sent as one RPC, #353).
-signal plants_regrown(cells: Array[Vector2i])
-## Trees sprouted in these cells in one sprout pass (TreeSprouts.due, #361).
-signal trees_sprouted(cells: Array[Vector2i])
+signal plants_regrown(cells: Array[Vector2i])  # one regrow tick (#353)
+signal trees_sprouted(cells: Array[Vector2i])  # one sprout pass (#361)
 
 var count = 0
 var moisture = FastNoiseLite.new()
@@ -139,6 +135,7 @@ func apply_map_params(p: MapGenParams) -> void:
 	_walls.clear()
 	_castle_front = null
 	spawn_point = Vector2i(0, 0)
+	if has_meta(&"resolved_spawn"): remove_meta(&"resolved_spawn")
 	ground_changed.emit(Rect2i())
 
 
@@ -504,10 +501,13 @@ func is_clear_ground(cell: Vector2i) -> bool:
 func reachable_clear_cells(start: Vector2i, limit: int = SpawnFinder.SPAWN_MIN_REACHABLE) -> Array[Vector2i]:
 	return SpawnFinder.reachable_clear_cells(self, start, limit)
 
-
 func resolve_player_spawn(origin_cell: Vector2i = Vector2i(0, 0), max_radius: int = 192) -> Vector2i:
-	## The starting castle's gate front once it is placed, else SpawnFinder's.
-	return _castle_front if _castle_front != null else SpawnFinder.resolve_player_spawn(self, origin_cell, max_radius)
+	## Gate front, else the first search. A later castle must not move it.
+	if _castle_front != null:
+		return _castle_front
+	if not has_meta(&"resolved_spawn"):
+		set_meta(&"resolved_spawn", SpawnFinder.resolve_player_spawn(self, origin_cell, max_radius))
+	return get_meta(&"resolved_spawn")
 
 
 func spawn_spots(origin_cell: Vector2i, limit: int = SpawnFinder.SPAWN_SEARCH_LIMIT) -> Array[Vector2]:

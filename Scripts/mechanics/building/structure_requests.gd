@@ -1,9 +1,11 @@
 class_name StructureRequests
 extends Node
-## Host-request pipeline for structures (#497, #498). A client asks; the host
-## checks reach and the solo footprint, writes, charges the placer, and tells
-## peers. Towers and free-form walls are the kinds. Clients still cannot
-## write: can_place reports multiplayer on for a raw structure place.
+## Host-request pipeline for structures (#497, #498, #278). A client asks; the
+## host checks reach and the solo footprint, writes, charges the placer, and
+## tells peers. Towers and free-form walls are the kinds a client may ask for.
+## A joining peer's starting castle is placed by the host and published here.
+## Clients still cannot write: can_place reports multiplayer on for a raw
+## structure place.
 
 const REQUEST_KINDS := {
 	BuildCosts.TOWER: true,
@@ -70,6 +72,19 @@ func host_erase_wall(cell: Vector2i) -> bool:
 		return false
 	_publish()
 	return true
+
+
+func publish_structure(structure_name: String, owner: int, anchor: Vector2i) -> void:
+	## Host: a castle placed for a peer who just joined. Peers already in the
+	## match receive it. The joining peer receives it in the map snapshot that
+	## follows on the same channel; a repeat of this call is ignored.
+	if not multiplayer.is_server():
+		return
+	if not multiplayer.get_peers().is_empty():
+		apply_structure.rpc(structure_name, owner, anchor, 0)
+	var cities := get_node_or_null("../Cities") as Cities
+	if cities != null:
+		cities.tick()
 
 
 func sync_to_peer(peer_id: int) -> void:
@@ -160,13 +175,21 @@ func request_place(kind: String, cells: Array, quarter_turns: int = 0) -> void:
 
 @rpc("authority", "reliable", "call_remote")
 func apply_structure(structure_name: String, owner: int, anchor: Vector2i, quarter_turns: int = 0) -> void:
-	## Applied only from peer 1, so ids follow the host's list.
+	## Applied only from peer 1, so ids follow the host's list. The same
+	## placement arriving again (snapshot, then this call) is left as it is.
+	## `quarter_turns` is clockwise; 0 keeps an older three-field row.
 	if multiplayer.get_remote_sender_id() != 1:
 		return
+	var map := _map()
+	var turns := posmod(quarter_turns, 4)
+	for entry in map.placed_structures().values():
+		if str(entry["name"]) == structure_name and int(entry["owner"]) == owner \
+				and entry["anchor"] == anchor and int(entry.get("rotation", 0)) == turns:
+			return
 	var structure := StructurePlacer.load_named(structure_name)
 	if structure == null:
 		return
-	_map()._structures.place_from_host(structure, anchor, owner, quarter_turns)
+	map._structures.place_from_host(structure, anchor, owner, quarter_turns)
 
 
 @rpc("authority", "reliable", "call_remote")
