@@ -121,7 +121,8 @@ func can_place(structure: Structure, anchor_cell: Vector2i, quarter_turns: int =
 		var p: Array = _map.predict_cell(cell)
 		if not _map.ground_is_walkable(p[0]) or _map.has_bridge(cell):
 			found[WATER] = true
-		elif p[1] == TileCatalog.TREE or p[1] == TileCatalog.TREE_BUSHY or p[1] == TileCatalog.PINE:
+		elif p[1] == TileCatalog.TREE or p[1] == TileCatalog.TREE_BUSHY or p[1] == TileCatalog.PINE \
+				or p[1] == TileCatalog.TREE_BIRCH_BOTTOM or p[1] == TileCatalog.TREE_BIRCH_TOP:
 			found[TREE] = true
 		elif p[1] == TileCatalog.BUSH:
 			found[BUSH] = true

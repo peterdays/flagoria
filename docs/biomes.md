@@ -190,6 +190,28 @@ TEMPERATE with biomes on still matches the map with biomes off. Saves from
 before swamp scrub load with `swamp_bush_min_chance = 2.0` (none), so they
 regenerate unchanged.
 
+### Birches
+
+With biomes on, a CONTINENTAL cell that would grow a plain broadleaf tree
+(`TileCatalog.TREE`, not the bushy variant) becomes a two-cell birch
+(`TileCatalog.TREE_BIRCH_BOTTOM` on layer 1, `TileCatalog.TREE_BIRCH_TOP` on
+the cell north with no collision) when its plant chance is above
+`birch_min_chance` plus the biome's `birch_chance`. The bottom blocks like a
+tree, is chopped as the tree type, and clears the top. Birches are not placed
+when the top cell would be water or would hold another layer-1 plant. Only
+CONTINENTAL has any:
+
+| Biome             | `birch_chance` | Share of land (seeds 11, 42, 99) |
+|-------------------|----------------|----------------------------------|
+| OCEANIC           | 2.0 (none)     | 0 %                              |
+| TEMPERATE         | 2.0 (none)     | 0 %                              |
+| CONTINENTAL       | -0.25          | about 4.8-5.0 %                |
+| ARCHIPELAGO_DENSE  | 2.0 (none)     | 0 %                              |
+
+TEMPERATE with biomes on still matches the map with biomes off. Saves from
+before birches load with `birch_min_chance = 2.0` (none), so they regenerate
+unchanged.
+
 ## Per-biome structures
 
 With biomes on, `BiomeCatalog.STRUCTURES` scatters walkable stones

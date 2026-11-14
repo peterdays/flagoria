@@ -87,6 +87,10 @@ extends Resource
 # chance is above swamp_bush_min_chance plus the biome's swamp_bush_chance
 # (BiomeCatalog.PLANTS). Biomes on only.
 @export_range(-1.0, 2.0, 0.05) var swamp_bush_min_chance: float = 0.3
+# Birches (TileCatalog.TREE_BIRCH_BOTTOM/TOP): a plain tree cell in
+# CONTINENTAL becomes a two-cell birch when chance is above birch_min_chance
+# plus the biome's birch_chance (BiomeCatalog.PLANTS). Biomes on only.
+@export_range(-1.0, 2.0, 0.05) var birch_min_chance: float = 0.55
 
 
 ## Playable ranges for Random specs (#335): narrower than @export_range where
@@ -125,6 +129,7 @@ const PLAYABLE_RANGES := {
 	"pine_min_chance": [0.1, 0.5, 0.05],
 	"bushy_tree_min_moist": [0.15, 0.5, 0.05],
 	"swamp_bush_min_chance": [0.15, 0.5, 0.05],
+	"birch_min_chance": [0.35, 0.75, 0.05],
 	"foliage_band": [0.03, 0.08, 0.01],  ## height of flower then bush bands above sand
 }
 
@@ -213,6 +218,7 @@ func randomize_specs() -> void:
 	pine_min_chance = _rand_range("pine_min_chance")
 	bushy_tree_min_moist = _rand_range("bushy_tree_min_moist")
 	swamp_bush_min_chance = _rand_range("swamp_bush_min_chance")
+	birch_min_chance = _rand_range("birch_min_chance")
 
 
 func _rand_range(key: String) -> float:

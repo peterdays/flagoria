@@ -8,7 +8,7 @@ The world is split into biomes (oceanic, temperate, continental, dense archipela
 
 - `biome-map` per-biome island density (`Scripts/BiomeCatalog.gd`).
 - `biome-terrain` beaches, swamps and flowers per biome.
-- `biome-plants` tree and bush density per biome, including swamp scrub (bushes on dense-archipelago swamp; a save from before it loads with none).
+- `biome-plants` tree and bush density per biome, including swamp scrub (bushes on dense-archipelago swamp; a save from before it loads with none) and CONTINENTAL birches (two-cell trees; a save from before `birch_min_chance` loads with none).
 - `biome-structures` stones on oceanic and continental land.
 - `world-shape` Map Settings shaping params (`tests/world/test_island_shape.gd`): `island_radius` raises the origin and sinks cells past 1.5 radii; `archipelago_spacing` raises a jittered centre per grid square and sinks the sea between; `archipelago_island_count` (with or without `archipelago_world_extent`) keeps N seed-stable squares, always the spawn square. 0 leaves altitude alone.
 - `biome-default-on` a new world has biomes on; a save written before biomes existed (no `biome_frequency`) loads with them off and regenerates unchanged (#178).

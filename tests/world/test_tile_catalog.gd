@@ -67,7 +67,7 @@ func _test_tile_catalog() -> int:
 		cells[a] = n
 	## Collision drives walkability: water blocks, ground fill does not.
 	var src0: TileSetAtlasSource = tile_set.get_source(TileCatalog.SOURCE_ID)
-	for n in ["WATER", "TREE", "BUSH", "PINE"]:
+	for n in ["WATER", "TREE", "BUSH", "PINE", "TREE_BIRCH_BOTTOM"]:
 		if src0.get_tile_data(TileCatalog.TILES[n]["atlas"], 0).get_collision_polygons_count(0) == 0:
 			printerr("FAIL tile_catalog: %s has no collision polygon" % n)
 			fail += 1

@@ -16,7 +16,7 @@ const _WorldMap := preload("res://Scripts/TileMap.gd")
 ## missing tree sprouts with chance PASS_SECONDS / regrow delay, so a
 ## missing tree takes about one regrow delay to come back, like a stump.
 const PASS_SECONDS := 5.0
-const TREES: Array[Vector2i] = [TileCatalog.TREE, TileCatalog.TREE_BUSHY, TileCatalog.PINE]
+const TREES: Array[Vector2i] = [TileCatalog.TREE, TileCatalog.TREE_BUSHY, TileCatalog.PINE, TileCatalog.TREE_BIRCH_BOTTOM]
 ## Side of the area around each player that a pass counts, in chunks: the
 ## player's chunk and its neighbours. One chunk is smaller than a forest
 ## patch, so a thinned biome would refill only where it was sparse.
@@ -79,10 +79,18 @@ func erase(cell: Vector2i) -> void:
 
 func sprout_tile(cell: Vector2i) -> Vector2i:
 	## The tree the map would grow on `cell` at the highest items chance:
-	## TREE, TREE_BUSHY or PINE, or NO_PLANT when it grows no tree there.
+	## TREE, TREE_BUSHY, birch bottom, or PINE, or NO_PLANT when it grows no tree there.
 	var b := _map.biome_at(cell)
-	var tile := _map.plant_tile(_map.cell_altitude(cell, b), _map.moisture.get_noise_2d(cell.x, cell.y), 1.0, b)
+	var alt := _map.cell_altitude(cell, b)
+	var moist := _map.moisture.get_noise_2d(cell.x, cell.y)
+	var tile := _map.plant_tile(alt, moist, 1.0, b)
+	if _map.biome_frequency > 0.0:
+		tile = _birch_foliage(cell, alt, moist, 1.0, b, false)
 	return tile if tile in TREES else _WorldMap.NO_PLANT
+
+
+func _birch_foliage(cell: Vector2i, alt: float, moist: float, chance: float, biome: int, beach: bool) -> Vector2i:
+	return BirchTrees.foliage_tile(_map, cell, alt, moist, chance, biome, beach)
 
 
 func can_sprout(cell: Vector2i, blocked: Dictionary) -> Vector2i:
@@ -219,9 +227,15 @@ func _untouched(cell: Vector2i) -> Array:
 	var moist := _map.moisture.get_noise_2d(cell.x, cell.y)
 	var chance := _map.items_chance.get_noise_2d(cell.x, cell.y)
 	var ground := _map.ground_tile(alt, moist, chance, b)
-	var open := _walkable(ground) and (_map.biome_frequency <= 0.0 or ground != TileCatalog.SAND)
-	var tree := open and _map.plant_tile(alt, moist, chance, b) in TREES
-	return [b, ground != TileCatalog.WATER, tree, open and _map.plant_tile(alt, moist, 1.0, b) in TREES]
+	var beach := _map.biome_frequency > 0.0 and ground == TileCatalog.SAND
+	var open := _walkable(ground) and not beach
+	var tile: Vector2i = _map.plant_tile(alt, moist, chance, b)
+	if _map.biome_frequency > 0.0:
+		tile = _birch_foliage(cell, alt, moist, chance, b, beach)
+	var tree := open and tile in TREES
+	var may_sprout := open and (_map.plant_tile(alt, moist, 1.0, b) in TREES
+			or (_map.biome_frequency > 0.0 and _birch_foliage(cell, alt, moist, 1.0, b, beach) in TREES))
+	return [b, ground != TileCatalog.WATER, tree, may_sprout]
 
 
 func _count_square(square: Vector2i, window: Rect2i, counts: Array) -> void:

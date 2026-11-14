@@ -209,7 +209,8 @@ func _check_wall(cells: Array[Vector2i], found: Dictionary) -> void:
 			found[WRONG_GROUND] = true
 			continue
 		if p[1] == TileCatalog.TREE or p[1] == TileCatalog.TREE_BUSHY \
-			or p[1] == TileCatalog.PINE or p[1] == TileCatalog.BUSH:
+			or p[1] == TileCatalog.PINE or p[1] == TileCatalog.TREE_BIRCH_BOTTOM \
+			or p[1] == TileCatalog.TREE_BIRCH_TOP or p[1] == TileCatalog.BUSH:
 			found[OCCUPIED] = true
 		elif _map.player_on_cell(cell) or _map.mob_on_cell(cell):
 			found[OCCUPIED] = true
