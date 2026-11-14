@@ -53,8 +53,11 @@ outputs:
     description: "true when the change is gameplay (or labeled)"
     value: ${{ steps.classify.outputs.gameplay }}
   stress_runs:
-    description: Netcode stress runs per scenario (5, 20; unused when gameplay is false)
+    description: Netcode stress runs per scenario (5 or 20; used when run_stress is true)
     value: ${{ steps.classify.outputs.stress_runs }}
+  run_stress:
+    description: "true when the Netcode stress matrix should run (gameplay, or a stress-matrix path)"
+    value: ${{ steps.classify.outputs.run_stress }}
   paths_file:
     description: Path list used for classification
     value: ${{ steps.classify.outputs.paths_file }}
