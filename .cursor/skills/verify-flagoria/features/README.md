@@ -82,7 +82,8 @@ Maintained recipes for proving user-facing and CI-facing behavior. Read this ind
 - [Starting castle](./start-castle.md) — each player's castle next to the spawn, player starts outside the gate; placed by the host while alone, sent to joining peers.
 - [Cities](./cities.md) — closed wall loop around a flag tower makes a city; tint + minimap; capture transfers; the host decides in multiplayer (#277, #498).
 - [Tower capture](./tower-capture.md) — flag towers taken by a lone other side or mobs standing by the flag for 5 s; the host decides, peers receive owner and progress (#274, #497).
-- [Flags held points](./flags-held-points.md) — 1 point per owned flag tower every 5 s (`flags_held`); the host awards, peers share the totals (#275, #497).
+- [Flags held points](./flags-held-points.md) — 1 point per owned flag tower every 5 s (`flags_held`); the host awards, peers share the totals (#275, #497). The live timer is off while land score is on.
+- [Land score](./land-score.md) — score is interior city cells inside an owned flag's range; the host sets it, the scoreboard shows it, a tap draws the ring (#279).
 - [Conquest sync](./conquest-sync.md) — host-owned tower placement, capture progress and flag points in multiplayer; a late joiner matches (#497).
 - [Walls and cities sync](./walls-cities-sync.md) — host-owned wall chains and cities; a late joiner matches free-form walls, auto junctions and city keys (#498).
 - [Castle sync](./castle-sync.md) — the host places each peer's starting castle and every peer, including a late joiner, sees the same castles and owners (#278).

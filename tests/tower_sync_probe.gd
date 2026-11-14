@@ -71,7 +71,10 @@ func _run() -> void:
 		main.add_player(1)
 		if mode == "place" or mode == "capture":
 			main.get_node("World/TowerCapture").set_physics_process(false)
-			# Place mode awards flags once. Discovery must not add points on top.
+			# Place mode awards flags once, with land score off so the total
+			# stays the flags-held fallback. Discovery must not add points on top.
+			LandScore.enabled = false
+			main.get_node("World/LandScore").set_physics_process(false)
 			main.get_node("FlagsHeldPoints").set_physics_process(false)
 			main.get_node("Discovery").set_physics_process(false)
 			for node in main.get_node("World/Mobs").get_children():

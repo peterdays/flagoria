@@ -25,8 +25,11 @@ func run() -> void:
 	step("hud")
 	var hearts := current_scene.get_node(HEARTS)
 	var score: Label = current_scene.get_node(SCORE)
+	var points: Points = current_scene.get_node("Points")
+	var shown := await wait_until(func() -> bool:
+		return score.text == "%d pts" % points.total_of(1), 2.0)
 	print("combat_hud: hearts %d/%d, score '%s'" % [hearts.current, hearts.maximum, score.text])
-	ok = ok and hearts.current == FULL_HEALTH and hearts.maximum == FULL_HEALTH and score.text == "0 pts"
+	ok = ok and hearts.current == FULL_HEALTH and hearts.maximum == FULL_HEALTH and shown
 	await snapshot("start")
 
 	step("swing")

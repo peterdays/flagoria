@@ -305,6 +305,11 @@ func _respawn_follow_case(label: String, death: Vector2, spawn: Vector2, walk: V
 	server_root.add_child(s_world)
 	var scene = load("res://flagoria_main.tscn").instantiate()
 	root.add_child(scene)
+	# This scene is only the owner's network peer. The land counter is not
+	# what the respawn timing measures.
+	var land: Node = scene.get_node_or_null("World/LandScore")
+	if land != null:
+		land.set_physics_process(false)
 	var smp := SceneMultiplayer.new()
 	var cmp := SceneMultiplayer.new()
 	set_multiplayer(smp, server_root.get_path())

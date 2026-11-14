@@ -15,7 +15,11 @@ var _elapsed := 0.0
 
 
 func _physics_process(delta: float) -> void:
-	if not multiplayer.is_server():
+	## Land score replaces this timer while it is enabled (#279). `tick` still
+	## pays when land score is off, which is the fallback and what its tests call.
+	if not multiplayer.is_server() or LandScore.enabled:
+		if LandScore.enabled:
+			_elapsed = 0.0
 		return
 	_elapsed += delta
 	while _elapsed >= INTERVAL:
@@ -27,7 +31,7 @@ func tick() -> int:
 	## Award FLAGS_HELD_POINTS once per player-owned flag tower. Returns how
 	## many towers were paid. Tests call this directly so nothing waits on
 	## INTERVAL. No-op on a client; the host awards with peers connected.
-	if not multiplayer.is_server():
+	if not multiplayer.is_server() or LandScore.enabled:
 		return 0
 	var map: TileMap = get_node_or_null(map_path)
 	var points: Points = get_node_or_null(points_path)
