@@ -39,7 +39,7 @@ and cities.
 
 Preconditions: `doctor.sh` exits `0`. Time cost: `test_wall_place_two_players`
 about 8–15 s alone with `--only=` (three Godot peers); `test_city_change_two_players`
-about 12–25 s alone. In the Netcode stress job each is one scenario at that
+about 4–7 s alone (worst 6.5 s over 50 headless runs). In the Netcode stress job each is one scenario at that
 job's tier (5 or 20). The drive is about 20–40 s under xvfb.
 
 - **Run (headless).** `godot --headless --path . --script res://tests/run_tests.gd -- --only=wall_place_two_players,city_change_two_players`, or the full `tools/verify.sh`.

@@ -8,6 +8,9 @@ var _refused_wood := -1
 var _place_error := ""
 var _shot := false
 var _gap := Vector2i(1 << 20, 0)
+var _out := ""
+## Cell the host erased after the open request. The sentinel means it has not.
+var _erased := Vector2i(1 << 20, 0)
 
 
 class _ErrorLog extends Logger:
@@ -53,6 +56,7 @@ func _run() -> void:
 			shot = arg.trim_prefix("--shot=")
 		elif arg == "--host":
 			host = true
+	_out = out
 	if port == 0 or out == "" or (host and save == "") or change_scene_to_file("res://flagoria_main.tscn") != OK:
 		printerr("wall_sync_probe: needs --port, --out, --save with --host, and the main scene")
 		quit(1)
@@ -86,11 +90,19 @@ func _run() -> void:
 			phase = "working"
 			_place_error = await _do_place(main, world, me, mode)
 			phase = "done"
+		# The open file appears only once it has both coordinates (atomic rename).
+		# An empty file is ignored: latching on create-before-write missed the
+		# erase and the test then sat on its 15 s bound (one run, 22.9 s).
 		if host and mode == "city" and not opened and FileAccess.file_exists(out + ".open"):
-			opened = true
-			var bits := FileAccess.get_file_as_string(out + ".open").replace(",", " ").split(" ", false)
-			if bits.size() >= 2:
-				main.get_node("World/StructureRequests").host_erase_wall(Vector2i(int(bits[0]), int(bits[1])))
+			var text := FileAccess.get_file_as_string(out + ".open").strip_edges()
+			var bits := text.replace(",", " ").split(" ", false)
+			if bits.size() >= 2 and bits[0].is_valid_int() and bits[1].is_valid_int():
+				opened = true
+				var cell := Vector2i(int(bits[0]), int(bits[1]))
+				if not main.get_node("World/StructureRequests").host_erase_wall(cell):
+					_place_error = "could not erase %s" % cell
+				else:
+					_erased = cell
 		if not host and mode == "drive" and phase == "done" and not _shot and _tower_in_cities(main, world):
 			if shot != "" and DisplayServer.get_name() != "headless":
 				await _frames(20)
@@ -121,7 +133,7 @@ func _do_place(main, world, me: Node2D, mode: String) -> String:
 	var interaction: Interaction = main.get_node("World/Interaction")
 	if mode == "wall":
 		return await _place_one_wall(world, me, inventory, requests, interaction)
-	return await _place_city(world, me, inventory, requests, interaction)
+	return await _place_city(main, world, me, inventory, requests, interaction, mode)
 
 
 func _place_one_wall(world, me: Node2D, inventory: Inventory, requests, interaction: Interaction) -> String:
@@ -154,37 +166,102 @@ func _place_one_wall(world, me: Node2D, inventory: Inventory, requests, interact
 	return ""
 
 
-func _place_city(world, me: Node2D, inventory: Inventory, requests, interaction: Interaction) -> String:
+func _place_city(main, world, me: Node2D, inventory: Inventory, requests, interaction: Interaction, mode: String) -> String:
+	## Map seed is fixed by the test (seed 11). Each place waits until the host
+	## has this body, then until that place is on the map. No wall-clock sleep:
+	## a short sleep raced the position sync and a rejected place then burned
+	## the 8 s apply bound.
 	inventory.add(Inventory.WOOD, 50)
 	var spot: Dictionary = _ring_spot(world)
 	if spot.is_empty():
 		return "no 5x5 clear ring"
 	var anchor: Vector2i = spot["anchor"]
 	_gap = spot["gap"]
-	me.global_position = interaction.cell_center(anchor) + Vector2(0, 48)
-	await _wait(400)
+	var err := await _ready_to_build(main, me, interaction.cell_center(anchor) + Vector2(0, 48), mode)
+	if err != "":
+		return err
 	var tower_cell: Array[Vector2i] = [anchor]
 	if not requests.place(BuildCosts.TOWER, tower_cell):
 		return "tower place was not sent"
-	var until := Time.get_ticks_msec() + 8000
-	while Time.get_ticks_msec() < until and _tower_id(world) < 0:
-		await process_frame
-	if _tower_id(world) < 0:
+	if not await _until(func() -> bool: return _tower_id(world) >= 0, 8000):
 		return "tower was not applied"
 	var flag: Vector2i = _tower_flag(world)
-	me.global_position = interaction.cell_center(flag)
-	await _wait(300)
+	err = await _ready_to_build(main, me, interaction.cell_center(flag), mode)
+	if err != "":
+		return err
 	for side in spot["sides"]:
 		var run: Array[Vector2i] = side
 		if not requests.place(BuildCosts.WALL_BLOCK, run):
 			return "wall side was not sent"
-		await _wait(200)
-	until = Time.get_ticks_msec() + 8000
-	while Time.get_ticks_msec() < until and not _ring_applied(world, spot["ring"]):
-		await process_frame
+		if not await _until(func() -> bool: return _cells_walled(world, run), 8000):
+			return "wall side was not applied"
 	if not _ring_applied(world, spot["ring"]):
 		return "ring was not applied"
 	return ""
+
+
+func _ready_to_build(main, me: Node2D, where: Vector2, mode: String) -> String:
+	## Stress peers publish positions in the host probe's status file. The live
+	## drive hosts from the game itself, which does not write that file.
+	if mode == "drive":
+		await _drive_settle(me, where, 400)
+		return ""
+	return await _wait_host_position(main, me, where, 5000)
+
+
+func _drive_settle(me: Node2D, where: Vector2, ms: int) -> void:
+	## Bounded settle for the screenshot drive only. Stress mode does not call this.
+	_pin(me, where)
+	await _wait(ms)
+
+
+func _wait_host_position(main, me: Node2D, where: Vector2, ms: int) -> String:
+	var sync := me.get_node_or_null("MultiplayerSynchronizer")
+	if sync is MultiplayerSynchronizer:
+		(sync as MultiplayerSynchronizer).replication_interval = 0.0
+	var peer_id := str(main.multiplayer.get_unique_id())
+	var until := Time.get_ticks_msec() + ms
+	while Time.get_ticks_msec() < until:
+		_pin(me, where)
+		if _host_sees_position(peer_id, where, 4.0):
+			return ""
+		await process_frame
+	return "host did not ack the player at %s" % where
+
+
+func _pin(me: Node2D, where: Vector2) -> void:
+	me.global_position = where
+	if me is CharacterBody2D:
+		(me as CharacterBody2D).velocity = Vector2.ZERO
+
+
+func _host_sees_position(peer_id: String, where: Vector2, slack: float) -> bool:
+	var path := _out.get_base_dir().path_join("p0.json")
+	if not FileAccess.file_exists(path):
+		return false
+	var data = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not data is Dictionary:
+		return false
+	var pos = data.get("peers", {}).get(peer_id, null)
+	if not pos is Array or pos.size() < 2:
+		return false
+	return Vector2(float(pos[0]), float(pos[1])).distance_to(where) <= slack
+
+
+func _until(cond: Callable, ms: int) -> bool:
+	var until := Time.get_ticks_msec() + ms
+	while Time.get_ticks_msec() < until:
+		if cond.call():
+			return true
+		await process_frame
+	return cond.call()
+
+
+func _cells_walled(world, cells: Array) -> bool:
+	for cell in cells:
+		if not world.has_wall(cell):
+			return false
+	return true
 
 
 func _park_mobs(main) -> void:
@@ -368,6 +445,14 @@ func _write(out: String, main, world, me: Node2D) -> void:
 		for id in ids:
 			cities.append([int(id), node.cities[id]["walls"].size(), node.cities[id]["interior"].size()])
 	var inventory: Inventory = main.get_node("Inventory") if main != null else null
+	var peers := {}
+	var world_root: Node = null
+	if main != null:
+		world_root = main.get_node_or_null("World")
+	if world_root != null:
+		for child in world_root.get_children():
+			if child is CharacterBody2D and str(child.name).is_valid_int():
+				peers[str(child.name)] = [child.global_position.x, child.global_position.y]
 	var file := FileAccess.open(out + ".tmp", FileAccess.WRITE)
 	if file == null:
 		return
@@ -380,6 +465,8 @@ func _write(out: String, main, world, me: Node2D) -> void:
 		"shot": _shot,
 		"tower_id": tower,
 		"gap": [_gap.x, _gap.y],
+		"erased": [_erased.x, _erased.y],
+		"peers": peers,
 		"walls": walls,
 		"autos": autos,
 		"cities": cities,
