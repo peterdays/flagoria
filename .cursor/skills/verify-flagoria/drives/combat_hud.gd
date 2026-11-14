@@ -24,7 +24,7 @@ func run() -> void:
 	var ok := true
 	step("hud")
 	var hearts := current_scene.get_node(HEARTS)
-	var score: ScoreHud = current_scene.get_node(SCORE)
+	var score: Label = current_scene.get_node(SCORE)
 	print("combat_hud: hearts %d/%d, score '%s'" % [hearts.current, hearts.maximum, score.text])
 	ok = ok and hearts.current == FULL_HEALTH and hearts.maximum == FULL_HEALTH and score.text == "0 pts"
 	await snapshot("start")

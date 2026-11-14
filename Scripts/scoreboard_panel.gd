@@ -17,7 +17,7 @@ var _title: Label
 
 func _ready() -> void:
 	visible = false
-	mouse_filter = MOUSE_FILTER_STOP
+	mouse_filter = MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	z_index = 5
 	var panel := PanelContainer.new()
@@ -66,6 +66,7 @@ func is_open() -> bool:
 func open() -> void:
 	if HudLayoutVisual.blocks_hud_actions():
 		return
+	mouse_filter = MOUSE_FILTER_STOP
 	visible = true
 	_refresh()
 	_follow_score_row()
@@ -73,6 +74,7 @@ func open() -> void:
 
 func close() -> void:
 	visible = false
+	mouse_filter = MOUSE_FILTER_IGNORE
 
 
 func toggle() -> void:

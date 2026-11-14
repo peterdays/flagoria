@@ -2,7 +2,7 @@ extends "res://.cursor/skills/verify-flagoria/bin/drive_base.gd"
 ## launch: --display
 ## Two players, discovery points on the host, open scoreboard, phone snapshot (#509).
 
-const SCORE_TOGGLE := "CanvasLayer1/ScoreHud/Toggle"
+const SCORE_TOGGLE := "CanvasLayer1/ScoreboardToggle"
 const CLIENT_JOIN_S := 30.0
 const SCOREBOARD := "CanvasLayer1/ScoreboardPanel"
 
