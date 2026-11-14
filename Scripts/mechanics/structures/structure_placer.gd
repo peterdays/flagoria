@@ -95,14 +95,15 @@ func apply_solved(cell: Vector2i, tile_name: String) -> void:
 	_map.set_cell(1, cell, TileCatalog.SOURCE_ID, atlas)
 
 
-func can_place(structure: Structure, anchor_cell: Vector2i) -> Array[String]:
+func can_place(structure: Structure, anchor_cell: Vector2i, quarter_turns: int = 0) -> Array[String]:
 	## Why `structure` cannot go with its anchor on `anchor_cell`; empty when
 	## it can. Each reason appears once, in the order of the constants above.
 	## Read from predict_cell, so it works on cells not drawn yet.
 	var found := {}
 	if Interaction.multiplayer_on(_map.multiplayer):
 		found[MULTIPLAYER_ON] = true
-	for cell: Vector2i in footprint(structure, anchor_cell):
+	var placed := Structure.rotated(structure, quarter_turns)
+	for cell: Vector2i in footprint(placed, anchor_cell):
 		var p: Array = _map.predict_cell(cell)
 		if not _map.ground_is_walkable(p[0]) or _map.has_bridge(cell):
 			found[WATER] = true
@@ -125,39 +126,45 @@ func can_place(structure: Structure, anchor_cell: Vector2i) -> Array[String]:
 	return out
 
 
-func place(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
+func place(structure: Structure, anchor_cell: Vector2i, owner: int, quarter_turns: int = 0) -> int:
 	## Write `structure` with its anchor on `anchor_cell` for peer `owner`:
 	## ground cells, then object cells. Auto walls and tower rings are solved
 	## with every other wall (an `open` gate drawn open). The owner's flag
 	## colour is applied. Plants, decor and stumps under it are removed.
 	## Returns the new placement id, or -1 and nothing written when can_place
 	## gives any reason.
-	if not can_place(structure, anchor_cell).is_empty():
+	if not can_place(structure, anchor_cell, quarter_turns).is_empty():
 		return -1
-	return _write(structure, anchor_cell, owner)
+	return _write(structure, anchor_cell, owner, quarter_turns)
 
 
-func place_from_host(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
+func place_from_host(structure: Structure, anchor_cell: Vector2i, owner: int, quarter_turns: int = 0) -> int:
 	## The host already decided this placement (#497). Same footprint rules
 	## as can_place, without the multiplayer refuse a client still gets from
 	## can_place. Returns the new id, or -1 when the footprint is refused.
 	var why: Array[String] = []
-	for reason in can_place(structure, anchor_cell):
+	for reason in can_place(structure, anchor_cell, quarter_turns):
 		if reason != MULTIPLAYER_ON:
 			why.append(reason)
 	if not why.is_empty():
 		return -1
-	return _write(structure, anchor_cell, owner)
+	return _write(structure, anchor_cell, owner, quarter_turns)
 
 
 func to_sync() -> Array:
-	## The placements in id order as [name, owner, anchor], the list the host
-	## sends a joining peer with the map.
+	## The placements in id order as [name, owner, anchor, rotation?], the
+	## list the host sends a joining peer with the map. Rotation is quarter
+	## turns clockwise (0–3); omitted when zero for older readers.
 	var out := []
 	var ids := _placed.keys()
 	ids.sort()
 	for id in ids:
-		out.append([_placed[id]["name"], _placed[id]["owner"], _placed[id]["anchor"]])
+		var p: Dictionary = _placed[id]
+		var turns: int = int(p.get("rotation", 0))
+		if turns == 0:
+			out.append([p["name"], p["owner"], p["anchor"]])
+		else:
+			out.append([p["name"], p["owner"], p["anchor"], turns])
 	return out
 
 
@@ -170,12 +177,15 @@ func replace_from_host(list: Array) -> int:
 	## Returns how many placements it holds.
 	clear()
 	for entry in list:
-		if not entry is Array or entry.size() != 3 or not entry[0] is String \
+		if not entry is Array or entry.size() < 3 or not entry[0] is String \
 				or not entry[1] is int or not entry[2] is Vector2i:
 			continue
+		var turns := 0
+		if entry.size() >= 4 and entry[3] is int:
+			turns = entry[3]
 		var structure := load_named(entry[0])
 		if structure != null:
-			_write(structure, entry[2], entry[1])
+			_write(structure, entry[2], entry[1], turns)
 	return _placed.size()
 
 
@@ -188,8 +198,9 @@ static func load_named(structure_name: String) -> Structure:
 	return Structure.parse(FileAccess.get_file_as_string(path))["structure"]
 
 
-func _write(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
-	var foot := footprint(structure, anchor_cell)
+func _write(structure: Structure, anchor_cell: Vector2i, owner: int, quarter_turns: int = 0) -> int:
+	var placed := Structure.rotated(structure, quarter_turns)
+	var foot := footprint(placed, anchor_cell)
 	var flags: Array[Vector2i] = []
 	for cell: Vector2i in foot:
 		var g: Dictionary = foot[cell][0]
@@ -199,7 +210,7 @@ func _write(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
 		if not o.is_empty():
 			var tile: String = o["tile"]
 			var attrs: PackedStringArray = o["attributes"]
-			if "auto" in attrs and _remember_auto(structure, anchor_cell, cell, tile, attrs):
+			if "auto" in attrs and _remember_auto(placed, anchor_cell, cell, tile, attrs):
 				pass
 			else:
 				if "team" in attrs and tile.begins_with("PROP_FLAG_"):
@@ -219,11 +230,15 @@ func _write(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:
 			_map.set_cell(1, cell, TileCatalog.SOURCE_ID, object)
 	var id := _next_id
 	_next_id += 1
-	_placed[id] = {"name": structure.name, "owner": owner, "anchor": anchor_cell}
+	var meta := {"name": structure.name, "owner": owner, "anchor": anchor_cell}
+	var turns := posmod(quarter_turns, 4)
+	if turns != 0:
+		meta["rotation"] = turns
+	_placed[id] = meta
 	if not flags.is_empty():
 		_flags[id] = flags
 	_map._walls.resolve()
-	_map.ground_changed.emit(Rect2i(anchor_cell - structure.anchor, structure.size))
+	_map.ground_changed.emit(Rect2i(anchor_cell - placed.anchor, placed.size))
 	return id
 
 

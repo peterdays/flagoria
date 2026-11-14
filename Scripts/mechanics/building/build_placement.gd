@@ -59,9 +59,17 @@ var _has_wall_tip := false
 var _snap_wood := -1
 var _snap_player_pos := Vector2(INF, INF)
 var _snap_map_rev := -1
+var _snap_rotation := -1
 var _map_rev := 0
 ## Last multiplayer_on seen; Interaction polls and calls on_multiplayer_changed.
 var _mp_was_on := false
+var _rotate := BuildPlacementRotate.new()
+
+var footprint_rotation: int:
+	get:
+		return _rotate.quarter_turns
+	set(value):
+		_rotate.quarter_turns = posmod(value, 4)
 
 
 func setup(interaction: Interaction) -> void:
@@ -75,10 +83,15 @@ func setup(interaction: Interaction) -> void:
 	_refresh_picker_visible()
 
 
+static func is_footprint_tool(value: Tool) -> bool:
+	return value == Tool.TOWER
+
+
 func set_tool(value: Tool) -> void:
 	if tool == Tool.WALL and value != Tool.WALL:
 		_has_wall_tip = false
 	tool = value
+	_rotate.reset()
 	clear_preview()
 	for t in _buttons:
 		var button: Button = _buttons[t]
@@ -100,6 +113,20 @@ func clear_preview() -> void:
 	_snap_wood = -1
 	_snap_player_pos = Vector2(INF, INF)
 	_snap_map_rev = -1
+	_snap_rotation = -1
+	_refresh_rotate_visible()
+
+
+func rotate_footprint() -> void:
+	## Turn the footprint preview 90° clockwise (#493).
+	if not is_footprint_tool(tool):
+		return
+	_rotate.step_cw()
+	_snap_valid = false
+	if cost_viewport != Vector2.ZERO:
+		var inventory := _inventory()
+		if inventory != null:
+			update_preview(cost_viewport, cost_viewport)
 
 
 static func snap_run(from_cell: Vector2i, to_cell: Vector2i) -> Array[Vector2i]:
@@ -206,6 +233,8 @@ func draw_preview(ci: CanvasItem) -> void:
 func on_mode_changed(mode: Interaction.Mode) -> void:
 	if mode != Interaction.Mode.INTERACT:
 		set_tool(Tool.CUT)
+	else:
+		_refresh_rotate_visible()
 	_mp_was_on = Interaction.multiplayer_on(_interaction.multiplayer) if _interaction else false
 	_refresh_picker_visible()
 
@@ -253,7 +282,7 @@ func _update_tower_preview(end_viewport: Vector2, inventory: Inventory) -> void:
 	if _preview_inputs_unchanged(anchor, anchor, inventory):
 		return
 	_remember_preview_inputs(anchor, anchor, inventory)
-	cells = _placer.tower_footprint(anchor)
+	cells = _placer.tower_footprint(anchor, _rotate.quarter_turns)
 	cell_ok.clear()
 	var one: Array[Vector2i] = [anchor]
 	var placeable := false
@@ -261,19 +290,20 @@ func _update_tower_preview(end_viewport: Vector2, inventory: Inventory) -> void:
 	if cells.is_empty():
 		reasons.append(ConstructionPlacer.EMPTY_CELLS)
 	elif not _interaction.in_reach(anchor):
-		var why := _placer.can_place(BuildCosts.TOWER, one, inventory)
+		var why := _placer.can_place(BuildCosts.TOWER, one, inventory, _rotate.quarter_turns)
 		if why.is_empty():
 			reasons.append("out of reach")
 		else:
 			reasons = why
 	else:
-		var why := _placer.can_place(BuildCosts.TOWER, one, inventory)
+		var why := _placer.can_place(BuildCosts.TOWER, one, inventory, _rotate.quarter_turns)
 		placeable = why.is_empty()
 		if not placeable:
 			reasons = why
 	for _i in cells.size():
 		cell_ok.append(placeable)
 	cost = _placer.cost(BuildCosts.TOWER, one) if placeable else 0
+	_position_rotate_button(end_viewport)
 
 
 func _commit_plank(inventory: Inventory) -> bool:
@@ -294,7 +324,7 @@ func _commit_tower(inventory: Inventory) -> bool:
 	if not _interaction.in_reach(anchor):
 		return false
 	var one: Array[Vector2i] = [anchor]
-	return _placer.place(BuildCosts.TOWER, one, inventory)
+	return _placer.place(BuildCosts.TOWER, one, inventory, _rotate.quarter_turns)
 
 
 func _on_buildings_toggled(on: bool) -> void:
@@ -342,6 +372,8 @@ func _ensure_picker() -> void:
 		_picker.add_child(button)
 		_buttons[t] = button
 	_picker.reset_size()
+	_rotate.ensure(hud, theme)
+	_rotate.connect_pressed(rotate_footprint)
 
 
 func _refresh_picker_visible() -> void:
@@ -483,6 +515,8 @@ func _on_ground_changed(_cells: Rect2i) -> void:
 func _preview_inputs_unchanged(from_cell: Vector2i, to_cell: Vector2i, inventory: Inventory) -> bool:
 	if not _snap_valid or from_cell != _snap_from or to_cell != _snap_to:
 		return false
+	if _rotate.quarter_turns != _snap_rotation:
+		return false
 	if inventory.count_of(Inventory.WOOD) != _snap_wood:
 		return false
 	if _map_rev != _snap_map_rev:
@@ -495,6 +529,20 @@ func _remember_preview_inputs(from_cell: Vector2i, to_cell: Vector2i, inventory:
 	_snap_from = from_cell
 	_snap_to = to_cell
 	_snap_valid = true
+	_snap_rotation = _rotate.quarter_turns
 	_snap_wood = inventory.count_of(Inventory.WOOD)
 	_snap_player_pos = _interaction.player.global_position if _interaction.player else Vector2(INF, INF)
 	_snap_map_rev = _map_rev
+
+
+func _refresh_rotate_visible() -> void:
+	if _interaction == null:
+		return
+	var show := _interaction.mode == Interaction.Mode.INTERACT and is_footprint_tool(tool) \
+			and not cells.is_empty()
+	_rotate.set_visible(show)
+
+
+func _position_rotate_button(viewport_pos: Vector2) -> void:
+	_refresh_rotate_visible()
+	_rotate.position_at(viewport_pos)

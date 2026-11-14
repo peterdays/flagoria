@@ -171,6 +171,7 @@ free-form palisade wall cell (#276) is an entry on its cell:
 | `structure` | The shipped structure file, by name (`res://structures/<name>.txt`). |
 | `owner` | The owning peer id, `0` for a neutral tower or `-1` for one the mobs took (#274). The flag colour follows it. |
 | `order` | Placement order, so placement ids come back the same. |
+| `rotation` | Optional quarter turns clockwise (0–3) for a footprint structure placed in a rotated orientation (#493). Omitted when zero. |
 | `wall` | `palisade`: a free-form wall cell. Its piece is solved again on load. |
 
 `StructureSaves.to_changes` writes the entries and `StructureSaves.restore`

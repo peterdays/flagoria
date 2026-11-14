@@ -175,3 +175,41 @@ func _blank_rows() -> PackedStringArray:
 	for y in size.y:
 		rows.append(EMPTY.repeat(size.x))
 	return rows
+
+
+static func rotated(base: Structure, quarter_turns: int) -> Structure:
+	## A copy of `base` turned `quarter_turns` times 90° clockwise (mod 4).
+	## The legend is unchanged; only the grids, size and anchor move.
+	quarter_turns = posmod(quarter_turns, 4)
+	if quarter_turns == 0:
+		return base
+	var out := Structure.new()
+	out.name = base.name
+	out.version = base.version
+	out.size = base.size
+	out.anchor = base.anchor
+	out.tags = base.tags.duplicate()
+	out.comments = base.comments.duplicate()
+	out.legend = base.legend.duplicate(true)
+	out.layers["ground"] = base.layers["ground"].duplicate()
+	out.layers["object"] = base.layers["object"].duplicate()
+	for _turn in quarter_turns:
+		var w := out.size.x
+		var h := out.size.y
+		var next_ground := PackedStringArray()
+		var next_object := PackedStringArray()
+		for ny in w:
+			var grow := ""
+			var orow := ""
+			for nx in h:
+				var ox := w - 1 - ny
+				var oy := nx
+				grow += out.layers["ground"][oy][ox]
+				orow += out.layers["object"][oy][ox]
+			next_ground.append(grow)
+			next_object.append(orow)
+		out.layers["ground"] = next_ground
+		out.layers["object"] = next_object
+		out.anchor = Vector2i(h - 1 - out.anchor.y, out.anchor.x)
+		out.size = Vector2i(h, w)
+	return out

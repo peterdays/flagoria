@@ -3,3 +3,4 @@
 # The cap is the file's size when listed, so it cannot grow. Lower it when the
 # file shrinks, and remove the entry once the file is within its budget.
 Scripts/tile_catalog.gd 642 shared data table mapping every tile name to its atlas coords; one entry per tile, little logic, stays whole by the docs/architecture.md rules
+Scripts/mechanics/building/build_placement.gd 548 interact build picker with plank/wall/tower previews and footprint rotate control; wall segment helpers stay here until a split (#493)
