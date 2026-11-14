@@ -33,6 +33,9 @@ static func restore(changes: Dictionary, map: _WorldMap) -> int:
 	## applied, before any chunk is drawn. A placement naming no shipped
 	## structure, a wall on a cell that no longer generates land, and bad keys
 	## are dropped; other entries are left alone. Returns placements + walls.
+	var cities := map.get_parent().get_node_or_null("Cities") as Cities
+	if cities != null and not changes.is_empty():
+		cities.on_world_cleared()
 	var placed := []
 	var walls: Array[Vector2i] = []
 	for chunk in changes:
@@ -55,6 +58,8 @@ static func restore(changes: Dictionary, map: _WorldMap) -> int:
 	var count: int = map.replace_structures(list) if not list.is_empty() else 0
 	if not walls.is_empty() and map.place_wall_cells(walls):
 		count += walls.size()
+	if count > 0 and cities != null:
+		cities.refresh_after_structure_restore()
 	return count
 
 
