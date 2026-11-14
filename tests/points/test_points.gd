@@ -148,6 +148,166 @@ func _test_points_sync() -> int:
 	return fail
 
 
+func _test_points_scoreboard_two_players() -> int:
+	## After the host awards points, both peers' scoreboards list every
+	## connected player with the same totals, highest first (#509).
+	print("-- test_points_scoreboard_two_players")
+	var fail := 0
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL points_scoreboard_two_players found no free UDP port")
+		return 1
+	var server_root := Node.new()
+	server_root.name = "ScoreboardServer"
+	var client_root := Node.new()
+	client_root.name = "ScoreboardClient"
+	root.add_child(server_root)
+	root.add_child(client_root)
+	var smp := SceneMultiplayer.new()
+	var cmp := SceneMultiplayer.new()
+	set_multiplayer(smp, server_root.get_path())
+	set_multiplayer(cmp, client_root.get_path())
+	var s_points := Points.new()
+	s_points.name = "Points"
+	server_root.add_child(s_points)
+	var c_points := Points.new()
+	c_points.name = "Points"
+	client_root.add_child(c_points)
+	var s_panel := ScoreboardPanel.new()
+	server_root.add_child(s_panel)
+	var c_panel := ScoreboardPanel.new()
+	client_root.add_child(c_panel)
+	s_panel.bind(s_points, Points.SERVER_ID)
+	var speer := ENetMultiplayerPeer.new()
+	speer.create_server(port)
+	smp.multiplayer_peer = speer
+	var cpeer := ENetMultiplayerPeer.new()
+	cpeer.create_client("127.0.0.1", port)
+	cmp.multiplayer_peer = cpeer
+	var me := cpeer.get_unique_id()
+	c_panel.bind(c_points, me)
+	var wait := func(cond: Callable) -> bool:
+		var until := Time.get_ticks_msec() + 5000
+		while Time.get_ticks_msec() < until and not cond.call():
+			await process_frame
+		return cond.call()
+	if not await _client_connected(smp, cpeer):
+		printerr("FAIL points_scoreboard_two_players client did not connect")
+		fail += 1
+	else:
+		if not s_points.award(Points.SERVER_ID, 10, "test") or not s_points.award(me, 4, "test"):
+			printerr("FAIL points_scoreboard_two_players host refused an award")
+			fail += 1
+		elif not await wait.call(func() -> bool: return c_points.total_of(me) == 4):
+			printerr("FAIL points_scoreboard_two_players client total %s, want 4" % c_points.total_of(me))
+			fail += 1
+		else:
+			var want := [[Points.SERVER_ID, 10], [me, 4]]
+			if s_panel.sorted_rows() != want or c_panel.sorted_rows() != want:
+				printerr("FAIL points_scoreboard_two_players host %s client %s, want %s"
+						% [s_panel.sorted_rows(), c_panel.sorted_rows(), want])
+				fail += 1
+			s_points.award(me, 12, "test")
+			if not await wait.call(func() -> bool: return c_points.total_of(me) == 16):
+				printerr("FAIL points_scoreboard_two_players client total %s after bump, want 16"
+						% c_points.total_of(me))
+				fail += 1
+			want = [[me, 16], [Points.SERVER_ID, 10]]
+			if s_panel.sorted_rows() != want or c_panel.sorted_rows() != want:
+				printerr("FAIL points_scoreboard_two_players after bump host %s client %s, want %s"
+						% [s_panel.sorted_rows(), c_panel.sorted_rows(), want])
+				fail += 1
+	cpeer.close()
+	speer.close()
+	set_multiplayer(null, client_root.get_path())
+	set_multiplayer(null, server_root.get_path())
+	server_root.queue_free()
+	client_root.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_points_scoreboard_two_players")
+	return fail
+
+
+func _test_points_scoreboard_late_join() -> int:
+	## A joiner's scoreboard lists every connected player's current total
+	## after the join snapshot (#509).
+	print("-- test_points_scoreboard_late_join")
+	var fail := 0
+	var port := _free_udp_port()
+	if port == 0:
+		printerr("FAIL points_scoreboard_late_join found no free UDP port")
+		return 1
+	var server_root := Node.new()
+	server_root.name = "ScoreboardLateServer"
+	var client_root := Node.new()
+	client_root.name = "ScoreboardLateClient"
+	root.add_child(server_root)
+	root.add_child(client_root)
+	var smp := SceneMultiplayer.new()
+	var cmp := SceneMultiplayer.new()
+	set_multiplayer(smp, server_root.get_path())
+	set_multiplayer(cmp, client_root.get_path())
+	var s_points := Points.new()
+	s_points.name = "Points"
+	server_root.add_child(s_points)
+	var c_points := Points.new()
+	c_points.name = "Points"
+	client_root.add_child(c_points)
+	var speer := ENetMultiplayerPeer.new()
+	speer.create_server(port)
+	smp.multiplayer_peer = speer
+	s_points.award(Points.SERVER_ID, 7, "before join")
+	s_points.award(99, 50, "offline")  ## stale total, not connected
+	var cpeer := ENetMultiplayerPeer.new()
+	cpeer.create_client("127.0.0.1", port)
+	cmp.multiplayer_peer = cpeer
+	var me := cpeer.get_unique_id()
+	var wait := func(cond: Callable) -> bool:
+		var until := Time.get_ticks_msec() + 5000
+		while Time.get_ticks_msec() < until and not cond.call():
+			await process_frame
+		return cond.call()
+	if not await _client_connected(smp, cpeer):
+		printerr("FAIL points_scoreboard_late_join client did not connect")
+		fail += 1
+	elif not await wait.call(func() -> bool: return c_points.total_of(Points.SERVER_ID) == 7):
+		printerr("FAIL points_scoreboard_late_join client host total %s, want 7" % c_points.total_of(Points.SERVER_ID))
+		fail += 1
+	else:
+		var c_panel := ScoreboardPanel.new()
+		client_root.add_child(c_panel)
+		c_panel.bind(c_points, me)
+		await process_frame
+		var want := [[Points.SERVER_ID, 7], [me, 0]]
+		if c_panel.sorted_rows() != want:
+			printerr("FAIL points_scoreboard_late_join joiner rows %s, want %s" % [c_panel.sorted_rows(), want])
+			fail += 1
+		s_points.award(me, 2, "after join")
+		if not await wait.call(func() -> bool: return c_points.total_of(me) == 2):
+			printerr("FAIL points_scoreboard_late_join client total %s, want 2" % c_points.total_of(me))
+			fail += 1
+		want = [[Points.SERVER_ID, 7], [me, 2]]
+		var s_panel := ScoreboardPanel.new()
+		server_root.add_child(s_panel)
+		s_panel.bind(s_points, Points.SERVER_ID)
+		await process_frame
+		if s_panel.sorted_rows() != want or c_panel.sorted_rows() != want:
+			printerr("FAIL points_scoreboard_late_join after award host %s client %s, want %s"
+					% [s_panel.sorted_rows(), c_panel.sorted_rows(), want])
+			fail += 1
+	cpeer.close()
+	speer.close()
+	set_multiplayer(null, client_root.get_path())
+	set_multiplayer(null, server_root.get_path())
+	server_root.queue_free()
+	client_root.queue_free()
+	await process_frame
+	if fail == 0:
+		print("PASS test_points_scoreboard_late_join")
+	return fail
+
+
 func _test_points_mob_kill() -> int:
 	## Kill points by type (slime 5, crab 8, piglet 10) go to the player
 	## whose hit kills the mob, once: earlier hits by another player and hits

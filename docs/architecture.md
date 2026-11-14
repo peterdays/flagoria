@@ -112,7 +112,8 @@ Where each part of the game lives today, how data moves between the parts, and w
 | `Scripts/map_wood_button.gd` | Wood header button shared by the panel and the parchment | stays |
 | `Scripts/parchment_map.gd` | Full-screen parchment of explored ground | stays |
 | `Scripts/hearts_hud.gd` | Hearts row | stays |
-| `Scripts/score_hud.gd` | Point total label | stays |
+| `Scripts/score_hud.gd` | Point total and scoreboard toggle | stays |
+| `Scripts/scoreboard_panel.gd` | All players' totals, highest first (#509) | stays |
 | `Scripts/resource_hud.gd` | Wood count | stays |
 | `Scripts/MainMenu.gd` | Main menu | stays |
 | `Scripts/MapAdminPanel.gd` | Map Settings panel | stays |
