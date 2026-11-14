@@ -162,3 +162,91 @@ func _test_build_castle_save_round_trip() -> int:
 	if fail == 0:
 		print("PASS test_build_castle_save_round_trip")
 	return fail
+
+
+func _castle_towers(world, owner: int) -> Array:
+	var towers: Dictionary = world._structures.towers()
+	var placed: Dictionary = world._structures.placements()
+	var rows: Array = []
+	for id in towers:
+		var entry: Dictionary = placed.get(id, {})
+		if str(entry.get("name", "")) != "castle" or int(entry.get("owner", 0)) != owner:
+			continue
+		var flags: Array = towers[id]
+		if flags.is_empty():
+			continue
+		rows.append({"id": int(id), "flag": flags[0]})
+	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["id"]) < int(b["id"]))
+	return rows
+
+
+func _test_build_castle_land_score_flag() -> int:
+	## A placed extra castle registers its team flag like the start castle and
+	## adds covered land through LandScore (#279).
+	print("-- test_build_castle_land_score_flag")
+	var was_enabled := LandScore.enabled
+	var was_range := LandScore.range_cells
+	LandScore.enabled = true
+	LandScore.range_cells = 5
+	var fail := 0
+	var scene = load("res://flagoria_main.tscn").instantiate()
+	root.add_child(scene)
+	scene.get_node("CanvasLayer2/MainMenu").hide()
+	var world = scene.get_node("World/worldMap")
+	world.set_process(false)
+	var land: LandScore = scene.get_node("World/LandScore")
+	if not world.place_start_castle(1):
+		printerr("FAIL build_castle_land_score_flag: no starting castle")
+		fail += 1
+	elif land == null:
+		printerr("FAIL build_castle_land_score_flag: LandScore missing")
+		fail += 1
+	else:
+		land.tick()
+		var start := _castle_towers(world, 1)
+		if start.is_empty():
+			printerr("FAIL build_castle_land_score_flag: start castle had no flag tower")
+			fail += 1
+		else:
+			var start_flag: Vector2i = start[0]["flag"]
+			var start_id: int = int(start[0]["id"])
+			var before := land.covered_of(1)
+			if land.select_cell(start_flag) != start_id or before <= 0:
+				printerr("FAIL build_castle_land_score_flag: start flag id %s covered %s"
+						% [land.select_cell(start_flag), before])
+				fail += 1
+			else:
+				var anchor: Variant = _extra_castle_anchor(world, 0)
+				if anchor == null:
+					printerr("FAIL build_castle_land_score_flag: no second castle anchor")
+					fail += 1
+				elif world.place_structure(StructurePlacer.load_named("castle"), anchor, 1, 0) <= 0:
+					printerr("FAIL build_castle_land_score_flag: could not place second castle")
+					fail += 1
+				else:
+					land.tick()
+					var built := _castle_towers(world, 1)
+					if built.size() < 2:
+						printerr("FAIL build_castle_land_score_flag: expected two castle flags, got %s" % built.size())
+						fail += 1
+					else:
+						var extra: Dictionary = built[1]
+						if land.select_cell(extra["flag"]) != int(extra["id"]):
+							printerr("FAIL build_castle_land_score_flag: extra flag tower %s"
+									% land.select_cell(extra["flag"]))
+							fail += 1
+						var after := land.covered_of(1)
+						if after <= before:
+							printerr("FAIL build_castle_land_score_flag: covered %s after second castle (was %s)"
+									% [after, before])
+							fail += 1
+						elif land.select_cell(start_flag) != start_id:
+							printerr("FAIL build_castle_land_score_flag: start flag lost selection")
+							fail += 1
+	scene.queue_free()
+	await process_frame
+	LandScore.range_cells = was_range
+	LandScore.enabled = was_enabled
+	if fail == 0:
+		print("PASS test_build_castle_land_score_flag")
+	return fail

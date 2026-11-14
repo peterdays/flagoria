@@ -20,6 +20,8 @@ syncs through `StructureRequests` (#527), including late joiners and world saves
 - `build-castle-sync` a client request syncs owner, anchor and rotation to the
   host, connected peers and a late joiner.
 - `build-castle-save` a placed castle with rotation survives save and reload.
+- `build-castle-land-score` a placed castle's team flag is a LandScore tower like
+  the start castle and adds covered land (#279).
 
 ## How to get to it (user POV)
 
@@ -30,12 +32,13 @@ syncs through `StructureRequests` (#527), including late joiners and world saves
 ## Driving it with verify-flagoria helpers
 
 Preconditions: `doctor.sh` exits `0`. Time cost: `test_construction_placer_castle`
-about 0.8 s in `tools/verify.sh`; `test_build_castle_save_round_trip` about 1.2 s;
+about 0.8 s in `tools/verify.sh`; `test_build_castle_land_score_flag` about 0.5 s;
+`test_build_castle_save_round_trip` about 1.2 s;
 `test_castle_build_two_players` about 6–12 s per stress run. Drive about 25–45 s
 under xvfb.
 
-- **Run (headless).** `godot --headless --path . --script res://tests/run_tests.gd -- --only=construction_placer_castle,build_castle_save_round_trip,castle_build_two_players`, or the full `tools/verify.sh`.
-- **Proof.** `PASS test_construction_placer_castle`, `PASS test_build_castle_save_round_trip`, and `PASS test_castle_build_two_players` with no `FAIL` after them.
+- **Run (headless).** `godot --headless --path . --script res://tests/run_tests.gd -- --only=construction_placer_castle,build_castle_land_score_flag,build_castle_save_round_trip,castle_build_two_players`, or the full `tools/verify.sh`.
+- **Proof.** `PASS test_construction_placer_castle`, `PASS test_build_castle_land_score_flag`, `PASS test_build_castle_save_round_trip`, and `PASS test_castle_build_two_players` with no `FAIL` after them.
 - **Drive (live).** `bin/launch.sh drives/build_castle.gd --seed 7 --display`.
 
 ## Gotchas

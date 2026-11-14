@@ -5,6 +5,7 @@ extends SceneTree
 var _errors := _ErrorLog.new()
 var _refused_wood := -1
 var _place_error := ""
+var _out := ""
 
 
 class _ErrorLog extends Logger:
@@ -47,6 +48,7 @@ func _run() -> void:
 			mode = arg.trim_prefix("--mode=")
 		elif arg == "--host":
 			host = true
+	_out = out
 	if port == 0 or out == "" or (host and save == "") or change_scene_to_file("res://flagoria_main.tscn") != OK:
 		printerr("castle_build_sync_probe: needs --port, --out, --save with --host, and the main scene")
 		quit(1)
@@ -93,7 +95,6 @@ func _do_place(main, world, me: Node2D) -> String:
 	var interaction: Interaction = main.get_node("World/Interaction")
 	var requests = main.get_node("World/StructureRequests")
 	var inventory: Inventory = main.get_node("Inventory")
-	await _wait(1500)
 	var land: Variant = _search(world, func(cell: Vector2i) -> bool:
 		return _castle_ok(world, cell, 0))
 	if land == null:
@@ -102,29 +103,75 @@ func _do_place(main, world, me: Node2D) -> String:
 		return world.predict_cell(cell)[0] == TileCatalog.WATER and not world.has_bridge(cell))
 	if water == null:
 		return "no water cell"
-	me.global_position = interaction.cell_center(water) + Vector2(0, 48)
-	await _wait(500)
+	var err := await _ready_to_build(main, me, interaction.cell_center(water) + Vector2(0, 48))
+	if err != "":
+		return err
 	var before := inventory.count_of(Inventory.WOOD)
 	inventory.add(Inventory.WOOD, 50)
 	var bad: Array[Vector2i] = [water]
 	requests.place(BuildCosts.CASTLE, bad, 0)
-	await _wait(700)
+	if not await _until(func() -> bool: return inventory.count_of(Inventory.WOOD) == before + 50, 8000):
+		return "refused request did not settle wood"
 	_refused_wood = inventory.count_of(Inventory.WOOD)
 	if _refused_wood != before + 50:
 		return "refused request spent wood (%d -> %d)" % [before + 50, _refused_wood]
-	me.global_position = interaction.cell_center(land) + Vector2(0, 48)
-	await _wait(800)
+	err = await _ready_to_build(main, me, interaction.cell_center(land) + Vector2(0, 48))
+	if err != "":
+		return err
 	var one: Array[Vector2i] = [land]
 	if not requests.place(BuildCosts.CASTLE, one, 0):
 		return "place was not sent"
-	var until := Time.get_ticks_msec() + 8000
 	var builder: int = main.multiplayer.get_unique_id()
 	var castles_before: int = _castle_count(world, builder)
+	if not await _until(func() -> bool: return _castle_count(world, builder) > castles_before, 8000):
+		return "built castle was not applied"
+	return ""
+
+
+func _ready_to_build(main, me: Node2D, where: Vector2) -> String:
+	return await _wait_host_position(main, me, where, 5000)
+
+
+func _wait_host_position(main, me: Node2D, where: Vector2, ms: int) -> String:
+	var sync := me.get_node_or_null("MultiplayerSynchronizer")
+	if sync is MultiplayerSynchronizer:
+		(sync as MultiplayerSynchronizer).replication_interval = 0.0
+	var peer_id := str(main.multiplayer.get_unique_id())
+	var until := Time.get_ticks_msec() + ms
 	while Time.get_ticks_msec() < until:
-		if _castle_count(world, builder) > castles_before:
+		_pin(me, where)
+		if _host_sees_position(peer_id, where, 4.0):
 			return ""
 		await process_frame
-	return "built castle was not applied"
+	return "host did not ack the player at %s" % where
+
+
+func _pin(me: Node2D, where: Vector2) -> void:
+	me.global_position = where
+	if me is CharacterBody2D:
+		(me as CharacterBody2D).velocity = Vector2.ZERO
+
+
+func _host_sees_position(peer_id: String, where: Vector2, slack: float) -> bool:
+	var path := _out.get_base_dir().path_join("p0.json")
+	if not FileAccess.file_exists(path):
+		return false
+	var data = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not data is Dictionary:
+		return false
+	var pos = data.get("peers", {}).get(peer_id, null)
+	if not pos is Array or pos.size() < 2:
+		return false
+	return Vector2(float(pos[0]), float(pos[1])).distance_to(where) <= slack
+
+
+func _until(cond: Callable, ms: int) -> bool:
+	var until := Time.get_ticks_msec() + ms
+	while Time.get_ticks_msec() < until:
+		if cond.call():
+			return true
+		await process_frame
+	return cond.call()
 
 
 func _castle_count(world, owner: int) -> int:
@@ -133,12 +180,6 @@ func _castle_count(world, owner: int) -> int:
 		if str(p["name"]) == "castle" and int(p["owner"]) == owner:
 			n += 1
 	return n
-
-
-func _wait(ms: int) -> void:
-	var until := Time.get_ticks_msec() + ms
-	while Time.get_ticks_msec() < until:
-		await process_frame
 
 
 func _search(world, pred: Callable) -> Variant:
@@ -182,6 +223,14 @@ func _write(out: String, main, world, me: Node2D) -> void:
 	if out == "":
 		return
 	var inventory: Inventory = main.get_node("Inventory") if main != null else null
+	var peers := {}
+	var world_root: Node = null
+	if main != null:
+		world_root = main.get_node_or_null("World")
+	if world_root != null:
+		for child in world_root.get_children():
+			if child is CharacterBody2D and str(child.name).is_valid_int():
+				peers[str(child.name)] = [child.global_position.x, child.global_position.y]
 	var file := FileAccess.open(out + ".tmp", FileAccess.WRITE)
 	if file == null:
 		return
@@ -191,6 +240,7 @@ func _write(out: String, main, world, me: Node2D) -> void:
 		"wood": inventory.count_of(Inventory.WOOD) if inventory != null else -1,
 		"refused_wood": _refused_wood,
 		"place_error": _place_error,
+		"peers": peers,
 		"sync": _sync_rows(world),
 		"errors": _errors.snapshot(),
 	}))
