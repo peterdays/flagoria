@@ -32,8 +32,11 @@ Preconditions: `doctor.sh` exits `0`. Time cost: the two new tests add about
 - **Run.** `./tools/verify.sh` and read `artifacts/verify.log` for
   `-- test_object_removals_round_trip` and `-- test_object_removals_in_game`.
 - **Drive (live).** `bin/launch.sh drives/object_removals_save.gd --display
-  --seed 7` picks a nearby flower, saves, reloads the save, and checks the
-  cell stays empty (`before_pick`, `picked`, `loaded`).
+  --seed 7` stages a flower west and stones east of the hero south of the
+  gate, picks the flower in interact mode, destroys the stone in combat,
+  saves, reloads, and checks both cells stay empty (`01-before_pick`,
+  `02-picked`, `03-loaded`, plus `*-zoom` crops and `04-loaded-phone` at
+  854×480 landscape).
 
 ## Gotchas
 
