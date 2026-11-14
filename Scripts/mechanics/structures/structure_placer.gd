@@ -96,14 +96,21 @@ func apply_solved(cell: Vector2i, tile_name: String) -> void:
 	_map.set_cell(1, cell, TileCatalog.SOURCE_ID, atlas)
 
 
-func can_place(structure: Structure, anchor_cell: Vector2i, from_host := false) -> Array[String]:
+func can_place(structure: Structure, anchor_cell: Vector2i, from_host := false, actors := true) -> Array[String]:
 	## Why `structure` cannot go with its anchor on `anchor_cell`; empty when
 	## it can. Each reason appears once, in the order of the constants above.
 	## Read from predict_cell, so it works on cells not drawn yet. `from_host`
 	## skips the multiplayer refuse: the host already decided (#497, #278).
+	## `actors` false skips players and mobs, so a search can reject terrain
+	## before it measures bodies.
 	var found := {}
 	if not from_host and Interaction.multiplayer_on(_map.multiplayer):
 		found[MULTIPLAYER_ON] = true
+	var mobs := {}
+	var players: Array[Rect2] = []
+	if actors:
+		mobs = _map.mob_cells()
+		players = _player_rects()
 	for cell: Vector2i in footprint(structure, anchor_cell):
 		var p: Array = _map.predict_cell(cell)
 		if not _map.ground_is_walkable(p[0]) or _map.has_bridge(cell):
@@ -116,15 +123,38 @@ func can_place(structure: Structure, anchor_cell: Vector2i, from_host := false) 
 			found[OUT_OF_MAP] = true
 		if _cells.has(cell):
 			found[OVERLAPS_STRUCTURE] = true
-		if _map.player_on_cell(cell):
+		if actors and _overlaps_player(players, cell):
 			found[OVERLAPS_PLAYER] = true
-		if _map.mob_on_cell(cell):
+		if actors and mobs.has(cell):
 			found[OVERLAPS_MOB] = true
 	var out: Array[String] = []
 	for reason in [WATER, TREE, BUSH, OUT_OF_MAP, OVERLAPS_STRUCTURE, OVERLAPS_PLAYER, OVERLAPS_MOB, MULTIPLAYER_ON]:
 		if found.has(reason):
 			out.append(reason)
 	return out
+
+
+func _player_rects() -> Array[Rect2]:
+	## Body boxes of every player next to the map, once per can_place.
+	var rects: Array[Rect2] = []
+	var parent := _map.get_parent()
+	if parent == null:
+		return rects
+	for node in parent.get_children():
+		if not node is CharacterBody2D:
+			continue
+		var body := node.get_node_or_null("CollisionShape2D") as CollisionShape2D
+		if body and body.shape:
+			rects.append(body.global_transform * body.shape.get_rect())
+	return rects
+
+
+func _overlaps_player(players: Array[Rect2], cell: Vector2i) -> bool:
+	var cell_rect := Rect2(_map.to_global(_map.map_to_local(cell) - Vector2(8, 8)), Vector2(16, 16) * _map.global_scale)
+	for rect in players:
+		if rect.intersects(cell_rect):
+			return true
+	return false
 
 
 func place(structure: Structure, anchor_cell: Vector2i, owner: int) -> int:

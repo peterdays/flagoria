@@ -55,7 +55,11 @@ static func find_anchor(map: _WorldMap, castle: Structure, origin: Vector2i, kee
 	## ground that reaches SPAWN_MIN_REACHABLE clear cells around the
 	## castle; null when none is within SEARCH_RADIUS. `keep` >= 0 is the
 	## host placing a later castle: skip the multiplayer refuse, and skip a
-	## footprint that comes within `keep` cells of `origin`.
+	## footprint that comes within `keep` cells of `origin`. The ring walk
+	## rejects terrain before it measures players and mobs, so a join does
+	## not stall long enough to drop the peer.
+	if keep >= 0:
+		return _find_outside(map, castle, origin, keep)
 	var fronts: Array[Vector2i] = []
 	for y in range(-SEARCH_RADIUS, SEARCH_RADIUS + 1):
 		for x in range(-SEARCH_RADIUS, SEARCH_RADIUS + 1):
@@ -66,17 +70,63 @@ static func find_anchor(map: _WorldMap, castle: Structure, origin: Vector2i, kee
 		if da != db:
 			return da < db
 		return a.y < b.y if a.y != b.y else a.x < b.x)
-	var from_host := keep >= 0
 	for front in fronts:
-		var anchor := front - GATE_FRONT
-		if from_host and _covers_spawn(castle, anchor, origin, keep):
-			continue
-		if not map.predicted_clear(front) or not map._structures.can_place(castle, anchor, from_host).is_empty():
-			continue
-		var foot := StructurePlacer.footprint(castle, anchor)
-		if SpawnFinder.reachable_clear_cells(map, front, SpawnFinder.SPAWN_MIN_REACHABLE, foot).size() >= SpawnFinder.SPAWN_MIN_REACHABLE:
-			return anchor
+		if _fits(map, castle, front, false):
+			return front - GATE_FRONT
 	return null
+
+
+static func _find_outside(map: _WorldMap, castle: Structure, origin: Vector2i, keep: int) -> Variant:
+	## Nearer rings first, every front, so a spot the full grid would accept
+	## is still accepted. The actor check stays off until the terrain fits.
+	var reach := _front_reach(castle)
+	for dist in range(keep + 1, SEARCH_RADIUS + 1):
+		for front in _ring(origin, dist, 1):
+			if _front_too_close(front, origin, keep, reach) \
+					and _covers_spawn(castle, front - GATE_FRONT, origin, keep):
+				continue
+			if _fits(map, castle, front, true):
+				return front - GATE_FRONT
+	return null
+
+
+static func _ring(origin: Vector2i, dist: int, step: int) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	if dist == 0:
+		out.append(origin)
+		return out
+	for x in range(-dist, dist + 1, step):
+		out.append(origin + Vector2i(x, -dist))
+		out.append(origin + Vector2i(x, dist))
+	for y in range(-dist + step, dist, step):
+		out.append(origin + Vector2i(-dist, y))
+		out.append(origin + Vector2i(dist, y))
+	return out
+
+
+static func _fits(map: _WorldMap, castle: Structure, front: Vector2i, from_host: bool) -> bool:
+	var anchor := front - GATE_FRONT
+	if not map.predicted_clear(front) \
+			or not map._structures.can_place(castle, anchor, from_host, false).is_empty():
+		return false
+	if not map._structures.can_place(castle, anchor, from_host).is_empty():
+		return false
+	var foot := StructurePlacer.footprint(castle, anchor)
+	return SpawnFinder.reachable_clear_cells(map, front, SpawnFinder.SPAWN_MIN_REACHABLE, foot).size() >= SpawnFinder.SPAWN_MIN_REACHABLE
+
+
+static func _front_reach(castle: Structure) -> int:
+	## How far a footprint cell can sit from the gate front, in chebyshev cells.
+	var reach := 0
+	for cell: Vector2i in StructurePlacer.footprint(castle, Vector2i.ZERO):
+		var from_front: Vector2i = cell - GATE_FRONT
+		reach = maxi(reach, maxi(absi(from_front.x), absi(from_front.y)))
+	return reach
+
+
+static func _front_too_close(front: Vector2i, origin: Vector2i, keep: int, reach: int) -> bool:
+	var d: Vector2i = front - origin
+	return maxi(absi(d.x), absi(d.y)) <= keep + reach
 
 
 static func _covers_spawn(castle: Structure, anchor: Vector2i, origin: Vector2i, keep: int) -> bool:
